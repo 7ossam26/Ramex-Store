@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { settingsApi, permissionsApi, usersApi, bankAccountsApi } from '@/lib/settings-api';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth';
+import { useIsDesktop } from '@/hooks/useMediaQuery';
 
 type Section =
   | 'general' | 'tax' | 'pos' | 'cashDrawer' | 'banks'
@@ -448,11 +450,11 @@ function UsersPermissionsSection() {
       {/* Permissions matrix */}
       <div className="space-y-3">
         <h3 className="font-semibold">{ar.settings.permissions.title}</h3>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded border border-border">
           <table className="text-xs border-collapse min-w-max">
             <thead>
-              <tr className="border-b border-border text-muted-foreground">
-                <th className="py-2 px-3 text-right font-medium min-w-48">{ar.settings.permissions.resource}</th>
+              <tr className="border-b border-border text-muted-foreground bg-muted/30">
+                <th className="py-2 px-3 text-right font-medium min-w-48 sticky right-0 bg-muted/30 z-10">{ar.settings.permissions.resource}</th>
                 {(['read', 'write', 'approve'] as const).map((action) => (
                   <>
                     <th key={`seller-${action}`} className="py-2 px-2 text-center font-medium whitespace-nowrap">
@@ -467,8 +469,8 @@ function UsersPermissionsSection() {
             </thead>
             <tbody>
               {RESOURCES.map((resource) => (
-                <tr key={resource} className="border-b border-border hover:bg-muted/40">
-                  <td className="py-1.5 px-3 font-mono text-muted-foreground">{resource}</td>
+                <tr key={resource} className="border-b border-border hover:bg-muted/40 bg-canvas">
+                  <td className="py-1.5 px-3 font-mono text-muted-foreground sticky right-0 bg-canvas z-10">{resource}</td>
                   {(['read', 'write', 'approve'] as const).map((action) => (
                     <>
                       <td key={`seller-${action}`} className="py-1.5 px-2 text-center">
@@ -669,7 +671,8 @@ function SystemSection() {
 
 export function SettingsPage() {
   const { user } = useAuth();
-  const [activeSection, setActiveSection] = useState<Section>('general');
+  const isDesktop = useIsDesktop();
+  const [activeSection, setActiveSection] = useState<Section | null>(null);
 
   const { data: settings, isLoading, error } = useQuery({
     queryKey: ['settings-all'],
@@ -690,6 +693,73 @@ export function SettingsPage() {
   if (isLoading) return <p className="p-6">{ar.loading}</p>;
   if (error || !settings) return <p className="text-red-500 p-6">{ar.common.error}</p>;
 
+  // On desktop the rail + content layout is always visible. activeSection is
+  // forced to a default. On mobile, null means "show the section index"; a
+  // tap selects a section and a back button restores null.
+  const desktopActive: Section = (activeSection ?? 'general') as Section;
+
+  const safeSettings = settings;
+  function renderSection(s: Section) {
+    return (
+      <>
+        {s === 'general'          && <GeneralSection settings={safeSettings} onSave={handleSave} />}
+        {s === 'tax'              && <TaxSection settings={safeSettings} onSave={handleSave} />}
+        {s === 'pos'              && <PosSection settings={safeSettings} onSave={handleSave} />}
+        {s === 'cashDrawer'       && <CashDrawerSection />}
+        {s === 'banks'            && <BanksSection />}
+        {s === 'usersPermissions' && <UsersPermissionsSection />}
+        {s === 'reasonCodes'      && <ReasonCodesSection settings={safeSettings} onSave={handleSave} />}
+        {s === 'dayRollover'      && <DayRolloverSection settings={safeSettings} onSave={handleSave} />}
+        {s === 'system'           && <SystemSection />}
+      </>
+    );
+  }
+
+  // Mobile: index ↔ single-section view
+  if (!isDesktop) {
+    if (activeSection === null) {
+      return (
+        <div dir="rtl" className="space-y-1">
+          <h1 className="text-xl font-bold mb-3">{ar.topbar.settings}</h1>
+          <div className="rounded border border-border bg-canvas overflow-hidden">
+            {SECTIONS.map((s, i) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setActiveSection(s)}
+                className={`w-full flex items-center justify-between px-4 py-3 text-right hover:bg-muted/40 ${
+                  i > 0 ? 'border-t border-border' : ''
+                }`}
+              >
+                <span className="font-medium">{ar.settings.sections[s]}</span>
+                <ChevronLeft className="size-4 text-muted-foreground" />
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div dir="rtl" className="space-y-3">
+        <button
+          type="button"
+          onClick={() => setActiveSection(null)}
+          className="inline-flex items-center gap-1 text-sm text-primary py-2 -mr-2 px-2"
+        >
+          <ChevronRight className="size-4" />
+          {ar.mobile.back}
+        </button>
+        <Card>
+          <CardHeader>
+            <CardTitle>{ar.settings.sections[activeSection]}</CardTitle>
+          </CardHeader>
+          <CardContent>{renderSection(activeSection)}</CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Desktop: existing rail + content
   return (
     <div className="flex gap-6 min-h-[70vh]" dir="rtl">
       {/* Left nav */}
@@ -700,7 +770,7 @@ export function SettingsPage() {
             type="button"
             onClick={() => setActiveSection(s)}
             className={`w-full text-right px-3 py-2 rounded text-sm transition-colors ${
-              activeSection === s
+              desktopActive === s
                 ? 'bg-primary text-primary-foreground font-medium'
                 : 'hover:bg-muted/60 text-muted-foreground'
             }`}
@@ -714,19 +784,9 @@ export function SettingsPage() {
       <div className="flex-1 min-w-0">
         <Card>
           <CardHeader>
-            <CardTitle>{ar.settings.sections[activeSection]}</CardTitle>
+            <CardTitle>{ar.settings.sections[desktopActive]}</CardTitle>
           </CardHeader>
-          <CardContent>
-            {activeSection === 'general'          && <GeneralSection settings={settings} onSave={handleSave} />}
-            {activeSection === 'tax'              && <TaxSection settings={settings} onSave={handleSave} />}
-            {activeSection === 'pos'              && <PosSection settings={settings} onSave={handleSave} />}
-            {activeSection === 'cashDrawer'       && <CashDrawerSection />}
-            {activeSection === 'banks'            && <BanksSection />}
-            {activeSection === 'usersPermissions' && <UsersPermissionsSection />}
-            {activeSection === 'reasonCodes'      && <ReasonCodesSection settings={settings} onSave={handleSave} />}
-            {activeSection === 'dayRollover'      && <DayRolloverSection settings={settings} onSave={handleSave} />}
-            {activeSection === 'system'           && <SystemSection />}
-          </CardContent>
+          <CardContent>{renderSection(desktopActive)}</CardContent>
         </Card>
       </div>
     </div>
