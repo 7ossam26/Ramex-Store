@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { X } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { salesApi } from '@/lib/sales-api';
 import { customersApi } from '@/lib/customers-api';
@@ -53,20 +54,16 @@ function lineSubtotal(line: CartLine): number {
 export function POSPage() {
   const qc = useQueryClient();
 
-  // Cart
   const [cart, setCart] = useState<CartLine[]>([]);
   const [scanError, setScanError] = useState<string | null>(null);
 
-  // Customer
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [customerSearch, setCustomerSearch] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
 
-  // Discount / target final
   const [targetFinalRaw, setTargetFinalRaw] = useState('');
 
-  // Payment
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
   const [cashAmount, setCashAmount] = useState('');
   const [instaAmount, setInstaAmount] = useState('');
@@ -74,11 +71,9 @@ export function POSPage() {
   const [saveAsOpen, setSaveAsOpen] = useState(false);
   const [notesAr, setNotesAr] = useState('');
 
-  // Result
   const [completed, setCompleted] = useState<Invoice | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Bank accounts
   const { data: banks = [] } = useQuery<BankAccount[]>({
     queryKey: ['bank-accounts'],
     queryFn: () => salesApi.bankAccounts(),
@@ -96,7 +91,6 @@ export function POSPage() {
   const targetFinalNum = parseAmount(targetFinalRaw);
   const useCartDiscount = targetFinalRaw.trim() !== '' && targetFinalNum >= 0 && targetFinalNum <= subtotal;
 
-  // Live preview from server (includes tax + rounding)
   const previewLines = useMemo(
     () =>
       cart.map((l) => ({
@@ -116,14 +110,12 @@ export function POSPage() {
     enabled: cart.length > 0,
   });
 
-  // Auto-fill cash when total updates and mode is cash
   useEffect(() => {
     if (preview && !saveAsOpen && paymentMode === 'cash' && cashAmount === '') {
       setCashAmount(preview.total_egp.toFixed(2));
     }
   }, [preview, paymentMode, saveAsOpen, cashAmount]);
 
-  // Scanner: handle Enter
   async function handleScanEnter(barcode: string) {
     setScanError(null);
     if (!barcode.trim()) return;
@@ -136,7 +128,7 @@ export function POSPage() {
       } else if (roll.warehouse !== 'shop' && roll.warehouse !== 'damaged_shop') {
         setScanError(ar.pos.notAtShop);
       } else if (cart.find((l) => l.roll.id === roll.id)) {
-        // already in cart — no-op, ScannerInput clears itself
+        // already in cart
       } else {
         setCart((c) => [...c, { roll, priceOverride: '', lineDiscount: '' }]);
       }
@@ -154,15 +146,12 @@ export function POSPage() {
     setCart((c) => c.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
   }
 
-  // Customer search
   const { data: customerResults = { rows: [] as Customer[], total: 0 } } = useQuery({
     queryKey: ['customers-pick', customerSearch],
-    queryFn: () =>
-      customersApi.list({ search: customerSearch || undefined, limit: 20 }),
+    queryFn: () => customersApi.list({ search: customerSearch || undefined, limit: 20 }),
     enabled: pickerOpen,
   });
 
-  // Submit
   const total = preview?.total_egp ?? subtotal;
   const cashNum = parseAmount(cashAmount);
   const instaNum = parseAmount(instaAmount);
@@ -211,14 +200,12 @@ export function POSPage() {
     },
   });
 
-  // Validation
   const validation = (() => {
     if (cart.length === 0) return ar.pos.cartEmpty;
     if (!customer) return ar.pos.customerRequired;
     if (paymentSum <= 0) return ar.pos.payment;
     if (saveAsOpen) {
       if (paymentSum >= total - 0.001) return null;
-      // server enforces min_deposit_pct, here we only block obviously zero
       return null;
     }
     if (Math.abs(paymentSum - total) > 0.01) return ar.pos.sumMustEqualTotal;
@@ -241,7 +228,7 @@ export function POSPage() {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-7xl mx-auto">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-7xl mx-auto pb-24 lg:pb-4">
       {/* LEFT: cart */}
       <Card className="lg:col-span-1">
         <CardHeader className="pb-3">
@@ -249,7 +236,7 @@ export function POSPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-1">
-            <Label>{ar.pos.scan}</Label>
+            <Label className="text-base">{ar.pos.scan}</Label>
             <ScannerInput
               onScan={(barcode) => { setScanError(null); void handleScanEnter(barcode); }}
               placeholder={ar.labels.scanHint}
@@ -269,62 +256,132 @@ export function POSPage() {
             {cart.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">{ar.pos.cartEmpty}</p>
             ) : (
-              <table className="w-full text-sm">
-                <thead className="text-xs text-muted-foreground">
-                  <tr>
-                    <th className="text-right py-1">{ar.pos.fabric}</th>
-                    <th className="text-right py-1">{ar.pos.weight}</th>
-                    <th className="text-right py-1">{ar.pos.pricePerKg}</th>
-                    <th className="text-right py-1">{ar.pos.lineDiscount}</th>
-                    <th className="text-right py-1">{ar.pos.lineTotal}</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
+              <>
+                {/* Desktop: table */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="text-xs text-muted-foreground">
+                      <tr>
+                        <th className="text-right py-1">{ar.pos.fabric}</th>
+                        <th className="text-right py-1">{ar.pos.weight}</th>
+                        <th className="text-right py-1">{ar.pos.pricePerKg}</th>
+                        <th className="text-right py-1">{ar.pos.lineDiscount}</th>
+                        <th className="text-right py-1">{ar.pos.lineTotal}</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cart.map((l, idx) => (
+                        <tr key={l.roll.id} className="border-t border-border">
+                          <td className="py-2">
+                            <div className="font-medium">{l.roll.fabric_name_ar}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {l.roll.color_name_ar} · {l.roll.roll_sr_no ?? l.roll.internal_barcode}
+                            </div>
+                          </td>
+                          <td className="py-2" dir="ltr">{Number(l.roll.weight_kg).toFixed(3)}</td>
+                          <td className="py-2 w-24">
+                            <Input
+                              value={l.priceOverride}
+                              onChange={(e) => updateLine(idx, { priceOverride: e.target.value })}
+                              placeholder={fmtMoney(l.roll.selling_price_egp)}
+                              dir="ltr"
+                              inputMode="decimal"
+                              className="h-8 text-xs"
+                            />
+                          </td>
+                          <td className="py-2 w-20">
+                            <Input
+                              value={l.lineDiscount}
+                              onChange={(e) => updateLine(idx, { lineDiscount: e.target.value })}
+                              placeholder="0"
+                              dir="ltr"
+                              inputMode="decimal"
+                              className="h-8 text-xs"
+                            />
+                          </td>
+                          <td className="py-2 font-medium" dir="ltr">{fmtMoney(lineSubtotal(l))}</td>
+                          <td>
+                            <Button variant="ghost" size="sm" onClick={() => removeLine(idx)}>
+                              ×
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-border">
+                        <td colSpan={4} className="py-2 text-left font-medium">{ar.pos.subtotal}</td>
+                        <td className="py-2 font-bold" dir="ltr">{fmtMoney(subtotal)}</td>
+                        <td />
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                {/* Mobile: stacked cards */}
+                <div className="md:hidden flex flex-col gap-2">
                   {cart.map((l, idx) => (
-                    <tr key={l.roll.id} className="border-t border-border">
-                      <td className="py-2">
-                        <div className="font-medium">{l.roll.fabric_name_ar}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {l.roll.color_name_ar} · {l.roll.roll_sr_no ?? l.roll.internal_barcode}
+                    <div
+                      key={l.roll.id}
+                      className="rounded border border-border bg-canvas p-3 flex flex-col gap-2"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate">{l.roll.fabric_name_ar}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {l.roll.color_name_ar} · {l.roll.roll_sr_no ?? l.roll.internal_barcode}
+                          </div>
+                          <div className="text-xs text-muted-foreground" dir="ltr">
+                            {Number(l.roll.weight_kg).toFixed(3)} kg
+                          </div>
                         </div>
-                      </td>
-                      <td className="py-2" dir="ltr">{Number(l.roll.weight_kg).toFixed(3)}</td>
-                      <td className="py-2 w-24">
-                        <Input
-                          value={l.priceOverride}
-                          onChange={(e) => updateLine(idx, { priceOverride: e.target.value })}
-                          placeholder={fmtMoney(l.roll.selling_price_egp)}
-                          dir="ltr"
-                          className="h-8 text-xs"
-                        />
-                      </td>
-                      <td className="py-2 w-20">
-                        <Input
-                          value={l.lineDiscount}
-                          onChange={(e) => updateLine(idx, { lineDiscount: e.target.value })}
-                          placeholder="0"
-                          dir="ltr"
-                          className="h-8 text-xs"
-                        />
-                      </td>
-                      <td className="py-2 font-medium" dir="ltr">{fmtMoney(lineSubtotal(l))}</td>
-                      <td>
-                        <Button variant="ghost" size="sm" onClick={() => removeLine(idx)}>
-                          ×
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeLine(idx)}
+                          className="size-11 -mt-2 -ml-2"
+                          aria-label={ar.common.cancel}
+                        >
+                          <X className="size-5" />
                         </Button>
-                      </td>
-                    </tr>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">{ar.pos.pricePerKg}</Label>
+                          <Input
+                            value={l.priceOverride}
+                            onChange={(e) => updateLine(idx, { priceOverride: e.target.value })}
+                            placeholder={fmtMoney(l.roll.selling_price_egp)}
+                            dir="ltr"
+                            inputMode="decimal"
+                            className="h-11"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">{ar.pos.lineDiscount}</Label>
+                          <Input
+                            value={l.lineDiscount}
+                            onChange={(e) => updateLine(idx, { lineDiscount: e.target.value })}
+                            placeholder="0"
+                            dir="ltr"
+                            inputMode="decimal"
+                            className="h-11"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-between pt-1 border-t border-border/60 text-sm">
+                        <span className="text-muted-foreground">{ar.pos.lineTotal}</span>
+                        <span className="font-medium" dir="ltr">{fmtMoney(lineSubtotal(l))}</span>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t border-border">
-                    <td colSpan={4} className="py-2 text-left font-medium">{ar.pos.subtotal}</td>
-                    <td className="py-2 font-bold" dir="ltr">{fmtMoney(subtotal)}</td>
-                    <td />
-                  </tr>
-                </tfoot>
-              </table>
+                  <div className="flex justify-between pt-2 border-t border-border font-bold">
+                    <span>{ar.pos.subtotal}</span>
+                    <span dir="ltr">{fmtMoney(subtotal)}</span>
+                  </div>
+                </div>
+              </>
             )}
           </div>
         </CardContent>
@@ -339,22 +396,22 @@ export function POSPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             {customer ? (
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium">{customer.name_ar}</div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-medium truncate">{customer.name_ar}</div>
                   <div className="text-xs font-mono" dir="ltr">{customer.phone}</div>
                   <div className="text-xs text-muted-foreground">{customer.customer_code}</div>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => setCustomer(null)}>
+                <Button variant="outline" size="sm" onClick={() => setCustomer(null)} className="h-11 md:h-9 shrink-0">
                   {ar.common.cancel}
                 </Button>
               </div>
             ) : (
-              <div className="flex gap-2">
-                <Button onClick={() => setPickerOpen(true)} className="flex-1">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button onClick={() => setPickerOpen(true)} className="flex-1 h-11 md:h-10">
                   {ar.pos.selectCustomer}
                 </Button>
-                <Button variant="outline" onClick={() => setQuickOpen(true)}>
+                <Button variant="outline" onClick={() => setQuickOpen(true)} className="h-11 md:h-10">
                   {ar.pos.quickCustomer}
                 </Button>
               </div>
@@ -375,6 +432,8 @@ export function POSPage() {
                 onChange={(e) => setTargetFinalRaw(e.target.value)}
                 placeholder={fmtMoney(subtotal)}
                 dir="ltr"
+                inputMode="decimal"
+                className="h-11 md:h-10"
               />
             </div>
             {preview && useCartDiscount && preview.cart_discount_egp > 0 && (
@@ -391,14 +450,14 @@ export function POSPage() {
             <CardTitle>{ar.pos.payment}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {(['cash', 'instapay', 'both'] as const).map((m) => (
                 <Button
                   key={m}
                   variant={paymentMode === m ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setPaymentMode(m)}
-                  className="flex-1"
+                  className="h-11 md:h-9"
                 >
                   {ar.pos[m]}
                 </Button>
@@ -412,6 +471,8 @@ export function POSPage() {
                   value={cashAmount}
                   onChange={(e) => setCashAmount(e.target.value)}
                   dir="ltr"
+                  inputMode="decimal"
+                  className="h-11 md:h-10"
                 />
               </div>
             )}
@@ -423,12 +484,14 @@ export function POSPage() {
                     value={instaAmount}
                     onChange={(e) => setInstaAmount(e.target.value)}
                     dir="ltr"
+                    inputMode="decimal"
+                    className="h-11 md:h-10"
                   />
                 </div>
                 <div className="space-y-1">
                   <Label>{ar.pos.bankAccount}</Label>
                   <select
-                    className="h-9 w-full border border-border rounded px-2 bg-canvas"
+                    className="h-11 md:h-9 w-full border border-border rounded px-2 bg-canvas"
                     value={bankAccountId}
                     onChange={(e) => setBankAccountId(e.target.value ? Number(e.target.value) : '')}
                   >
@@ -443,21 +506,26 @@ export function POSPage() {
               </>
             )}
 
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-2 text-sm min-h-11">
               <input
                 type="checkbox"
                 checked={saveAsOpen}
                 onChange={(e) => setSaveAsOpen(e.target.checked)}
+                className="size-5"
               />
               {ar.pos.saveAsOpen}
             </label>
 
             <div className="space-y-1">
               <Label>{ar.pos.notes}</Label>
-              <Input value={notesAr} onChange={(e) => setNotesAr(e.target.value)} dir="rtl" />
+              <Input
+                value={notesAr}
+                onChange={(e) => setNotesAr(e.target.value)}
+                dir="rtl"
+                className="h-11 md:h-10"
+              />
             </div>
 
-            {/* Totals summary */}
             {preview && (
               <div className="text-sm space-y-1 border-t border-border pt-2">
                 <Row label={ar.pos.subtotal} value={fmtMoney(preview.subtotal_egp)} />
@@ -483,7 +551,7 @@ export function POSPage() {
             {submitError && <p className="text-sm text-red-600">{submitError}</p>}
 
             <Button
-              className="w-full"
+              className="w-full h-12"
               size="lg"
               disabled={!!validation || submit.isPending}
               onClick={() => submit.mutate()}
@@ -493,6 +561,26 @@ export function POSPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Mobile sticky bottom bar — visible only when cart has items */}
+      {cart.length > 0 && (
+        <div
+          className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-canvas border-t border-border px-3 py-2 flex items-center gap-3 pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-[0_-2px_8px_-2px_rgba(0,0,0,0.1)]"
+        >
+          <div className="flex-1 min-w-0">
+            <div className="text-xs text-muted-foreground">{ar.pos.subtotal}</div>
+            <div className="font-bold text-base" dir="ltr">{fmtMoney(preview?.total_egp ?? subtotal)}</div>
+          </div>
+          <Button
+            size="lg"
+            className="h-12 flex-1"
+            disabled={!!validation || submit.isPending}
+            onClick={() => submit.mutate()}
+          >
+            {ar.pos.submit}
+          </Button>
+        </div>
+      )}
 
       {/* Customer picker dialog */}
       <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
@@ -505,6 +593,7 @@ export function POSPage() {
             value={customerSearch}
             onChange={(e) => setCustomerSearch(e.target.value)}
             dir="rtl"
+            className="h-11 md:h-10"
           />
           <div className="max-h-80 overflow-auto border border-border rounded">
             {customerResults.rows.map((c) => (
@@ -514,7 +603,7 @@ export function POSPage() {
                   setCustomer(c);
                   setPickerOpen(false);
                 }}
-                className="w-full text-right p-2 hover:bg-muted/40 border-b border-border last:border-0"
+                className="w-full text-right p-3 hover:bg-muted/40 border-b border-border last:border-0 min-h-12"
               >
                 <div className="font-medium">{c.name_ar}</div>
                 <div className="text-xs font-mono text-muted-foreground" dir="ltr">{c.phone}</div>
@@ -544,18 +633,18 @@ export function POSPage() {
             <DialogTitle>{ar.pos.completed}</DialogTitle>
           </DialogHeader>
           {completed && (
-            <div className="space-y-2 text-center">
+            <div className="space-y-3 text-center">
               <p className="text-2xl font-bold">{completed.invoice_no}</p>
               <p className="text-muted-foreground">{ar.pos.total}: {fmtMoney(completed.total_egp)} ج.م</p>
-              <div className="flex gap-2 pt-2">
-                <Button asChild variant="outline" className="flex-1">
+              <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                <Button asChild variant="outline" className="flex-1 h-12">
                   <a href={salesApi.pdfUrl(completed.id, 'original')} target="_blank" rel="noreferrer">
                     {ar.pos.print}
                   </a>
                 </Button>
-                <Button onClick={resetSale} className="flex-1">{ar.pos.newSale}</Button>
+                <Button onClick={resetSale} className="flex-1 h-12">{ar.pos.newSale}</Button>
               </div>
-              <Link to={`/invoices/${completed.id}`} className="text-xs text-primary hover:underline">
+              <Link to={`/invoices/${completed.id}`} className="text-xs text-primary hover:underline inline-block py-2">
                 {ar.invoices.view}
               </Link>
             </div>
@@ -593,7 +682,7 @@ function ManualSearchButton({ onPick }: { onPick: (r: RollLookup) => void }) {
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="h-11 md:h-9">
         {ar.pos.manualSearch}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -606,6 +695,7 @@ function ManualSearchButton({ onPick }: { onPick: (r: RollLookup) => void }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             dir="rtl"
+            className="h-11 md:h-10"
           />
           <div className="max-h-96 overflow-auto border border-border rounded">
             {filtered.map((r) => (
@@ -616,16 +706,16 @@ function ManualSearchButton({ onPick }: { onPick: (r: RollLookup) => void }) {
                   setOpen(false);
                   setSearch('');
                 }}
-                className="w-full text-right p-2 hover:bg-muted/40 border-b border-border last:border-0 text-sm"
+                className="w-full text-right p-3 hover:bg-muted/40 border-b border-border last:border-0 text-sm min-h-12"
               >
-                <div className="flex justify-between">
-                  <div>
-                    <div className="font-medium">{r.fabric_name_ar} / {r.color_name_ar}</div>
+                <div className="flex justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{r.fabric_name_ar} / {r.color_name_ar}</div>
                     <div className="text-xs text-muted-foreground" dir="ltr">
                       {r.roll_sr_no ?? r.internal_barcode} · {Number(r.weight_kg).toFixed(3)} كجم
                     </div>
                   </div>
-                  <div className="text-left">
+                  <div className="text-left shrink-0">
                     <div dir="ltr">{fmtMoney(r.selling_price_egp)}</div>
                   </div>
                 </div>
@@ -676,10 +766,10 @@ function QuickCustomerDialog({
         <DialogHeader>
           <DialogTitle>{ar.pos.quickCustomer}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-2">
+        <div className="space-y-3">
           <div className="space-y-1">
             <Label>{ar.customers.nameAr}</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} dir="rtl" />
+            <Input value={name} onChange={(e) => setName(e.target.value)} dir="rtl" className="h-11 md:h-10" />
           </div>
           <div className="space-y-1">
             <Label>{ar.customers.phone}</Label>
@@ -688,16 +778,20 @@ function QuickCustomerDialog({
               onChange={(e) => setPhone(e.target.value)}
               placeholder="01012345678"
               dir="ltr"
+              inputMode="tel"
+              autoComplete="tel"
+              className="h-11 md:h-10"
             />
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <div className="flex gap-2 justify-end pt-2">
+          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end pt-2">
             <DialogClose asChild>
-              <Button variant="outline">{ar.common.cancel}</Button>
+              <Button variant="outline" className="h-11 md:h-10">{ar.common.cancel}</Button>
             </DialogClose>
             <Button
               onClick={() => create.mutate()}
               disabled={!name || !phone || create.isPending}
+              className="h-11 md:h-10"
             >
               {ar.common.save}
             </Button>
