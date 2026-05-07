@@ -581,4 +581,13 @@ export const ar = {
       critical: 'حرج',
     },
   },
+  mobile: {
+    menu: 'القائمة',
+    filter: 'تصفية',
+    apply: 'تطبيق',
+    close: 'إغلاق',
+    back: 'رجوع',
+    notifications: 'الإشعارات',
+    actions: 'إجراءات',
+  },
 } as const;
