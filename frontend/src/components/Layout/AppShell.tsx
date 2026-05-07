@@ -7,7 +7,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen flex flex-col">
       <OfflineToast />
       <TopBar />
-      <main className="flex-1 p-6">{children}</main>
+      <main className="flex-1 p-3 md:p-6">{children}</main>
     </div>
   );
 }

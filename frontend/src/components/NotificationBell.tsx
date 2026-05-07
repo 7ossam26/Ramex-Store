@@ -3,10 +3,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Bell } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
-import { ar } from 'date-fns/locale';
+import { ar as arLocale } from 'date-fns/locale';
 import { notificationsApi, type NotificationRow } from '@/lib/notifications-api';
-import { getEventTypeLabel } from '@/i18n/notifications';
 import { useAuth } from '@/lib/auth';
+import { useIsDesktop } from '@/hooks/useMediaQuery';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 
 const severityStripe: Record<string, string> = {
   low: 'border-r-4 border-gray-300',
@@ -17,7 +24,7 @@ const severityStripe: Record<string, string> = {
 
 function timeAgo(dateStr: string): string {
   try {
-    return formatDistanceToNow(new Date(dateStr), { addSuffix: true, locale: ar });
+    return formatDistanceToNow(new Date(dateStr), { addSuffix: true, locale: arLocale });
   } catch {
     return '';
   }
@@ -44,7 +51,7 @@ function NotificationItem({
     >
       <div className={`flex items-start justify-between gap-2 ${isUnread ? 'font-bold' : 'font-normal'}`}>
         <div className="flex-1 min-w-0">
-          <div className={`text-sm truncate ${isTheft ? 'text-red-600 font-bold' : ''}`}>
+          <div className={`text-sm ${isTheft ? 'text-red-600 font-bold' : ''}`}>
             {isTheft && <span className="ml-1 text-xs bg-red-100 text-red-700 px-1 py-0.5 rounded">سرقة</span>}
             {n.title_ar}
           </div>
@@ -54,13 +61,13 @@ function NotificationItem({
         {n.is_blocking && !n.resolved_at && isOwner && (
           <div className="flex gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
             <button
-              className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200"
+              className="text-xs px-3 py-2 bg-green-100 text-green-700 rounded hover:bg-green-200 min-h-9"
               onClick={() => onResolve(n.id, 'approved')}
             >
               موافقة
             </button>
             <button
-              className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200"
+              className="text-xs px-3 py-2 bg-red-100 text-red-700 rounded hover:bg-red-200 min-h-9"
               onClick={() => onResolve(n.id, 'rejected')}
             >
               رفض
@@ -78,6 +85,7 @@ export function NotificationBell() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const isOwner = user?.role === 'owner';
+  const isDesktop = useIsDesktop();
 
   const { data: countData } = useQuery({
     queryKey: ['notifications', 'unread-count'],
@@ -94,39 +102,112 @@ export function NotificationBell() {
 
   const markRead = useMutation({
     mutationFn: (id: number) => notificationsApi.markRead(id),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['notifications'] });
-    },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['notifications'] }); },
   });
 
   const markAll = useMutation({
     mutationFn: () => notificationsApi.markAllRead(),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['notifications'] });
-    },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['notifications'] }); },
   });
 
   const resolve = useMutation({
     mutationFn: ({ id, resolution }: { id: number; resolution: 'approved' | 'rejected' }) =>
       notificationsApi.resolve(id, resolution),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['notifications'] });
-    },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['notifications'] }); },
   });
 
   const count = countData?.count ?? 0;
   const rows = listData?.rows ?? [];
 
+  const triggerButton = (
+    <button
+      className="relative inline-flex items-center justify-center size-11 rounded-md hover:bg-muted/50 transition-colors"
+      aria-label="الإشعارات"
+    >
+      <Bell className="size-5" />
+      {count > 0 && (
+        <span className="absolute top-1 right-1 size-4 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold">
+          {count > 99 ? '99+' : count}
+        </span>
+      )}
+    </button>
+  );
+
+  const headerBar = (
+    <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+      <span className="font-semibold text-sm">الإشعارات</span>
+      {count > 0 && (
+        <button
+          className="text-xs text-muted-foreground hover:text-foreground"
+          onClick={() => markAll.mutate()}
+        >
+          تحديد الكل كمقروء
+        </button>
+      )}
+    </div>
+  );
+
+  const list = (
+    <div className="md:max-h-96 overflow-y-auto divide-y divide-border">
+      {rows.length === 0 ? (
+        <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+          لا توجد إشعارات غير مقروءة
+        </div>
+      ) : (
+        rows.map((n) => (
+          <NotificationItem
+            key={n.id}
+            n={n}
+            isOwner={isOwner}
+            onRead={(id) => markRead.mutate(id)}
+            onResolve={(id, res) => resolve.mutate({ id, resolution: res })}
+          />
+        ))
+      )}
+    </div>
+  );
+
+  const footer = (
+    <div className="border-t border-border px-4 py-2">
+      <button
+        className="w-full text-sm text-center text-primary hover:underline py-2"
+        onClick={() => { setOpen(false); navigate('/notifications'); }}
+      >
+        عرض الكل
+      </button>
+    </div>
+  );
+
+  if (!isDesktop) {
+    return (
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetTrigger asChild>{triggerButton}</SheetTrigger>
+        <SheetContent
+          side="top"
+          className="p-0 max-h-[85vh] flex flex-col"
+          dir="rtl"
+        >
+          <SheetHeader className="sr-only">
+            <SheetTitle>الإشعارات</SheetTitle>
+          </SheetHeader>
+          {headerBar}
+          <div className="flex-1 overflow-y-auto">{list}</div>
+          {footer}
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
   return (
     <div className="relative">
       <button
-        className="relative p-2 rounded-md hover:bg-muted/50 transition-colors"
+        className="relative inline-flex items-center justify-center size-11 rounded-md hover:bg-muted/50 transition-colors"
         onClick={() => setOpen((v) => !v)}
         aria-label="الإشعارات"
       >
         <Bell className="size-5" />
         {count > 0 && (
-          <span className="absolute top-0.5 right-0.5 size-4 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold">
+          <span className="absolute top-1 right-1 size-4 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold">
             {count > 99 ? '99+' : count}
           </span>
         )}
@@ -139,44 +220,9 @@ export function NotificationBell() {
             className="absolute left-0 top-full mt-2 w-80 bg-canvas border border-border rounded-lg shadow-lg z-50 overflow-hidden"
             dir="rtl"
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-              <span className="font-semibold text-sm">الإشعارات</span>
-              {count > 0 && (
-                <button
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => markAll.mutate()}
-                >
-                  تحديد الكل كمقروء
-                </button>
-              )}
-            </div>
-
-            <div className="max-h-96 overflow-y-auto divide-y divide-border">
-              {rows.length === 0 ? (
-                <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                  لا توجد إشعارات غير مقروءة
-                </div>
-              ) : (
-                rows.map((n) => (
-                  <NotificationItem
-                    key={n.id}
-                    n={n}
-                    isOwner={isOwner}
-                    onRead={(id) => markRead.mutate(id)}
-                    onResolve={(id, res) => resolve.mutate({ id, resolution: res })}
-                  />
-                ))
-              )}
-            </div>
-
-            <div className="border-t border-border px-4 py-2">
-              <button
-                className="w-full text-sm text-center text-primary hover:underline"
-                onClick={() => { setOpen(false); navigate('/notifications'); }}
-              >
-                عرض الكل
-              </button>
-            </div>
+            {headerBar}
+            {list}
+            {footer}
           </div>
         </>
       )}
