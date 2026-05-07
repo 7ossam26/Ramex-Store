@@ -6,7 +6,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from '@/components/ResponsiveDialog';
 
 interface ScannerInputProps {
   onScan: (barcode: string) => void;

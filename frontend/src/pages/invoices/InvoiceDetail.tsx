@@ -28,7 +28,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from '@/components/ResponsiveDialog';
 
 const STATUS_COLORS: Record<InvoiceStatus, string> = {
   open: 'bg-amber-100 text-amber-800',

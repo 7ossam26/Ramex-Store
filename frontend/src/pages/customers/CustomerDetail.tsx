@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogClose,
-} from '@/components/ui/dialog';
+} from '@/components/ResponsiveDialog';
 import type { LedgerEntry } from '@/lib/customers-types';
 
 type Tab = 'ledger' | 'invoices' | 'notes';

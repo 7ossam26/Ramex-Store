@@ -18,7 +18,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from '@/components/ResponsiveDialog';
 import { ScannerInput } from '@/components/ScannerInput';
 
 type CartLine = {

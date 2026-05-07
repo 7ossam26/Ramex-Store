@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogClose,
-} from '@/components/ui/dialog';
+} from '@/components/ResponsiveDialog';
 
 const PAGE_SIZE = 50;
 
