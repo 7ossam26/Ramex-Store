@@ -12,9 +12,27 @@ salesRouter.post('/sales/preview', requireRole('owner', 'shop_seller'), ctl.prev
 salesRouter.post('/sales', requireRole('owner', 'shop_seller'), ctl.createSale);
 
 salesRouter.get('/invoices', ctl.listInvoices);
+salesRouter.get('/invoices/open', ctl.listOpenInvoices);
+salesRouter.get('/invoices/pending-pickup', ctl.listPendingPickup);
 salesRouter.get('/invoices/:id/pdf', ctl.getInvoicePdf);
+salesRouter.get('/invoices/:id/status-history', ctl.getStatusHistory);
 salesRouter.get('/invoices/:id', ctl.getInvoice);
 salesRouter.post('/invoices/:id/void', requireRole('owner', 'shop_seller'), ctl.voidInvoice);
+salesRouter.post(
+  '/invoices/:id/payments/final',
+  requireRole('owner', 'shop_seller'),
+  ctl.addFinalPayment,
+);
+salesRouter.post(
+  '/invoices/:id/mark-delivered',
+  requireRole('owner', 'shop_seller'),
+  ctl.markDelivered,
+);
+salesRouter.post(
+  '/invoices/:id/cancel',
+  requireRole('owner', 'shop_seller'),
+  ctl.cancelOpenInvoice,
+);
 
 salesRouter.get('/bank-accounts', async (_req, res) => {
   res.json(await listActiveBankAccounts());

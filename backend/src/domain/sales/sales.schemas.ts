@@ -50,3 +50,47 @@ export const PdfVariantSchema = z.object({
   variant: z.enum(['original', 'reprint', 'open']).optional().default('original'),
 });
 export type PdfVariantInput = z.infer<typeof PdfVariantSchema>;
+
+export const FinalPaymentSchema = z.object({
+  payments: z
+    .array(
+      z.object({
+        method: z.enum(['cash', 'instapay']),
+        amount: positiveAmount,
+        bankAccountId: z.coerce.number().int().positive().nullable().optional(),
+      }),
+    )
+    .min(1),
+});
+export type FinalPaymentInput = z.infer<typeof FinalPaymentSchema>;
+
+export const CancelOpenInvoiceSchema = z
+  .object({
+    deposit_handling: z.enum(['full_refund', 'partial_refund', 'keep_as_credit']),
+    refund_method: z.enum(['cash', 'instapay']).nullable().optional(),
+    partial_refund_amount: nonNegativeAmount.nullable().optional(),
+    notes_ar: z.string().min(1).max(2000),
+  })
+  .superRefine((v, ctx) => {
+    if (
+      (v.deposit_handling === 'full_refund' || v.deposit_handling === 'partial_refund') &&
+      !v.refund_method
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['refund_method'],
+        message: 'refund_method required for refund flows',
+      });
+    }
+    if (
+      v.deposit_handling === 'partial_refund' &&
+      (v.partial_refund_amount == null || Number(v.partial_refund_amount) <= 0)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['partial_refund_amount'],
+        message: 'partial_refund_amount required for partial_refund',
+      });
+    }
+  });
+export type CancelOpenInvoiceInput = z.infer<typeof CancelOpenInvoiceSchema>;

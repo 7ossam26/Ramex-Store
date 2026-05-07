@@ -24,6 +24,36 @@ export type Invoice = {
 };
 
 export type InvoiceListRow = Invoice & { customer_name_ar: string };
+export type OpenInvoiceRow = InvoiceListRow & { age_days: number };
+export type PendingPickupRow = InvoiceListRow & { customer_phone: string };
+
+export type InvoiceStatusHistoryEntry = {
+  id: number;
+  invoice_id: number;
+  from_status: string | null;
+  to_status: string;
+  actor_user_id: number;
+  actor_username: string | null;
+  notes_ar: string | null;
+  created_at: string;
+};
+
+export type DepositHandling = 'full_refund' | 'partial_refund' | 'keep_as_credit';
+
+export type FinalPaymentBody = {
+  payments: Array<{
+    method: PaymentMethod;
+    amount: number;
+    bankAccountId?: number | null;
+  }>;
+};
+
+export type CancelOpenInvoiceBody = {
+  deposit_handling: DepositHandling;
+  refund_method?: PaymentMethod | null;
+  partial_refund_amount?: number | null;
+  notes_ar: string;
+};
 
 export type InvoiceLineDetail = {
   id: number;

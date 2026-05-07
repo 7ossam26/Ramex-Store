@@ -1,12 +1,15 @@
 import type { Request, Response } from 'express';
 import {
+  CancelOpenInvoiceSchema,
   CreateSaleSchema,
+  FinalPaymentSchema,
   ListInvoicesQuerySchema,
   PdfVariantSchema,
   SalePreviewSchema,
   VoidInvoiceSchema,
 } from './sales.schemas.js';
 import * as svc from './invoices.service.js';
+import * as openSvc from './openInvoices.service.js';
 import { buildInvoicePdf } from '../../lib/pdf/invoice.js';
 
 const ERR_MAP: Record<string, { status: number; message: string }> = {
@@ -28,6 +31,13 @@ const ERR_MAP: Record<string, { status: number; message: string }> = {
   NO_DEFAULT_BANK_ACCOUNT: { status: 500, message: 'لا يوجد حساب بنكي افتراضي' },
   INVOICE_NOT_VOIDABLE: { status: 409, message: 'لا يمكن إلغاء هذه الفاتورة' },
   VOID_TIME_LIMIT_EXCEEDED: { status: 409, message: 'انتهت فترة السماح بإلغاء الفاتورة' },
+  INVOICE_NOT_OPEN: { status: 409, message: 'الفاتورة ليست في حالة مفتوحة' },
+  INVOICE_NOT_PENDING_PICKUP: { status: 409, message: 'الفاتورة ليست بانتظار الاستلام' },
+  INVOICE_NOT_CANCELLABLE: { status: 409, message: 'لا يمكن إلغاء هذه الفاتورة في حالتها الحالية' },
+  FINAL_PAYMENT_BELOW_BALANCE: { status: 400, message: 'الدفعة النهائية أقل من الباقي المطلوب' },
+  PARTIAL_REFUND_INVALID: { status: 400, message: 'مبلغ الاسترجاع الجزئي غير صحيح' },
+  PARTIAL_REFUND_EXCEEDS_PAID: { status: 400, message: 'مبلغ الاسترجاع أكبر من المدفوع' },
+  REFUND_METHOD_REQUIRED: { status: 400, message: 'طريقة الاسترجاع مطلوبة' },
 };
 
 function handleDomainError(e: unknown, res: Response): boolean {
@@ -96,6 +106,60 @@ export async function getInvoice(req: Request, res: Response): Promise<void> {
 export async function listInvoices(req: Request, res: Response): Promise<void> {
   const query = ListInvoicesQuerySchema.parse(req.query);
   res.json(await svc.listInvoices(query));
+}
+
+export async function addFinalPayment(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  const data = FinalPaymentSchema.parse(req.body);
+  try {
+    const result = await openSvc.addFinalPayment(id, actorId(req), data.payments);
+    res.json(result);
+  } catch (e) {
+    if (handleDomainError(e, res)) return;
+    throw e;
+  }
+}
+
+export async function markDelivered(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  try {
+    const result = await openSvc.markDelivered(id, actorId(req));
+    res.json(result);
+  } catch (e) {
+    if (handleDomainError(e, res)) return;
+    throw e;
+  }
+}
+
+export async function cancelOpenInvoice(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  const data = CancelOpenInvoiceSchema.parse(req.body);
+  try {
+    const result = await openSvc.cancelOpenInvoice(id, actorId(req), {
+      depositHandling: data.deposit_handling,
+      refundMethod: data.refund_method ?? null,
+      partialRefundAmount:
+        data.partial_refund_amount == null ? null : Number(data.partial_refund_amount),
+      notesAr: data.notes_ar,
+    });
+    res.json(result);
+  } catch (e) {
+    if (handleDomainError(e, res)) return;
+    throw e;
+  }
+}
+
+export async function getStatusHistory(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  res.json(await openSvc.getStatusHistory(id));
+}
+
+export async function listOpenInvoices(_req: Request, res: Response): Promise<void> {
+  res.json(await openSvc.listOpenInvoices());
+}
+
+export async function listPendingPickup(_req: Request, res: Response): Promise<void> {
+  res.json(await openSvc.listPendingPickup());
 }
 
 export async function getInvoicePdf(req: Request, res: Response): Promise<void> {

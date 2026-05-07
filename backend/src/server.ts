@@ -9,6 +9,7 @@ import { logger } from './lib/logger.js';
 import { requestId } from './middleware/request-id.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { apiRouter } from './api/routes.js';
+import { startStaleInvoiceCron } from './domain/sales/staleInvoices.job.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -35,4 +36,5 @@ export { app };
 // Only start listening when this file is run directly (not imported by tests)
 if (process.env.NODE_ENV !== 'test') {
   app.listen(env.PORT, () => logger.info({ port: env.PORT }, 'ramex-store server up'));
+  startStaleInvoiceCron();
 }

@@ -5,7 +5,16 @@ import axios from 'axios';
 import { ar } from '@/i18n/ar';
 import { salesApi } from '@/lib/sales-api';
 import { useAuth } from '@/lib/auth';
-import type { InvoiceDetail, InvoiceStatus } from '@/lib/sales-types';
+import type {
+  BankAccount,
+  CancelOpenInvoiceBody,
+  DepositHandling,
+  FinalPaymentBody,
+  InvoiceDetail,
+  InvoiceStatus,
+  InvoiceStatusHistoryEntry,
+  PaymentMethod,
+} from '@/lib/sales-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,6 +47,12 @@ function fmtDate(iso: string): string {
   });
 }
 
+function parseAmount(s: string): number {
+  if (!s) return 0;
+  const v = Number(s);
+  return Number.isFinite(v) ? v : 0;
+}
+
 export function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const idNum = Number(id);
@@ -49,9 +64,17 @@ export function InvoiceDetailPage() {
   const [voidReason, setVoidReason] = useState('');
   const [voidResult, setVoidResult] = useState<string | null>(null);
 
+  const [finalPayOpen, setFinalPayOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+
   const { data, isLoading } = useQuery<InvoiceDetail>({
     queryKey: ['invoice', idNum],
     queryFn: () => salesApi.get(idNum),
+  });
+
+  const history = useQuery<InvoiceStatusHistoryEntry[]>({
+    queryKey: ['invoice', idNum, 'history'],
+    queryFn: () => salesApi.statusHistory(idNum),
   });
 
   const voidMut = useMutation({
@@ -72,6 +95,15 @@ export function InvoiceDetailPage() {
     },
   });
 
+  const deliverMut = useMutation({
+    mutationFn: () => salesApi.markDelivered(idNum),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['invoice', idNum] });
+      qc.invalidateQueries({ queryKey: ['invoice', idNum, 'history'] });
+      qc.invalidateQueries({ queryKey: ['invoices'] });
+    },
+  });
+
   if (isLoading || !data) {
     return <p className="text-center text-muted-foreground p-8">{ar.loading}</p>;
   }
@@ -79,7 +111,10 @@ export function InvoiceDetailPage() {
   const variant: 'original' | 'reprint' | 'open' =
     inv.status === 'open' ? 'open' : 'original';
 
-  const canVoid = inv.status === 'completed' || inv.status === 'closed_pending_pickup';
+  const canVoid = inv.status === 'completed';
+  const canAddFinal = inv.status === 'open';
+  const canDeliver = inv.status === 'closed_pending_pickup';
+  const canCancelOpen = inv.status === 'open' || inv.status === 'closed_pending_pickup';
 
   return (
     <div className="max-w-4xl mx-auto space-y-4">
@@ -88,7 +123,7 @@ export function InvoiceDetailPage() {
           <h1 className="text-xl font-bold font-mono">{inv.invoice_no}</h1>
           <p className="text-sm text-muted-foreground">{fmtDate(inv.created_at)} · {ar.invoices.cashier}: {inv.cashier_username}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className={`px-2 py-1 rounded text-xs ${STATUS_COLORS[inv.status]}`}>
             {ar.invoices.statuses[inv.status]}
           </span>
@@ -102,6 +137,29 @@ export function InvoiceDetailPage() {
               {ar.invoices.reprint}
             </a>
           </Button>
+          {canAddFinal && (
+            <Button size="sm" onClick={() => setFinalPayOpen(true)}>
+              {ar.invoices.addFinalPayment}
+            </Button>
+          )}
+          {canDeliver && (
+            <Button
+              size="sm"
+              onClick={() => {
+                if (window.confirm(ar.invoices.markDeliveredConfirm)) {
+                  deliverMut.mutate();
+                }
+              }}
+              disabled={deliverMut.isPending}
+            >
+              {ar.invoices.markDelivered}
+            </Button>
+          )}
+          {canCancelOpen && (
+            <Button variant="outline" size="sm" onClick={() => setCancelOpen(true)}>
+              {ar.invoices.cancelOpenInvoice}
+            </Button>
+          )}
           {canVoid && (
             <Button variant="outline" size="sm" onClick={() => setVoidOpen(true)}>
               {ar.invoices.voidAction}
@@ -221,7 +279,70 @@ export function InvoiceDetailPage() {
         </Card>
       )}
 
-      {/* Void dialog */}
+      {/* Status history */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">{ar.invoices.statusHistory}</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {history.isLoading ? (
+            <p className="p-4 text-center text-muted-foreground text-sm">{ar.loading}</p>
+          ) : !history.data || history.data.length === 0 ? (
+            <p className="p-4 text-center text-muted-foreground text-sm">{ar.invoices.statusHistoryEmpty}</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {history.data.map((h) => (
+                <li key={h.id} className="px-3 py-2 text-sm">
+                  <div className="flex justify-between gap-2">
+                    <span>
+                      {h.from_status ? labelStatus(h.from_status) : '—'}
+                      {' '}→{' '}
+                      <span className="font-medium">{labelStatus(h.to_status)}</span>
+                    </span>
+                    <span className="text-xs text-muted-foreground" dir="ltr">{fmtDate(h.created_at)}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {ar.invoices.actor}: {h.actor_username ?? '—'}
+                    {h.notes_ar && <> · {h.notes_ar}</>}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Final payment dialog */}
+      {canAddFinal && (
+        <FinalPaymentDialog
+          open={finalPayOpen}
+          onOpenChange={setFinalPayOpen}
+          invoiceId={inv.id}
+          balance={Number(inv.balance_egp)}
+          onSuccess={() => {
+            qc.invalidateQueries({ queryKey: ['invoice', inv.id] });
+            qc.invalidateQueries({ queryKey: ['invoice', inv.id, 'history'] });
+            qc.invalidateQueries({ queryKey: ['invoices'] });
+          }}
+        />
+      )}
+
+      {/* Cancel open invoice dialog */}
+      {canCancelOpen && (
+        <CancelOpenDialog
+          open={cancelOpen}
+          onOpenChange={setCancelOpen}
+          invoiceId={inv.id}
+          paid={Number(inv.paid_egp)}
+          onSuccess={() => {
+            qc.invalidateQueries({ queryKey: ['invoice', inv.id] });
+            qc.invalidateQueries({ queryKey: ['invoice', inv.id, 'history'] });
+            qc.invalidateQueries({ queryKey: ['invoices'] });
+          }}
+        />
+      )}
+
+      {/* Void dialog (completed only) */}
       <Dialog open={voidOpen} onOpenChange={(o) => { setVoidOpen(o); if (!o) setVoidResult(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -245,6 +366,258 @@ export function InvoiceDetailPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function labelStatus(s: string): string {
+  const known = ar.invoices.statuses as Record<string, string>;
+  return known[s] ?? s;
+}
+
+function FinalPaymentDialog({
+  open,
+  onOpenChange,
+  invoiceId,
+  balance,
+  onSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  invoiceId: number;
+  balance: number;
+  onSuccess: () => void;
+}) {
+  const [method, setMethod] = useState<PaymentMethod | 'both'>('cash');
+  const [cashAmount, setCashAmount] = useState(String(balance.toFixed(2)));
+  const [instaAmount, setInstaAmount] = useState('');
+  const [bankAccountId, setBankAccountId] = useState<number | ''>('');
+  const [error, setError] = useState<string | null>(null);
+
+  const banks = useQuery<BankAccount[]>({
+    queryKey: ['bank-accounts'],
+    queryFn: salesApi.bankAccounts,
+    enabled: open && method !== 'cash',
+  });
+
+  const mut = useMutation({
+    mutationFn: (body: FinalPaymentBody) => salesApi.addFinalPayment(invoiceId, body),
+    onSuccess: () => {
+      onSuccess();
+      onOpenChange(false);
+    },
+    onError: (e: unknown) => {
+      const data = axios.isAxiosError(e) ? (e.response?.data as { message?: string } | undefined) : undefined;
+      setError(data?.message ?? ar.common.error);
+    },
+  });
+
+  function submit() {
+    setError(null);
+    const payments: FinalPaymentBody['payments'] = [];
+    if (method === 'cash') {
+      payments.push({ method: 'cash', amount: parseAmount(cashAmount) });
+    } else if (method === 'instapay') {
+      payments.push({
+        method: 'instapay',
+        amount: parseAmount(cashAmount),
+        bankAccountId: bankAccountId === '' ? null : Number(bankAccountId),
+      });
+    } else {
+      const cashV = parseAmount(cashAmount);
+      const instaV = parseAmount(instaAmount);
+      if (cashV > 0) payments.push({ method: 'cash', amount: cashV });
+      if (instaV > 0) {
+        payments.push({
+          method: 'instapay',
+          amount: instaV,
+          bankAccountId: bankAccountId === '' ? null : Number(bankAccountId),
+        });
+      }
+    }
+    if (payments.length === 0) {
+      setError(ar.common.error);
+      return;
+    }
+    mut.mutate({ payments });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{ar.invoices.finalPaymentTitle}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="text-sm">
+            {ar.pos.balance}: <span className="font-medium" dir="ltr">{balance.toFixed(2)}</span>
+          </div>
+          <div className="space-y-1">
+            <Label>{ar.pos.paymentMethod}</Label>
+            <select
+              className="h-9 w-full border border-border rounded px-2 bg-canvas"
+              value={method}
+              onChange={(e) => setMethod(e.target.value as PaymentMethod | 'both')}
+            >
+              <option value="cash">{ar.pos.cash}</option>
+              <option value="instapay">{ar.pos.instapay}</option>
+              <option value="both">{ar.pos.both}</option>
+            </select>
+          </div>
+          {method === 'both' ? (
+            <>
+              <div className="space-y-1">
+                <Label>{ar.pos.cashAmount}</Label>
+                <Input value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} dir="ltr" inputMode="decimal" />
+              </div>
+              <div className="space-y-1">
+                <Label>{ar.pos.instapayAmount}</Label>
+                <Input value={instaAmount} onChange={(e) => setInstaAmount(e.target.value)} dir="ltr" inputMode="decimal" />
+              </div>
+            </>
+          ) : (
+            <div className="space-y-1">
+              <Label>{method === 'cash' ? ar.pos.cashAmount : ar.pos.instapayAmount}</Label>
+              <Input value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} dir="ltr" inputMode="decimal" />
+            </div>
+          )}
+          {method !== 'cash' && (
+            <div className="space-y-1">
+              <Label>{ar.pos.bankAccount}</Label>
+              <select
+                className="h-9 w-full border border-border rounded px-2 bg-canvas"
+                value={bankAccountId === '' ? '' : String(bankAccountId)}
+                onChange={(e) => setBankAccountId(e.target.value === '' ? '' : Number(e.target.value))}
+              >
+                <option value="">—</option>
+                {(banks.data ?? []).map((b) => (
+                  <option key={b.id} value={b.id}>{b.name_ar}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {error && <p className="text-sm text-red-700">{error}</p>}
+          <div className="flex gap-2 justify-end pt-2">
+            <DialogClose asChild>
+              <Button variant="outline">{ar.common.cancel}</Button>
+            </DialogClose>
+            <Button onClick={submit} disabled={mut.isPending}>
+              {ar.common.save}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CancelOpenDialog({
+  open,
+  onOpenChange,
+  invoiceId,
+  paid,
+  onSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  invoiceId: number;
+  paid: number;
+  onSuccess: () => void;
+}) {
+  const [handling, setHandling] = useState<DepositHandling>('full_refund');
+  const [refundMethod, setRefundMethod] = useState<PaymentMethod>('cash');
+  const [partialAmount, setPartialAmount] = useState('');
+  const [notes, setNotes] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const mut = useMutation({
+    mutationFn: (body: CancelOpenInvoiceBody) => salesApi.cancelOpenInvoice(invoiceId, body),
+    onSuccess: () => {
+      onSuccess();
+      onOpenChange(false);
+    },
+    onError: (e: unknown) => {
+      const data = axios.isAxiosError(e) ? (e.response?.data as { message?: string } | undefined) : undefined;
+      setError(data?.message ?? ar.common.error);
+    },
+  });
+
+  function submit() {
+    setError(null);
+    if (!notes.trim()) {
+      setError(ar.invoices.cancelReason);
+      return;
+    }
+    const body: CancelOpenInvoiceBody = {
+      deposit_handling: handling,
+      notes_ar: notes,
+      refund_method: handling === 'keep_as_credit' ? null : refundMethod,
+      partial_refund_amount: handling === 'partial_refund' ? parseAmount(partialAmount) : null,
+    };
+    mut.mutate(body);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{ar.invoices.cancelOpenInvoiceTitle}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="text-sm">
+            {ar.pos.paid}: <span className="font-medium" dir="ltr">{paid.toFixed(2)}</span>
+          </div>
+          <div className="space-y-1">
+            <Label>{ar.invoices.depositHandling}</Label>
+            <select
+              className="h-9 w-full border border-border rounded px-2 bg-canvas"
+              value={handling}
+              onChange={(e) => setHandling(e.target.value as DepositHandling)}
+            >
+              <option value="full_refund">{ar.invoices.depositHandlingOptions.full_refund}</option>
+              <option value="partial_refund">{ar.invoices.depositHandlingOptions.partial_refund}</option>
+              <option value="keep_as_credit">{ar.invoices.depositHandlingOptions.keep_as_credit}</option>
+            </select>
+          </div>
+          {handling === 'partial_refund' && (
+            <div className="space-y-1">
+              <Label>{ar.invoices.partialRefundAmount}</Label>
+              <Input
+                value={partialAmount}
+                onChange={(e) => setPartialAmount(e.target.value)}
+                dir="ltr"
+                inputMode="decimal"
+              />
+            </div>
+          )}
+          {handling !== 'keep_as_credit' && (
+            <div className="space-y-1">
+              <Label>{ar.invoices.refundMethod}</Label>
+              <select
+                className="h-9 w-full border border-border rounded px-2 bg-canvas"
+                value={refundMethod}
+                onChange={(e) => setRefundMethod(e.target.value as PaymentMethod)}
+              >
+                <option value="cash">{ar.pos.cash}</option>
+                <option value="instapay">{ar.pos.instapay}</option>
+              </select>
+            </div>
+          )}
+          <div className="space-y-1">
+            <Label>{ar.invoices.cancelReason}</Label>
+            <Input value={notes} onChange={(e) => setNotes(e.target.value)} dir="rtl" />
+          </div>
+          {error && <p className="text-sm text-red-700">{error}</p>}
+          <div className="flex gap-2 justify-end pt-2">
+            <DialogClose asChild>
+              <Button variant="outline">{ar.common.cancel}</Button>
+            </DialogClose>
+            <Button onClick={submit} disabled={mut.isPending}>
+              {ar.invoices.cancelOpenInvoice}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

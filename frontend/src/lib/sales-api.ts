@@ -1,10 +1,15 @@
 import { api } from './api';
 import type {
   BankAccount,
+  CancelOpenInvoiceBody,
   CreateSaleBody,
+  FinalPaymentBody,
   Invoice,
   InvoiceDetail,
   InvoiceListRow,
+  InvoiceStatusHistoryEntry,
+  OpenInvoiceRow,
+  PendingPickupRow,
   RollLookup,
   SaleLineInput,
   SalePreview,
@@ -40,6 +45,25 @@ export const salesApi = {
         { reason_ar, approved_by_owner },
       )
       .then((r) => r.data),
+
+  listOpen: () => api.get<OpenInvoiceRow[]>('/invoices/open').then((r) => r.data),
+
+  listPendingPickup: () =>
+    api.get<PendingPickupRow[]>('/invoices/pending-pickup').then((r) => r.data),
+
+  statusHistory: (id: number) =>
+    api
+      .get<InvoiceStatusHistoryEntry[]>(`/invoices/${id}/status-history`)
+      .then((r) => r.data),
+
+  addFinalPayment: (id: number, body: FinalPaymentBody) =>
+    api.post<{ invoice: Invoice }>(`/invoices/${id}/payments/final`, body).then((r) => r.data),
+
+  markDelivered: (id: number) =>
+    api.post<{ invoice: Invoice }>(`/invoices/${id}/mark-delivered`).then((r) => r.data),
+
+  cancelOpenInvoice: (id: number, body: CancelOpenInvoiceBody) =>
+    api.post<{ invoice: Invoice }>(`/invoices/${id}/cancel`, body).then((r) => r.data),
 
   pdfUrl: (id: number, variant: 'original' | 'reprint' | 'open' = 'original') =>
     `/api/invoices/${id}/pdf?variant=${variant}`,
