@@ -63,7 +63,7 @@ export function DamagePage() {
           >
             <div className="space-y-1">
               <Label>{ar.damage.rollId}</Label>
-              <Input type="number" {...form.register('roll_id', { valueAsNumber: true, required: true })} />
+              <Input type="number" inputMode="decimal" {...form.register('roll_id', { valueAsNumber: true, required: true })} />
             </div>
             <div className="space-y-1">
               <Label>{ar.damage.reasonCode}</Label>

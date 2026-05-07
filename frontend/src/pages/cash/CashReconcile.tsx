@@ -149,7 +149,7 @@ export function CashReconcilePage() {
               <div className="space-y-1">
                 <Label>الرصيد الفعلي (عد نقدي) *</Label>
                 <Input
-                  type="number"
+                  type="number" inputMode="decimal"
                   step="0.01"
                   min="0"
                   {...cashForm.register('actual_balance_egp', { required: true })}
@@ -209,7 +209,7 @@ export function CashReconcilePage() {
                   <div className="space-y-1">
                     <Label>الرصيد الفعلي (حسب كشف الحساب) *</Label>
                     <Input
-                      type="number"
+                      type="number" inputMode="decimal"
                       step="0.01"
                       min="0"
                       {...bankForm.register('actual_balance_egp', { required: true })}

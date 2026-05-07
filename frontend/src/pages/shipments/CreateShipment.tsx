@@ -138,7 +138,7 @@ export function CreateShipmentPage() {
             </div>
             <div className="space-y-1">
               <Label>{ar.shipments.rollWeight}</Label>
-              <Input type="number" step="0.001" {...form.register('weight_kg', { valueAsNumber: true, required: true })} />
+              <Input type="number" inputMode="decimal" step="0.001" {...form.register('weight_kg', { valueAsNumber: true, required: true })} />
             </div>
             <div className="space-y-1">
               <Label>{ar.shipments.rollSrNo}</Label>
@@ -150,7 +150,7 @@ export function CreateShipmentPage() {
             </div>
             <div className="space-y-1">
               <Label>{ar.shipments.factoryPrice}</Label>
-              <Input type="number" step="0.01" {...form.register('factory_purchase_price_egp', { valueAsNumber: true })} />
+              <Input type="number" inputMode="decimal" step="0.01" {...form.register('factory_purchase_price_egp', { valueAsNumber: true })} />
             </div>
             <div className="col-span-full">
               <Button type="submit" disabled={addRoll.isPending}>{ar.shipments.addRoll}</Button>

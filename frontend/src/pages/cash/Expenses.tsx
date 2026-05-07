@@ -259,7 +259,7 @@ export function ExpensesPage() {
             </div>
             <div className="space-y-1">
               <Label>المبلغ (ج.م) *</Label>
-              <Input type="number" step="0.01" min="0.01" {...form.register('amount_egp', { required: true })} />
+              <Input type="number" inputMode="decimal" step="0.01" min="0.01" {...form.register('amount_egp', { required: true })} />
             </div>
             <div className="space-y-1">
               <Label>مدفوع من *</Label>

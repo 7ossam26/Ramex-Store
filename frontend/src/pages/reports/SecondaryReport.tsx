@@ -294,7 +294,7 @@ export function SecondaryReportPage() {
           <div>
             <Label className="text-xs">{ar.reports.selectCustomer} (ID)</Label>
             <Input
-              type="number"
+              type="number" inputMode="decimal"
               value={customerId}
               onChange={(e) => setCustomerId(e.target.value)}
               placeholder="رقم العميل"

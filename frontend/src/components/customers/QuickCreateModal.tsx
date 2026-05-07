@@ -60,6 +60,8 @@ export function QuickCreateModal({ open, onOpenChange, onCreated }: Props) {
               {...form.register('phone', { required: true })}
               placeholder="01012345678"
               dir="ltr"
+              inputMode="tel"
+              autoComplete="tel"
             />
             {create.error && (
               <p className="text-sm text-red-600">

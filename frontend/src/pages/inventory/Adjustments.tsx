@@ -48,7 +48,7 @@ export function AdjustmentsPage() {
           >
             <div className="space-y-1">
               <Label>{ar.adjustments.rollId}</Label>
-              <Input type="number" {...form.register('roll_id', { valueAsNumber: true, required: true })} />
+              <Input type="number" inputMode="decimal" {...form.register('roll_id', { valueAsNumber: true, required: true })} />
             </div>
             <div className="space-y-1">
               <Label>{ar.adjustments.newWarehouse}</Label>
@@ -70,7 +70,7 @@ export function AdjustmentsPage() {
             </div>
             <div className="space-y-1">
               <Label>{ar.adjustments.newWeight}</Label>
-              <Input type="number" step="0.001" {...form.register('new_weight_kg', { valueAsNumber: true })} />
+              <Input type="number" inputMode="decimal" step="0.001" {...form.register('new_weight_kg', { valueAsNumber: true })} />
             </div>
             <div className="space-y-1 col-span-2">
               <Label>{ar.adjustments.notes}</Label>

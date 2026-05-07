@@ -286,11 +286,11 @@ export function CustomerDetailPage() {
               </div>
               <div className="space-y-1">
                 <Label>{ar.customers.phone}</Label>
-                <Input {...form.register('phone')} placeholder="01012345678" dir="ltr" />
+                <Input {...form.register('phone')} placeholder="01012345678" dir="ltr" inputMode="tel" autoComplete="tel" />
               </div>
               <div className="space-y-1">
                 <Label>{ar.customers.phoneSecondary}</Label>
-                <Input {...form.register('phone_secondary')} placeholder="01012345678" dir="ltr" />
+                <Input {...form.register('phone_secondary')} placeholder="01012345678" dir="ltr" inputMode="tel" autoComplete="tel" />
               </div>
               <div className="space-y-1">
                 <Label>{ar.customers.taxNo}</Label>

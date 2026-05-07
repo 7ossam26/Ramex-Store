@@ -791,7 +791,7 @@ function ReturnModal({
                         <td className="px-2 py-1" dir="ltr">{Number(l.weight_kg).toFixed(3)}</td>
                         <td className="px-2 py-1">
                           <input
-                            type="number"
+                            type="number" inputMode="decimal"
                             className="h-7 w-24 border border-border rounded px-1 text-sm"
                             value={s.refundAmount}
                             disabled={!s.checked}

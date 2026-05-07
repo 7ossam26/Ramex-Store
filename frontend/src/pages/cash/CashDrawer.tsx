@@ -269,7 +269,7 @@ export function CashDrawerPage() {
             <div className="space-y-1">
               <Label>المبلغ (ج.م)</Label>
               <Input
-                type="number"
+                type="number" inputMode="decimal"
                 step="0.01"
                 min="0"
                 {...openingForm.register('amount', { required: true })}
@@ -307,7 +307,7 @@ export function CashDrawerPage() {
             <div className="space-y-1">
               <Label>المبلغ (ج.م)</Label>
               <Input
-                type="number"
+                type="number" inputMode="decimal"
                 step="0.01"
                 min="0.01"
                 {...depositForm.register('amount', { required: true })}
@@ -361,7 +361,7 @@ export function CashDrawerPage() {
             <div className="space-y-1">
               <Label>المبلغ (ج.م)</Label>
               <Input
-                type="number"
+                type="number" inputMode="decimal"
                 step="0.01"
                 min="0.01"
                 {...withdrawalForm.register('amount', { required: true })}
