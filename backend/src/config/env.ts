@@ -1,20 +1,13 @@
 import dotenv from 'dotenv';
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
-// Walk up from CWD to find .env (handles knex changing CWD to backend/src/db)
-let dir = process.cwd();
-while (true) {
-  const candidate = resolve(dir, '.env');
-  if (existsSync(candidate)) {
-    dotenv.config({ path: candidate });
-    break;
-  }
-  const parent = resolve(dir, '..');
-  if (parent === dir) break; // reached filesystem root
-  dir = parent;
-}
+// Use import.meta.url so .env lookup is CWD-independent (knex changes CWD to src/db)
+const _dir = dirname(fileURLToPath(import.meta.url));
+const _envPath = resolve(_dir, '../../../.env');
+if (existsSync(_envPath)) dotenv.config({ path: _envPath });
 
 const Schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),

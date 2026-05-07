@@ -3,6 +3,13 @@ import { LoginPage } from './pages/Login';
 import { HomePage } from './pages/Home';
 import { AppShell } from './components/Layout/AppShell';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { CreateShipmentPage } from './pages/shipments/CreateShipment';
+import { ShipmentsListPage } from './pages/shipments/ShipmentsList';
+import { ReviewShipmentPage } from './pages/shipments/ReviewShipment';
+import { StockMovementsPage } from './pages/inventory/StockMovements';
+import { StocktakePage } from './pages/inventory/Stocktake';
+import { AdjustmentsPage } from './pages/inventory/Adjustments';
+import { DamagePage } from './pages/inventory/Damage';
 
 export function App() {
   return (
@@ -15,6 +22,17 @@ export function App() {
             <AppShell>
               <Routes>
                 <Route path="/" element={<HomePage />} />
+                <Route path="/shipments" element={<ShipmentsListPage />} />
+                <Route path="/shipments/create" element={<CreateShipmentPage />} />
+                <Route
+                  path="/shipments/pending"
+                  element={<ShipmentsListPage defaultStatus="pending_approval" />}
+                />
+                <Route path="/shipments/:id" element={<ReviewShipmentPage />} />
+                <Route path="/inventory/stock-movements" element={<StockMovementsPage />} />
+                <Route path="/inventory/stocktake" element={<StocktakePage />} />
+                <Route path="/inventory/adjustments" element={<AdjustmentsPage />} />
+                <Route path="/inventory/damage" element={<DamagePage />} />
               </Routes>
             </AppShell>
           </ProtectedRoute>
