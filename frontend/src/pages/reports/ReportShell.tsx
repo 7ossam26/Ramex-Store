@@ -77,24 +77,24 @@ export function ReportShell({
   ] as const;
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-3 md:p-4 space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <h1 className="text-xl font-bold">{title}</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {exportPdfUrl && (
-            <a href={exportPdfUrl} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" size="sm">{ar.reports.exportPdf}</Button>
+            <a href={exportPdfUrl} target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-none">
+              <Button variant="outline" size="sm" className="h-11 md:h-9 w-full">{ar.reports.exportPdf}</Button>
             </a>
           )}
           {exportExcelUrl && (
-            <a href={exportExcelUrl} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" size="sm">{ar.reports.exportExcel}</Button>
+            <a href={exportExcelUrl} target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-none">
+              <Button variant="outline" size="sm" className="h-11 md:h-9 w-full">{ar.reports.exportExcel}</Button>
             </a>
           )}
           {printUrl && (
-            <a href={printUrl} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" size="sm">{ar.reports.print}</Button>
+            <a href={printUrl} target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-none">
+              <Button variant="outline" size="sm" className="h-11 md:h-9 w-full">{ar.reports.print}</Button>
             </a>
           )}
         </div>
@@ -102,30 +102,31 @@ export function ReportShell({
 
       {/* Filters */}
       {(showDateRange || extraFilters) && (
-        <div className="bg-card border border-border rounded-lg p-3 flex flex-wrap gap-3 items-end">
+        <div className="bg-card border border-border rounded-lg p-3 space-y-3 md:space-y-0 md:flex md:flex-wrap md:gap-3 md:items-end">
           {showDateRange && (
             <>
-              <div className="flex gap-1">
+              <div className="flex gap-1 overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0 whitespace-nowrap">
                 {presets.map(([p, label]) => (
                   <Button
                     key={p}
                     size="sm"
                     variant={preset === p ? 'default' : 'outline'}
                     onClick={() => handlePreset(p)}
+                    className="h-11 md:h-9 shrink-0"
                   >
                     {label}
                   </Button>
                 ))}
               </div>
               {preset === 'custom' && dateRange && (
-                <div className="flex gap-2 items-end">
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
                   <div>
                     <Label className="text-xs">{ar.reports.from}</Label>
                     <Input
                       type="date"
                       value={dateRange.from}
                       onChange={(e) => onDateRangeChange?.({ ...dateRange, from: e.target.value })}
-                      className="w-36"
+                      className="h-11 md:h-10 w-full sm:w-36"
                     />
                   </div>
                   <div>
@@ -134,7 +135,7 @@ export function ReportShell({
                       type="date"
                       value={dateRange.to}
                       onChange={(e) => onDateRangeChange?.({ ...dateRange, to: e.target.value })}
-                      className="w-36"
+                      className="h-11 md:h-10 w-full sm:w-36"
                     />
                   </div>
                 </div>
