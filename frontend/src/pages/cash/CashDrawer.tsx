@@ -15,6 +15,7 @@ import {
   DialogTitle,
   DialogClose,
 } from '@/components/ui/dialog';
+import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 
 const PAGE_SIZE = 50;
 
@@ -121,20 +122,62 @@ export function CashDrawerPage() {
   });
 
   const totalPages = movementsQ.data ? Math.ceil(movementsQ.data.total / PAGE_SIZE) : 1;
+  const movementRows: CashMovement[] = movementsQ.data?.rows ?? [];
+
+  const columns: Column<CashMovement>[] = [
+    {
+      key: 'date',
+      header: 'التاريخ',
+      cell: (m) => <span className="whitespace-nowrap">{fmtDate(m.created_at)}</span>,
+      secondary: true,
+    },
+    {
+      key: 'event',
+      header: 'النوع',
+      cell: (m) => EVENT_LABELS[m.event_type] ?? m.event_type,
+      primary: true,
+    },
+    {
+      key: 'dir',
+      header: 'الاتجاه',
+      cell: (m) => (
+        <span className={m.direction === 'in' ? 'text-green-600' : 'text-red-600'}>
+          {m.direction === 'in' ? '↑ داخل' : '↓ خارج'}
+        </span>
+      ),
+    },
+    {
+      key: 'amount',
+      header: 'المبلغ',
+      cell: (m) => <span className="font-mono">{fmt(m.amount_egp)}</span>,
+    },
+    {
+      key: 'balance',
+      header: 'الرصيد بعد',
+      cell: (m) => <span className="font-mono">{fmt(m.balance_after_egp)}</span>,
+    },
+    { key: 'actor', header: 'بواسطة', cell: (m) => m.actor_username ?? '-' },
+    {
+      key: 'notes',
+      header: 'ملاحظات',
+      cell: (m) => <span className="text-muted-foreground">{m.notes_ar ?? '-'}</span>,
+      hideOnMobile: true,
+    },
+  ];
 
   return (
-    <div dir="rtl" className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">الخزنة الكاش</h1>
-        <div className="flex gap-2">
+    <div dir="rtl" className="space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h1 className="text-xl md:text-2xl font-bold">الخزنة الكاش</h1>
+        <div className="flex flex-wrap gap-2">
           {isOwner && !balanceQ.data?.opening_set_at && (
-            <Button onClick={() => setShowOpeningDlg(true)}>تعيين رصيد افتتاحي</Button>
+            <Button onClick={() => setShowOpeningDlg(true)} className="h-11 md:h-10">تعيين رصيد افتتاحي</Button>
           )}
-          <Button variant="outline" onClick={() => setShowDepositDlg(true)}>
+          <Button variant="outline" onClick={() => setShowDepositDlg(true)} className="h-11 md:h-10">
             إيداع في البنك
           </Button>
           {isOwner && (
-            <Button variant="outline" onClick={() => setShowWithdrawalDlg(true)}>
+            <Button variant="outline" onClick={() => setShowWithdrawalDlg(true)} className="h-11 md:h-10">
               سحب المالك
             </Button>
           )}
@@ -150,19 +193,19 @@ export function CashDrawerPage() {
           {balanceQ.isLoading ? (
             <p>جاري التحميل...</p>
           ) : balanceQ.data ? (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">الرصيد الحالي</p>
-                <p className="text-3xl font-bold text-green-600">
+                <p className="text-2xl md:text-3xl font-bold text-green-600">
                   {fmt(balanceQ.data.current_balance_egp)} ج.م
                 </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">الرصيد الافتتاحي</p>
-                <p className="text-xl">{fmt(balanceQ.data.opening_balance_egp)} ج.م</p>
+                <p className="text-lg md:text-xl">{fmt(balanceQ.data.opening_balance_egp)} ج.م</p>
               </div>
               {balanceQ.data.last_movement_at && (
-                <div>
+                <div className="sm:col-span-2">
                   <p className="text-sm text-muted-foreground">آخر حركة</p>
                   <p className="text-sm">{fmtDate(balanceQ.data.last_movement_at)}</p>
                 </div>
@@ -173,93 +216,45 @@ export function CashDrawerPage() {
       </Card>
 
       {/* Filters */}
-      <div className="flex items-end gap-3">
+      <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
           <Label>من تاريخ</Label>
-          <Input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} />
+          <Input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} className="h-11 md:h-10" />
         </div>
         <div className="space-y-1">
           <Label>إلى تاريخ</Label>
-          <Input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} />
+          <Input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} className="h-11 md:h-10" />
         </div>
-        <Button variant="ghost" onClick={() => { setFrom(''); setTo(''); setPage(1); }}>
+        <Button variant="ghost" onClick={() => { setFrom(''); setTo(''); setPage(1); }} className="h-11 md:h-10">
           مسح الفلتر
         </Button>
       </div>
 
-      {/* Movements table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>الحركات</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {movementsQ.isLoading ? (
-            <p>جاري التحميل...</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-right py-2 px-3">التاريخ</th>
-                  <th className="text-right py-2 px-3">النوع</th>
-                  <th className="text-right py-2 px-3">الاتجاه</th>
-                  <th className="text-right py-2 px-3">المبلغ</th>
-                  <th className="text-right py-2 px-3">الرصيد بعد</th>
-                  <th className="text-right py-2 px-3">بواسطة</th>
-                  <th className="text-right py-2 px-3">ملاحظات</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(movementsQ.data?.rows ?? []).map((m: CashMovement) => (
-                  <tr key={m.id} className="border-b hover:bg-muted/40">
-                    <td className="py-2 px-3 whitespace-nowrap">{fmtDate(m.created_at)}</td>
-                    <td className="py-2 px-3">{EVENT_LABELS[m.event_type] ?? m.event_type}</td>
-                    <td className="py-2 px-3">
-                      <span className={m.direction === 'in' ? 'text-green-600' : 'text-red-600'}>
-                        {m.direction === 'in' ? '↑ داخل' : '↓ خارج'}
-                      </span>
-                    </td>
-                    <td className="py-2 px-3 font-mono">{fmt(m.amount_egp)}</td>
-                    <td className="py-2 px-3 font-mono">{fmt(m.balance_after_egp)}</td>
-                    <td className="py-2 px-3">{m.actor_username ?? '-'}</td>
-                    <td className="py-2 px-3 text-muted-foreground">{m.notes_ar ?? '-'}</td>
-                  </tr>
-                ))}
-                {movementsQ.data?.rows.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="py-6 text-center text-muted-foreground">
-                      لا توجد حركات
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          )}
+      <h2 className="text-lg font-semibold">الحركات</h2>
+      {movementsQ.isLoading ? (
+        <p>جاري التحميل...</p>
+      ) : (
+        <ResponsiveTable
+          columns={columns}
+          rows={movementRows}
+          rowKey={(m) => String(m.id)}
+          empty="لا توجد حركات"
+        />
+      )}
 
-          {totalPages > 1 && (
-            <div className="flex justify-center items-center gap-4 mt-4">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                السابق
-              </Button>
-              <span className="text-sm">
-                {page} / {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                التالي
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-4 mt-4">
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            السابق
+          </Button>
+          <span className="text-sm">
+            {page} / {totalPages}
+          </span>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+            التالي
+          </Button>
+        </div>
+      )}
 
       {/* Opening Balance Dialog */}
       <Dialog open={showOpeningDlg} onOpenChange={setShowOpeningDlg}>

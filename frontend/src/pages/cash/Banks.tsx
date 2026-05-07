@@ -137,11 +137,11 @@ export function BanksPage() {
   const totalPages = movementsQ.data ? Math.ceil(movementsQ.data.total / PAGE_SIZE) : 1;
 
   return (
-    <div dir="rtl" className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">البنوك</h1>
+    <div dir="rtl" className="space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h1 className="text-xl md:text-2xl font-bold">البنوك</h1>
         {isOwner && (
-          <Button onClick={() => setShowCreate(true)}>إضافة حساب بنكي</Button>
+          <Button onClick={() => setShowCreate(true)} className="h-11 md:h-10">إضافة حساب بنكي</Button>
         )}
       </div>
 
@@ -201,16 +201,16 @@ export function BanksPage() {
             <CardTitle>حركات: {selectedBank.name_ar}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-end gap-3">
+            <div className="flex flex-wrap items-end gap-3">
               <div className="space-y-1">
                 <Label>من تاريخ</Label>
-                <Input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setMovPage(1); }} />
+                <Input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setMovPage(1); }} className="h-11 md:h-10" />
               </div>
               <div className="space-y-1">
                 <Label>إلى تاريخ</Label>
-                <Input type="date" value={to} onChange={(e) => { setTo(e.target.value); setMovPage(1); }} />
+                <Input type="date" value={to} onChange={(e) => { setTo(e.target.value); setMovPage(1); }} className="h-11 md:h-10" />
               </div>
-              <Button variant="ghost" onClick={() => { setFrom(''); setTo(''); setMovPage(1); }}>
+              <Button variant="ghost" onClick={() => { setFrom(''); setTo(''); setMovPage(1); }} className="h-11 md:h-10">
                 مسح
               </Button>
             </div>
@@ -218,7 +218,8 @@ export function BanksPage() {
             {movementsQ.isLoading ? (
               <p>جاري التحميل...</p>
             ) : (
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0">
+              <table className="w-full text-sm min-w-[640px]">
                 <thead>
                   <tr className="border-b">
                     <th className="text-right py-2 px-3">التاريخ</th>
@@ -253,6 +254,7 @@ export function BanksPage() {
                   )}
                 </tbody>
               </table>
+              </div>
             )}
 
             {totalPages > 1 && (

@@ -7,7 +7,6 @@ import type { Expense } from '@/lib/finance-types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -15,6 +14,7 @@ import {
   DialogTitle,
   DialogClose,
 } from '@/components/ui/dialog';
+import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 
 const PAGE_SIZE = 50;
 
@@ -119,16 +119,59 @@ export function ExpensesPage() {
   });
 
   const totalPages = expensesQ.data ? Math.ceil(expensesQ.data.total / PAGE_SIZE) : 1;
+  const expenseRows: Expense[] = expensesQ.data?.rows ?? [];
+
+  const columns: Column<Expense>[] = [
+    {
+      key: 'date',
+      header: 'التاريخ',
+      cell: (e) => <span className="whitespace-nowrap">{fmtDate(e.created_at)}</span>,
+      secondary: true,
+    },
+    {
+      key: 'category',
+      header: 'الفئة',
+      cell: (e) => CATEGORIES.find((c) => c.value === e.category)?.label ?? e.category,
+      primary: true,
+    },
+    {
+      key: 'amount',
+      header: 'المبلغ',
+      cell: (e) => <span className="font-mono">{fmt(e.amount_egp)} ج.م</span>,
+    },
+    {
+      key: 'paid_from',
+      header: 'مدفوع من',
+      cell: (e) => (e.paid_from === 'cash' ? 'نقدي' : 'بنك'),
+    },
+    {
+      key: 'status',
+      header: 'الحالة',
+      cell: (e) => {
+        const isPending = e.requires_approval && e.approved_at === null;
+        if (isPending) return <span className="text-amber-600 font-medium">بانتظار الموافقة</span>;
+        if (e.approved_at) return <span className="text-green-600">معتمد</span>;
+        return <span className="text-muted-foreground">—</span>;
+      },
+    },
+    { key: 'actor', header: 'بواسطة', cell: (e) => e.actor_username ?? '-' },
+    {
+      key: 'notes',
+      header: 'ملاحظات',
+      cell: (e) => <span className="text-muted-foreground">{e.notes_ar ?? '-'}</span>,
+      hideOnMobile: true,
+    },
+  ];
 
   return (
-    <div dir="rtl" className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">المصروفات</h1>
-        <Button onClick={() => setShowCreate(true)}>تسجيل مصروف</Button>
+    <div dir="rtl" className="space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h1 className="text-xl md:text-2xl font-bold">المصروفات</h1>
+        <Button onClick={() => setShowCreate(true)} className="h-11 md:h-10">تسجيل مصروف</Button>
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0">
         {(
           [
             { value: 'all', label: 'الكل' },
@@ -140,6 +183,7 @@ export function ExpensesPage() {
             key={opt.value}
             variant={statusFilter === opt.value ? 'default' : 'outline'}
             size="sm"
+            className="h-11 md:h-9 whitespace-nowrap"
             onClick={() => { setStatusFilter(opt.value); setPage(1); }}
           >
             {opt.label}
@@ -147,104 +191,56 @@ export function ExpensesPage() {
         ))}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>قائمة المصروفات</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {expensesQ.isLoading ? (
-            <p>جاري التحميل...</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-right py-2 px-3">التاريخ</th>
-                  <th className="text-right py-2 px-3">الفئة</th>
-                  <th className="text-right py-2 px-3">المبلغ</th>
-                  <th className="text-right py-2 px-3">مدفوع من</th>
-                  <th className="text-right py-2 px-3">الحالة</th>
-                  <th className="text-right py-2 px-3">بواسطة</th>
-                  <th className="text-right py-2 px-3">ملاحظات</th>
-                  {isOwner && <th className="text-right py-2 px-3">إجراءات</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {(expensesQ.data?.rows ?? []).map((e: Expense) => {
-                  const isPending = e.requires_approval && e.approved_at === null;
-                  return (
-                    <tr
-                      key={e.id}
-                      className={`border-b hover:bg-muted/40 ${isPending ? 'bg-amber-50' : ''}`}
-                    >
-                      <td className="py-2 px-3 whitespace-nowrap">{fmtDate(e.created_at)}</td>
-                      <td className="py-2 px-3">
-                        {CATEGORIES.find((c) => c.value === e.category)?.label ?? e.category}
-                      </td>
-                      <td className="py-2 px-3 font-mono">{fmt(e.amount_egp)} ج.م</td>
-                      <td className="py-2 px-3">{e.paid_from === 'cash' ? 'نقدي' : 'بنك'}</td>
-                      <td className="py-2 px-3">
-                        {isPending ? (
-                          <span className="text-amber-600 font-medium">بانتظار الموافقة</span>
-                        ) : e.approved_at ? (
-                          <span className="text-green-600">معتمد</span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="py-2 px-3">{e.actor_username ?? '-'}</td>
-                      <td className="py-2 px-3 text-muted-foreground">{e.notes_ar ?? '-'}</td>
-                      {isOwner && (
-                        <td className="py-2 px-3">
-                          {isPending && (
-                            <div className="flex gap-1">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-green-700"
-                                disabled={approveMut.isPending}
-                                onClick={() => approveMut.mutate(e.id)}
-                              >
-                                موافقة
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-red-700"
-                                onClick={() => setRejectTarget(e.id)}
-                              >
-                                رفض
-                              </Button>
-                            </div>
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-                {expensesQ.data?.rows.length === 0 && (
-                  <tr>
-                    <td colSpan={isOwner ? 8 : 7} className="py-6 text-center text-muted-foreground">
-                      لا توجد مصروفات
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          )}
+      {expensesQ.isLoading ? (
+        <p>جاري التحميل...</p>
+      ) : (
+        <ResponsiveTable
+          columns={columns}
+          rows={expenseRows}
+          rowKey={(e) => String(e.id)}
+          empty="لا توجد مصروفات"
+          rowClassName={(e) =>
+            e.requires_approval && e.approved_at === null ? 'bg-amber-50' : ''
+          }
+          actions={(e) => {
+            const isPending = e.requires_approval && e.approved_at === null;
+            if (!isOwner || !isPending) return null;
+            return (
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-green-700"
+                  disabled={approveMut.isPending}
+                  onClick={() => approveMut.mutate(e.id)}
+                >
+                  موافقة
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-red-700"
+                  onClick={() => setRejectTarget(e.id)}
+                >
+                  رفض
+                </Button>
+              </div>
+            );
+          }}
+        />
+      )}
 
-          {totalPages > 1 && (
-            <div className="flex justify-center items-center gap-4 mt-4">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                السابق
-              </Button>
-              <span className="text-sm">{page} / {totalPages}</span>
-              <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-                التالي
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-4 mt-4">
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            السابق
+          </Button>
+          <span className="text-sm">{page} / {totalPages}</span>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+            التالي
+          </Button>
+        </div>
+      )}
 
       {/* Create Expense Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>

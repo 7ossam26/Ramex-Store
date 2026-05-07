@@ -13,6 +13,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
+import { MobileFilterSheet } from '@/components/MobileFilterSheet';
 
 const statusColors: Record<string, string> = {
   in_stock: 'bg-green-100 text-green-800',
@@ -45,113 +47,125 @@ export function RollsPage() {
   });
 
   const rolls = q.data ?? [];
+  const activeFilters = Object.values(applied).filter((v) => v.trim()).length;
+
+  const filterControls = (
+    <Card>
+      <CardHeader>
+        <CardTitle>{ar.labels.rollsTitle}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="space-y-1">
+            <Label>{ar.labels.fabricFilter}</Label>
+            <Input
+              value={filters.fabric}
+              onChange={(e) => setFilters((f) => ({ ...f, fabric: e.target.value }))}
+              placeholder={ar.labels.fabricFilter}
+              dir="rtl"
+              className="h-11 md:h-10"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>{ar.labels.colorFilter}</Label>
+            <Input
+              value={filters.color}
+              onChange={(e) => setFilters((f) => ({ ...f, color: e.target.value }))}
+              placeholder={ar.labels.colorFilter}
+              dir="rtl"
+              className="h-11 md:h-10"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>{ar.labels.rollSrNoFilter}</Label>
+            <Input
+              value={filters.rollSrNo}
+              onChange={(e) => setFilters((f) => ({ ...f, rollSrNo: e.target.value }))}
+              dir="ltr"
+              inputMode="text"
+              className="h-11 md:h-10"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>{ar.labels.barcodeFilter}</Label>
+            <Input
+              value={filters.barcodePartial}
+              onChange={(e) => setFilters((f) => ({ ...f, barcodePartial: e.target.value }))}
+              dir="ltr"
+              inputMode="text"
+              className="h-11 md:h-10"
+            />
+          </div>
+        </div>
+        <Button onClick={() => setApplied({ ...filters })} disabled={q.isFetching} className="h-11 md:h-10 w-full md:w-auto">
+          {q.isFetching ? ar.loading : ar.labels.search}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+
+  const columns: Column<RollWithDetails>[] = [
+    {
+      key: 'sr_no',
+      header: ar.labels.rollSrNoFilter,
+      cell: (r) => <span className="font-mono text-xs">{r.roll_sr_no ?? '—'}</span>,
+      secondary: true,
+    },
+    {
+      key: 'fabric',
+      header: ar.labels.fabricFilter,
+      cell: (r) => r.fabric_name_ar,
+      primary: true,
+    },
+    {
+      key: 'color',
+      header: ar.labels.colorFilter,
+      cell: (r) => r.color_name_ar,
+      secondary: true,
+    },
+    {
+      key: 'barcode',
+      header: ar.labels.barcode,
+      cell: (r) => <span className="font-mono text-xs" dir="ltr">{r.internal_barcode}</span>,
+    },
+    {
+      key: 'weight',
+      header: ar.labels.weight,
+      cell: (r) => <span dir="ltr">{Number(r.weight_kg).toFixed(3)} kg</span>,
+    },
+    {
+      key: 'status',
+      header: ar.labels.status,
+      cell: (r) => (
+        <span className={`px-1.5 py-0.5 rounded text-xs ${statusColors[r.status] ?? 'bg-gray-100 text-gray-600'}`}>
+          {ar.rollStatuses[r.status as keyof typeof ar.rollStatuses] ?? r.status}
+        </span>
+      ),
+    },
+  ];
 
   return (
     <div className="max-w-6xl mx-auto space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>{ar.labels.rollsTitle}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="space-y-1">
-              <Label>{ar.labels.fabricFilter}</Label>
-              <Input
-                value={filters.fabric}
-                onChange={(e) => setFilters((f) => ({ ...f, fabric: e.target.value }))}
-                placeholder={ar.labels.fabricFilter}
-                dir="rtl"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>{ar.labels.colorFilter}</Label>
-              <Input
-                value={filters.color}
-                onChange={(e) => setFilters((f) => ({ ...f, color: e.target.value }))}
-                placeholder={ar.labels.colorFilter}
-                dir="rtl"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>{ar.labels.rollSrNoFilter}</Label>
-              <Input
-                value={filters.rollSrNo}
-                onChange={(e) => setFilters((f) => ({ ...f, rollSrNo: e.target.value }))}
-                dir="ltr"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>{ar.labels.barcodeFilter}</Label>
-              <Input
-                value={filters.barcodePartial}
-                onChange={(e) => setFilters((f) => ({ ...f, barcodePartial: e.target.value }))}
-                dir="ltr"
-              />
-            </div>
-          </div>
-          <Button onClick={() => setApplied({ ...filters })} disabled={q.isFetching}>
-            {q.isFetching ? ar.loading : ar.labels.search}
-          </Button>
-        </CardContent>
-      </Card>
+      <MobileFilterSheet activeCount={activeFilters}>{filterControls}</MobileFilterSheet>
 
-      <Card>
-        <CardHeader className="py-3">
-          <CardTitle className="text-base">{ar.labels.results}: {rolls.length}</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {rolls.length === 0 ? (
-            <p className="text-center text-muted-foreground p-6">{ar.common.none}</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="text-right text-xs text-muted-foreground border-b border-border">
-                <tr>
-                  <th className="p-2">{ar.labels.rollSrNoFilter}</th>
-                  <th className="p-2">{ar.labels.fabricFilter}</th>
-                  <th className="p-2">{ar.labels.colorFilter}</th>
-                  <th className="p-2">{ar.labels.barcode}</th>
-                  <th className="p-2">{ar.labels.weight}</th>
-                  <th className="p-2">{ar.labels.status}</th>
-                  <th className="p-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rolls.map((roll) => (
-                  <tr
-                    key={roll.id}
-                    className="border-b border-border hover:bg-muted/30 cursor-pointer"
-                    onClick={() => setDetail(roll)}
-                  >
-                    <td className="p-2 font-mono text-xs">{roll.roll_sr_no ?? '—'}</td>
-                    <td className="p-2">{roll.fabric_name_ar}</td>
-                    <td className="p-2">{roll.color_name_ar}</td>
-                    <td className="p-2 font-mono text-xs" dir="ltr">{roll.internal_barcode}</td>
-                    <td className="p-2" dir="ltr">{Number(roll.weight_kg).toFixed(3)} kg</td>
-                    <td className="p-2">
-                      <span
-                        className={`px-1.5 py-0.5 rounded text-xs ${statusColors[roll.status] ?? 'bg-gray-100 text-gray-600'}`}
-                      >
-                        {ar.rollStatuses[roll.status as keyof typeof ar.rollStatuses] ?? roll.status}
-                      </span>
-                    </td>
-                    <td className="p-2" onClick={(e) => e.stopPropagation()}>
-                      <Button size="sm" variant="outline" asChild>
-                        <a
-                          href={itemsApi.labelPdfUrl(roll.id)}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {ar.labels.print}
-                        </a>
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </CardContent>
-      </Card>
+      <div className="text-sm text-muted-foreground">
+        {ar.labels.results}: {rolls.length}
+      </div>
+
+      <ResponsiveTable
+        columns={columns}
+        rows={rolls}
+        rowKey={(r) => String(r.id)}
+        onRowClick={(r) => setDetail(r)}
+        empty={ar.common.none}
+        actions={(r) => (
+          <Button size="sm" variant="outline" asChild>
+            <a href={itemsApi.labelPdfUrl(r.id)} target="_blank" rel="noreferrer">
+              {ar.labels.print}
+            </a>
+          </Button>
+        )}
+      />
 
       {/* Roll detail drawer */}
       <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
@@ -161,7 +175,7 @@ export function RollsPage() {
           </DialogHeader>
           {detail && (
             <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <span className="text-muted-foreground">{ar.labels.fabricFilter}: </span>
                   <span className="font-medium">{detail.fabric_name_ar}</span>
@@ -202,7 +216,7 @@ export function RollsPage() {
                 </div>
               </div>
               <div className="pt-2 border-t border-border">
-                <Button asChild className="w-full">
+                <Button asChild className="w-full h-11">
                   <a href={itemsApi.labelPdfUrl(detail.id)} target="_blank" rel="noreferrer">
                     🖨️ {ar.labels.printLabel}
                   </a>

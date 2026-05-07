@@ -45,7 +45,12 @@ export function ResponsiveTable<T>({
   return (
     <>
       {/* Desktop: real <table> */}
-      <div className={cn('hidden md:block overflow-x-auto', className)}>
+      <div
+        className={cn(
+          'hidden md:block overflow-x-auto rounded border border-border bg-canvas',
+          className,
+        )}
+      >
         <table className="w-full text-sm">
           <thead>
             <tr className="text-right text-xs text-muted-foreground border-b border-border">

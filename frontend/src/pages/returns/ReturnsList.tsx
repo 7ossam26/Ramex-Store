@@ -4,9 +4,11 @@ import { useQuery } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { returnsApi } from '@/lib/returns-api';
 import type { ReturnListRow } from '@/lib/returns-types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
+import { MobileFilterSheet } from '@/components/MobileFilterSheet';
 
 function fmtMoney(s: string | number): string {
   return Number(s).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -50,106 +52,132 @@ export function ReturnsListPage() {
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / 30));
+  const activeFilters = (dateFrom ? 1 : 0) + (dateTo ? 1 : 0);
+
+  const columns: Column<ReturnListRow>[] = [
+    {
+      key: 'return_no',
+      header: ar.returns.returnNo,
+      cell: (r) => (
+        <span className="font-mono text-xs" dir="ltr">{r.return_no}</span>
+      ),
+      primary: true,
+    },
+    {
+      key: 'date',
+      header: ar.returns.date,
+      cell: (r) => <span className="text-xs" dir="ltr">{fmtDate(r.processed_at)}</span>,
+      secondary: true,
+    },
+    {
+      key: 'orig',
+      header: ar.returns.originalInvoice,
+      cell: (r) => (
+        <Link
+          to={`/invoices/${r.original_invoice_id}`}
+          className="text-primary hover:underline font-mono text-xs"
+        >
+          {r.original_invoice_no}
+        </Link>
+      ),
+    },
+    { key: 'customer', header: ar.returns.customer, cell: (r) => r.customer_name_ar },
+    {
+      key: 'kind',
+      header: ar.returns.kind,
+      cell: (r) =>
+        r.kind === 'refund' ? ar.returns.kinds.refund : ar.returns.kinds.exchange,
+    },
+    {
+      key: 'total',
+      header: ar.returns.totalRefund,
+      cell: (r) => (
+        <span className="font-medium" dir="ltr">{fmtMoney(r.total_refund_egp)}</span>
+      ),
+    },
+    {
+      key: 'method',
+      header: ar.returns.refundMethod,
+      cell: (r) => <span className="text-xs">{ar.returns.refundMethods[r.refund_method]}</span>,
+    },
+    {
+      key: 'view',
+      header: '',
+      cell: (r) => (
+        <Link to={`/returns/${r.id}`} className="text-primary hover:underline text-xs">
+          {ar.invoices.view}
+        </Link>
+      ),
+      align: 'end',
+      hideOnMobile: true,
+    },
+  ];
+
+  const filterControls = (
+    <>
+      <div className="space-y-1 flex-1 min-w-0">
+        <label className="text-xs text-muted-foreground">{ar.invoices.filterDateFrom}</label>
+        <Input
+          type="date"
+          value={dateFrom}
+          onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+          className="h-11 md:h-9 w-full md:w-36"
+          dir="ltr"
+        />
+      </div>
+      <div className="space-y-1 flex-1 min-w-0">
+        <label className="text-xs text-muted-foreground">{ar.invoices.filterDateTo}</label>
+        <Input
+          type="date"
+          value={dateTo}
+          onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+          className="h-11 md:h-9 w-full md:w-36"
+          dir="ltr"
+        />
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-11 md:h-9 self-stretch md:self-end"
+        onClick={() => { setDateFrom(''); setDateTo(''); setPage(1); }}
+      >
+        {ar.common.refresh}
+      </Button>
+    </>
+  );
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
       <h1 className="text-xl font-bold">{ar.returns.title}</h1>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="p-3 flex flex-wrap gap-3 items-end">
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">{ar.invoices.filterDateFrom}</label>
-            <Input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-              className="h-8 w-36"
-              dir="ltr"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">{ar.invoices.filterDateTo}</label>
-            <Input
-              type="date"
-              value={dateTo}
-              onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-              className="h-8 w-36"
-              dir="ltr"
-            />
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => { setDateFrom(''); setDateTo(''); setPage(1); }}
-          >
-            {ar.common.refresh}
-          </Button>
-        </CardContent>
-      </Card>
+      {/* Filters: inline ≥md, bottom sheet <md */}
+      <MobileFilterSheet activeCount={activeFilters}>
+        <Card>
+          <CardContent className="p-3 flex flex-wrap md:flex-nowrap gap-3 items-end">
+            {filterControls}
+          </CardContent>
+        </Card>
+      </MobileFilterSheet>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">
-            {ar.returns.title} ({total})
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <p className="p-6 text-center text-muted-foreground">{ar.loading}</p>
-          ) : rows.length === 0 ? (
-            <p className="p-6 text-center text-muted-foreground">{ar.returns.empty}</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="text-right text-xs text-muted-foreground border-b border-border">
-                <tr>
-                  <th className="px-3 py-2">{ar.returns.returnNo}</th>
-                  <th className="px-3 py-2">{ar.returns.date}</th>
-                  <th className="px-3 py-2">{ar.returns.originalInvoice}</th>
-                  <th className="px-3 py-2">{ar.returns.customer}</th>
-                  <th className="px-3 py-2">{ar.returns.kind}</th>
-                  <th className="px-3 py-2">{ar.returns.totalRefund}</th>
-                  <th className="px-3 py-2">{ar.returns.refundMethod}</th>
-                  <th className="px-3 py-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id} className="border-t border-border hover:bg-muted/40">
-                    <td className="px-3 py-2 font-mono text-xs" dir="ltr">{r.return_no}</td>
-                    <td className="px-3 py-2 text-xs" dir="ltr">{fmtDate(r.processed_at)}</td>
-                    <td className="px-3 py-2">
-                      <Link
-                        to={`/invoices/${r.original_invoice_id}`}
-                        className="text-primary hover:underline font-mono text-xs"
-                      >
-                        {r.original_invoice_no}
-                      </Link>
-                    </td>
-                    <td className="px-3 py-2">{r.customer_name_ar}</td>
-                    <td className="px-3 py-2">
-                      {r.kind === 'refund' ? ar.returns.kinds.refund : ar.returns.kinds.exchange}
-                    </td>
-                    <td className="px-3 py-2 font-medium" dir="ltr">{fmtMoney(r.total_refund_egp)}</td>
-                    <td className="px-3 py-2 text-xs">
-                      {ar.returns.refundMethods[r.refund_method]}
-                    </td>
-                    <td className="px-3 py-2">
-                      <Link to={`/returns/${r.id}`} className="text-primary hover:underline text-xs">
-                        {ar.invoices.view}
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </CardContent>
-      </Card>
+      <div className="text-sm text-muted-foreground">
+        {ar.returns.title} ({total})
+      </div>
+
+      {isLoading ? (
+        <p className="p-6 text-center text-muted-foreground">{ar.loading}</p>
+      ) : (
+        <ResponsiveTable
+          columns={columns}
+          rows={rows}
+          rowKey={(r) => String(r.id)}
+          onRowClick={(r) => { window.location.href = `/returns/${r.id}`; }}
+          empty={ar.returns.empty}
+        />
+      )}
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex justify-center gap-2">
+        <div className="flex justify-center gap-2 pt-2">
           <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
             السابق
           </Button>

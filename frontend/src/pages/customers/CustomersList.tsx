@@ -4,7 +4,6 @@ import { useForm } from 'react-hook-form';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ar } from '@/i18n/ar';
 import { customersApi } from '@/lib/customers-api';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +14,7 @@ import {
   DialogTitle,
   DialogClose,
 } from '@/components/ui/dialog';
+import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import type { Customer } from '@/lib/customers-types';
 
 const PAGE_SIZE = 30;
@@ -91,68 +91,76 @@ export function CustomersListPage() {
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const columns: Column<Customer>[] = [
+    {
+      key: 'code',
+      header: ar.customers.customerCode,
+      cell: (c) => <span className="font-mono text-xs">{c.customer_code}</span>,
+      secondary: true,
+    },
+    {
+      key: 'name',
+      header: ar.customers.nameAr,
+      cell: (c) => (
+        <Link to={`/customers/${c.id}`} className="text-primary hover:underline font-medium">
+          {c.name_ar}
+        </Link>
+      ),
+      primary: true,
+    },
+    {
+      key: 'phone',
+      header: ar.customers.phone,
+      cell: (c) => <span className="font-mono" dir="ltr">{c.phone}</span>,
+      secondary: true,
+    },
+    {
+      key: 'volume',
+      header: ar.customers.lifetimeVolume,
+      cell: (c) =>
+        `${Number(c.lifetime_volume_egp).toLocaleString('ar-EG-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج.م`,
+    },
+    {
+      key: 'balance',
+      header: ar.customers.currentBalance,
+      cell: (c) => (
+        <span className={`font-medium ${balanceColor(c.current_balance_egp)}`}>
+          {balanceLabel(c.current_balance_egp)}
+        </span>
+      ),
+    },
+  ];
+
   return (
     <div className="max-w-6xl mx-auto space-y-4">
       {/* Header row */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h1 className="text-xl font-bold">{ar.customers.title}</h1>
-        <Button onClick={openCreate}>{ar.customers.addCustomer}</Button>
+        <Button onClick={openCreate} className="h-11 md:h-10">{ar.customers.addCustomer}</Button>
       </div>
 
       {/* Search */}
-      <div className="max-w-sm">
+      <div className="md:max-w-sm">
         <Input
           placeholder={ar.customers.search}
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           dir="rtl"
+          className="h-11 md:h-10"
         />
       </div>
 
-      {/* Table */}
-      <Card>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <p className="p-4 text-center text-muted-foreground">{ar.loading}</p>
-          ) : rows.length === 0 ? (
-            <p className="p-4 text-center text-muted-foreground">{ar.customers.empty}</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="text-right text-xs text-muted-foreground border-b border-border">
-                <tr>
-                  <th className="px-4 py-3">{ar.customers.customerCode}</th>
-                  <th className="px-4 py-3">{ar.customers.nameAr}</th>
-                  <th className="px-4 py-3">{ar.customers.phone}</th>
-                  <th className="px-4 py-3">{ar.customers.lifetimeVolume}</th>
-                  <th className="px-4 py-3">{ar.customers.currentBalance}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((c) => (
-                  <tr key={c.id} className="border-t border-border hover:bg-muted/40 transition-colors">
-                    <td className="px-4 py-3 font-mono text-xs">{c.customer_code}</td>
-                    <td className="px-4 py-3">
-                      <Link to={`/customers/${c.id}`} className="text-primary hover:underline font-medium">
-                        {c.name_ar}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 font-mono" dir="ltr">{c.phone}</td>
-                    <td className="px-4 py-3">
-                      {Number(c.lifetime_volume_egp).toLocaleString('ar-EG-u-nu-latn', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })} ج.م
-                    </td>
-                    <td className={`px-4 py-3 font-medium ${balanceColor(c.current_balance_egp)}`}>
-                      {balanceLabel(c.current_balance_egp)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </CardContent>
-      </Card>
+      {/* Table / Cards */}
+      {isLoading ? (
+        <p className="p-4 text-center text-muted-foreground">{ar.loading}</p>
+      ) : (
+        <ResponsiveTable
+          columns={columns}
+          rows={rows}
+          rowKey={(c) => String(c.id)}
+          empty={ar.customers.empty}
+        />
+      )}
 
       {/* Pagination */}
       {totalPages > 1 && (

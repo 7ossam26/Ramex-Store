@@ -13,6 +13,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
+import { MobileFilterSheet } from '@/components/MobileFilterSheet';
 
 function openBlobPdf(blob: Blob) {
   const url = URL.createObjectURL(blob);
@@ -57,22 +59,19 @@ export function LabelsPage() {
   });
 
   const rolls = q.data ?? [];
+  const activeFilters = Object.values(filters).filter((v) => v.trim()).length;
 
   function toggleSelect(id: number) {
     setSelected((s) => {
       const next = new Set(s);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   }
 
   function toggleAll() {
-    if (selected.size === rolls.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(rolls.map((r) => r.id)));
-    }
+    if (selected.size === rolls.length) setSelected(new Set());
+    else setSelected(new Set(rolls.map((r) => r.id)));
   }
 
   function handleSearch() {
@@ -80,147 +79,186 @@ export function LabelsPage() {
     setApplied({ ...filters });
   }
 
+  const filterControls = (
+    <Card>
+      <CardHeader>
+        <CardTitle>{ar.labels.title}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="space-y-1">
+            <Label>{ar.labels.fabricFilter}</Label>
+            <Input
+              value={filters.fabric}
+              onChange={(e) => setFilters((f) => ({ ...f, fabric: e.target.value }))}
+              placeholder={ar.labels.fabricFilter}
+              dir="rtl"
+              className="h-11 md:h-10"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>{ar.labels.colorFilter}</Label>
+            <Input
+              value={filters.color}
+              onChange={(e) => setFilters((f) => ({ ...f, color: e.target.value }))}
+              placeholder={ar.labels.colorFilter}
+              dir="rtl"
+              className="h-11 md:h-10"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>{ar.labels.rollSrNoFilter}</Label>
+            <Input
+              value={filters.rollSrNo}
+              onChange={(e) => setFilters((f) => ({ ...f, rollSrNo: e.target.value }))}
+              placeholder="SR-001"
+              dir="ltr"
+              className="h-11 md:h-10"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>{ar.labels.barcodeFilter}</Label>
+            <Input
+              value={filters.barcodePartial}
+              onChange={(e) => setFilters((f) => ({ ...f, barcodePartial: e.target.value }))}
+              placeholder="RMX-R-"
+              dir="ltr"
+              className="h-11 md:h-10"
+            />
+          </div>
+        </div>
+        <Button onClick={handleSearch} disabled={q.isFetching} className="h-11 md:h-10 w-full md:w-auto">
+          {q.isFetching ? ar.loading : ar.labels.search}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+
+  const columns: Column<RollWithDetails>[] = [
+    {
+      key: 'select',
+      header: (
+        <input
+          type="checkbox"
+          checked={selected.size === rolls.length && rolls.length > 0}
+          onChange={toggleAll}
+          className="size-4"
+          aria-label="تحديد الكل"
+        />
+      ),
+      cell: (r) => (
+        <input
+          type="checkbox"
+          checked={selected.has(r.id)}
+          onChange={() => toggleSelect(r.id)}
+          onClick={(e) => e.stopPropagation()}
+          className="size-5"
+          aria-label={`تحديد ${r.internal_barcode}`}
+        />
+      ),
+      width: '2rem',
+      hideOnMobile: true,
+    },
+    {
+      key: 'fabric',
+      header: ar.labels.fabricFilter,
+      cell: (r) => (
+        <span className="inline-flex items-center gap-2 md:gap-0">
+          <input
+            type="checkbox"
+            checked={selected.has(r.id)}
+            onChange={() => toggleSelect(r.id)}
+            onClick={(e) => e.stopPropagation()}
+            className="size-5 md:hidden"
+            aria-label={`تحديد ${r.internal_barcode}`}
+          />
+          {r.fabric_name_ar}
+        </span>
+      ),
+      primary: true,
+    },
+    {
+      key: 'sr_no',
+      header: ar.labels.rollSrNoFilter,
+      cell: (r) => <span className="font-mono text-xs">{r.roll_sr_no ?? '—'}</span>,
+      secondary: true,
+    },
+    { key: 'color', header: ar.labels.colorFilter, cell: (r) => r.color_name_ar, secondary: true },
+    {
+      key: 'barcode',
+      header: ar.labels.barcode,
+      cell: (r) => <span className="font-mono text-xs" dir="ltr">{r.internal_barcode}</span>,
+    },
+    {
+      key: 'weight',
+      header: ar.labels.weight,
+      cell: (r) => <span dir="ltr">{Number(r.weight_kg).toFixed(3)} kg</span>,
+    },
+    {
+      key: 'status',
+      header: ar.labels.status,
+      cell: (r) => <StatusBadge status={r.status} />,
+    },
+  ];
+
   return (
     <div className="max-w-6xl mx-auto space-y-4">
-      {/* Search */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{ar.labels.title}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="space-y-1">
-              <Label>{ar.labels.fabricFilter}</Label>
-              <Input
-                value={filters.fabric}
-                onChange={(e) => setFilters((f) => ({ ...f, fabric: e.target.value }))}
-                placeholder={ar.labels.fabricFilter}
-                dir="rtl"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>{ar.labels.colorFilter}</Label>
-              <Input
-                value={filters.color}
-                onChange={(e) => setFilters((f) => ({ ...f, color: e.target.value }))}
-                placeholder={ar.labels.colorFilter}
-                dir="rtl"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>{ar.labels.rollSrNoFilter}</Label>
-              <Input
-                value={filters.rollSrNo}
-                onChange={(e) => setFilters((f) => ({ ...f, rollSrNo: e.target.value }))}
-                placeholder="SR-001"
-                dir="ltr"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>{ar.labels.barcodeFilter}</Label>
-              <Input
-                value={filters.barcodePartial}
-                onChange={(e) => setFilters((f) => ({ ...f, barcodePartial: e.target.value }))}
-                placeholder="RMX-R-"
-                dir="ltr"
-              />
-            </div>
-          </div>
-          <Button onClick={handleSearch} disabled={q.isFetching}>
-            {q.isFetching ? ar.loading : ar.labels.search}
-          </Button>
-        </CardContent>
-      </Card>
+      <MobileFilterSheet activeCount={activeFilters}>{filterControls}</MobileFilterSheet>
 
       {/* Results */}
       {applied !== null && (
-        <Card>
-          <CardHeader className="flex-row items-center justify-between py-3">
-            <CardTitle className="text-base">
+        <>
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="text-sm text-muted-foreground">
               {ar.labels.results}: {rolls.length}
-            </CardTitle>
-            {selected.size > 0 && (
+              {selected.size > 0 ? ` · المحدد: ${selected.size}` : ''}
+            </div>
+            <div className="flex gap-2">
               <Button
                 size="sm"
-                disabled={batchMut.isPending}
-                onClick={() => batchMut.mutate(Array.from(selected))}
+                variant="outline"
+                onClick={toggleAll}
+                disabled={rolls.length === 0}
+                className="md:hidden h-11"
               >
-                {ar.labels.printBatch} ({selected.size})
+                {selected.size === rolls.length && rolls.length > 0 ? 'إلغاء الكل' : 'تحديد الكل'}
               </Button>
+              {selected.size > 0 && (
+                <Button
+                  size="sm"
+                  disabled={batchMut.isPending}
+                  onClick={() => batchMut.mutate(Array.from(selected))}
+                  className="h-11 md:h-9 flex-1 sm:flex-none"
+                >
+                  {ar.labels.printBatch} ({selected.size})
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <ResponsiveTable
+            columns={columns}
+            rows={rolls}
+            rowKey={(r) => String(r.id)}
+            empty={ar.common.none}
+            actions={(r) => (
+              <div className="flex gap-1">
+                <Button size="sm" variant="outline" asChild>
+                  <a href={itemsApi.labelPdfUrl(r.id)} target="_blank" rel="noreferrer">
+                    {ar.labels.print}
+                  </a>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => { setReprintTarget(r); setReprintReason(''); }}
+                >
+                  {ar.labels.reprint}
+                </Button>
+              </div>
             )}
-          </CardHeader>
-          <CardContent className="p-0">
-            {rolls.length === 0 ? (
-              <p className="text-center text-muted-foreground p-6">{ar.common.none}</p>
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="text-right text-xs text-muted-foreground border-b border-border">
-                  <tr>
-                    <th className="p-2 w-8">
-                      <input
-                        type="checkbox"
-                        checked={selected.size === rolls.length && rolls.length > 0}
-                        onChange={toggleAll}
-                      />
-                    </th>
-                    <th className="p-2">{ar.labels.rollSrNoFilter}</th>
-                    <th className="p-2">{ar.labels.fabricFilter}</th>
-                    <th className="p-2">{ar.labels.colorFilter}</th>
-                    <th className="p-2">{ar.labels.barcode}</th>
-                    <th className="p-2">{ar.labels.weight}</th>
-                    <th className="p-2">{ar.labels.status}</th>
-                    <th className="p-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rolls.map((roll) => (
-                    <tr key={roll.id} className="border-b border-border hover:bg-muted/30">
-                      <td className="p-2">
-                        <input
-                          type="checkbox"
-                          checked={selected.has(roll.id)}
-                          onChange={() => toggleSelect(roll.id)}
-                        />
-                      </td>
-                      <td className="p-2 font-mono text-xs">{roll.roll_sr_no ?? '—'}</td>
-                      <td className="p-2">{roll.fabric_name_ar}</td>
-                      <td className="p-2">{roll.color_name_ar}</td>
-                      <td className="p-2 font-mono text-xs" dir="ltr">{roll.internal_barcode}</td>
-                      <td className="p-2" dir="ltr">{Number(roll.weight_kg).toFixed(3)} kg</td>
-                      <td className="p-2">
-                        <StatusBadge status={roll.status} />
-                      </td>
-                      <td className="p-2">
-                        <div className="flex gap-1">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            asChild
-                          >
-                            <a
-                              href={itemsApi.labelPdfUrl(roll.id)}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              {ar.labels.print}
-                            </a>
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => { setReprintTarget(roll); setReprintReason(''); }}
-                          >
-                            {ar.labels.reprint}
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </CardContent>
-        </Card>
+          />
+        </>
       )}
 
       {/* Reprint dialog */}
@@ -243,6 +281,7 @@ export function LabelsPage() {
                   onChange={(e) => setReprintReason(e.target.value)}
                   placeholder={ar.labels.reprintReasonPlaceholder}
                   dir="rtl"
+                  className="h-11 md:h-10"
                 />
               </div>
               <div className="flex gap-2 justify-end">
