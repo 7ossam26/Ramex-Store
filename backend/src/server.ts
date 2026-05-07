@@ -30,4 +30,9 @@ if (existsSync(publicDir)) {
 
 app.use(errorHandler);
 
-app.listen(env.PORT, () => logger.info({ port: env.PORT }, 'ramex-store server up'));
+export { app };
+
+// Only start listening when this file is run directly (not imported by tests)
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(env.PORT, () => logger.info({ port: env.PORT }, 'ramex-store server up'));
+}
