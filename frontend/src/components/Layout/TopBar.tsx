@@ -70,7 +70,22 @@ export function TopBar() {
           ]}
         />
         <ModuleDropdown label={ar.topbar.invoices} items={[{ label: ar.invoices.title, href: '/invoices' }]} />
-        <ModuleDropdown label={ar.topbar.reports} items={[{ label: 'تقرير اليوم', href: '/reports/daily' }]} />
+        <ModuleDropdown
+          label={ar.topbar.reports}
+          items={[
+            { label: ar.reports.daily, href: '/reports/daily' },
+            { label: ar.reports.salesByFabricColor, href: '/reports/secondary/salesByFabricColor' },
+            { label: ar.reports.customerLedger, href: '/reports/secondary/customerLedger' },
+            { label: ar.reports.outstandingOpenInvoices, href: '/reports/secondary/outstandingOpenInvoices' },
+            { label: ar.reports.stocktakeInventory, href: '/reports/secondary/stocktakeInventory' },
+            { label: ar.reports.cashFlow, href: '/reports/secondary/cashFlow' },
+            { label: ar.reports.bankReconciliation, href: '/reports/secondary/bankReconciliation' },
+            { label: ar.reports.expenses, href: '/reports/secondary/expenses' },
+            { label: ar.reports.damageLoss, href: '/reports/secondary/damageLoss' },
+            { label: ar.reports.salesByPaymentMethod, href: '/reports/secondary/salesByPaymentMethod' },
+            { label: ar.reports.auditLog, href: '/reports/secondary/auditLog' },
+          ]}
+        />
         <ModuleDropdown label={ar.topbar.settings} items={[{ label: 'الإعدادات العامة', href: '/settings' }]} />
       </nav>
       <NotificationBell />

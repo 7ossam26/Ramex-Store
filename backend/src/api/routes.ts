@@ -8,6 +8,7 @@ import { customersRouter } from '../domain/customers/customers.routes.js';
 import { salesRouter } from '../domain/sales/sales.routes.js';
 import { financeRouter } from '../domain/finance/finance.routes.js';
 import { notificationsRouter } from '../domain/notifications/notifications.routes.js';
+import { reportsRouter } from '../domain/reports/reports.routes.js';
 
 export const apiRouter = Router();
 apiRouter.use('/health', healthRouter);
@@ -19,3 +20,4 @@ apiRouter.use('/', customersRouter);
 apiRouter.use('/', salesRouter);
 apiRouter.use('/', financeRouter);
 apiRouter.use('/notifications', notificationsRouter);
+apiRouter.use('/reports', reportsRouter);
