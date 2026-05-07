@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 export function TopBar() {
   const { user } = useAuth();
   const role = user?.role;
+  const isOwner = role === 'owner';
 
   const inventoryItems = [
     { label: ar.inventory.fabrics, href: '/inventory/fabrics' },
@@ -86,7 +87,18 @@ export function TopBar() {
             { label: ar.reports.auditLog, href: '/reports/secondary/auditLog' },
           ]}
         />
-        <ModuleDropdown label={ar.topbar.settings} items={[{ label: 'الإعدادات العامة', href: '/settings' }]} />
+        {isOwner && (
+          <ModuleDropdown
+            label={ar.topbar.settings}
+            items={[{ label: ar.settings.title, href: '/settings' }]}
+          />
+        )}
+        {(isOwner || role === 'shop_seller') && (
+          <ModuleDropdown
+            label={ar.approvals.title}
+            items={[{ label: ar.approvals.pendingTab, href: '/approvals' }]}
+          />
+        )}
       </nav>
       <NotificationBell />
       <UserMenu />

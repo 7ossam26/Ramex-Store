@@ -1,27 +1,29 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
 import { requireActiveSession } from '../../middleware/concurrent-session.js';
-import type { Role } from '../../lib/jwt.js';
+import { can } from '../permissions/permissionsService.js';
+import type { RequestHandler } from 'express';
 import * as ctl from './reports.controller.js';
 
 export const reportsRouter = Router();
 
 reportsRouter.use(requireAuth, requireActiveSession);
 
-// ─── Permission middleware ─────────────────────────────────────────────────────
-// Phase 11 will source this from Settings; for now it's hard-coded.
-const SELLER_REPORTS: string[] = [
-  'salesByPaymentMethod', 'customerLedger', 'outstandingOpenInvoices',
-];
-
-function requireReportAccess(reportKey: string) {
-  const roles: Role[] = SELLER_REPORTS.includes(reportKey)
-    ? ['owner', 'shop_seller']
-    : ['owner'];
-  return requireRole(...roles);
+// ─── Permission middleware ──────────────────────────────────────────────────
+// Consults the role_permissions table; owner always passes (short-circuited in can()).
+function requireReportAccess(reportKey: string): RequestHandler {
+  return async (req, res, next) => {
+    const role = req.user!.role;
+    const allowed = await can(role, `reports.${reportKey}`, 'read');
+    if (!allowed) {
+      res.status(403).json({ error: 'forbidden' });
+      return;
+    }
+    next();
+  };
 }
 
-// ─── Daily report ─────────────────────────────────────────────────────────────
+// ─── Daily report ────────────────────────────────────────────────────────────
 reportsRouter.get(
   '/daily',
   requireRole('owner', 'shop_seller'),
@@ -33,7 +35,7 @@ reportsRouter.get(
   ctl.exportDailyReport,
 );
 
-// ─── Secondary reports ────────────────────────────────────────────────────────
+// ─── Secondary reports ───────────────────────────────────────────────────────
 reportsRouter.get('/secondary/:reportKey', (req, res, next) => {
   const key = Array.isArray(req.params['reportKey'])
     ? (req.params['reportKey'][0] ?? '')

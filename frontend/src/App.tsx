@@ -26,6 +26,8 @@ import { RollsPage } from './pages/items/Rolls';
 import { NotificationsPage } from './pages/notifications/NotificationsPage';
 import { DailyReportPage } from './pages/reports/DailyReport';
 import { SecondaryReportPage } from './pages/reports/SecondaryReport';
+import { SettingsPage } from './pages/settings/SettingsPage';
+import { ApprovalsPage } from './pages/approvals/ApprovalsPage';
 
 export function App() {
   return (
@@ -65,6 +67,8 @@ export function App() {
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/reports/daily" element={<DailyReportPage />} />
                 <Route path="/reports/secondary/:reportKey" element={<SecondaryReportPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/approvals" element={<ApprovalsPage />} />
               </Routes>
             </AppShell>
           </ProtectedRoute>
