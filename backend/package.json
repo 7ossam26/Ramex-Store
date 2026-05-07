@@ -9,9 +9,9 @@
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "db:migrate": "knex --knexfile src/db/knexfile.ts migrate:latest",
-    "db:migrate:rollback": "knex --knexfile src/db/knexfile.ts migrate:rollback",
-    "db:seed": "knex --knexfile src/db/knexfile.ts seed:run",
+    "db:migrate": "tsx ../node_modules/knex/bin/cli.js --knexfile src/db/knexfile.ts migrate:latest",
+    "db:migrate:rollback": "tsx ../node_modules/knex/bin/cli.js --knexfile src/db/knexfile.ts migrate:rollback",
+    "db:seed": "tsx ../node_modules/knex/bin/cli.js --knexfile src/db/knexfile.ts seed:run",
     "lint": "eslint 'src/**/*.ts'"
   },
   "dependencies": {

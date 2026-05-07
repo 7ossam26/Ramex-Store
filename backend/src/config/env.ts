@@ -1,15 +1,13 @@
 import dotenv from 'dotenv';
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
-// Load .env from repo root (when CWD is backend/) or local (when CWD is repo root)
-for (const candidate of [resolve(process.cwd(), '../.env'), resolve(process.cwd(), '.env')]) {
-  if (existsSync(candidate)) {
-    dotenv.config({ path: candidate });
-    break;
-  }
-}
+// Use import.meta.url so .env lookup is CWD-independent (knex changes CWD to src/db)
+const _dir = dirname(fileURLToPath(import.meta.url));
+const _envPath = resolve(_dir, '../../../.env');
+if (existsSync(_envPath)) dotenv.config({ path: _envPath });
 
 const Schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
