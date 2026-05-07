@@ -146,7 +146,7 @@ export function ApprovalsPage() {
       <h1 className="text-2xl font-bold text-ink">{ar.approvals.title}</h1>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-border">
+      <div className="flex gap-1 border-b border-border overflow-x-auto whitespace-nowrap -mx-3 md:mx-0 px-3 md:px-0">
         <button
           type="button"
           onClick={() => setTab('pending')}

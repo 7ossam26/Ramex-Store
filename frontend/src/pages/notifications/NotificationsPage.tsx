@@ -120,7 +120,7 @@ export function NotificationsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-4 border-b border-border">
+      <div className="flex gap-2 mb-4 border-b border-border overflow-x-auto whitespace-nowrap -mx-3 md:mx-0 px-3 md:px-0">
         {(['unread', 'read', 'archived'] as Tab[]).map((t) => (
           <button
             key={t}

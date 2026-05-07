@@ -197,8 +197,8 @@ export function InvoiceDetailPage() {
         <CardHeader className="pb-2">
           <CardTitle className="text-base">{ar.invoices.detailLines}</CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
-          <table className="w-full text-sm">
+        <CardContent className="p-0 overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
             <thead className="text-right text-xs text-muted-foreground border-b border-border">
               <tr>
                 <th className="px-3 py-2">الخامة / اللون</th>
