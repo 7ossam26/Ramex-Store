@@ -3,12 +3,17 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { z } from 'zod';
 
-// Load .env from repo root (when CWD is backend/) or local (when CWD is repo root)
-for (const candidate of [resolve(process.cwd(), '../.env'), resolve(process.cwd(), '.env')]) {
+// Walk up from CWD to find .env (handles knex changing CWD to backend/src/db)
+let dir = process.cwd();
+while (true) {
+  const candidate = resolve(dir, '.env');
   if (existsSync(candidate)) {
     dotenv.config({ path: candidate });
     break;
   }
+  const parent = resolve(dir, '..');
+  if (parent === dir) break; // reached filesystem root
+  dir = parent;
 }
 
 const Schema = z.object({
