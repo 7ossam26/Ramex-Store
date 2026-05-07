@@ -1,7 +1,7 @@
 import cron, { type ScheduledTask } from 'node-cron';
 import { db } from '../../db/connection.js';
 import { logger } from '../../lib/logger.js';
-import { notify } from '../inventory/notifications.service.js';
+import { notify } from '../notifications/notificationsService.js';
 import { getSetting } from '../settings/settings.service.js';
 
 const NOTIFY_COOLDOWN_HOURS = 24;
@@ -40,12 +40,19 @@ export async function runStaleInvoiceCheck(): Promise<{ notified: number }> {
     const ageDays = Math.floor(
       (Date.now() - new Date(inv.created_at).getTime()) / 86_400_000,
     );
-    await notify({ role: 'owner' }, 'medium', 'stale_open_invoice', {
-      invoice_id: inv.id,
-      invoice_no: inv.invoice_no,
-      customer_name_ar: inv.customer_name_ar,
-      age_days: ageDays,
-      balance_egp: Number(inv.balance_egp),
+    await notify({
+      recipientRole: 'owner',
+      severity: 'medium',
+      eventType: 'stale_invoice',
+      titleAr: 'فاتورة مفتوحة متأخرة',
+      bodyAr: `فاتورة ${inv.invoice_no} للعميل ${inv.customer_name_ar} منذ ${ageDays} يوم`,
+      payload: {
+        invoice_id: inv.id,
+        invoice_no: inv.invoice_no,
+        customer_name_ar: inv.customer_name_ar,
+        age_days: ageDays,
+        balance_egp: Number(inv.balance_egp),
+      },
     });
     await db('invoices').where({ id: inv.id }).update({
       last_stale_notified_at: db.fn.now(),

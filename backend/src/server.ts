@@ -10,6 +10,7 @@ import { requestId } from './middleware/request-id.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { apiRouter } from './api/routes.js';
 import { startStaleInvoiceCron } from './domain/sales/staleInvoices.job.js';
+import { startArchiveCron } from './domain/notifications/archiveJob.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -37,4 +38,5 @@ export { app };
 if (process.env.NODE_ENV !== 'test') {
   app.listen(env.PORT, () => logger.info({ port: env.PORT }, 'ramex-store server up'));
   startStaleInvoiceCron();
+  startArchiveCron();
 }

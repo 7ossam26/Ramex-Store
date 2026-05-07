@@ -1,6 +1,6 @@
 import type { Knex } from 'knex';
 import { db } from '../../db/connection.js';
-import { notify } from '../inventory/notifications.service.js';
+import { notify } from '../notifications/notificationsService.js';
 
 export type CashEventType =
   | 'sale_payment'
@@ -134,11 +134,18 @@ export async function recordReconciliation(params: {
       .returning('id');
 
     if (Math.abs(variance) > 0.001) {
-      await notify({ role: 'owner' }, 'high', 'cash_discrepancy', {
-        date: params.date,
-        expected_balance_egp: expected,
-        actual_balance_egp: params.actualBalance,
-        variance_egp: variance,
+      await notify({
+        recipientRole: 'owner',
+        severity: 'high',
+        eventType: 'cash_discrepancy',
+        titleAr: 'فارق في الخزنة النقدية',
+        bodyAr: `تم رصد فارق ${Math.abs(variance).toFixed(2)} جنيه في تسوية يوم ${params.date}`,
+        payload: {
+          date: params.date,
+          expected_balance_egp: expected,
+          actual_balance_egp: params.actualBalance,
+          variance_egp: variance,
+        },
       });
     }
 

@@ -1,6 +1,6 @@
 import { db } from '../../db/connection.js';
 import { auditFromService } from '../inventory/audit.helper.js';
-import { notify } from '../inventory/notifications.service.js';
+import { notify } from '../notifications/notificationsService.js';
 import { getSetting } from '../settings/settings.service.js';
 import { recordMovement as cashRecordMovement } from './cashDrawerService.js';
 import { recordMovement as bankRecordMovement } from './bankService.js';
@@ -51,13 +51,21 @@ export async function recordExpense(params: {
     const expense = row as ExpenseRow;
 
     if (requiresApproval) {
-      await notify({ role: 'owner' }, 'high', 'requires_approval', {
-        action: 'approve_expense',
-        expense_id: expense.id,
-        amount_egp: params.amount,
-        category: params.category,
-        paid_from: params.paidFrom,
-        requested_by_user_id: params.actorUserId,
+      await notify({
+        recipientRole: 'owner',
+        severity: 'high',
+        eventType: 'approval_needed',
+        titleAr: 'طلب موافقة — مصروف',
+        bodyAr: `طلب صرف ${params.amount.toFixed(2)} جنيه في فئة ${params.category}`,
+        isBlocking: true,
+        blockedActionPayload: { actionType: 'expense_high_value', expenseId: expense.id },
+        payload: {
+          expense_id: expense.id,
+          amount_egp: params.amount,
+          category: params.category,
+          paid_from: params.paidFrom,
+          requested_by_user_id: params.actorUserId,
+        },
       });
     } else {
       // Deduct immediately

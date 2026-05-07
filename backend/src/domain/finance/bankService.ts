@@ -1,7 +1,7 @@
 import type { Knex } from 'knex';
 import { db } from '../../db/connection.js';
 import { auditFromService } from '../inventory/audit.helper.js';
-import { notify } from '../inventory/notifications.service.js';
+import { notify } from '../notifications/notificationsService.js';
 
 export type BankEventType =
   | 'instapay_payment'
@@ -211,13 +211,20 @@ export async function recordReconciliation(params: {
       .returning('id');
 
     if (Math.abs(variance) > 0.001) {
-      await notify({ role: 'owner' }, 'high', 'bank_discrepancy', {
-        date: params.date,
-        bank_account_id: params.bankAccountId,
-        bank_name_ar: account.name_ar,
-        expected_balance_egp: expected,
-        actual_balance_egp: params.actualBalance,
-        variance_egp: variance,
+      await notify({
+        recipientRole: 'owner',
+        severity: 'high',
+        eventType: 'cash_discrepancy',
+        titleAr: 'فارق في الحساب البنكي',
+        bodyAr: `تم رصد فارق ${Math.abs(variance).toFixed(2)} جنيه في تسوية بنك ${account.name_ar} يوم ${params.date}`,
+        payload: {
+          date: params.date,
+          bank_account_id: params.bankAccountId,
+          bank_name_ar: account.name_ar,
+          expected_balance_egp: expected,
+          actual_balance_egp: params.actualBalance,
+          variance_egp: variance,
+        },
       });
     }
 

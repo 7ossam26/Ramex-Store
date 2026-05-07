@@ -1,7 +1,7 @@
 import type { Knex } from 'knex';
 import { db } from '../../db/connection.js';
 import { auditFromService } from '../inventory/audit.helper.js';
-import { notify } from '../inventory/notifications.service.js';
+import { notify } from '../notifications/notificationsService.js';
 import { roundEgp } from './discountCalculator.js';
 import { settlePayment } from '../finance/paymentSettlementService.js';
 import type { Invoice, InvoiceStatus, PaymentMethod } from './sales.types.js';
@@ -418,11 +418,18 @@ export async function cancelOpenInvoice(
       severity: 'medium',
     });
 
-    await notify({ role: 'owner' }, 'medium', 'invoice_cancelled', {
-      invoice_id: invoiceId,
-      invoice_no: invoice.invoice_no,
-      deposit_handling: opts.depositHandling,
-      refund_amount: refundAmount,
+    await notify({
+      recipientRole: 'owner',
+      severity: 'medium',
+      eventType: 'void_requested',
+      titleAr: 'فاتورة مفتوحة ملغاة',
+      bodyAr: `تم إلغاء الفاتورة المفتوحة رقم ${invoice.invoice_no}`,
+      payload: {
+        invoice_id: invoiceId,
+        invoice_no: invoice.invoice_no,
+        deposit_handling: opts.depositHandling,
+        refund_amount: refundAmount,
+      },
     });
 
     return { invoice: updated as Invoice };

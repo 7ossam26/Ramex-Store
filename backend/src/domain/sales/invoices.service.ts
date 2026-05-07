@@ -1,7 +1,7 @@
 import type { Knex } from 'knex';
 import { db } from '../../db/connection.js';
 import { auditFromService } from '../inventory/audit.helper.js';
-import { notify } from '../inventory/notifications.service.js';
+import { notify } from '../notifications/notificationsService.js';
 import { getSetting } from '../settings/settings.service.js';
 import { nextInvoiceNo } from './invoiceNumber.service.js';
 import { backCalculateDiscount, roundEgp } from './discountCalculator.js';
@@ -400,12 +400,20 @@ export async function voidInvoice(
 
     // Approval gate: only Owner can self-approve.
     if (actorRole !== 'owner' && !approvedByOwner) {
-      await notify({ role: 'owner' }, 'high', 'requires_approval', {
-        action: 'void_invoice',
-        invoice_id: invoiceId,
-        invoice_no: invoice.invoice_no,
-        reason_ar: reasonAr,
-        requested_by_user_id: actorUserId,
+      await notify({
+        recipientRole: 'owner',
+        severity: 'high',
+        eventType: 'void_requested',
+        titleAr: 'طلب موافقة — إلغاء فاتورة',
+        bodyAr: `طلب إلغاء فاتورة رقم ${invoice.invoice_no}`,
+        isBlocking: true,
+        blockedActionPayload: {
+          actionType: 'void_invoice',
+          invoiceId,
+          reasonAr,
+          requestedByUserId: actorUserId,
+        },
+        payload: { invoice_id: invoiceId, invoice_no: invoice.invoice_no, reason_ar: reasonAr },
       });
       await auditFromService(trx, {
         actorUserId,
@@ -507,6 +515,20 @@ export async function voidInvoice(
 
     return { invoice: updated as Invoice };
   });
+}
+
+// Called by approvalDispatcher when Owner approves a void_invoice notification.
+// Skips the role/approval gate — owner approval is already confirmed by the notification resolution.
+export async function completeVoid(
+  invoiceId: number,
+  ownerUserId: number,
+  reasonAr: string,
+): Promise<{ invoice: Invoice }> {
+  const result = await voidInvoice(invoiceId, ownerUserId, 'owner', reasonAr, true);
+  if ('requires_approval' in result) {
+    throw new Error('VOID_APPROVAL_UNEXPECTED');
+  }
+  return result;
 }
 
 export async function getInvoiceDetail(id: number): Promise<InvoiceDetail | undefined> {

@@ -23,6 +23,7 @@ import { ReturnsListPage } from './pages/returns/ReturnsList';
 import { ReturnDetailPage } from './pages/returns/ReturnDetail';
 import { LabelsPage } from './pages/items/Labels';
 import { RollsPage } from './pages/items/Rolls';
+import { NotificationsPage } from './pages/notifications/NotificationsPage';
 
 export function App() {
   return (
@@ -59,6 +60,7 @@ export function App() {
                 <Route path="/returns/:id" element={<ReturnDetailPage />} />
                 <Route path="/items/rolls" element={<RollsPage />} />
                 <Route path="/items/labels" element={<LabelsPage />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
               </Routes>
             </AppShell>
           </ProtectedRoute>

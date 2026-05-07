@@ -1,5 +1,6 @@
 import { ModuleDropdown } from './ModuleDropdown';
 import { UserMenu } from './UserMenu';
+import { NotificationBell } from '@/components/NotificationBell';
 import { ar } from '@/i18n/ar';
 import { useAuth } from '@/lib/auth';
 
@@ -72,6 +73,7 @@ export function TopBar() {
         <ModuleDropdown label={ar.topbar.reports} items={[{ label: 'تقرير اليوم', href: '/reports/daily' }]} />
         <ModuleDropdown label={ar.topbar.settings} items={[{ label: 'الإعدادات العامة', href: '/settings' }]} />
       </nav>
+      <NotificationBell />
       <UserMenu />
     </header>
   );

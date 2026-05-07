@@ -1,6 +1,6 @@
 import { db } from '../../db/connection.js';
 import { auditFromService } from '../inventory/audit.helper.js';
-import { notify } from '../inventory/notifications.service.js';
+import { notify } from '../notifications/notificationsService.js';
 import { getSetting } from '../settings/settings.service.js';
 import { roundEgp } from './discountCalculator.js';
 import { nextReturnNo } from './returnNumber.service.js';
@@ -281,12 +281,19 @@ export async function processReturn(input: ProcessReturnInput): Promise<ReturnRo
       severity: 'medium',
     });
 
-    await notify({ role: 'owner' }, 'low', 'return_exchange_processed', {
-      return_no,
-      kind: 'refund',
-      total_refund_egp: totalRefund,
-      refund_method: input.refundMethod,
-      original_invoice_id: input.originalInvoiceId,
+    await notify({
+      recipientRole: 'owner',
+      severity: 'low',
+      eventType: 'return_processed',
+      titleAr: 'مرتجع مسجل',
+      bodyAr: `تم تسجيل مرتجع رقم ${return_no}`,
+      payload: {
+        return_no,
+        kind: 'refund',
+        total_refund_egp: totalRefund,
+        refund_method: input.refundMethod,
+        original_invoice_id: input.originalInvoiceId,
+      },
     });
 
     return ret as ReturnRow;
@@ -476,11 +483,18 @@ export async function processExchange(input: ProcessExchangeInput): Promise<{
     exchange_new_invoice_id: newInvoice.id,
   });
 
-  await notify({ role: 'owner' }, 'low', 'return_exchange_processed', {
-    return_no: returnRow.return_no,
-    kind: 'exchange',
-    new_invoice_id: newInvoice.id,
-    original_invoice_id: input.originalInvoiceId,
+  await notify({
+    recipientRole: 'owner',
+    severity: 'low',
+    eventType: 'return_processed',
+    titleAr: 'استبدال مسجل',
+    bodyAr: `تم تسجيل استبدال رقم ${returnRow.return_no}`,
+    payload: {
+      return_no: returnRow.return_no,
+      kind: 'exchange',
+      new_invoice_id: newInvoice.id,
+      original_invoice_id: input.originalInvoiceId,
+    },
   });
 
   return { returnRow: { ...returnRow, exchange_new_invoice_id: newInvoice.id }, newInvoice };

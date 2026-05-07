@@ -1,7 +1,7 @@
 import type { Knex } from 'knex';
 import { db } from '../../db/connection.js';
 import { auditFromService } from './audit.helper.js';
-import { notify } from './notifications.service.js';
+import { notify } from '../notifications/notificationsService.js';
 import { getSetting } from '../settings/settings.service.js';
 import type {
   DamageDisposition,
@@ -74,10 +74,15 @@ export async function createDamageEvent(
         },
         severity: 'high',
       });
-      await notify({ role: 'owner' }, 'high', 'damage_approval_needed', {
-        damage_event_id: event.id,
-        roll_id: input.roll_id,
-        valuation_egp: valuation,
+      await notify({
+        recipientRole: 'owner',
+        severity: 'high',
+        eventType: 'approval_needed',
+        titleAr: 'طلب موافقة — حدث تلف',
+        bodyAr: `حدث تلف على توب #${input.roll_id} بقيمة ${valuation} جنيه يستلزم الموافقة`,
+        isBlocking: true,
+        blockedActionPayload: { actionType: 'damage_event_high_value', eventId: event.id },
+        payload: { damage_event_id: event.id, roll_id: input.roll_id, valuation_egp: valuation },
       });
     } else {
       await applyDamageEvent(trx, event as DamageEvent, roll, actorUserId);
@@ -198,19 +203,34 @@ async function applyDamageEvent(
   });
 
   if (isLoss) {
-    await notify({ role: 'owner' }, 'critical', 'theft_or_loss', {
-      damage_event_id: event.id,
-      roll_id: roll.id,
-      reason_code: event.reason_code,
-      valuation_egp: event.valuation_egp,
+    await notify({
+      recipientRole: 'owner',
+      severity: 'critical',
+      eventType: 'theft_detected',
+      tag: 'سرقة',
+      titleAr: 'تنبيه: سرقة أو فقدان',
+      bodyAr: `تم تسجيل فقدان/سرقة توب #${roll.id} بقيمة ${event.valuation_egp} جنيه`,
+      payload: {
+        damage_event_id: event.id,
+        roll_id: roll.id,
+        reason_code: event.reason_code,
+        valuation_egp: event.valuation_egp,
+      },
     });
   } else {
-    await notify({ role: 'owner' }, 'low', 'damage_recorded', {
-      damage_event_id: event.id,
-      roll_id: roll.id,
-      reason_code: event.reason_code,
-      disposition: event.disposition,
-      valuation_egp: event.valuation_egp,
+    await notify({
+      recipientRole: 'owner',
+      severity: 'low',
+      eventType: 'damage_loss_logged',
+      titleAr: 'تلف مسجل',
+      bodyAr: `تم تسجيل حدث تلف على توب #${roll.id} بقيمة ${event.valuation_egp} جنيه`,
+      payload: {
+        damage_event_id: event.id,
+        roll_id: roll.id,
+        reason_code: event.reason_code,
+        disposition: event.disposition,
+        valuation_egp: event.valuation_egp,
+      },
     });
   }
 }

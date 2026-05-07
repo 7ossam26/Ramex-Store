@@ -1,7 +1,7 @@
 import type { Knex } from 'knex';
 import { db } from '../../db/connection.js';
 import { auditFromService } from './audit.helper.js';
-import { notify } from './notifications.service.js';
+import { notify } from '../notifications/notificationsService.js';
 import type {
   Stocktake,
   StocktakeLine,
@@ -216,10 +216,17 @@ export async function completeStocktake(
     });
 
     if (discrepancyCount > 0) {
-      await notify({ role: 'shop_seller' }, 'medium', 'stocktake_adjustment_suggested', {
-        stocktake_id: stocktakeId,
-        stocktake_no: updated.stocktake_no,
-        discrepancy_lines: discrepancyCount,
+      await notify({
+        recipientRole: 'shop_seller',
+        severity: 'medium',
+        eventType: 'stock_adjustment',
+        titleAr: 'جرد: تعديلات مقترحة',
+        bodyAr: `جرد رقم ${updated.stocktake_no} يحتوي على ${discrepancyCount} سطر بفوارق`,
+        payload: {
+          stocktake_id: stocktakeId,
+          stocktake_no: updated.stocktake_no,
+          discrepancy_lines: discrepancyCount,
+        },
       });
     }
 

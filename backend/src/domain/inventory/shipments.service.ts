@@ -2,7 +2,7 @@ import type { Knex } from 'knex';
 import { db } from '../../db/connection.js';
 import { nextShipmentNo } from './shipmentNumber.service.js';
 import { auditFromService } from './audit.helper.js';
-import { notify } from './notifications.service.js';
+import { notify } from '../notifications/notificationsService.js';
 import type {
   Shipment,
   ShipmentLine,
@@ -186,10 +186,13 @@ export async function submit(shipmentId: number, actorUserId: number): Promise<S
       severity: 'medium',
     });
 
-    await notify({ role: 'shop_seller' }, 'medium', 'shipment_arrived', {
-      shipment_id: shipmentId,
-      shipment_no: updated.shipment_no,
-      line_count: lines.length,
+    await notify({
+      recipientRole: 'shop_seller',
+      severity: 'medium',
+      eventType: 'shipment_arrived',
+      titleAr: 'طلبية جديدة للمراجعة',
+      bodyAr: `طلبية رقم ${updated.shipment_no} تحتوي على ${lines.length} توب في انتظار المراجعة`,
+      payload: { shipment_id: shipmentId, shipment_no: updated.shipment_no, line_count: lines.length },
     });
 
     return updated as Shipment;
@@ -317,12 +320,19 @@ export async function finalizeReview(
     });
 
     if (finalStatus === 'partial_approved' || finalStatus === 'rejected') {
-      await notify({ role: 'owner' }, 'medium', 'shipment_partially_rejected', {
-        shipment_id: shipmentId,
-        shipment_no: updated.shipment_no,
-        final_status: finalStatus,
-        accepted: accepted.length,
-        rejected: rejected.length,
+      await notify({
+        recipientRole: 'owner',
+        severity: 'medium',
+        eventType: 'shipment_partial_reject',
+        titleAr: 'طلبية مرفوضة جزئياً',
+        bodyAr: `طلبية رقم ${updated.shipment_no}: قُبل ${accepted.length} ورُفض ${rejected.length} توب`,
+        payload: {
+          shipment_id: shipmentId,
+          shipment_no: updated.shipment_no,
+          final_status: finalStatus,
+          accepted: accepted.length,
+          rejected: rejected.length,
+        },
       });
     }
 

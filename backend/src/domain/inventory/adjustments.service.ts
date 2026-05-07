@@ -1,6 +1,6 @@
 import { db } from '../../db/connection.js';
 import { auditFromService } from './audit.helper.js';
-import { notify } from './notifications.service.js';
+import { notify } from '../notifications/notificationsService.js';
 import type { CreateAdjustmentInput } from './inventory.schemas.js';
 import type { StockMovement } from './inventory.types.js';
 
@@ -53,15 +53,22 @@ export async function createAdjustment(
       severity: 'medium',
     });
 
-    await notify({ role: 'owner' }, 'low', 'stock_adjustment', {
-      roll_id: roll.id,
-      from: { warehouse: roll.warehouse, status: roll.status, weight_kg: roll.weight_kg },
-      to: {
-        warehouse: patch.warehouse ?? roll.warehouse,
-        status: patch.status ?? roll.status,
-        weight_kg: patch.weight_kg ?? roll.weight_kg,
+    await notify({
+      recipientRole: 'owner',
+      severity: 'low',
+      eventType: 'stock_adjustment',
+      titleAr: 'تعديل مخزون',
+      bodyAr: `تم تعديل بيانات توب #${roll.id}`,
+      payload: {
+        roll_id: roll.id,
+        from: { warehouse: roll.warehouse, status: roll.status, weight_kg: roll.weight_kg },
+        to: {
+          warehouse: patch.warehouse ?? roll.warehouse,
+          status: patch.status ?? roll.status,
+          weight_kg: patch.weight_kg ?? roll.weight_kg,
+        },
+        notes_ar: input.notes_ar,
       },
-      notes_ar: input.notes_ar,
     });
 
     return movement as StockMovement;
