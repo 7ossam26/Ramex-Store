@@ -51,7 +51,15 @@ export function TopBar() {
             { label: ar.customers.addCustomer, href: '/customers?create=1' },
           ]}
         />
-        <ModuleDropdown label={ar.topbar.payments} items={[{ label: 'الخزنة', href: '/cash' }]} />
+        <ModuleDropdown
+          label={ar.topbar.payments}
+          items={[
+            { label: 'الخزنة الكاش', href: '/cash' },
+            { label: 'البنوك', href: '/banks' },
+            { label: 'المصروفات', href: '/expenses' },
+            { label: 'التسوية اليومية', href: '/reconcile' },
+          ]}
+        />
         <ModuleDropdown label={ar.topbar.invoices} items={[{ label: ar.invoices.title, href: '/invoices' }]} />
         <ModuleDropdown label={ar.topbar.reports} items={[{ label: 'تقرير اليوم', href: '/reports/daily' }]} />
         <ModuleDropdown label={ar.topbar.settings} items={[{ label: 'الإعدادات العامة', href: '/settings' }]} />

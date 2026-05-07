@@ -3,6 +3,7 @@ import { db } from '../../db/connection.js';
 import { auditFromService } from '../inventory/audit.helper.js';
 import { notify } from '../inventory/notifications.service.js';
 import { roundEgp } from './discountCalculator.js';
+import { settlePayment } from '../finance/paymentSettlementService.js';
 import type { Invoice, InvoiceStatus, PaymentMethod } from './sales.types.js';
 
 const EPS = 0.001;
@@ -105,11 +106,15 @@ export async function addFinalPayment(
         bank_account_id: bankId,
         actor_user_id: actorUserId,
       });
-      if (p.method === 'instapay' && bankId != null) {
-        await trx('bank_accounts')
-          .where({ id: bankId })
-          .increment('current_balance_egp', amount);
-      }
+      await settlePayment(trx, {
+        method: p.method,
+        paymentKind: 'final',
+        amount,
+        bankAccountId: bankId,
+        referenceType: 'invoice',
+        referenceId: invoiceId,
+        actorUserId,
+      });
       const newBalance = roundEgp(customerBalance + amount);
       customerBalance = newBalance;
       await trx('customer_ledger_entries').insert({
@@ -324,11 +329,16 @@ export async function cancelOpenInvoice(
         notes_ar: `إلغاء فاتورة: ${opts.notesAr}`,
         actor_user_id: actorUserId,
       });
-      if (opts.refundMethod === 'instapay' && refundBankId != null) {
-        await trx('bank_accounts')
-          .where({ id: refundBankId })
-          .decrement('current_balance_egp', refundAmount);
-      }
+      await settlePayment(trx, {
+        method: opts.refundMethod!,
+        paymentKind: 'refund',
+        amount: refundAmount,
+        bankAccountId: refundBankId,
+        referenceType: 'invoice',
+        referenceId: invoiceId,
+        actorUserId,
+        notesAr: `إلغاء فاتورة: ${opts.notesAr}`,
+      });
     }
 
     // Reverse the sale's effect on customer book balance.

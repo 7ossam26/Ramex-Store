@@ -5,6 +5,7 @@ import { notify } from '../inventory/notifications.service.js';
 import { getSetting } from '../settings/settings.service.js';
 import { nextInvoiceNo } from './invoiceNumber.service.js';
 import { backCalculateDiscount, roundEgp } from './discountCalculator.js';
+import { settlePayment } from '../finance/paymentSettlementService.js';
 import type {
   CreateSaleInput,
   Invoice,
@@ -289,25 +290,27 @@ export async function createSale(
       const bankId =
         p.method === 'instapay' ? (p.bankAccountId ?? defaultBankId) : null;
       const kind: 'deposit' | 'final' = isFullyPaid ? 'final' : 'deposit';
+      const amount = roundEgp(Number(p.amount));
       await trx('payments').insert({
         invoice_id: invoice.id,
         method: p.method,
-        amount_egp: roundEgp(Number(p.amount)),
+        amount_egp: amount,
         payment_kind: kind,
         bank_account_id: bankId,
         actor_user_id: cashierUserId,
       });
 
-      // Cash drawer / bank account balance updates: Phase 6 will fully wire
-      // the cash drawer model. For instapay, increment bank account balance now.
-      if (p.method === 'instapay' && bankId != null) {
-        await trx('bank_accounts')
-          .where({ id: bankId })
-          .increment('current_balance_egp', roundEgp(Number(p.amount)));
-      }
+      await settlePayment(trx, {
+        method: p.method,
+        paymentKind: kind,
+        amount,
+        bankAccountId: bankId,
+        referenceType: 'invoice',
+        referenceId: invoice.id,
+        actorUserId: cashierUserId,
+      });
 
       // Customer ledger entry per payment (positive = credit on the books).
-      const amount = roundEgp(Number(p.amount));
       runningPaid = roundEgp(runningPaid + amount);
       const newBalance = roundEgp(Number(customer.current_balance_egp) + amount);
       const [ledgerRow] = await trx('customer_ledger_entries')
@@ -434,24 +437,30 @@ export async function voidInvoice(
       });
     }
 
-    // Reverse payments — record refund rows; deduct from bank balances.
+    // Reverse payments — record refund rows; settle against cash drawer / bank.
     const paid = Number(invoice.paid_egp);
     const payments = await trx('payments').where({ invoice_id: invoiceId, payment_kind: 'final' }).orWhere({ invoice_id: invoiceId, payment_kind: 'deposit' });
     for (const p of payments) {
+      const refundAmount = Number(p.amount_egp);
       await trx('payments').insert({
         invoice_id: invoiceId,
         method: p.method,
-        amount_egp: -Number(p.amount_egp),
+        amount_egp: -refundAmount,
         payment_kind: 'refund',
         bank_account_id: p.bank_account_id,
         notes_ar: `استرجاع: ${reasonAr}`,
         actor_user_id: actorUserId,
       });
-      if (p.method === 'instapay' && p.bank_account_id != null) {
-        await trx('bank_accounts')
-          .where({ id: p.bank_account_id })
-          .decrement('current_balance_egp', Number(p.amount_egp));
-      }
+      await settlePayment(trx, {
+        method: p.method as 'cash' | 'instapay',
+        paymentKind: 'refund',
+        amount: refundAmount,
+        bankAccountId: p.bank_account_id as number | null,
+        referenceType: 'invoice',
+        referenceId: invoiceId,
+        actorUserId,
+        notesAr: `استرجاع: ${reasonAr}`,
+      });
     }
 
     // Reverse customer ledger.
