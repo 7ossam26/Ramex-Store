@@ -5,6 +5,7 @@ import { usersRouter } from '../domain/users/users.routes.js';
 import { itemsRouter } from '../domain/items/items.routes.js';
 import { inventoryRouter } from '../domain/inventory/inventory.routes.js';
 import { customersRouter } from '../domain/customers/customers.routes.js';
+import { salesRouter } from '../domain/sales/sales.routes.js';
 
 export const apiRouter = Router();
 apiRouter.use('/health', healthRouter);
@@ -13,3 +14,4 @@ apiRouter.use('/users', usersRouter);
 apiRouter.use('/', itemsRouter);
 apiRouter.use('/', inventoryRouter);
 apiRouter.use('/', customersRouter);
+apiRouter.use('/', salesRouter);

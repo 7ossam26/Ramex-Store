@@ -12,6 +12,9 @@ import { AdjustmentsPage } from './pages/inventory/Adjustments';
 import { DamagePage } from './pages/inventory/Damage';
 import { CustomersListPage } from './pages/customers/CustomersList';
 import { CustomerDetailPage } from './pages/customers/CustomerDetail';
+import { POSPage } from './pages/pos/POS';
+import { InvoicesListPage } from './pages/invoices/InvoicesList';
+import { InvoiceDetailPage } from './pages/invoices/InvoiceDetail';
 
 export function App() {
   return (
@@ -37,6 +40,9 @@ export function App() {
                 <Route path="/inventory/damage" element={<DamagePage />} />
                 <Route path="/customers" element={<CustomersListPage />} />
                 <Route path="/customers/:id" element={<CustomerDetailPage />} />
+                <Route path="/pos" element={<POSPage />} />
+                <Route path="/invoices" element={<InvoicesListPage />} />
+                <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
               </Routes>
             </AppShell>
           </ProtectedRoute>

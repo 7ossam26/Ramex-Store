@@ -1,0 +1,60 @@
+import { api } from './api';
+import type {
+  BankAccount,
+  CreateSaleBody,
+  Invoice,
+  InvoiceDetail,
+  InvoiceListRow,
+  RollLookup,
+  SaleLineInput,
+  SalePreview,
+} from './sales-types';
+
+export const salesApi = {
+  preview: (lines: SaleLineInput[], cartTargetFinal?: number | null) =>
+    api
+      .post<SalePreview>('/sales/preview', { lines, cartTargetFinal: cartTargetFinal ?? null })
+      .then((r) => r.data),
+
+  create: (body: CreateSaleBody) =>
+    api.post<Invoice>('/sales', body).then((r) => r.data),
+
+  list: (params?: {
+    status?: string;
+    customer_id?: number;
+    date_from?: string;
+    date_to?: string;
+    page?: number;
+    limit?: number;
+  }) =>
+    api
+      .get<{ rows: InvoiceListRow[]; total: number }>('/invoices', { params })
+      .then((r) => r.data),
+
+  get: (id: number) => api.get<InvoiceDetail>(`/invoices/${id}`).then((r) => r.data),
+
+  voidInvoice: (id: number, reason_ar: string, approved_by_owner = false) =>
+    api
+      .post<{ requires_approval?: true; invoice?: Invoice }>(
+        `/invoices/${id}/void`,
+        { reason_ar, approved_by_owner },
+      )
+      .then((r) => r.data),
+
+  pdfUrl: (id: number, variant: 'original' | 'reprint' | 'open' = 'original') =>
+    `/api/invoices/${id}/pdf?variant=${variant}`,
+
+  bankAccounts: () =>
+    api.get<BankAccount[]>('/bank-accounts').then((r) => r.data),
+
+  rollByBarcode: (barcode: string) =>
+    api.get<RollLookup>(`/rolls/by-barcode/${encodeURIComponent(barcode)}`).then((r) => r.data),
+
+  searchRolls: (params: {
+    fabric_id?: number;
+    color_id?: number;
+    status?: string;
+    warehouse?: string;
+    is_visible_at_pos?: boolean;
+  }) => api.get<RollLookup[]>('/rolls', { params }).then((r) => r.data),
+};

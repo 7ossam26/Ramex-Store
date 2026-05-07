@@ -37,7 +37,13 @@ export function TopBar() {
       <nav className="flex items-center gap-1 flex-1">
         <ModuleDropdown label={ar.topbar.inventory} items={inventoryItems} />
         {showShipments && <ModuleDropdown label={ar.topbar.shipments} items={shipmentsItems} />}
-        <ModuleDropdown label={ar.topbar.sales} items={[{ label: 'نقطة البيع', href: '/pos' }]} />
+        <ModuleDropdown
+          label={ar.topbar.sales}
+          items={[
+            { label: ar.pos.title, href: '/pos' },
+            { label: ar.invoices.title, href: '/invoices' },
+          ]}
+        />
         <ModuleDropdown
           label={ar.topbar.customers}
           items={[
@@ -46,7 +52,7 @@ export function TopBar() {
           ]}
         />
         <ModuleDropdown label={ar.topbar.payments} items={[{ label: 'الخزنة', href: '/cash' }]} />
-        <ModuleDropdown label={ar.topbar.invoices} items={[{ label: 'الفواتير', href: '/invoices' }]} />
+        <ModuleDropdown label={ar.topbar.invoices} items={[{ label: ar.invoices.title, href: '/invoices' }]} />
         <ModuleDropdown label={ar.topbar.reports} items={[{ label: 'تقرير اليوم', href: '/reports/daily' }]} />
         <ModuleDropdown label={ar.topbar.settings} items={[{ label: 'الإعدادات العامة', href: '/settings' }]} />
       </nav>

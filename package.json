@@ -5,7 +5,7 @@
   "workspaces": ["backend", "frontend"],
   "scripts": {
     "dev": "concurrently -n backend,frontend -c blue,magenta \"npm run dev -w backend\" \"npm run dev -w frontend\"",
-    "build": "npm run build -w frontend && node scripts/copy-frontend-to-backend.mjs && npm run build -w backend",
+    "build": "npm run build -w frontend && node scripts/copy-frontend-to-backend.mjs && npm run build -w backend && node scripts/copy-pdf-fonts.mjs",
     "typecheck": "npm run typecheck -w backend && npm run typecheck -w frontend",
     "lint": "npm run lint -w backend && npm run lint -w frontend",
     "test": "npm run test -w backend && npm run test -w frontend",

@@ -16,6 +16,19 @@ const PHASE_2_DEFAULTS: Array<{ key: string; value: unknown }> = [
       { code: 'other', label_ar: 'أخرى' },
     ],
   },
+  // Phase 4 — POS defaults
+  { key: 'tax_enabled', value: false },
+  { key: 'tax_rate', value: 0.14 },
+  { key: 'min_deposit_pct', value: 0.25 },
+  { key: 'void_time_limit_hours', value: 24 },
+  { key: 'logo_path', value: null },
+  { key: 'shop_address_ar', value: '' },
+  { key: 'shop_phone', value: '' },
+  { key: 'shop_tax_id', value: '' },
+  {
+    key: 'receipt_warning_ar',
+    value: 'الطوب بعد القص غير مرتجع. يوجد استبدال خلال ١٤ يوم من تاريخ الشراء.',
+  },
 ];
 
 export async function seed(db: Knex): Promise<void> {
