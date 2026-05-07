@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { ScannerInput } from '@/components/ScannerInput';
 
 type CartLine = {
   roll: RollLookup;
@@ -54,9 +55,7 @@ export function POSPage() {
 
   // Cart
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [scanInput, setScanInput] = useState('');
   const [scanError, setScanError] = useState<string | null>(null);
-  const scanRef = useRef<HTMLInputElement>(null);
 
   // Customer
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -91,11 +90,6 @@ export function POSPage() {
       if (def) setBankAccountId(def.id);
     }
   }, [banks, bankAccountId]);
-
-  // Auto-focus scanner
-  useEffect(() => {
-    scanRef.current?.focus();
-  }, []);
 
   const subtotal = useMemo(() => cart.reduce((s, l) => s + lineSubtotal(l), 0), [cart]);
 
@@ -142,11 +136,9 @@ export function POSPage() {
       } else if (roll.warehouse !== 'shop' && roll.warehouse !== 'damaged_shop') {
         setScanError(ar.pos.notAtShop);
       } else if (cart.find((l) => l.roll.id === roll.id)) {
-        // already in cart — just nudge focus
-        setScanInput('');
+        // already in cart — no-op, ScannerInput clears itself
       } else {
         setCart((c) => [...c, { roll, priceOverride: '', lineDiscount: '' }]);
-        setScanInput('');
       }
     } catch (e) {
       const status = axios.isAxiosError(e) ? e.response?.status : 0;
@@ -235,7 +227,6 @@ export function POSPage() {
 
   function resetSale() {
     setCart([]);
-    setScanInput('');
     setScanError(null);
     setCustomer(null);
     setCustomerSearch('');
@@ -247,7 +238,6 @@ export function POSPage() {
     setNotesAr('');
     setCompleted(null);
     setSubmitError(null);
-    scanRef.current?.focus();
   }
 
   return (
@@ -260,19 +250,9 @@ export function POSPage() {
         <CardContent className="space-y-3">
           <div className="space-y-1">
             <Label>{ar.pos.scan}</Label>
-            <Input
-              ref={scanRef}
-              value={scanInput}
-              onChange={(e) => setScanInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  void handleScanEnter(scanInput);
-                }
-              }}
-              placeholder={ar.pos.scan}
-              dir="ltr"
-              className="text-lg"
+            <ScannerInput
+              onScan={(barcode) => { setScanError(null); void handleScanEnter(barcode); }}
+              placeholder={ar.labels.scanHint}
             />
             {scanError && <p className="text-sm text-red-600">{scanError}</p>}
           </div>

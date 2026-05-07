@@ -6,12 +6,16 @@ import { inventoryApi } from '@/lib/inventory-api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ScannerInput } from '@/components/ScannerInput';
+import { Label } from '@/components/ui/label';
 
 export function ReviewShipmentPage() {
   const { id } = useParams<{ id: string }>();
   const shipmentId = Number(id);
   const qc = useQueryClient();
   const [reasons, setReasons] = useState<Record<number, string>>({});
+
+  const [scanFlash, setScanFlash] = useState<string | null>(null);
 
   const q = useQuery({
     queryKey: ['shipment', shipmentId],
@@ -41,6 +45,20 @@ export function ReviewShipmentPage() {
     }
   };
 
+  function handleScanAccept(barcode: string) {
+    const line = shipment.lines.find(
+      (l) => l.status === 'pending' && l.internal_barcode === barcode,
+    );
+    if (!line) {
+      setScanFlash(`غير موجود: ${barcode}`);
+    } else {
+      reviewLine.mutate(
+        { lineId: line.id, action: 'accept' },
+        { onSuccess: () => { setScanFlash(`✓ ${barcode}`); setTimeout(() => setScanFlash(null), 1000); } },
+      );
+    }
+  }
+
   return (
     <div className="space-y-4 max-w-5xl mx-auto">
       <Card>
@@ -50,16 +68,34 @@ export function ReviewShipmentPage() {
         </CardHeader>
         <CardContent>
           {isReviewable && (
-            <div className="flex gap-2 mb-3">
-              <Button onClick={acceptAll} variant="outline">
-                {ar.shipments.bulkAccept}
-              </Button>
-              <Button
-                onClick={() => finalize.mutate()}
-                disabled={!allReviewed || finalize.isPending}
-              >
-                {ar.shipments.finalize}
-              </Button>
+            <div className="space-y-3 mb-3">
+              <div className="space-y-1">
+                <Label>{ar.labels.scanHint}</Label>
+                <div className="flex gap-2 items-center">
+                  <div className="flex-1 max-w-sm">
+                    <ScannerInput
+                      onScan={handleScanAccept}
+                      placeholder={ar.labels.scanHint}
+                    />
+                  </div>
+                  {scanFlash && (
+                    <span className={`text-xs ${scanFlash.startsWith('✓') ? 'text-green-600' : 'text-red-600'}`}>
+                      {scanFlash}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={acceptAll} variant="outline">
+                  {ar.shipments.bulkAccept}
+                </Button>
+                <Button
+                  onClick={() => finalize.mutate()}
+                  disabled={!allReviewed || finalize.isPending}
+                >
+                  {ar.shipments.finalize}
+                </Button>
+              </div>
             </div>
           )}
 

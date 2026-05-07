@@ -1,0 +1,20 @@
+export type RollWithDetails = {
+  id: number;
+  internal_barcode: string;
+  external_barcode: string | null;
+  fabric_id: number;
+  color_id: number;
+  roll_sr_no: string | null;
+  order_no: string | null;
+  weight_kg: string;
+  selling_price_egp: string;
+  status: string;
+  warehouse: string;
+  is_visible_at_pos: boolean;
+  fabric_code: string;
+  fabric_name_ar: string;
+  color_name_ar: string;
+  color_code: string;
+  created_at: string;
+  updated_at: string;
+};

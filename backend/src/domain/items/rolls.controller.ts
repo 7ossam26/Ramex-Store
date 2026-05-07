@@ -2,6 +2,8 @@ import type { Request, Response } from 'express';
 import { CreateRollSchema, UpdateRollSchema, ListRollsQuerySchema } from './items.schemas.js';
 import * as svc from './rolls.service.js';
 import { auditLog } from '../../middleware/audit.js';
+import { buildSingleLabelPdf, buildBatchLabelPdf } from '../../lib/barcode/labelPdf.js';
+import { auditLabelReprinted } from '../../lib/barcode/audit.js';
 
 export async function listRolls(req: Request, res: Response): Promise<void> {
   const filters = ListRollsQuerySchema.parse(req.query);
@@ -57,4 +59,47 @@ export async function togglePosVisibility(req: Request, res: Response): Promise<
     { severity: 'low' },
   );
   res.json(after);
+}
+
+export async function searchRolls(req: Request, res: Response): Promise<void> {
+  const { fabric, color, rollSrNo, barcodePartial } = req.query as Record<string, string | undefined>;
+  const results = await svc.searchRolls({ fabric, color, rollSrNo, barcodePartial });
+  res.json(results);
+}
+
+export async function getLabelPdf(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  const roll = await svc.getRoll(id);
+  if (!roll) { res.status(404).json({ error: 'not_found' }); return; }
+  const pdf = await buildSingleLabelPdf(roll);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="label-${roll.internal_barcode}.pdf"`);
+  res.end(pdf);
+}
+
+export async function getBatchLabelsPdf(req: Request, res: Response): Promise<void> {
+  const { rollIds } = req.body as { rollIds: number[] };
+  if (!Array.isArray(rollIds) || rollIds.length === 0) {
+    res.status(400).json({ error: 'rollIds must be a non-empty array' });
+    return;
+  }
+  const rolls = await Promise.all(rollIds.map((id) => svc.getRoll(id)));
+  const valid = rolls.filter((r): r is NonNullable<typeof r> => r !== undefined);
+  if (valid.length === 0) { res.status(404).json({ error: 'no_rolls_found' }); return; }
+  const pdf = await buildBatchLabelPdf(valid);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', 'inline; filename="labels-batch.pdf"');
+  res.end(pdf);
+}
+
+export async function reprintLabel(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  const roll = await svc.getRoll(id);
+  if (!roll) { res.status(404).json({ error: 'not_found' }); return; }
+  const reason = (req.body as { reason?: string }).reason ?? 'lost_label';
+  const pdf = await buildSingleLabelPdf(roll);
+  await auditLabelReprinted(req, id, reason);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="label-reprint-${roll.internal_barcode}.pdf"`);
+  res.end(pdf);
 }

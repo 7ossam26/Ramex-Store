@@ -101,3 +101,23 @@ export async function findByBarcode(barcode: string): Promise<RollWithDetails | 
     .orWhere('r.external_barcode', barcode)
     .first();
 }
+
+export async function searchRolls(filters: {
+  fabric?: string;
+  color?: string;
+  rollSrNo?: string;
+  barcodePartial?: string;
+}): Promise<RollWithDetails[]> {
+  const q = rollDetailQuery().orderBy('r.id', 'desc').limit(100);
+  if (filters.fabric) q.whereILike('f.name_ar', `%${filters.fabric}%`);
+  if (filters.color) q.whereILike('c.name_ar', `%${filters.color}%`);
+  if (filters.rollSrNo) q.whereILike('r.roll_sr_no', `%${filters.rollSrNo}%`);
+  if (filters.barcodePartial) {
+    q.where((b) =>
+      b
+        .whereILike('r.internal_barcode', `%${filters.barcodePartial}%`)
+        .orWhereILike('r.external_barcode', `%${filters.barcodePartial}%`),
+    );
+  }
+  return q;
+}

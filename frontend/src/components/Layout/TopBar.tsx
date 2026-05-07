@@ -35,6 +35,13 @@ export function TopBar() {
         R
       </div>
       <nav className="flex items-center gap-1 flex-1">
+        <ModuleDropdown
+          label="الأصناف"
+          items={[
+            { label: ar.labels.rollsTitle, href: '/items/rolls' },
+            { label: ar.labels.title, href: '/items/labels' },
+          ]}
+        />
         <ModuleDropdown label={ar.topbar.inventory} items={inventoryItems} />
         {showShipments && <ModuleDropdown label={ar.topbar.shipments} items={shipmentsItems} />}
         <ModuleDropdown

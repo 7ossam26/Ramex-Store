@@ -24,9 +24,13 @@ itemsRouter.patch('/colors/:id', requireRole('owner'), colorsCtl.updateColor);
 itemsRouter.get('/fabric-color-prices', pricesCtl.listPrices);
 itemsRouter.post('/fabric-color-prices', requireRole('owner'), pricesCtl.upsertPrice);
 
-// Rolls — by-barcode must come before /:id to avoid conflict
+// Rolls — static paths must come before /:id to avoid conflicts
 itemsRouter.get('/rolls/by-barcode/:barcode', rollsCtl.findByBarcode);
+itemsRouter.get('/rolls/search', rollsCtl.searchRolls);
+itemsRouter.post('/rolls/labels-batch', rollsCtl.getBatchLabelsPdf);
 itemsRouter.get('/rolls', rollsCtl.listRolls);
 itemsRouter.post('/rolls', requireRole('owner'), rollsCtl.createRoll);
+itemsRouter.get('/rolls/:id/label-pdf', rollsCtl.getLabelPdf);
+itemsRouter.post('/rolls/:id/reprint-label', rollsCtl.reprintLabel);
 itemsRouter.patch('/rolls/:id', requireRole('owner'), rollsCtl.updateRoll);
 itemsRouter.post('/rolls/:id/toggle-pos-visibility', requireRole('owner'), rollsCtl.togglePosVisibility);

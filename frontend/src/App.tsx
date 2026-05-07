@@ -21,6 +21,8 @@ import { ExpensesPage } from './pages/cash/Expenses';
 import { CashReconcilePage } from './pages/cash/CashReconcile';
 import { ReturnsListPage } from './pages/returns/ReturnsList';
 import { ReturnDetailPage } from './pages/returns/ReturnDetail';
+import { LabelsPage } from './pages/items/Labels';
+import { RollsPage } from './pages/items/Rolls';
 
 export function App() {
   return (
@@ -55,6 +57,8 @@ export function App() {
                 <Route path="/reconcile" element={<CashReconcilePage />} />
                 <Route path="/returns" element={<ReturnsListPage />} />
                 <Route path="/returns/:id" element={<ReturnDetailPage />} />
+                <Route path="/items/rolls" element={<RollsPage />} />
+                <Route path="/items/labels" element={<LabelsPage />} />
               </Routes>
             </AppShell>
           </ProtectedRoute>

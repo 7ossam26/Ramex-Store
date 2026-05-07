@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ScannerInput } from '@/components/ScannerInput';
 
 export function StocktakePage() {
   const [active, setActive] = useState<Stocktake | null>(null);
@@ -67,7 +68,6 @@ function StartCard({ onStarted }: { onStarted: (s: Stocktake) => void }) {
 
 function RunStocktake({ stocktake, onComplete }: { stocktake: Stocktake; onComplete: () => void }) {
   const qc = useQueryClient();
-  const inputRef = useRef<HTMLInputElement>(null);
   const [scanFlash, setScanFlash] = useState<string | null>(null);
 
   const detailsQ = useQuery({
@@ -94,23 +94,15 @@ function RunStocktake({ stocktake, onComplete }: { stocktake: Stocktake; onCompl
     onSuccess: () => onComplete(),
   });
 
-  useEffect(() => {
-    if (stocktake.mode === 'roll_level') inputRef.current?.focus();
-  }, [stocktake.mode]);
 
   const data = detailsQ.data;
   if (!data) return <div>{ar.loading}</div>;
 
-  const onScanSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const barcode = (e.currentTarget.elements.namedItem('barcode') as HTMLInputElement).value.trim();
-    if (!barcode) return;
+  function handleScan(barcode: string) {
     scanM.mutate(barcode, {
       onSuccess: () => { setScanFlash(barcode); setTimeout(() => setScanFlash(null), 800); },
     });
-    (e.currentTarget.elements.namedItem('barcode') as HTMLInputElement).value = '';
-    inputRef.current?.focus();
-  };
+  }
 
   return (
     <Card>
@@ -123,11 +115,19 @@ function RunStocktake({ stocktake, onComplete }: { stocktake: Stocktake; onCompl
       <CardContent>
         {stocktake.mode === 'roll_level' ? (
           <>
-            <form onSubmit={onScanSubmit} className="mb-3 flex gap-2 items-center">
+            <div className="mb-3 space-y-1">
               <Label>{ar.stocktake.scanPrompt}</Label>
-              <Input ref={inputRef} name="barcode" autoFocus className="font-mono w-72" />
-              {scanFlash && <span className="text-xs text-green-600">✓ {scanFlash}</span>}
-            </form>
+              <div className="flex gap-2 items-center">
+                <div className="flex-1">
+                  <ScannerInput
+                    onScan={handleScan}
+                    placeholder={ar.labels.scanHint}
+                    disabled={scanM.isPending}
+                  />
+                </div>
+                {scanFlash && <span className="text-xs text-green-600">✓ {scanFlash}</span>}
+              </div>
+            </div>
             <table className="w-full text-sm">
               <thead className="text-right text-xs text-muted-foreground">
                 <tr>
