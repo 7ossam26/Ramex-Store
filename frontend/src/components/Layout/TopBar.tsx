@@ -38,7 +38,13 @@ export function TopBar() {
         <ModuleDropdown label={ar.topbar.inventory} items={inventoryItems} />
         {showShipments && <ModuleDropdown label={ar.topbar.shipments} items={shipmentsItems} />}
         <ModuleDropdown label={ar.topbar.sales} items={[{ label: 'نقطة البيع', href: '/pos' }]} />
-        <ModuleDropdown label={ar.topbar.customers} items={[{ label: 'قائمة العملاء', href: '/customers' }]} />
+        <ModuleDropdown
+          label={ar.topbar.customers}
+          items={[
+            { label: ar.customers.allCustomers, href: '/customers' },
+            { label: ar.customers.addCustomer, href: '/customers?create=1' },
+          ]}
+        />
         <ModuleDropdown label={ar.topbar.payments} items={[{ label: 'الخزنة', href: '/cash' }]} />
         <ModuleDropdown label={ar.topbar.invoices} items={[{ label: 'الفواتير', href: '/invoices' }]} />
         <ModuleDropdown label={ar.topbar.reports} items={[{ label: 'تقرير اليوم', href: '/reports/daily' }]} />

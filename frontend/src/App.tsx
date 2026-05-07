@@ -10,6 +10,8 @@ import { StockMovementsPage } from './pages/inventory/StockMovements';
 import { StocktakePage } from './pages/inventory/Stocktake';
 import { AdjustmentsPage } from './pages/inventory/Adjustments';
 import { DamagePage } from './pages/inventory/Damage';
+import { CustomersListPage } from './pages/customers/CustomersList';
+import { CustomerDetailPage } from './pages/customers/CustomerDetail';
 
 export function App() {
   return (
@@ -33,6 +35,8 @@ export function App() {
                 <Route path="/inventory/stocktake" element={<StocktakePage />} />
                 <Route path="/inventory/adjustments" element={<AdjustmentsPage />} />
                 <Route path="/inventory/damage" element={<DamagePage />} />
+                <Route path="/customers" element={<CustomersListPage />} />
+                <Route path="/customers/:id" element={<CustomerDetailPage />} />
               </Routes>
             </AppShell>
           </ProtectedRoute>
