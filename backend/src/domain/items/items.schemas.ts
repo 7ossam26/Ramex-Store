@@ -78,3 +78,4 @@ export const ListRollsQuerySchema = z.object({
   warehouse: RollWarehouseEnum.optional(),
   is_visible_at_pos: z.coerce.boolean().optional(),
 });
+export type ListRollsQueryInput = z.infer<typeof ListRollsQuerySchema>;
