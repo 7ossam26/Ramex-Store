@@ -1,5 +1,15 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { z } from 'zod';
+
+// Load .env from repo root (when CWD is backend/) or local (when CWD is repo root)
+for (const candidate of [resolve(process.cwd(), '../.env'), resolve(process.cwd(), '.env')]) {
+  if (existsSync(candidate)) {
+    dotenv.config({ path: candidate });
+    break;
+  }
+}
 
 const Schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
