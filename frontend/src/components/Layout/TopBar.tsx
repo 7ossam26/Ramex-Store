@@ -42,6 +42,7 @@ export function TopBar() {
           items={[
             { label: ar.pos.title, href: '/pos' },
             { label: ar.invoices.title, href: '/invoices' },
+            { label: ar.returns.title, href: '/returns' },
           ]}
         />
         <ModuleDropdown

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
 import { requireActiveSession } from '../../middleware/concurrent-session.js';
 import * as ctl from './sales.controller.js';
+import * as retCtl from './returns.controller.js';
 import { listActiveBankAccounts } from './bankAccounts.service.js';
 
 export const salesRouter = Router();
@@ -37,3 +38,10 @@ salesRouter.post(
 salesRouter.get('/bank-accounts', async (_req, res) => {
   res.json(await listActiveBankAccounts());
 });
+
+// Returns & Exchanges
+salesRouter.post('/returns', requireRole('owner', 'shop_seller'), retCtl.processReturn);
+salesRouter.post('/returns/exchange', requireRole('owner', 'shop_seller'), retCtl.processExchange);
+salesRouter.get('/returns', retCtl.listReturns);
+salesRouter.get('/returns/:id/slip-pdf', retCtl.getReturnSlipPdf);
+salesRouter.get('/returns/:id', retCtl.getReturn);

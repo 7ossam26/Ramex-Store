@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { ar } from '@/i18n/ar';
 import { salesApi } from '@/lib/sales-api';
+import { returnsApi } from '@/lib/returns-api';
 import { useAuth } from '@/lib/auth';
 import type {
   BankAccount,
@@ -11,10 +12,12 @@ import type {
   DepositHandling,
   FinalPaymentBody,
   InvoiceDetail,
+  InvoiceLineDetail,
   InvoiceStatus,
   InvoiceStatusHistoryEntry,
   PaymentMethod,
 } from '@/lib/sales-types';
+import type { RefundMethod, RollDisposition, ReturnLineInput } from '@/lib/returns-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,6 +69,7 @@ export function InvoiceDetailPage() {
 
   const [finalPayOpen, setFinalPayOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
 
   const { data, isLoading } = useQuery<InvoiceDetail>({
     queryKey: ['invoice', idNum],
@@ -115,6 +119,7 @@ export function InvoiceDetailPage() {
   const canAddFinal = inv.status === 'open';
   const canDeliver = inv.status === 'closed_pending_pickup';
   const canCancelOpen = inv.status === 'open' || inv.status === 'closed_pending_pickup';
+  const canReturn = inv.status === 'completed';
 
   return (
     <div className="max-w-4xl mx-auto space-y-4">
@@ -163,6 +168,11 @@ export function InvoiceDetailPage() {
           {canVoid && (
             <Button variant="outline" size="sm" onClick={() => setVoidOpen(true)}>
               {ar.invoices.voidAction}
+            </Button>
+          )}
+          {canReturn && (
+            <Button size="sm" onClick={() => setReturnOpen(true)}>
+              {ar.returns.processReturn}
             </Button>
           )}
         </div>
@@ -337,6 +347,20 @@ export function InvoiceDetailPage() {
           onSuccess={() => {
             qc.invalidateQueries({ queryKey: ['invoice', inv.id] });
             qc.invalidateQueries({ queryKey: ['invoice', inv.id, 'history'] });
+            qc.invalidateQueries({ queryKey: ['invoices'] });
+          }}
+        />
+      )}
+
+      {/* Return / exchange dialog */}
+      {canReturn && (
+        <ReturnModal
+          open={returnOpen}
+          onOpenChange={setReturnOpen}
+          invoice={inv}
+          isOwner={isOwner}
+          onSuccess={() => {
+            qc.invalidateQueries({ queryKey: ['invoice', inv.id] });
             qc.invalidateQueries({ queryKey: ['invoices'] });
           }}
         />
@@ -627,5 +651,249 @@ function Row({ label, value, bold = false }: { label: string; value: string; bol
       <span>{label}</span>
       <span dir="ltr">{value}</span>
     </div>
+  );
+}
+
+type LineState = {
+  checked: boolean;
+  refundAmount: string;
+  disposition: RollDisposition;
+};
+
+function ReturnModal({
+  open,
+  onOpenChange,
+  invoice,
+  isOwner,
+  onSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  invoice: InvoiceDetail;
+  isOwner: boolean;
+  onSuccess: () => void;
+}) {
+  const [mode, setMode] = useState<'refund' | 'exchange'>('refund');
+  const [lineStates, setLineStates] = useState<Record<number, LineState>>(() => {
+    const init: Record<number, LineState> = {};
+    for (const l of invoice.lines) {
+      init[l.id] = {
+        checked: false,
+        refundAmount: Number(l.line_total_egp).toFixed(2),
+        disposition: 'back_to_stock',
+      };
+    }
+    return init;
+  });
+  const [refundMethod, setRefundMethod] = useState<RefundMethod>('cash');
+  const [bankAccountId, setBankAccountId] = useState<number | ''>('');
+  const [notesAr, setNotesAr] = useState('');
+  const [ownerOverride, setOwnerOverride] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const banks = useQuery<BankAccount[]>({
+    queryKey: ['bank-accounts'],
+    queryFn: salesApi.bankAccounts,
+    enabled: open && refundMethod === 'instapay',
+  });
+
+  const returnMut = useMutation({
+    mutationFn: () => {
+      const selectedLines = invoice.lines
+        .filter((l) => lineStates[l.id]?.checked)
+        .map((l): ReturnLineInput => ({
+          originalLineId: l.id,
+          rollId: l.roll_id,
+          refundAmountEgp: parseAmount(lineStates[l.id]!.refundAmount),
+          disposition: lineStates[l.id]!.disposition,
+        }));
+      if (selectedLines.length === 0) throw new Error('NO_LINES');
+      return returnsApi.processReturn({
+        originalInvoiceId: invoice.id,
+        lines: selectedLines,
+        refundMethod,
+        bankAccountId: bankAccountId === '' ? null : Number(bankAccountId),
+        notesAr: notesAr || null,
+        ownerWindowOverride: ownerOverride,
+      });
+    },
+    onSuccess: () => {
+      onSuccess();
+      onOpenChange(false);
+    },
+    onError: (e: unknown) => {
+      const d = axios.isAxiosError(e) ? (e.response?.data as { message?: string } | undefined) : undefined;
+      setError(d?.message ?? ar.common.error);
+    },
+  });
+
+  function updateLine(id: number, patch: Partial<LineState>) {
+    setLineStates((prev) => ({ ...prev, [id]: { ...prev[id]!, ...patch } }));
+  }
+
+  const checkedCount = Object.values(lineStates).filter((s) => s.checked).length;
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) { setError(null); setMode('refund'); } }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {mode === 'refund' ? ar.returns.processReturnTitle : ar.returns.processExchangeTitle}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Mode toggle */}
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant={mode === 'refund' ? 'default' : 'outline'}
+              onClick={() => setMode('refund')}
+            >
+              {ar.returns.kinds.refund}
+            </Button>
+            <Button
+              size="sm"
+              variant={mode === 'exchange' ? 'default' : 'outline'}
+              onClick={() => setMode('exchange')}
+            >
+              {ar.returns.kinds.exchange}
+            </Button>
+          </div>
+
+          {/* Line selection */}
+          <div>
+            <p className="text-sm font-medium mb-2">{ar.returns.returnLines}</p>
+            <div className="border border-border rounded overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="text-right text-xs text-muted-foreground bg-muted">
+                  <tr>
+                    <th className="px-2 py-1">✓</th>
+                    <th className="px-2 py-1">الخامة / اللون</th>
+                    <th className="px-2 py-1">الوزن</th>
+                    <th className="px-2 py-1">{ar.returns.refundAmount}</th>
+                    <th className="px-2 py-1">{ar.returns.disposition}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoice.lines.map((l: InvoiceLineDetail) => {
+                    const s = lineStates[l.id]!;
+                    return (
+                      <tr key={l.id} className="border-t border-border">
+                        <td className="px-2 py-1">
+                          <input
+                            type="checkbox"
+                            checked={s.checked}
+                            onChange={(e) => updateLine(l.id, { checked: e.target.checked })}
+                          />
+                        </td>
+                        <td className="px-2 py-1">{l.fabric_name_ar} / {l.color_name_ar}</td>
+                        <td className="px-2 py-1" dir="ltr">{Number(l.weight_kg).toFixed(3)}</td>
+                        <td className="px-2 py-1">
+                          <input
+                            type="number"
+                            className="h-7 w-24 border border-border rounded px-1 text-sm"
+                            value={s.refundAmount}
+                            disabled={!s.checked}
+                            onChange={(e) => updateLine(l.id, { refundAmount: e.target.value })}
+                            dir="ltr"
+                            min="0"
+                            step="0.01"
+                          />
+                        </td>
+                        <td className="px-2 py-1">
+                          <select
+                            className="h-7 border border-border rounded px-1 text-sm bg-canvas"
+                            value={s.disposition}
+                            disabled={!s.checked}
+                            onChange={(e) => updateLine(l.id, { disposition: e.target.value as RollDisposition })}
+                          >
+                            <option value="back_to_stock">{ar.returns.dispositions.back_to_stock}</option>
+                            <option value="damaged">{ar.returns.dispositions.damaged}</option>
+                          </select>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Refund method */}
+          <div className="space-y-1">
+            <Label>{ar.returns.refundMethod}</Label>
+            <select
+              className="h-9 w-full border border-border rounded px-2 bg-canvas"
+              value={refundMethod}
+              onChange={(e) => setRefundMethod(e.target.value as RefundMethod)}
+            >
+              <option value="cash">{ar.returns.refundMethods.cash}</option>
+              <option value="instapay">{ar.returns.refundMethods.instapay}</option>
+              <option value="customer_credit">{ar.returns.refundMethods.customer_credit}</option>
+            </select>
+          </div>
+
+          {refundMethod === 'instapay' && (
+            <div className="space-y-1">
+              <Label>{ar.pos.bankAccount}</Label>
+              <select
+                className="h-9 w-full border border-border rounded px-2 bg-canvas"
+                value={bankAccountId === '' ? '' : String(bankAccountId)}
+                onChange={(e) => setBankAccountId(e.target.value === '' ? '' : Number(e.target.value))}
+              >
+                <option value="">—</option>
+                {(banks.data ?? []).map((b) => (
+                  <option key={b.id} value={b.id}>{b.name_ar}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Notes */}
+          <div className="space-y-1">
+            <Label>{ar.returns.notes}</Label>
+            <input
+              className="h-9 w-full border border-border rounded px-2 text-sm"
+              value={notesAr}
+              onChange={(e) => setNotesAr(e.target.value)}
+              dir="rtl"
+            />
+          </div>
+
+          {/* Owner override for expired window */}
+          {isOwner && (
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={ownerOverride}
+                onChange={(e) => setOwnerOverride(e.target.checked)}
+              />
+              {ar.returns.ownerOverride}
+            </label>
+          )}
+
+          {mode === 'exchange' && (
+            <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              بعد تسجيل الإرجاع سيتم فتح فاتورة جديدة تلقائياً من نقطة البيع — أكمل عملية الاستبدال من شاشة POS.
+            </div>
+          )}
+
+          {error && <p className="text-sm text-red-700">{error}</p>}
+
+          <div className="flex gap-2 justify-end pt-2">
+            <DialogClose asChild>
+              <Button variant="outline">{ar.common.cancel}</Button>
+            </DialogClose>
+            <Button
+              onClick={() => { setError(null); returnMut.mutate(); }}
+              disabled={checkedCount === 0 || returnMut.isPending}
+            >
+              {returnMut.isPending ? ar.loading : ar.common.confirm}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

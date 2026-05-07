@@ -19,6 +19,8 @@ import { CashDrawerPage } from './pages/cash/CashDrawer';
 import { BanksPage } from './pages/cash/Banks';
 import { ExpensesPage } from './pages/cash/Expenses';
 import { CashReconcilePage } from './pages/cash/CashReconcile';
+import { ReturnsListPage } from './pages/returns/ReturnsList';
+import { ReturnDetailPage } from './pages/returns/ReturnDetail';
 
 export function App() {
   return (
@@ -51,6 +53,8 @@ export function App() {
                 <Route path="/banks" element={<BanksPage />} />
                 <Route path="/expenses" element={<ExpensesPage />} />
                 <Route path="/reconcile" element={<CashReconcilePage />} />
+                <Route path="/returns" element={<ReturnsListPage />} />
+                <Route path="/returns/:id" element={<ReturnDetailPage />} />
               </Routes>
             </AppShell>
           </ProtectedRoute>
