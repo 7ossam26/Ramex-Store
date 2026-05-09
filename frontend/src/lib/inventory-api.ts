@@ -1,10 +1,14 @@
 import { api } from './api';
 import type {
   Color,
+  CreateFabricInput,
+  CreateTopBatchInput,
+  CreateTopBatchResult,
   DamageEvent,
   DamageReasonCode,
   DamageDisposition,
   Fabric,
+  FabricFull,
   RollStatus,
   Shipment,
   ShipmentStatus,
@@ -13,13 +17,25 @@ import type {
   Stocktake,
   StocktakeWithLines,
   StocktakeMode,
+  UpdateFabricInput,
   Warehouse,
 } from './inventory-types';
 
 export const inventoryApi = {
   // Lookup tables (Phase 1 endpoints)
   listFabrics: () => api.get<Fabric[]>('/fabrics').then((r) => r.data),
+  listFabricsFull: () => api.get<FabricFull[]>('/fabrics').then((r) => r.data),
   listColors: () => api.get<Color[]>('/colors').then((r) => r.data),
+
+  // Fabric catalog (Owner only)
+  createFabric: (body: CreateFabricInput) =>
+    api.post<FabricFull>('/fabrics', body).then((r) => r.data),
+  updateFabric: (id: number, body: UpdateFabricInput) =>
+    api.patch<FabricFull>(`/fabrics/${id}`, body).then((r) => r.data),
+
+  // One-shot Add-Top wizard
+  createTopBatch: (body: CreateTopBatchInput) =>
+    api.post<CreateTopBatchResult>('/tops/batch', body).then((r) => r.data),
 
   // Shipments
   listShipments: (params?: { status?: ShipmentStatus }) =>

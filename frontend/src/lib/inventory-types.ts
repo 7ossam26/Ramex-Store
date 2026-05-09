@@ -112,3 +112,79 @@ export type StockMovement = {
 
 export type Fabric = { id: number; code: string; name_ar: string };
 export type Color = { id: number; name_ar: string; code: string };
+
+export type FabricFull = {
+  id: number;
+  code: string;
+  name_ar: string;
+  composition: Array<{ material: string; percent: number }>;
+  width_cm: string;
+  grade: string;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreateFabricInput = {
+  code: string;
+  name_ar: string;
+  composition: Array<{ material: string; percent: number }>;
+  width_cm: number;
+  grade: string;
+  notes?: string | null;
+};
+
+export type UpdateFabricInput = Partial<CreateFabricInput> & { is_active?: boolean };
+
+// Tops batch (one-shot wizard) — input for POST /tops/batch
+export type FabricRef =
+  | { id: number }
+  | {
+      code: string;
+      name_ar: string;
+      composition: Array<{ material: string; percent: number }>;
+      width_cm: number;
+      grade: string;
+      notes?: string | null;
+    };
+
+export type ColorRef =
+  | { id: number }
+  | { name_ar: string; code: string };
+
+export type TopRollEntry = {
+  color: ColorRef;
+  weight_kg: number;
+  selling_price_egp?: number;
+  set_default_price_per_kg?: number;
+  roll_sr_no?: string | null;
+  order_no?: string | null;
+  purchase_price_egp?: number | null;
+};
+
+export type CreateTopBatchInput = {
+  fabric: FabricRef;
+  rolls: TopRollEntry[];
+  warehouse?: Warehouse;
+};
+
+export type CreatedTopRoll = {
+  id: number;
+  internal_barcode: string;
+  fabric_id: number;
+  color_id: number;
+  weight_kg: string;
+  selling_price_egp: string;
+  status: string;
+  warehouse: string;
+  fabric_code: string;
+  fabric_name_ar: string;
+  color_name_ar: string;
+  color_code: string;
+};
+
+export type CreateTopBatchResult = {
+  fabric: { id: number; code: string; name_ar: string };
+  rolls: CreatedTopRoll[];
+};

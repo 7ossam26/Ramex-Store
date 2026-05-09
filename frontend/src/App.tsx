@@ -6,6 +6,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { CreateShipmentPage } from './pages/shipments/CreateShipment';
 import { ShipmentsListPage } from './pages/shipments/ShipmentsList';
 import { ReviewShipmentPage } from './pages/shipments/ReviewShipment';
+import { FabricsPage } from './pages/inventory/Fabrics';
 import { StockMovementsPage } from './pages/inventory/StockMovements';
 import { StocktakePage } from './pages/inventory/Stocktake';
 import { AdjustmentsPage } from './pages/inventory/Adjustments';
@@ -23,6 +24,7 @@ import { ReturnsListPage } from './pages/returns/ReturnsList';
 import { ReturnDetailPage } from './pages/returns/ReturnDetail';
 import { LabelsPage } from './pages/items/Labels';
 import { RollsPage } from './pages/items/Rolls';
+import { AddTopPage } from './pages/items/AddTop';
 import { NotificationsPage } from './pages/notifications/NotificationsPage';
 import { DailyReportPage } from './pages/reports/DailyReport';
 import { SecondaryReportPage } from './pages/reports/SecondaryReport';
@@ -47,6 +49,7 @@ export function App() {
                   element={<ShipmentsListPage defaultStatus="pending_approval" />}
                 />
                 <Route path="/shipments/:id" element={<ReviewShipmentPage />} />
+                <Route path="/inventory/fabrics" element={<FabricsPage />} />
                 <Route path="/inventory/stock-movements" element={<StockMovementsPage />} />
                 <Route path="/inventory/stocktake" element={<StocktakePage />} />
                 <Route path="/inventory/adjustments" element={<AdjustmentsPage />} />
@@ -64,6 +67,7 @@ export function App() {
                 <Route path="/returns/:id" element={<ReturnDetailPage />} />
                 <Route path="/items/rolls" element={<RollsPage />} />
                 <Route path="/items/labels" element={<LabelsPage />} />
+                <Route path="/items/tops/add" element={<AddTopPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/reports/daily" element={<DailyReportPage />} />
                 <Route path="/reports/secondary/:reportKey" element={<SecondaryReportPage />} />

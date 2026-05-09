@@ -1,0 +1,430 @@
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ar } from '@/i18n/ar';
+import { inventoryApi } from '@/lib/inventory-api';
+import type {
+  CreateFabricInput,
+  FabricFull,
+  UpdateFabricInput,
+} from '@/lib/inventory-types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ResponsiveDialog';
+import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
+import { useAuth } from '@/lib/auth';
+
+type CompositionRow = { material: string; percent: string };
+
+type FormState = {
+  code: string;
+  name_ar: string;
+  width_cm: string;
+  grade: string;
+  notes: string;
+  composition: CompositionRow[];
+  is_active: boolean;
+};
+
+const blank = (): FormState => ({
+  code: '',
+  name_ar: '',
+  width_cm: '',
+  grade: 'A',
+  notes: '',
+  composition: [{ material: '', percent: '100' }],
+  is_active: true,
+});
+
+function fromFabric(f: FabricFull): FormState {
+  return {
+    code: f.code,
+    name_ar: f.name_ar,
+    width_cm: String(f.width_cm),
+    grade: f.grade,
+    notes: f.notes ?? '',
+    composition:
+      f.composition.length > 0
+        ? f.composition.map((c) => ({ material: c.material, percent: String(c.percent) }))
+        : [{ material: '', percent: '100' }],
+    is_active: f.is_active,
+  };
+}
+
+function compositionSummary(items: FabricFull['composition']): string {
+  return items.map((c) => `${c.material} ${c.percent}%`).join(' · ');
+}
+
+export function FabricsPage() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const isOwner = user?.role === 'owner';
+
+  const fabricsQ = useQuery({
+    queryKey: ['fabrics-full'],
+    queryFn: inventoryApi.listFabricsFull,
+  });
+
+  const [editing, setEditing] = useState<FabricFull | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState<FormState>(blank());
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const isOpen = creating || editing !== null;
+
+  function openCreate() {
+    setEditing(null);
+    setCreating(true);
+    setForm(blank());
+    setErrorMsg(null);
+  }
+
+  function openEdit(f: FabricFull) {
+    setCreating(false);
+    setEditing(f);
+    setForm(fromFabric(f));
+    setErrorMsg(null);
+  }
+
+  function close() {
+    setEditing(null);
+    setCreating(false);
+    setErrorMsg(null);
+  }
+
+  const createMut = useMutation({
+    mutationFn: (body: CreateFabricInput) => inventoryApi.createFabric(body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['fabrics-full'] });
+      qc.invalidateQueries({ queryKey: ['fabrics'] });
+      close();
+    },
+    onError: (e: unknown) => setErrorMsg(extractErr(e)),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: UpdateFabricInput }) =>
+      inventoryApi.updateFabric(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['fabrics-full'] });
+      qc.invalidateQueries({ queryKey: ['fabrics'] });
+      close();
+    },
+    onError: (e: unknown) => setErrorMsg(extractErr(e)),
+  });
+
+  function buildPayload(): CreateFabricInput | null {
+    setErrorMsg(null);
+    const composition = form.composition
+      .filter((c) => c.material.trim() !== '' && c.percent.trim() !== '')
+      .map((c) => ({ material: c.material.trim(), percent: Number(c.percent) }));
+    if (composition.length === 0) {
+      setErrorMsg(ar.addTop.errors.compositionRequired);
+      return null;
+    }
+    const sum = composition.reduce((s, c) => s + (c.percent || 0), 0);
+    if (Math.abs(sum - 100) > 0.01) {
+      setErrorMsg(ar.addTop.errors.compositionMustSum100);
+      return null;
+    }
+    const widthCm = Number(form.width_cm);
+    if (!Number.isFinite(widthCm) || widthCm <= 0) {
+      setErrorMsg(ar.addTop.errors.widthRequired);
+      return null;
+    }
+    if (!form.code.trim() || !form.name_ar.trim() || !form.grade.trim()) {
+      setErrorMsg(ar.addTop.errors.fabricFieldsRequired);
+      return null;
+    }
+    return {
+      code: form.code.trim(),
+      name_ar: form.name_ar.trim(),
+      width_cm: widthCm,
+      grade: form.grade.trim(),
+      composition,
+      notes: form.notes.trim() || null,
+    };
+  }
+
+  function onSave() {
+    const body = buildPayload();
+    if (!body) return;
+    if (editing) {
+      updateMut.mutate({ id: editing.id, body: { ...body, is_active: form.is_active } });
+    } else {
+      createMut.mutate(body);
+    }
+  }
+
+  const fabrics = fabricsQ.data ?? [];
+
+  const columns: Column<FabricFull>[] = useMemo(
+    () => [
+      {
+        key: 'name_ar',
+        header: ar.fabrics.nameAr,
+        cell: (f) => f.name_ar,
+        primary: true,
+      },
+      {
+        key: 'code',
+        header: ar.fabrics.code,
+        cell: (f) => <span className="font-mono text-xs" dir="ltr">{f.code}</span>,
+        secondary: true,
+      },
+      {
+        key: 'width',
+        header: ar.fabrics.width,
+        cell: (f) => <span dir="ltr">{Number(f.width_cm).toFixed(2)} cm</span>,
+      },
+      {
+        key: 'grade',
+        header: ar.fabrics.grade,
+        cell: (f) => f.grade,
+      },
+      {
+        key: 'composition',
+        header: ar.fabrics.composition,
+        cell: (f) => (
+          <span className="text-xs text-muted-foreground">{compositionSummary(f.composition)}</span>
+        ),
+      },
+      {
+        key: 'is_active',
+        header: ar.fabrics.isActive,
+        cell: (f) => (
+          <span
+            className={`px-1.5 py-0.5 rounded text-xs ${
+              f.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+            }`}
+          >
+            {f.is_active ? ar.common.yes : ar.common.no}
+          </span>
+        ),
+      },
+    ],
+    [],
+  );
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-4" dir="rtl">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <CardTitle>{ar.fabrics.title}</CardTitle>
+          {isOwner && (
+            <Button onClick={openCreate}>
+              + {ar.fabrics.addFabric}
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="text-sm text-muted-foreground">
+            {ar.fabrics.hint}{' '}
+            <Link to="/items/tops/add" className="text-primary underline">
+              {ar.addTop.navTitle}
+            </Link>
+            .
+          </div>
+          {fabricsQ.isLoading ? (
+            <p>{ar.loading}</p>
+          ) : (
+            <ResponsiveTable
+              columns={columns}
+              rows={fabrics}
+              rowKey={(f) => String(f.id)}
+              onRowClick={isOwner ? openEdit : undefined}
+              empty={ar.common.none}
+              actions={
+                isOwner
+                  ? (f) => (
+                      <Button size="sm" variant="outline" onClick={() => openEdit(f)}>
+                        {ar.fabrics.edit}
+                      </Button>
+                    )
+                  : undefined
+              }
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={isOpen} onOpenChange={(o) => !o && close()}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>
+              {editing ? ar.fabrics.editTitle : ar.fabrics.createTitle}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>{ar.addTop.fabricNameAr}</Label>
+                <Input
+                  value={form.name_ar}
+                  onChange={(e) => setForm({ ...form, name_ar: e.target.value })}
+                  placeholder="قطن مصري سادة 150سم"
+                  className="h-11 md:h-10"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>{ar.addTop.fabricCode}</Label>
+                <Input
+                  value={form.code}
+                  onChange={(e) => setForm({ ...form, code: e.target.value })}
+                  dir="ltr"
+                  placeholder="COT-150"
+                  className="h-11 md:h-10"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>{ar.addTop.widthCm}</Label>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.5"
+                  value={form.width_cm}
+                  onChange={(e) => setForm({ ...form, width_cm: e.target.value })}
+                  dir="ltr"
+                  className="h-11 md:h-10"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>{ar.addTop.grade}</Label>
+                <select
+                  className="w-full h-11 md:h-10 rounded border border-border bg-canvas px-3 text-sm"
+                  value={form.grade}
+                  onChange={(e) => setForm({ ...form, grade: e.target.value })}
+                >
+                  <option value="A">A</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label>{ar.addTop.composition}</Label>
+              <div className="space-y-2">
+                {form.composition.map((c, idx) => (
+                  <div key={idx} className="grid grid-cols-[1fr_120px_auto] gap-2">
+                    <Input
+                      value={c.material}
+                      onChange={(e) => {
+                        const next = [...form.composition];
+                        next[idx] = { ...c, material: e.target.value };
+                        setForm({ ...form, composition: next });
+                      }}
+                      placeholder={ar.addTop.material}
+                      className="h-11 md:h-10"
+                    />
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.1"
+                        value={c.percent}
+                        onChange={(e) => {
+                          const next = [...form.composition];
+                          next[idx] = { ...c, percent: e.target.value };
+                          setForm({ ...form, composition: next });
+                        }}
+                        dir="ltr"
+                        className="h-11 md:h-10"
+                      />
+                      <span className="text-sm text-muted-foreground">%</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          composition: form.composition.filter((_, i) => i !== idx),
+                        })
+                      }
+                      disabled={form.composition.length === 1}
+                    >
+                      {ar.common.cancel}
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      composition: [...form.composition, { material: '', percent: '' }],
+                    })
+                  }
+                >
+                  + {ar.addTop.addMaterial}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label>{ar.fabrics.notes}</Label>
+              <textarea
+                dir="rtl"
+                className="w-full min-h-16 rounded border border-border bg-canvas px-3 py-2 text-sm"
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              />
+            </div>
+
+            {editing && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="fabric-is-active"
+                  checked={form.is_active}
+                  onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
+                />
+                <label htmlFor="fabric-is-active" className="text-sm">
+                  {ar.fabrics.isActive}
+                </label>
+              </div>
+            )}
+
+            {errorMsg && (
+              <div className="p-2 rounded border border-red-300 bg-red-50 text-sm text-red-700">
+                {errorMsg}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={close}>
+                {ar.common.cancel}
+              </Button>
+              <Button
+                onClick={onSave}
+                disabled={createMut.isPending || updateMut.isPending}
+              >
+                {createMut.isPending || updateMut.isPending ? ar.loading : ar.common.save}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function extractErr(e: unknown): string {
+  return (
+    (e as { response?: { data?: { message?: string; error?: string } } })?.response?.data
+      ?.message ??
+    (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+    ar.common.error
+  );
+}

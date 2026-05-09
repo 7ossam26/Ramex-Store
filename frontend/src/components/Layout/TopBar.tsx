@@ -36,6 +36,7 @@ export function TopBar() {
   const itemsGroup = {
     label: 'الأصناف',
     items: [
+      { label: ar.addTop.navTitle, href: '/items/tops/add' },
       { label: ar.labels.rollsTitle, href: '/items/rolls' },
       { label: ar.labels.title, href: '/items/labels' },
     ],
