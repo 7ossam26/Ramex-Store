@@ -11,7 +11,7 @@ export async function getColor(id: number): Promise<Color | undefined> {
 }
 
 export async function createColor(data: CreateColorInput): Promise<Color> {
-  const [id] = await db('colors').insert(data);
+  const [{ id }] = await db('colors').insert(data).returning('id');
   return db('colors').where({ id }).first() as Promise<Color>;
 }
 

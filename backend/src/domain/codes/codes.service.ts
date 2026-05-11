@@ -107,8 +107,8 @@ export async function createCode(
   if (entity === 'compositions' && (data as CreateCompositionInput).breakdown != null) {
     payload.breakdown = JSON.stringify((data as CreateCompositionInput).breakdown);
   }
-  const [id] = await db(table).insert(payload);
-  return getCode(entity, id as number) as Promise<CodeRow>;
+  const [{ id }] = await db(table).insert(payload).returning('id');
+  return getCode(entity, Number(id)) as Promise<CodeRow>;
 }
 
 export async function updateCode(

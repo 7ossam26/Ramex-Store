@@ -20,8 +20,9 @@ export async function up(db: Knex): Promise<void> {
     t.index(['phone']);
   });
 
+  // Postgres uses the ~ operator for POSIX regex, not REGEXP.
   await db.raw(
-    `ALTER TABLE customers ADD CONSTRAINT customers_phone_format_check CHECK (phone REGEXP '^01[0125][0-9]{8}$')`,
+    `ALTER TABLE customers ADD CONSTRAINT customers_phone_format_check CHECK (phone ~ '^01[0125][0-9]{8}$')`,
   );
 }
 

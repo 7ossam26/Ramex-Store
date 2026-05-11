@@ -309,9 +309,12 @@ export async function damageLoss(from?: string, to?: string) {
 // ── Daily totals (cross-branch) ───────────────────────────────────────────────
 
 export async function dailyTotals(from: string, to: string) {
-  const [rows] = await db.raw<[Array<Record<string, unknown>>]>(`
+  // created_at is timestamptz; `AT TIME ZONE 'Africa/Cairo'` returns the
+  // wall-clock TIMESTAMP in Cairo. Adding `AT TIME ZONE 'UTC'` first would
+  // double-shift by 2h and silently bucket sales into the wrong day.
+  const { rows } = await db.raw<{ rows: Array<Record<string, unknown>> }>(`
     SELECT
-      DATE(CONVERT_TZ(created_at, '+00:00', '+02:00')) AS date,
+      DATE(created_at AT TIME ZONE 'Africa/Cairo') AS date,
       COALESCE(SUM(CASE WHEN status NOT IN ('cancelled') THEN total_egp END), 0) AS revenue_egp,
       COALESCE(SUM(CASE WHEN status NOT IN ('cancelled') THEN
         (SELECT COALESCE(SUM(r.purchase_price_egp * il2.line_total_egp / NULLIF(il2.selling_price_egp, 0)), 0)
@@ -319,8 +322,8 @@ export async function dailyTotals(from: string, to: string) {
          JOIN rolls r ON il2.roll_id = r.id
          WHERE il2.invoice_id = invoices.id) END), 0) AS cost_egp
     FROM invoices
-    WHERE DATE(CONVERT_TZ(created_at, '+00:00', '+02:00')) BETWEEN ? AND ?
-    GROUP BY DATE(CONVERT_TZ(created_at, '+00:00', '+02:00'))
+    WHERE DATE(created_at AT TIME ZONE 'Africa/Cairo') BETWEEN ? AND ?
+    GROUP BY DATE(created_at AT TIME ZONE 'Africa/Cairo')
     ORDER BY date
   `, [from, to]);
 
@@ -336,15 +339,15 @@ export async function dailyTotals(from: string, to: string) {
 export async function hourlySalesCurve(date: string) {
   const { startUtc, endUtc } = cairoDayWindow(date);
 
-  const [rows] = await db.raw<[Array<Record<string, unknown>>]>(`
+  const { rows } = await db.raw<{ rows: Array<Record<string, unknown>> }>(`
     SELECT
-      HOUR(CONVERT_TZ(created_at, '+00:00', '+02:00')) AS hour,
+      EXTRACT(HOUR FROM created_at AT TIME ZONE 'Africa/Cairo') AS hour,
       COUNT(*) AS count,
       COALESCE(SUM(total_egp), 0) AS revenue_egp
     FROM invoices
     WHERE created_at >= ? AND created_at < ?
       AND status NOT IN ('cancelled')
-    GROUP BY HOUR(CONVERT_TZ(created_at, '+00:00', '+02:00'))
+    GROUP BY EXTRACT(HOUR FROM created_at AT TIME ZONE 'Africa/Cairo')
     ORDER BY hour
   `, [startUtc.toISOString(), endUtc.toISOString()]);
 

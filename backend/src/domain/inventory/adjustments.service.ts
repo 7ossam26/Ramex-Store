@@ -21,7 +21,7 @@ export async function createAdjustment(
     await trx('rolls').where({ id: roll.id }).update(patch);
 
     const toWarehouse = input.new_warehouse ?? fromWarehouse;
-    const [movId] = await trx('stock_movements').insert({
+    const [{ id: movId }] = await trx('stock_movements').insert({
       roll_id: roll.id,
       from_warehouse: fromWarehouse,
       to_warehouse: toWarehouse,
@@ -30,7 +30,7 @@ export async function createAdjustment(
       reference_id: null,
       actor_user_id: actorUserId,
       notes_ar: input.notes_ar,
-    });
+    }).returning('id');
     const movement = await trx('stock_movements').where({ id: movId }).first();
 
     await auditFromService(trx, {

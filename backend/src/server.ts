@@ -36,6 +36,16 @@ export { app };
 
 // Only start listening when this file is run directly (not imported by tests)
 if (process.env.NODE_ENV !== 'test') {
+  // Express 4 doesn't auto-forward async route handler rejections to next().
+  // Some controllers omit `next` and rely on the unhandledRejection escape hatch,
+  // which on Node 20+ kills the process by default. Log and survive.
+  process.on('unhandledRejection', (reason, promise) => {
+    logger.error({ err: reason, promise }, 'unhandledRejection — request may have hung');
+  });
+  process.on('uncaughtException', (err) => {
+    logger.error({ err }, 'uncaughtException');
+  });
+
   app.listen(env.PORT, () => logger.info({ port: env.PORT }, 'ramex-store server up'));
   startStaleInvoiceCron();
   startArchiveCron();

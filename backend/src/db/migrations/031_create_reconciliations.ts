@@ -15,10 +15,19 @@ export async function up(knex: Knex): Promise<void> {
       .references('id').inTable('users').onDelete('RESTRICT');
     t.datetime('created_at').notNullable().defaultTo(knex.fn.now());
 
-    // MySQL doesn't support partial indexes; enforce one rec per type per date
-    // at the full-row level — semantically equivalent for this use case.
+    // Bank reconciliations: one per (date, bank_account_id). Bank rows always
+    // have bank_account_id NOT NULL, so this works on Postgres as written.
     t.unique(['recon_date', 'type', 'bank_account_id']);
   });
+
+  // Cash reconciliations have bank_account_id NULL, and Postgres treats NULLs
+  // as distinct in UNIQUE — so the constraint above won't catch duplicate cash
+  // recons on the same date. A partial unique index plugs that gap.
+  await knex.raw(`
+    CREATE UNIQUE INDEX recons_one_cash_per_date
+    ON reconciliations (recon_date)
+    WHERE type = 'cash'
+  `);
 }
 
 export async function down(knex: Knex): Promise<void> {

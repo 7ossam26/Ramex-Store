@@ -7,10 +7,10 @@ export async function seed(db: Knex): Promise<void> {
   const exists = await db('colors').where({ code: '101' }).first();
   if (exists) return;
 
-  const [colorId1] = await db('colors').insert({ name_ar: 'أبيض', code: '101' });
-  const [colorId2] = await db('colors').insert({ name_ar: 'أسود', code: '201' });
+  const [{ id: colorId1 }] = await db('colors').insert({ name_ar: 'أبيض', code: '101' }).returning('id');
+  const [{ id: colorId2 }] = await db('colors').insert({ name_ar: 'أسود', code: '201' }).returning('id');
 
-  const [fabricId] = await db('fabrics').insert({
+  const [{ id: fabricId }] = await db('fabrics').insert({
     code: 'MILTON-P8',
     name_ar: 'ميلتون P8',
     composition: JSON.stringify([{ material: 'قطن', percent: 100 }]),
@@ -18,7 +18,7 @@ export async function seed(db: Knex): Promise<void> {
     grade: '1K',
     notes: null,
     is_active: true,
-  });
+  }).returning('id');
 
   await db('fabric_color_prices').insert([
     {

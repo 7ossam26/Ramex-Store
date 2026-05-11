@@ -218,7 +218,7 @@ export async function createSale(
     // 7) Insert invoice header.
     const status = isFullyPaid ? 'completed' : 'open';
     const balance = roundEgp(totals.total - paidTotal);
-    const [invoiceId] = await trx('invoices').insert({
+    const [{ id: invoiceId }] = await trx('invoices').insert({
       invoice_no,
       customer_id: input.customerId,
       cashier_user_id: cashierUserId,
@@ -232,7 +232,7 @@ export async function createSale(
       balance_egp: balance,
       notes_ar: input.notesAr ?? null,
       closed_at: isFullyPaid ? trx.fn.now() : null,
-    });
+    }).returning('id');
     const invoice = await trx('invoices').where({ id: invoiceId }).first();
 
     // 8) Insert invoice lines.

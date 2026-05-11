@@ -15,21 +15,23 @@ import type {
 } from './inventory.schemas.js';
 
 async function generateRollBarcode(trx: Knex.Transaction): Promise<string> {
-  await trx.raw('UPDATE db_sequences SET `last_value` = LAST_INSERT_ID(`last_value` + 1) WHERE name = ?', ['roll_barcode_seq']);
-  const [[row]] = await trx.raw<[[{ n: number }]]>('SELECT LAST_INSERT_ID() AS n');
-  return `RMX-R-${String(row.n).padStart(6, '0')}`;
+  const result = await trx.raw<{ rows: Array<{ n: number | string }> }>(
+    'UPDATE db_sequences SET last_value = last_value + 1 WHERE name = ? RETURNING last_value AS n',
+    ['roll_barcode_seq'],
+  );
+  return `RMX-R-${String(Number(result.rows[0].n)).padStart(6, '0')}`;
 }
 
 export async function createDraft(actorUserId: number, input: CreateShipmentDraftInput): Promise<Shipment> {
   return db.transaction(async (trx) => {
     const year = new Date().getFullYear();
     const shipment_no = await nextShipmentNo(trx, year);
-    const [id] = await trx('shipments').insert({
+    const [{ id }] = await trx('shipments').insert({
       shipment_no,
       created_by_user_id: actorUserId,
       status: 'draft',
       notes_ar: input.notes_ar ?? null,
-    });
+    }).returning('id');
     const row = await trx('shipments').where({ id }).first();
     await auditFromService(trx, {
       actorUserId,
@@ -61,7 +63,7 @@ export async function addRoll(
     const sellingPrice = Number(priceRow.default_price_per_kg);
 
     const internal_barcode = await generateRollBarcode(trx);
-    const [rollId] = await trx('rolls').insert({
+    const [{ id: rollId }] = await trx('rolls').insert({
       internal_barcode,
       external_barcode: input.external_barcode ?? null,
       fabric_id: input.fabric_id,
@@ -73,15 +75,15 @@ export async function addRoll(
       selling_price_egp: sellingPrice,
       warehouse: 'factory',
       status: 'in_stock',
-    });
+    }).returning('id');
     const roll = await trx('rolls').where({ id: rollId }).first();
 
-    const [lineId] = await trx('shipment_lines').insert({
+    const [{ id: lineId }] = await trx('shipment_lines').insert({
       shipment_id: shipmentId,
       roll_id: roll.id,
       factory_purchase_price_egp: input.factory_purchase_price_egp ?? null,
       status: 'pending',
-    });
+    }).returning('id');
     const line = await trx('shipment_lines').where({ id: lineId }).first();
 
     await trx('stock_movements').insert({

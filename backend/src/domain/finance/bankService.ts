@@ -69,7 +69,7 @@ export async function createBankAccount(
       await trx('bank_accounts').update({ is_default: false });
     }
 
-    const [id] = await trx('bank_accounts').insert({
+    const [{ id }] = await trx('bank_accounts').insert({
       name_ar: data.nameAr,
       bank_name_ar: data.bankNameAr ?? null,
       branch_ar: data.branchAr ?? null,
@@ -79,7 +79,7 @@ export async function createBankAccount(
       is_active: true,
       is_default: data.isDefault ?? false,
       current_balance_egp: 0,
-    });
+    }).returning('id');
     const row = await trx('bank_accounts').where({ id }).first();
 
     await auditFromService(trx, {
@@ -166,7 +166,7 @@ export async function recordMovement(
     updated_at: trx.fn.now(),
   });
 
-  const [movementId] = await trx('bank_movements').insert({
+  const [{ id: movementId }] = await trx('bank_movements').insert({
     bank_account_id: bankAccountId,
     direction,
     event_type: eventType,
@@ -176,9 +176,9 @@ export async function recordMovement(
     balance_after_egp: newBalance,
     notes_ar: notesAr ?? null,
     actor_user_id: actorUserId,
-  });
+  }).returning('id');
 
-  return movementId as number;
+  return Number(movementId);
 }
 
 export async function recordReconciliation(params: {
@@ -195,7 +195,7 @@ export async function recordReconciliation(params: {
   const variance = Math.round((params.actualBalance - expected) * 100) / 100;
 
   return db.transaction(async (trx) => {
-    const [id] = await trx('reconciliations').insert({
+    const [{ id }] = await trx('reconciliations').insert({
       recon_date: params.date,
       type: 'bank',
       bank_account_id: params.bankAccountId,
@@ -204,7 +204,7 @@ export async function recordReconciliation(params: {
       variance_egp: variance,
       notes_ar: params.notesAr ?? null,
       actor_user_id: params.actorUserId,
-    });
+    }).returning('id');
 
     if (Math.abs(variance) > 0.001) {
       await notify({
