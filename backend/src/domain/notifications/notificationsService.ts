@@ -52,7 +52,7 @@ export async function notify(input: NotifyInput): Promise<NotificationRow> {
     blocked_action_payload_jsonb: input.blockedActionPayload ? JSON.stringify(input.blockedActionPayload) : null,
   };
 
-  const [id] = await db('notifications').insert(row);
+  const [{ id }] = await db('notifications').insert(row).returning('id');
   const inserted = await db('notifications').where({ id }).first() as NotificationRow;
   logger.info(
     { notificationId: inserted.id, eventType: input.eventType, severity: input.severity },

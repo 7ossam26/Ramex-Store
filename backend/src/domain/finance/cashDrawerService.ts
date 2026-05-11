@@ -81,7 +81,7 @@ export async function recordMovement(
     last_movement_at: trx.fn.now(),
   });
 
-  const [movementId] = await trx('cash_movements').insert({
+  const [{ id: movementId }] = await trx('cash_movements').insert({
     direction,
     event_type: eventType,
     amount_egp: amount,
@@ -90,15 +90,15 @@ export async function recordMovement(
     balance_after_egp: newBalance,
     notes_ar: notesAr ?? null,
     actor_user_id: actorUserId,
-  });
+  }).returning('id');
 
-  return movementId as number;
+  return Number(movementId);
 }
 
 export async function dailyExpected(date: string): Promise<number> {
   // Cairo is UTC+2 (no DST since 2011)
   const lastMovement = await db('cash_movements')
-    .where(db.raw(`DATE(CONVERT_TZ(created_at, '+00:00', '+02:00')) <= ?`, [date]))
+    .where(db.raw(`DATE(created_at AT TIME ZONE 'Africa/Cairo') <= ?`, [date]))
     .orderBy('created_at', 'desc')
     .first();
 
@@ -119,7 +119,7 @@ export async function recordReconciliation(params: {
   const variance = Math.round((params.actualBalance - expected) * 100) / 100;
 
   return db.transaction(async (trx) => {
-    const [id] = await trx('reconciliations').insert({
+    const [{ id }] = await trx('reconciliations').insert({
       recon_date: params.date,
       type: 'cash',
       bank_account_id: null,
@@ -128,7 +128,7 @@ export async function recordReconciliation(params: {
       variance_egp: variance,
       notes_ar: params.notesAr ?? null,
       actor_user_id: params.actorUserId,
-    });
+    }).returning('id');
 
     if (Math.abs(variance) > 0.001) {
       await notify({
@@ -146,7 +146,7 @@ export async function recordReconciliation(params: {
       });
     }
 
-    return { id: id as number, variance_egp: variance };
+    return { id: Number(id), variance_egp: variance };
   });
 }
 

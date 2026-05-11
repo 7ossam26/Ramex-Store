@@ -34,11 +34,12 @@ export async function up(db: Knex): Promise<void> {
     t.index(['severity', 'created_at']);
   });
 
-  // XOR: exactly one of recipient_user_id or recipient_role must be set
+  // Exactly one of recipient_user_id or recipient_role must be set.
+  // Postgres has no XOR operator; `BOOL <> BOOL` is equivalent.
   await db.raw(`
     ALTER TABLE notifications
     ADD CONSTRAINT notifications_recipient_xor
-    CHECK ((recipient_user_id IS NULL) XOR (recipient_role IS NULL))
+    CHECK ((recipient_user_id IS NULL) <> (recipient_role IS NULL))
   `);
 
   await db.raw(`

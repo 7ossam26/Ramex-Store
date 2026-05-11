@@ -146,7 +146,7 @@ export async function processReturn(input: ProcessReturnInput): Promise<ReturnRo
     const year = new Date().getFullYear();
     const return_no = await nextReturnNo(trx, year);
 
-    const [retId] = await trx('returns').insert({
+    const [{ id: retId }] = await trx('returns').insert({
       return_no,
       original_invoice_id: input.originalInvoiceId,
       customer_id: invoice.customer_id,
@@ -156,7 +156,7 @@ export async function processReturn(input: ProcessReturnInput): Promise<ReturnRo
       bank_account_id: input.bankAccountId ?? null,
       notes_ar: input.notesAr ?? null,
       kind: 'refund',
-    });
+    }).returning('id');
     const ret = await trx('returns').where({ id: retId }).first();
 
     // Process each return line.
@@ -337,7 +337,7 @@ export async function processExchange(input: ProcessExchangeInput): Promise<{
     const year = new Date().getFullYear();
     const return_no = await nextReturnNo(trx, year);
 
-    const [retId] = await trx('returns').insert({
+    const [{ id: retId }] = await trx('returns').insert({
       return_no,
       original_invoice_id: input.originalInvoiceId,
       customer_id: invoice.customer_id,
@@ -347,7 +347,7 @@ export async function processExchange(input: ProcessExchangeInput): Promise<{
       bank_account_id: input.bankAccountId ?? null,
       notes_ar: input.notesAr ?? null,
       kind: 'exchange',
-    });
+    }).returning('id');
     const ret = await trx('returns').where({ id: retId }).first();
 
     for (const line of input.lines) {

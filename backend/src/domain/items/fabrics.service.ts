@@ -11,7 +11,7 @@ export async function getFabric(id: number): Promise<Fabric | undefined> {
 }
 
 export async function createFabric(data: CreateFabricInput): Promise<Fabric> {
-  const [id] = await db('fabrics').insert({ ...data, composition: JSON.stringify(data.composition) });
+  const [{ id }] = await db('fabrics').insert({ ...data, composition: JSON.stringify(data.composition) }).returning('id');
   return db('fabrics').where({ id }).first() as Promise<Fabric>;
 }
 

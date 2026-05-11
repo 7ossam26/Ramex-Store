@@ -19,7 +19,7 @@ export async function startStocktake(
 ): Promise<Stocktake> {
   return db.transaction(async (trx) => {
     const placeholder = `STK-PENDING-${Date.now()}-${actorUserId}`;
-    const [createdId] = await trx('stocktakes').insert({
+    const [{ id: createdId }] = await trx('stocktakes').insert({
       stocktake_no: placeholder,
       mode,
       warehouse,
@@ -27,7 +27,7 @@ export async function startStocktake(
       started_at: trx.fn.now(),
       status: 'open',
       notes_ar: notesAr,
-    });
+    }).returning('id');
     const created = await trx('stocktakes').where({ id: createdId }).first();
 
     const real_no = `STK-${new Date().getFullYear()}-${String(created.id).padStart(6, '0')}`;
@@ -126,7 +126,7 @@ export async function recordAggregate(
       .first();
 
     if (!line) {
-      const [insertedId] = await trx('stocktake_lines').insert({
+      const [{ id: insertedId }] = await trx('stocktake_lines').insert({
         stocktake_id: stocktakeId,
         fabric_id: fabricId,
         color_id: colorId,
@@ -134,7 +134,7 @@ export async function recordAggregate(
         expected_weight_kg: 0,
         actual_count: actualCount,
         actual_weight_kg: actualWeightKg ?? null,
-      });
+      }).returning('id');
       line = await trx('stocktake_lines').where({ id: insertedId }).first();
     } else {
       await trx('stocktake_lines')

@@ -5,9 +5,11 @@ import type { CreateTopBatchInput } from './tops.schemas.js';
 import { auditFromService } from '../inventory/audit.helper.js';
 
 async function generateBarcode(trx: Knex.Transaction): Promise<string> {
-  await trx.raw('UPDATE db_sequences SET `last_value` = LAST_INSERT_ID(`last_value` + 1) WHERE name = ?', ['roll_barcode_seq']);
-  const [[row]] = await trx.raw<[[{ n: number }]]>('SELECT LAST_INSERT_ID() AS n');
-  return `RMX-R-${String(row.n).padStart(6, '0')}`;
+  const result = await trx.raw<{ rows: Array<{ n: number | string }> }>(
+    'UPDATE db_sequences SET last_value = last_value + 1 WHERE name = ? RETURNING last_value AS n',
+    ['roll_barcode_seq'],
+  );
+  return `RMX-R-${String(Number(result.rows[0].n)).padStart(6, '0')}`;
 }
 
 async function resolveFabric(
@@ -22,7 +24,7 @@ async function resolveFabric(
   }
   const existingByCode = await trx('fabrics').where({ code: ref.code }).first();
   if (existingByCode) throw new Error('FABRIC_CODE_EXISTS');
-  const [id] = await trx('fabrics').insert({ ...ref, composition: JSON.stringify(ref.composition) });
+  const [{ id }] = await trx('fabrics').insert({ ...ref, composition: JSON.stringify(ref.composition) }).returning('id');
   const created = await trx('fabrics').where({ id }).first();
   await auditFromService(trx, {
     actorUserId,
@@ -49,7 +51,7 @@ async function resolveColor(
     .where({ name_ar: ref.name_ar, code: ref.code })
     .first();
   if (existing) return { id: existing.id as number };
-  const [id] = await trx('colors').insert(ref);
+  const [{ id }] = await trx('colors').insert(ref).returning('id');
   const created = await trx('colors').where({ id }).first();
   await auditFromService(trx, {
     actorUserId,
@@ -126,7 +128,7 @@ export async function createTopBatch(
       }
 
       const internal_barcode = await generateBarcode(trx);
-      const [rollId] = await trx('rolls').insert({
+      const [{ id: rollId }] = await trx('rolls').insert({
         fabric_id: fabric.id,
         color_id: color.id,
         weight_kg: entry.weight_kg,
@@ -144,7 +146,7 @@ export async function createTopBatch(
         brand_id: entry.brand_id ?? null,
         internal_barcode,
         received_at: trx.fn.now(),
-      });
+      }).returning('id');
       const roll = await trx('rolls').where({ id: rollId }).first();
 
       await trx('stock_movements').insert({

@@ -3,7 +3,7 @@ import { env } from '../config/env.js';
 
 const config: { [k: string]: Knex.Config } = {
   development: {
-    client: 'mysql2',
+    client: 'pg',
     connection: {
       host: env.DB_HOST,
       port: env.DB_PORT,

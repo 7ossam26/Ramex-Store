@@ -46,7 +46,7 @@ export async function createDamageEvent(
       if (valuation > threshold) requiresApproval = true;
     }
 
-    const [eventId] = await trx('damage_events').insert({
+    const [{ id: eventId }] = await trx('damage_events').insert({
       roll_id: input.roll_id,
       reason_code: input.reason_code,
       disposition,
@@ -55,7 +55,7 @@ export async function createDamageEvent(
       valuation_egp: valuation,
       requires_approval: requiresApproval,
       created_by_user_id: actorUserId,
-    });
+    }).returning('id');
     const event = await trx('damage_events').where({ id: eventId }).first() as DamageEvent;
 
     if (requiresApproval) {

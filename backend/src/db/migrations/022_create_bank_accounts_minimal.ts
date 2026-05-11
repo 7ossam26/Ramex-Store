@@ -28,6 +28,6 @@ export async function up(db: Knex): Promise<void> {
 }
 
 export async function down(db: Knex): Promise<void> {
-  await db.raw(`ALTER TABLE payments DROP FOREIGN KEY payments_bank_account_id_foreign`);
+  await db.raw(`ALTER TABLE payments DROP CONSTRAINT payments_bank_account_id_foreign`);
   await db.schema.dropTableIfExists('bank_accounts');
 }

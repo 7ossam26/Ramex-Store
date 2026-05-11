@@ -11,9 +11,11 @@ import type {
 } from './customers.schemas.js';
 
 async function nextCustomerCode(trx: Knex.Transaction): Promise<string> {
-  await trx.raw('UPDATE db_sequences SET `last_value` = LAST_INSERT_ID(`last_value` + 1) WHERE name = ?', ['customers_code_seq']);
-  const [[row]] = await trx.raw<[[{ n: number }]]>('SELECT LAST_INSERT_ID() AS n');
-  const n = Number(row.n);
+  const result = await trx.raw<{ rows: Array<{ n: number | string }> }>(
+    'UPDATE db_sequences SET last_value = last_value + 1 WHERE name = ? RETURNING last_value AS n',
+    ['customers_code_seq'],
+  );
+  const n = Number(result.rows[0].n);
   return `C-${n.toString().padStart(6, '0')}`;
 }
 
@@ -26,7 +28,7 @@ export async function create(
     if (existing) throw new Error('PHONE_DUPLICATE');
 
     const customer_code = await nextCustomerCode(trx);
-    const [id] = await trx('customers').insert({
+    const [{ id }] = await trx('customers').insert({
       customer_code,
       name_ar: input.name_ar,
       phone: input.phone,
@@ -35,7 +37,7 @@ export async function create(
       tax_no: input.tax_no ?? null,
       notes_ar: input.notes_ar ?? null,
       created_by_user_id: actorUserId,
-    });
+    }).returning('id');
     const row = await trx('customers').where({ id }).first();
 
     await auditFromService(trx, {

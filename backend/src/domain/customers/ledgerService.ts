@@ -24,7 +24,7 @@ export async function appendEntry(
         ? prevLifetime + amountEgp
         : prevLifetime;
 
-    const [entryId] = await trx('customer_ledger_entries').insert({
+    const [{ id: entryId }] = await trx('customer_ledger_entries').insert({
       customer_id: customerId,
       entry_type: entryType,
       reference_type: referenceType ?? null,
@@ -33,7 +33,7 @@ export async function appendEntry(
       balance_after_egp: newBalance,
       notes_ar: notesAr ?? null,
       actor_user_id: actorUserId,
-    });
+    }).returning('id');
     const entry = await trx('customer_ledger_entries').where({ id: entryId }).first();
 
     await trx('customers').where({ id: customerId }).update({

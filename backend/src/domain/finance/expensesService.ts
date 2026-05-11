@@ -35,7 +35,7 @@ export async function recordExpense(params: {
   const requiresApproval = threshold > 0 && params.amount > threshold;
 
   return db.transaction(async (trx) => {
-    const [id] = await trx('expenses').insert({
+    const [{ id }] = await trx('expenses').insert({
       category: params.category,
       amount_egp: params.amount,
       notes_ar: params.notesAr ?? null,
@@ -44,7 +44,7 @@ export async function recordExpense(params: {
       paid_from: params.paidFrom,
       bank_account_id: params.bankAccountId ?? null,
       actor_user_id: params.actorUserId,
-    });
+    }).returning('id');
     const expense = await trx('expenses').where({ id }).first() as ExpenseRow;
 
     if (requiresApproval) {

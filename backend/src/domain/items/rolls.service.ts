@@ -3,9 +3,11 @@ import type { Roll, RollWithDetails, RollWithLabelDetails } from './items.types.
 import type { CreateRollInput, UpdateRollInput } from './items.schemas.js';
 
 async function generateBarcode(): Promise<string> {
-  await db.raw('UPDATE db_sequences SET `last_value` = LAST_INSERT_ID(`last_value` + 1) WHERE name = ?', ['roll_barcode_seq']);
-  const [[row]] = await db.raw<[[{ n: number }]]>('SELECT LAST_INSERT_ID() AS n');
-  return `RMX-R-${String(row.n).padStart(6, '0')}`;
+  const result = await db.raw<{ rows: Array<{ n: number | string }> }>(
+    'UPDATE db_sequences SET last_value = last_value + 1 WHERE name = ? RETURNING last_value AS n',
+    ['roll_barcode_seq'],
+  );
+  return `RMX-R-${String(Number(result.rows[0].n)).padStart(6, '0')}`;
 }
 
 const ROLL_DETAIL_COLS = [
@@ -88,7 +90,7 @@ export async function createRoll(data: CreateRollInput): Promise<Roll> {
   }
 
   const internal_barcode = await generateBarcode();
-  const [id] = await db('rolls').insert({ ...data, selling_price_egp: sellingPrice, internal_barcode });
+  const [{ id }] = await db('rolls').insert({ ...data, selling_price_egp: sellingPrice, internal_barcode }).returning('id');
   return db('rolls').where({ id }).first() as Promise<Roll>;
 }
 
