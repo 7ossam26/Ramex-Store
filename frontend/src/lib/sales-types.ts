@@ -152,4 +152,12 @@ export type RollLookup = {
   status: string;
   warehouse: string;
   is_visible_at_pos: boolean;
+  // Phase 5 enriched label fields — optional, may be null on legacy rolls
+  width_cm?: number | null;
+  grade_arabic_name?: string | null;
+  composition_description?: string | null;
+  brand_arabic_name?: string | null;
+  brand_product_line?: string | null;
+  supplier_arabic_name?: string | null;
+  supplier_arabic_warning_text?: string | null;
 };

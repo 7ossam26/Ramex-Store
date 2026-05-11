@@ -116,10 +116,13 @@ export async function togglePosVisibility(id: number): Promise<Roll | undefined>
   return db('rolls').where({ id }).first() as Promise<Roll>;
 }
 
-export async function findByBarcode(barcode: string): Promise<RollWithDetails | undefined> {
-  return rollDetailQuery()
-    .where('r.internal_barcode', barcode)
-    .orWhere('r.external_barcode', barcode)
+export async function findByBarcode(
+  barcode: string,
+): Promise<RollWithLabelDetails | undefined> {
+  return rollLabelQuery()
+    .where((b) =>
+      b.where('r.internal_barcode', barcode).orWhere('r.external_barcode', barcode),
+    )
     .first();
 }
 
