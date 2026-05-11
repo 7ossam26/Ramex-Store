@@ -5,11 +5,9 @@ import type { CreateTopBatchInput } from './tops.schemas.js';
 import { auditFromService } from '../inventory/audit.helper.js';
 
 async function generateBarcode(trx: Knex.Transaction): Promise<string> {
-  const result = await trx.raw<{ rows: Array<{ n: string }> }>(
-    `SELECT nextval('roll_barcode_seq') AS n`,
-  );
-  const n = Number(result.rows[0].n);
-  return `RMX-R-${String(n).padStart(6, '0')}`;
+  await trx.raw('UPDATE db_sequences SET `last_value` = LAST_INSERT_ID(`last_value` + 1) WHERE name = ?', ['roll_barcode_seq']);
+  const [[row]] = await trx.raw<[[{ n: number }]]>('SELECT LAST_INSERT_ID() AS n');
+  return `RMX-R-${String(row.n).padStart(6, '0')}`;
 }
 
 async function resolveFabric(
@@ -24,9 +22,8 @@ async function resolveFabric(
   }
   const existingByCode = await trx('fabrics').where({ code: ref.code }).first();
   if (existingByCode) throw new Error('FABRIC_CODE_EXISTS');
-  const [created] = await trx('fabrics')
-    .insert({ ...ref, composition: JSON.stringify(ref.composition) })
-    .returning('*');
+  const [id] = await trx('fabrics').insert({ ...ref, composition: JSON.stringify(ref.composition) });
+  const created = await trx('fabrics').where({ id }).first();
   await auditFromService(trx, {
     actorUserId,
     action: 'create_fabric',
@@ -52,7 +49,8 @@ async function resolveColor(
     .where({ name_ar: ref.name_ar, code: ref.code })
     .first();
   if (existing) return { id: existing.id as number };
-  const [created] = await trx('colors').insert(ref).returning('*');
+  const [id] = await trx('colors').insert(ref);
+  const created = await trx('colors').where({ id }).first();
   await auditFromService(trx, {
     actorUserId,
     action: 'create_color',
@@ -74,7 +72,7 @@ async function ensureDefaultPrice(
   const before = await trx('fabric_color_prices')
     .where({ fabric_id: fabricId, color_id: colorId })
     .first();
-  const [row] = await trx('fabric_color_prices')
+  await trx('fabric_color_prices')
     .insert({
       fabric_id: fabricId,
       color_id: colorId,
@@ -82,8 +80,10 @@ async function ensureDefaultPrice(
       updated_at: trx.fn.now(),
     })
     .onConflict(['fabric_id', 'color_id'])
-    .merge(['default_price_per_kg', 'updated_at'])
-    .returning('*');
+    .merge(['default_price_per_kg', 'updated_at']);
+  const row = await trx('fabric_color_prices')
+    .where({ fabric_id: fabricId, color_id: colorId })
+    .first();
   await auditFromService(trx, {
     actorUserId,
     action: before ? 'update_price' : 'create_price',
@@ -126,21 +126,20 @@ export async function createTopBatch(
       }
 
       const internal_barcode = await generateBarcode(trx);
-      const [roll] = await trx('rolls')
-        .insert({
-          fabric_id: fabric.id,
-          color_id: color.id,
-          weight_kg: entry.weight_kg,
-          warehouse: input.warehouse,
-          status: 'in_stock',
-          selling_price_egp: sellingPrice,
-          purchase_price_egp: entry.purchase_price_egp ?? null,
-          roll_sr_no: entry.roll_sr_no ?? null,
-          order_no: entry.order_no ?? null,
-          internal_barcode,
-          received_at: trx.fn.now(),
-        })
-        .returning('*');
+      const [rollId] = await trx('rolls').insert({
+        fabric_id: fabric.id,
+        color_id: color.id,
+        weight_kg: entry.weight_kg,
+        warehouse: input.warehouse,
+        status: 'in_stock',
+        selling_price_egp: sellingPrice,
+        purchase_price_egp: entry.purchase_price_egp ?? null,
+        roll_sr_no: entry.roll_sr_no ?? null,
+        order_no: entry.order_no ?? null,
+        internal_barcode,
+        received_at: trx.fn.now(),
+      });
+      const roll = await trx('rolls').where({ id: rollId }).first();
 
       await trx('stock_movements').insert({
         roll_id: roll.id,

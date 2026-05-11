@@ -16,10 +16,11 @@ export async function getPrice(
 }
 
 export async function upsertPrice(data: UpsertPriceInput): Promise<FabricColorPrice> {
-  const [row] = await db('fabric_color_prices')
+  await db('fabric_color_prices')
     .insert({ ...data, updated_at: db.fn.now() })
     .onConflict(['fabric_id', 'color_id'])
-    .merge(['default_price_per_kg', 'default_price_per_roll', 'updated_at'])
-    .returning('*');
-  return row;
+    .merge(['default_price_per_kg', 'default_price_per_roll', 'updated_at']);
+  return db('fabric_color_prices')
+    .where({ fabric_id: data.fabric_id, color_id: data.color_id })
+    .first() as Promise<FabricColorPrice>;
 }

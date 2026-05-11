@@ -1,8 +1,6 @@
 import type { Knex } from 'knex';
 
 export async function up(db: Knex): Promise<void> {
-  await db.raw(`CREATE SEQUENCE IF NOT EXISTS customers_code_seq START 1`);
-
   await db.schema.createTable('customers', (t) => {
     t.bigIncrements('id').primary();
     t.string('customer_code', 16).notNullable().unique();
@@ -23,11 +21,10 @@ export async function up(db: Knex): Promise<void> {
   });
 
   await db.raw(
-    `ALTER TABLE customers ADD CONSTRAINT customers_phone_format_check CHECK (phone ~ '^01[0125][0-9]{8}$')`,
+    `ALTER TABLE customers ADD CONSTRAINT customers_phone_format_check CHECK (phone REGEXP '^01[0125][0-9]{8}$')`,
   );
 }
 
 export async function down(db: Knex): Promise<void> {
   await db.schema.dropTableIfExists('customers');
-  await db.raw(`DROP SEQUENCE IF EXISTS customers_code_seq`);
 }

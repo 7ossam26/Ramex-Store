@@ -5,11 +5,9 @@ export async function up(knex: Knex): Promise<void> {
     t.bigIncrements('id').primary();
     t.decimal('current_balance_egp', 14, 2).notNullable().defaultTo(0);
     t.decimal('opening_balance_egp', 14, 2).notNullable().defaultTo(0);
-    t.timestamp('opening_set_at', { useTz: true }).nullable();
-    t.timestamp('last_movement_at', { useTz: true }).nullable();
+    t.datetime('opening_set_at').nullable();
+    t.datetime('last_movement_at').nullable();
   });
-
-  await knex.raw(`ALTER TABLE cash_drawer ADD CONSTRAINT cash_drawer_singleton CHECK (id = 1)`);
 
   await knex('cash_drawer').insert({
     id: 1,

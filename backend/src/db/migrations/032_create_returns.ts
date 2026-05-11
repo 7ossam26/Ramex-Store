@@ -15,19 +15,13 @@ export async function up(db: Knex): Promise<void> {
       .references('id').inTable('customers').onDelete('RESTRICT');
     t.bigInteger('created_by_user_id').unsigned().notNullable()
       .references('id').inTable('users').onDelete('RESTRICT');
-    t.timestamp('processed_at', { useTz: true }).notNullable().defaultTo(db.fn.now());
+    t.datetime('processed_at').notNullable().defaultTo(db.fn.now());
     t.decimal('total_refund_egp', 12, 2).notNullable();
-    t.enu('refund_method', ['cash', 'instapay', 'customer_credit'], {
-      useNative: false,
-      enumName: 'returns_refund_method_check',
-    }).notNullable();
+    t.enu('refund_method', ['cash', 'instapay', 'customer_credit']).notNullable();
     t.bigInteger('bank_account_id').unsigned().nullable()
       .references('id').inTable('bank_accounts').onDelete('RESTRICT');
     t.text('notes_ar').nullable();
-    t.enu('kind', ['refund', 'exchange'], {
-      useNative: false,
-      enumName: 'returns_kind_check',
-    }).notNullable();
+    t.enu('kind', ['refund', 'exchange']).notNullable();
 
     t.index(['original_invoice_id']);
     t.index(['customer_id', 'processed_at']);

@@ -146,19 +146,18 @@ export async function processReturn(input: ProcessReturnInput): Promise<ReturnRo
     const year = new Date().getFullYear();
     const return_no = await nextReturnNo(trx, year);
 
-    const [ret] = await trx('returns')
-      .insert({
-        return_no,
-        original_invoice_id: input.originalInvoiceId,
-        customer_id: invoice.customer_id,
-        created_by_user_id: input.actorUserId,
-        total_refund_egp: totalRefund,
-        refund_method: input.refundMethod,
-        bank_account_id: input.bankAccountId ?? null,
-        notes_ar: input.notesAr ?? null,
-        kind: 'refund',
-      })
-      .returning('*');
+    const [retId] = await trx('returns').insert({
+      return_no,
+      original_invoice_id: input.originalInvoiceId,
+      customer_id: invoice.customer_id,
+      created_by_user_id: input.actorUserId,
+      total_refund_egp: totalRefund,
+      refund_method: input.refundMethod,
+      bank_account_id: input.bankAccountId ?? null,
+      notes_ar: input.notesAr ?? null,
+      kind: 'refund',
+    });
+    const ret = await trx('returns').where({ id: retId }).first();
 
     // Process each return line.
     for (const line of input.lines) {
@@ -338,19 +337,18 @@ export async function processExchange(input: ProcessExchangeInput): Promise<{
     const year = new Date().getFullYear();
     const return_no = await nextReturnNo(trx, year);
 
-    const [ret] = await trx('returns')
-      .insert({
-        return_no,
-        original_invoice_id: input.originalInvoiceId,
-        customer_id: invoice.customer_id,
-        created_by_user_id: input.actorUserId,
-        total_refund_egp: totalRefund,
-        refund_method: input.refundMethod,
-        bank_account_id: input.bankAccountId ?? null,
-        notes_ar: input.notesAr ?? null,
-        kind: 'exchange',
-      })
-      .returning('*');
+    const [retId] = await trx('returns').insert({
+      return_no,
+      original_invoice_id: input.originalInvoiceId,
+      customer_id: invoice.customer_id,
+      created_by_user_id: input.actorUserId,
+      total_refund_egp: totalRefund,
+      refund_method: input.refundMethod,
+      bank_account_id: input.bankAccountId ?? null,
+      notes_ar: input.notesAr ?? null,
+      kind: 'exchange',
+    });
+    const ret = await trx('returns').where({ id: retId }).first();
 
     for (const line of input.lines) {
       await trx('return_lines').insert({

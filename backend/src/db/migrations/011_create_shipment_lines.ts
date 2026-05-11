@@ -8,10 +8,7 @@ export async function up(db: Knex): Promise<void> {
     t.bigInteger('roll_id').unsigned().notNullable()
       .references('id').inTable('rolls').onDelete('RESTRICT');
     t.decimal('factory_purchase_price_egp', 10, 2).nullable();
-    t.enu('status', ['pending', 'accepted', 'rejected'], {
-      useNative: false,
-      enumName: 'shipment_line_status',
-    }).notNullable().defaultTo('pending');
+    t.enu('status', ['pending', 'accepted', 'rejected']).notNullable().defaultTo('pending');
     t.text('reject_reason_ar').nullable();
     t.timestamps(true, true);
 

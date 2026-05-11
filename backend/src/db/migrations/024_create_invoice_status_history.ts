@@ -12,7 +12,7 @@ export async function up(db: Knex): Promise<void> {
     t.bigInteger('actor_user_id').unsigned().notNullable()
       .references('id').inTable('users').onDelete('RESTRICT');
     t.text('notes_ar').nullable();
-    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now());
+    t.datetime('created_at').notNullable().defaultTo(db.fn.now());
 
     t.index(['invoice_id', 'created_at']);
   });

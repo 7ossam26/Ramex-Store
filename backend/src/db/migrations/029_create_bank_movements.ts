@@ -5,20 +5,16 @@ export async function up(knex: Knex): Promise<void> {
     t.bigIncrements('id').primary();
     t.bigInteger('bank_account_id').unsigned().notNullable()
       .references('id').inTable('bank_accounts').onDelete('RESTRICT');
-    t.enu('direction', ['in', 'out'], { useNative: false, enumName: 'bank_mov_direction_check' }).notNullable();
-    t.enu(
-      'event_type',
-      [
-        'instapay_payment',
-        'cash_deposit',
-        'refund',
-        'reconciliation_adjustment',
-        'opening_balance_set',
-        'other_in',
-        'other_out',
-      ],
-      { useNative: false, enumName: 'bank_mov_event_type_check' },
-    ).notNullable();
+    t.enu('direction', ['in', 'out']).notNullable();
+    t.enu('event_type', [
+      'instapay_payment',
+      'cash_deposit',
+      'refund',
+      'reconciliation_adjustment',
+      'opening_balance_set',
+      'other_in',
+      'other_out',
+    ]).notNullable();
     t.decimal('amount_egp', 12, 2).notNullable();
     t.string('reference_type', 32).nullable();
     t.bigInteger('reference_id').nullable();
@@ -26,7 +22,7 @@ export async function up(knex: Knex): Promise<void> {
     t.text('notes_ar').nullable();
     t.bigInteger('actor_user_id').unsigned().notNullable()
       .references('id').inTable('users').onDelete('RESTRICT');
-    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(knex.fn.now());
+    t.datetime('created_at').notNullable().defaultTo(knex.fn.now());
 
     t.index(['bank_account_id', 'created_at']);
     t.index(['event_type', 'created_at']);

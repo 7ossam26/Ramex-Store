@@ -69,6 +69,7 @@ export const CancelOpenInvoiceSchema = z
     deposit_handling: z.enum(['full_refund', 'partial_refund', 'keep_as_credit']),
     refund_method: z.enum(['cash', 'instapay']).nullable().optional(),
     partial_refund_amount: nonNegativeAmount.nullable().optional(),
+    bank_account_id: z.coerce.number().int().positive().nullable().optional(),
     notes_ar: z.string().min(1).max(2000),
   })
   .superRefine((v, ctx) => {

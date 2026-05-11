@@ -11,10 +11,8 @@ export async function getFabric(id: number): Promise<Fabric | undefined> {
 }
 
 export async function createFabric(data: CreateFabricInput): Promise<Fabric> {
-  const [row] = await db('fabrics')
-    .insert({ ...data, composition: JSON.stringify(data.composition) })
-    .returning('*');
-  return row;
+  const [id] = await db('fabrics').insert({ ...data, composition: JSON.stringify(data.composition) });
+  return db('fabrics').where({ id }).first() as Promise<Fabric>;
 }
 
 export async function updateFabric(id: number, data: UpdateFabricInput): Promise<Fabric | undefined> {
@@ -22,6 +20,6 @@ export async function updateFabric(id: number, data: UpdateFabricInput): Promise
   if (data.composition !== undefined) {
     patch.composition = JSON.stringify(data.composition);
   }
-  const [row] = await db('fabrics').where({ id }).update(patch).returning('*');
-  return row;
+  await db('fabrics').where({ id }).update(patch);
+  return db('fabrics').where({ id }).first();
 }

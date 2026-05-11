@@ -11,23 +11,28 @@ import { StockMovementsPage } from './pages/inventory/StockMovements';
 import { StocktakePage } from './pages/inventory/Stocktake';
 import { AdjustmentsPage } from './pages/inventory/Adjustments';
 import { DamagePage } from './pages/inventory/Damage';
+import { InventoryHubPage } from './pages/inventory/InventoryHub';
 import { CustomersListPage } from './pages/customers/CustomersList';
 import { CustomerDetailPage } from './pages/customers/CustomerDetail';
 import { POSPage } from './pages/pos/POS';
 import { InvoicesListPage } from './pages/invoices/InvoicesList';
 import { InvoiceDetailPage } from './pages/invoices/InvoiceDetail';
+import { InvoicesReturnsHubPage } from './pages/invoicesReturns/InvoicesReturnsHub';
 import { CashDrawerPage } from './pages/cash/CashDrawer';
 import { BanksPage } from './pages/cash/Banks';
 import { ExpensesPage } from './pages/cash/Expenses';
 import { CashReconcilePage } from './pages/cash/CashReconcile';
+import { TreasuryHubPage } from './pages/treasury/TreasuryHub';
 import { ReturnsListPage } from './pages/returns/ReturnsList';
 import { ReturnDetailPage } from './pages/returns/ReturnDetail';
 import { LabelsPage } from './pages/items/Labels';
 import { RollsPage } from './pages/items/Rolls';
 import { AddTopPage } from './pages/items/AddTop';
+import { ItemsHubPage } from './pages/items/ItemsHub';
 import { NotificationsPage } from './pages/notifications/NotificationsPage';
 import { DailyReportPage } from './pages/reports/DailyReport';
 import { SecondaryReportPage } from './pages/reports/SecondaryReport';
+import { ReportsHubPage } from './pages/reports/ReportsHub';
 import { SettingsPage } from './pages/settings/SettingsPage';
 import { ApprovalsPage } from './pages/approvals/ApprovalsPage';
 
@@ -42,6 +47,19 @@ export function App() {
             <AppShell>
               <Routes>
                 <Route path="/" element={<HomePage />} />
+
+                <Route path="/items" element={<ItemsHubPage />} />
+                <Route path="/items/rolls" element={<RollsPage />} />
+                <Route path="/items/labels" element={<LabelsPage />} />
+                <Route path="/items/tops/add" element={<AddTopPage />} />
+
+                <Route path="/inventory" element={<InventoryHubPage />} />
+                <Route path="/inventory/fabrics" element={<FabricsPage />} />
+                <Route path="/inventory/stock-movements" element={<StockMovementsPage />} />
+                <Route path="/inventory/stocktake" element={<StocktakePage />} />
+                <Route path="/inventory/adjustments" element={<AdjustmentsPage />} />
+                <Route path="/inventory/damage" element={<DamagePage />} />
+
                 <Route path="/shipments" element={<ShipmentsListPage />} />
                 <Route path="/shipments/create" element={<CreateShipmentPage />} />
                 <Route
@@ -49,28 +67,30 @@ export function App() {
                   element={<ShipmentsListPage defaultStatus="pending_approval" />}
                 />
                 <Route path="/shipments/:id" element={<ReviewShipmentPage />} />
-                <Route path="/inventory/fabrics" element={<FabricsPage />} />
-                <Route path="/inventory/stock-movements" element={<StockMovementsPage />} />
-                <Route path="/inventory/stocktake" element={<StocktakePage />} />
-                <Route path="/inventory/adjustments" element={<AdjustmentsPage />} />
-                <Route path="/inventory/damage" element={<DamagePage />} />
+
                 <Route path="/customers" element={<CustomersListPage />} />
                 <Route path="/customers/:id" element={<CustomerDetailPage />} />
+
                 <Route path="/pos" element={<POSPage />} />
+
+                <Route path="/invoices-returns" element={<InvoicesReturnsHubPage />} />
                 <Route path="/invoices" element={<InvoicesListPage />} />
                 <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
+                <Route path="/returns" element={<ReturnsListPage />} />
+                <Route path="/returns/:id" element={<ReturnDetailPage />} />
+
+                <Route path="/treasury" element={<TreasuryHubPage />} />
                 <Route path="/cash" element={<CashDrawerPage />} />
                 <Route path="/banks" element={<BanksPage />} />
                 <Route path="/expenses" element={<ExpensesPage />} />
                 <Route path="/reconcile" element={<CashReconcilePage />} />
-                <Route path="/returns" element={<ReturnsListPage />} />
-                <Route path="/returns/:id" element={<ReturnDetailPage />} />
-                <Route path="/items/rolls" element={<RollsPage />} />
-                <Route path="/items/labels" element={<LabelsPage />} />
-                <Route path="/items/tops/add" element={<AddTopPage />} />
+
                 <Route path="/notifications" element={<NotificationsPage />} />
+
+                <Route path="/reports" element={<ReportsHubPage />} />
                 <Route path="/reports/daily" element={<DailyReportPage />} />
                 <Route path="/reports/secondary/:reportKey" element={<SecondaryReportPage />} />
+
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/approvals" element={<ApprovalsPage />} />
               </Routes>

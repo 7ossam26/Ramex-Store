@@ -8,10 +8,7 @@ export async function up(db: Knex): Promise<void> {
       .references('id').inTable('customers').onDelete('RESTRICT');
     t.bigInteger('cashier_user_id').unsigned().notNullable()
       .references('id').inTable('users').onDelete('RESTRICT');
-    t.enu('status', ['open', 'closed_pending_pickup', 'completed', 'cancelled'], {
-      useNative: false,
-      enumName: 'invoices_status_check',
-    }).notNullable();
+    t.enu('status', ['open', 'closed_pending_pickup', 'completed', 'cancelled']).notNullable();
     t.decimal('subtotal_egp', 12, 2).notNullable();
     t.decimal('cart_discount_egp', 12, 2).notNullable().defaultTo(0);
     t.decimal('tax_egp', 12, 2).notNullable().defaultTo(0);
@@ -20,10 +17,10 @@ export async function up(db: Knex): Promise<void> {
     t.decimal('paid_egp', 12, 2).notNullable().defaultTo(0);
     t.decimal('balance_egp', 12, 2).notNullable();
     t.text('notes_ar').nullable();
-    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now());
-    t.timestamp('closed_at', { useTz: true }).nullable();
-    t.timestamp('pickup_at', { useTz: true }).nullable();
-    t.timestamp('cancelled_at', { useTz: true }).nullable();
+    t.datetime('created_at').notNullable().defaultTo(db.fn.now());
+    t.datetime('closed_at').nullable();
+    t.datetime('pickup_at').nullable();
+    t.datetime('cancelled_at').nullable();
     t.text('cancelled_reason_ar').nullable();
 
     t.index(['status', 'created_at']);

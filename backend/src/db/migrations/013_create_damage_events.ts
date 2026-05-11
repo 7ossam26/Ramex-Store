@@ -14,24 +14,18 @@ export async function up(db: Knex): Promise<void> {
       'inventory_discrepancy',
       'cutting_sample_loss',
       'other',
-    ], {
-      useNative: false,
-      enumName: 'damage_event_reason_code',
-    }).notNullable();
-    t.enu('disposition', ['damaged_stock', 'return_to_factory', 'auto_writeoff'], {
-      useNative: false,
-      enumName: 'damage_event_disposition',
-    }).notNullable();
+    ]).notNullable();
+    t.enu('disposition', ['damaged_stock', 'return_to_factory', 'auto_writeoff']).notNullable();
     t.text('notes_ar').nullable();
     t.string('photo_path', 255).nullable();
     t.decimal('valuation_egp', 10, 2).notNullable();
     t.boolean('requires_approval').notNullable().defaultTo(false);
     t.bigInteger('approved_by_user_id').unsigned().nullable()
       .references('id').inTable('users').onDelete('SET NULL');
-    t.timestamp('approved_at', { useTz: true }).nullable();
+    t.datetime('approved_at').nullable();
     t.bigInteger('created_by_user_id').unsigned().notNullable()
       .references('id').inTable('users').onDelete('RESTRICT');
-    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now());
+    t.datetime('created_at').notNullable().defaultTo(db.fn.now());
 
     t.index(['roll_id']);
     t.index(['reason_code', 'created_at']);

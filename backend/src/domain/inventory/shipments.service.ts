@@ -15,27 +15,22 @@ import type {
 } from './inventory.schemas.js';
 
 async function generateRollBarcode(trx: Knex.Transaction): Promise<string> {
-  const r = await trx.raw<{ rows: Array<{ n: string }> }>(
-    `SELECT nextval('roll_barcode_seq') AS n`,
-  );
-  return `RMX-R-${String(Number(r.rows[0].n)).padStart(6, '0')}`;
+  await trx.raw('UPDATE db_sequences SET `last_value` = LAST_INSERT_ID(`last_value` + 1) WHERE name = ?', ['roll_barcode_seq']);
+  const [[row]] = await trx.raw<[[{ n: number }]]>('SELECT LAST_INSERT_ID() AS n');
+  return `RMX-R-${String(row.n).padStart(6, '0')}`;
 }
 
-export async function createDraft(
-  actorUserId: number,
-  input: CreateShipmentDraftInput,
-): Promise<Shipment> {
+export async function createDraft(actorUserId: number, input: CreateShipmentDraftInput): Promise<Shipment> {
   return db.transaction(async (trx) => {
     const year = new Date().getFullYear();
     const shipment_no = await nextShipmentNo(trx, year);
-    const [row] = await trx('shipments')
-      .insert({
-        shipment_no,
-        created_by_user_id: actorUserId,
-        status: 'draft',
-        notes_ar: input.notes_ar ?? null,
-      })
-      .returning('*');
+    const [id] = await trx('shipments').insert({
+      shipment_no,
+      created_by_user_id: actorUserId,
+      status: 'draft',
+      notes_ar: input.notes_ar ?? null,
+    });
+    const row = await trx('shipments').where({ id }).first();
     await auditFromService(trx, {
       actorUserId,
       action: 'create_shipment_draft',
@@ -66,30 +61,28 @@ export async function addRoll(
     const sellingPrice = Number(priceRow.default_price_per_kg);
 
     const internal_barcode = await generateRollBarcode(trx);
-    const [roll] = await trx('rolls')
-      .insert({
-        internal_barcode,
-        external_barcode: input.external_barcode ?? null,
-        fabric_id: input.fabric_id,
-        color_id: input.color_id,
-        roll_sr_no: input.roll_sr_no ?? null,
-        order_no: input.order_no ?? null,
-        weight_kg: input.weight_kg,
-        purchase_price_egp: input.factory_purchase_price_egp ?? null,
-        selling_price_egp: sellingPrice,
-        warehouse: 'factory',
-        status: 'in_stock',
-      })
-      .returning('*');
+    const [rollId] = await trx('rolls').insert({
+      internal_barcode,
+      external_barcode: input.external_barcode ?? null,
+      fabric_id: input.fabric_id,
+      color_id: input.color_id,
+      roll_sr_no: input.roll_sr_no ?? null,
+      order_no: input.order_no ?? null,
+      weight_kg: input.weight_kg,
+      purchase_price_egp: input.factory_purchase_price_egp ?? null,
+      selling_price_egp: sellingPrice,
+      warehouse: 'factory',
+      status: 'in_stock',
+    });
+    const roll = await trx('rolls').where({ id: rollId }).first();
 
-    const [line] = await trx('shipment_lines')
-      .insert({
-        shipment_id: shipmentId,
-        roll_id: roll.id,
-        factory_purchase_price_egp: input.factory_purchase_price_egp ?? null,
-        status: 'pending',
-      })
-      .returning('*');
+    const [lineId] = await trx('shipment_lines').insert({
+      shipment_id: shipmentId,
+      roll_id: roll.id,
+      factory_purchase_price_egp: input.factory_purchase_price_egp ?? null,
+      status: 'pending',
+    });
+    const line = await trx('shipment_lines').where({ id: lineId }).first();
 
     await trx('stock_movements').insert({
       roll_id: roll.id,
@@ -116,11 +109,7 @@ export async function addRoll(
   });
 }
 
-export async function removeLine(
-  shipmentId: number,
-  lineId: number,
-  actorUserId: number,
-): Promise<void> {
+export async function removeLine(shipmentId: number, lineId: number, actorUserId: number): Promise<void> {
   await db.transaction(async (trx) => {
     const shipment = await trx('shipments').where({ id: shipmentId }).first();
     if (!shipment) throw new Error('SHIPMENT_NOT_FOUND');
@@ -130,7 +119,6 @@ export async function removeLine(
     const line = await trx('shipment_lines').where({ id: lineId, shipment_id: shipmentId }).first();
     if (!line) throw new Error('LINE_NOT_FOUND');
 
-    // Drop the roll and the line. The factory_in stock_movement is also removed for clean ledger.
     await trx('shipment_lines').where({ id: lineId }).delete();
     await trx('stock_movements')
       .where({ roll_id: line.roll_id, reference_type: 'shipment', reference_id: shipmentId })
@@ -171,10 +159,8 @@ export async function submit(shipmentId: number, actorUserId: number): Promise<S
     }
 
     const now = trx.fn.now();
-    const [updated] = await trx('shipments')
-      .where({ id: shipmentId })
-      .update({ status: 'pending_approval', submitted_at: now, updated_at: now })
-      .returning('*');
+    await trx('shipments').where({ id: shipmentId }).update({ status: 'pending_approval', submitted_at: now, updated_at: now });
+    const updated = await trx('shipments').where({ id: shipmentId }).first();
 
     await auditFromService(trx, {
       actorUserId,
@@ -213,21 +199,17 @@ export async function reviewLine(
       throw new Error('SHIPMENT_NOT_REVIEWABLE');
     }
 
-    const line = await trx('shipment_lines')
-      .where({ id: lineId, shipment_id: shipmentId })
-      .first();
+    const line = await trx('shipment_lines').where({ id: lineId, shipment_id: shipmentId }).first();
     if (!line) throw new Error('LINE_NOT_FOUND');
     if (line.status !== 'pending') throw new Error('LINE_ALREADY_REVIEWED');
 
     const newStatus: 'accepted' | 'rejected' = action === 'accept' ? 'accepted' : 'rejected';
-    const [updated] = await trx('shipment_lines')
-      .where({ id: lineId })
-      .update({
-        status: newStatus,
-        reject_reason_ar: action === 'reject' ? (rejectReason ?? null) : null,
-        updated_at: trx.fn.now(),
-      })
-      .returning('*');
+    await trx('shipment_lines').where({ id: lineId }).update({
+      status: newStatus,
+      reject_reason_ar: action === 'reject' ? (rejectReason ?? null) : null,
+      updated_at: trx.fn.now(),
+    });
+    const updated = await trx('shipment_lines').where({ id: lineId }).first();
 
     await auditFromService(trx, {
       actorUserId,
@@ -243,10 +225,7 @@ export async function reviewLine(
   });
 }
 
-export async function finalizeReview(
-  shipmentId: number,
-  actorUserId: number,
-): Promise<Shipment> {
+export async function finalizeReview(shipmentId: number, actorUserId: number): Promise<Shipment> {
   return db.transaction(async (trx) => {
     const shipment = await trx('shipments').where({ id: shipmentId }).first();
     if (!shipment) throw new Error('SHIPMENT_NOT_FOUND');
@@ -267,11 +246,7 @@ export async function finalizeReview(
     else finalStatus = 'partial_approved';
 
     for (const line of accepted) {
-      await trx('rolls').where({ id: line.roll_id }).update({
-        warehouse: 'shop',
-        received_at: trx.fn.now(),
-        updated_at: trx.fn.now(),
-      });
+      await trx('rolls').where({ id: line.roll_id }).update({ warehouse: 'shop', received_at: trx.fn.now(), updated_at: trx.fn.now() });
       await trx('stock_movements').insert({
         roll_id: line.roll_id,
         from_warehouse: null,
@@ -295,15 +270,13 @@ export async function finalizeReview(
       });
     }
 
-    const [updated] = await trx('shipments')
-      .where({ id: shipmentId })
-      .update({
-        status: finalStatus,
-        reviewed_by_user_id: actorUserId,
-        reviewed_at: trx.fn.now(),
-        updated_at: trx.fn.now(),
-      })
-      .returning('*');
+    await trx('shipments').where({ id: shipmentId }).update({
+      status: finalStatus,
+      reviewed_by_user_id: actorUserId,
+      reviewed_at: trx.fn.now(),
+      updated_at: trx.fn.now(),
+    });
+    const updated = await trx('shipments').where({ id: shipmentId }).first();
 
     await auditFromService(trx, {
       actorUserId,
@@ -311,11 +284,7 @@ export async function finalizeReview(
       entity: 'shipment',
       entityId: shipmentId,
       before: { status: shipment.status },
-      after: {
-        status: finalStatus,
-        accepted_count: accepted.length,
-        rejected_count: rejected.length,
-      },
+      after: { status: finalStatus, accepted_count: accepted.length, rejected_count: rejected.length },
       severity: finalStatus === 'approved' ? 'medium' : 'high',
     });
 
@@ -326,13 +295,7 @@ export async function finalizeReview(
         eventType: 'shipment_partial_reject',
         titleAr: 'طلبية مرفوضة جزئياً',
         bodyAr: `طلبية رقم ${updated.shipment_no}: قُبل ${accepted.length} ورُفض ${rejected.length} توب`,
-        payload: {
-          shipment_id: shipmentId,
-          shipment_no: updated.shipment_no,
-          final_status: finalStatus,
-          accepted: accepted.length,
-          rejected: rejected.length,
-        },
+        payload: { shipment_id: shipmentId, shipment_no: updated.shipment_no, final_status: finalStatus, accepted: accepted.length, rejected: rejected.length },
       });
     }
 

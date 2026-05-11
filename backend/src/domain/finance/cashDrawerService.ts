@@ -81,25 +81,24 @@ export async function recordMovement(
     last_movement_at: trx.fn.now(),
   });
 
-  const [movement] = await trx('cash_movements')
-    .insert({
-      direction,
-      event_type: eventType,
-      amount_egp: amount,
-      reference_type: refType ?? null,
-      reference_id: refId ?? null,
-      balance_after_egp: newBalance,
-      notes_ar: notesAr ?? null,
-      actor_user_id: actorUserId,
-    })
-    .returning('id');
+  const [movementId] = await trx('cash_movements').insert({
+    direction,
+    event_type: eventType,
+    amount_egp: amount,
+    reference_type: refType ?? null,
+    reference_id: refId ?? null,
+    balance_after_egp: newBalance,
+    notes_ar: notesAr ?? null,
+    actor_user_id: actorUserId,
+  });
 
-  return (movement as { id: number }).id;
+  return movementId as number;
 }
 
 export async function dailyExpected(date: string): Promise<number> {
+  // Cairo is UTC+2 (no DST since 2011)
   const lastMovement = await db('cash_movements')
-    .where(db.raw(`DATE(created_at AT TIME ZONE 'Africa/Cairo') <= ?`, [date]))
+    .where(db.raw(`DATE(CONVERT_TZ(created_at, '+00:00', '+02:00')) <= ?`, [date]))
     .orderBy('created_at', 'desc')
     .first();
 
@@ -120,18 +119,16 @@ export async function recordReconciliation(params: {
   const variance = Math.round((params.actualBalance - expected) * 100) / 100;
 
   return db.transaction(async (trx) => {
-    const [row] = await trx('reconciliations')
-      .insert({
-        recon_date: params.date,
-        type: 'cash',
-        bank_account_id: null,
-        expected_balance_egp: expected,
-        actual_balance_egp: params.actualBalance,
-        variance_egp: variance,
-        notes_ar: params.notesAr ?? null,
-        actor_user_id: params.actorUserId,
-      })
-      .returning('id');
+    const [id] = await trx('reconciliations').insert({
+      recon_date: params.date,
+      type: 'cash',
+      bank_account_id: null,
+      expected_balance_egp: expected,
+      actual_balance_egp: params.actualBalance,
+      variance_egp: variance,
+      notes_ar: params.notesAr ?? null,
+      actor_user_id: params.actorUserId,
+    });
 
     if (Math.abs(variance) > 0.001) {
       await notify({
@@ -149,7 +146,7 @@ export async function recordReconciliation(params: {
       });
     }
 
-    return { id: (row as { id: number }).id, variance_egp: variance };
+    return { id: id as number, variance_egp: variance };
   });
 }
 

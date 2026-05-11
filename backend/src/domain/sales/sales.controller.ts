@@ -140,6 +140,7 @@ export async function cancelOpenInvoice(req: Request, res: Response): Promise<vo
       refundMethod: data.refund_method ?? null,
       partialRefundAmount:
         data.partial_refund_amount == null ? null : Number(data.partial_refund_amount),
+      bankAccountId: data.bank_account_id ?? null,
       notesAr: data.notes_ar,
     });
     res.json(result);

@@ -3,9 +3,9 @@ import type { Knex } from 'knex';
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.createTable('role_permissions', (t) => {
     t.bigIncrements('id').primary();
-    t.enu('role', ['owner', 'shop_seller', 'factory_sender'], { useNative: false, enumName: 'role_permissions_role_check' }).notNullable();
+    t.enu('role', ['owner', 'shop_seller', 'factory_sender']).notNullable();
     t.string('resource', 64).notNullable();
-    t.enu('action', ['read', 'write', 'approve'], { useNative: false, enumName: 'role_permissions_action_check' }).notNullable();
+    t.enu('action', ['read', 'write', 'approve']).notNullable();
     t.boolean('is_allowed').notNullable();
     t.unique(['role', 'resource', 'action']);
   });
@@ -24,7 +24,6 @@ export async function up(knex: Knex): Promise<void> {
     { role: 'shop_seller', resource: 'shipments',   action: 'write', is_allowed: true  },
     { role: 'shop_seller', resource: 'returns',     action: 'read',  is_allowed: true  },
     { role: 'shop_seller', resource: 'returns',     action: 'write', is_allowed: true  },
-    // reports — matches Phase 10 SELLER_REPORTS hard-coded list
     { role: 'shop_seller', resource: 'reports.daily',                  action: 'read', is_allowed: true  },
     { role: 'shop_seller', resource: 'reports.salesByPaymentMethod',   action: 'read', is_allowed: true  },
     { role: 'shop_seller', resource: 'reports.customerLedger',         action: 'read', is_allowed: true  },

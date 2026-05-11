@@ -21,18 +21,17 @@ export async function createAdjustment(
     await trx('rolls').where({ id: roll.id }).update(patch);
 
     const toWarehouse = input.new_warehouse ?? fromWarehouse;
-    const [movement] = await trx('stock_movements')
-      .insert({
-        roll_id: roll.id,
-        from_warehouse: fromWarehouse,
-        to_warehouse: toWarehouse,
-        event_type: 'adjustment',
-        reference_type: 'adjustment',
-        reference_id: null,
-        actor_user_id: actorUserId,
-        notes_ar: input.notes_ar,
-      })
-      .returning('*');
+    const [movId] = await trx('stock_movements').insert({
+      roll_id: roll.id,
+      from_warehouse: fromWarehouse,
+      to_warehouse: toWarehouse,
+      event_type: 'adjustment',
+      reference_type: 'adjustment',
+      reference_id: null,
+      actor_user_id: actorUserId,
+      notes_ar: input.notes_ar,
+    });
+    const movement = await trx('stock_movements').where({ id: movId }).first();
 
     await auditFromService(trx, {
       actorUserId,

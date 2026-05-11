@@ -18,25 +18,21 @@ export async function startStocktake(
   notesAr: string | null = null,
 ): Promise<Stocktake> {
   return db.transaction(async (trx) => {
-    // Insert with a placeholder, then patch with the canonical number derived from id.
     const placeholder = `STK-PENDING-${Date.now()}-${actorUserId}`;
-    const [created] = await trx('stocktakes')
-      .insert({
-        stocktake_no: placeholder,
-        mode,
-        warehouse,
-        created_by_user_id: actorUserId,
-        started_at: trx.fn.now(),
-        status: 'open',
-        notes_ar: notesAr,
-      })
-      .returning('*');
+    const [createdId] = await trx('stocktakes').insert({
+      stocktake_no: placeholder,
+      mode,
+      warehouse,
+      created_by_user_id: actorUserId,
+      started_at: trx.fn.now(),
+      status: 'open',
+      notes_ar: notesAr,
+    });
+    const created = await trx('stocktakes').where({ id: createdId }).first();
 
     const real_no = `STK-${new Date().getFullYear()}-${String(created.id).padStart(6, '0')}`;
-    const [withNo] = await trx('stocktakes')
-      .where({ id: created.id })
-      .update({ stocktake_no: real_no })
-      .returning('*');
+    await trx('stocktakes').where({ id: created.id }).update({ stocktake_no: real_no });
+    const withNo = await trx('stocktakes').where({ id: created.id }).first();
 
     if (mode === 'roll_level') {
       await trx.raw(
@@ -48,7 +44,7 @@ export async function startStocktake(
     } else {
       await trx.raw(
         `INSERT INTO stocktake_lines (stocktake_id, fabric_id, color_id, expected_count, expected_weight_kg)
-         SELECT ?, fabric_id, color_id, COUNT(*)::int, SUM(weight_kg) FROM rolls
+         SELECT ?, fabric_id, color_id, COUNT(*), SUM(weight_kg) FROM rolls
          WHERE warehouse = ? AND status = 'in_stock'
          GROUP BY fabric_id, color_id`,
         [created.id, warehouse],
@@ -93,10 +89,10 @@ export async function recordScan(
     const alreadyScanned = line.actual_count !== null;
     if (alreadyScanned) return { line: line as StocktakeLine, alreadyScanned: true };
 
-    const [updated] = await trx('stocktake_lines')
+    await trx('stocktake_lines')
       .where({ id: line.id })
-      .update({ actual_count: 1, actual_weight_kg: roll.weight_kg })
-      .returning('*');
+      .update({ actual_count: 1, actual_weight_kg: roll.weight_kg });
+    const updated = await trx('stocktake_lines').where({ id: line.id }).first();
 
     await auditFromService(trx, {
       actorUserId,
@@ -130,28 +126,21 @@ export async function recordAggregate(
       .first();
 
     if (!line) {
-      // Counted a fabric/color combination that had zero expected — insert with expected=0.
-      const [inserted] = await trx('stocktake_lines')
-        .insert({
-          stocktake_id: stocktakeId,
-          fabric_id: fabricId,
-          color_id: colorId,
-          expected_count: 0,
-          expected_weight_kg: 0,
-          actual_count: actualCount,
-          actual_weight_kg: actualWeightKg ?? null,
-        })
-        .returning('*');
-      line = inserted;
+      const [insertedId] = await trx('stocktake_lines').insert({
+        stocktake_id: stocktakeId,
+        fabric_id: fabricId,
+        color_id: colorId,
+        expected_count: 0,
+        expected_weight_kg: 0,
+        actual_count: actualCount,
+        actual_weight_kg: actualWeightKg ?? null,
+      });
+      line = await trx('stocktake_lines').where({ id: insertedId }).first();
     } else {
-      const [updated] = await trx('stocktake_lines')
+      await trx('stocktake_lines')
         .where({ id: line.id })
-        .update({
-          actual_count: actualCount,
-          actual_weight_kg: actualWeightKg ?? null,
-        })
-        .returning('*');
-      line = updated;
+        .update({ actual_count: actualCount, actual_weight_kg: actualWeightKg ?? null });
+      line = await trx('stocktake_lines').where({ id: line.id }).first();
     }
 
     await auditFromService(trx, {
@@ -176,23 +165,12 @@ export async function completeStocktake(
     if (!stocktake) throw new Error('STOCKTAKE_NOT_FOUND');
     if (stocktake.status !== 'open') throw new Error('STOCKTAKE_NOT_OPEN');
 
-    // For roll-level: any unscanned (actual_count IS NULL) line ⇒ variance = -expected.
-    // For aggregate: actual_count missing ⇒ variance NULL (treated as discrepancy too).
-    if (stocktake.mode === 'roll_level') {
-      await trx.raw(
-        `UPDATE stocktake_lines
-         SET variance = COALESCE(actual_count, 0) - COALESCE(expected_count, 0)
-         WHERE stocktake_id = ?`,
-        [stocktakeId],
-      );
-    } else {
-      await trx.raw(
-        `UPDATE stocktake_lines
-         SET variance = COALESCE(actual_count, 0) - COALESCE(expected_count, 0)
-         WHERE stocktake_id = ?`,
-        [stocktakeId],
-      );
-    }
+    await trx.raw(
+      `UPDATE stocktake_lines
+       SET variance = COALESCE(actual_count, 0) - COALESCE(expected_count, 0)
+       WHERE stocktake_id = ?`,
+      [stocktakeId],
+    );
 
     const [discrepancy] = await trx('stocktake_lines')
       .where({ stocktake_id: stocktakeId })
@@ -200,10 +178,8 @@ export async function completeStocktake(
       .count<{ count: string }[]>('* as count');
     const discrepancyCount = Number(discrepancy?.count ?? 0);
 
-    const [updated] = await trx('stocktakes')
-      .where({ id: stocktakeId })
-      .update({ status: 'completed', completed_at: trx.fn.now() })
-      .returning('*');
+    await trx('stocktakes').where({ id: stocktakeId }).update({ status: 'completed', completed_at: trx.fn.now() });
+    const updated = await trx('stocktakes').where({ id: stocktakeId }).first();
 
     await auditFromService(trx, {
       actorUserId,

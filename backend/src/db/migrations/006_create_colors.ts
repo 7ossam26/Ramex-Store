@@ -6,8 +6,8 @@ export async function up(db: Knex): Promise<void> {
     t.string('name_ar', 64).notNullable();
     t.string('code', 16).notNullable();
     t.boolean('is_active').notNullable().defaultTo(true);
-    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now());
-    t.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(db.fn.now());
+    t.datetime('created_at').notNullable().defaultTo(db.fn.now());
+    t.datetime('updated_at').notNullable().defaultTo(db.fn.now());
     t.unique(['name_ar', 'code']);
   });
 }
