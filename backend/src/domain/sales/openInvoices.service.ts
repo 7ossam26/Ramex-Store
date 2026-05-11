@@ -4,6 +4,7 @@ import { auditFromService } from '../inventory/audit.helper.js';
 import { notify } from '../notifications/notificationsService.js';
 import { roundEgp } from './discountCalculator.js';
 import { settlePayment } from '../finance/paymentSettlementService.js';
+import { getSetting } from '../settings/settings.service.js';
 import type { Invoice, InvoiceStatus, PaymentMethod } from './sales.types.js';
 
 const EPS = 0.001;
@@ -249,6 +250,7 @@ export async function cancelOpenInvoice(
     depositHandling: DepositHandling;
     refundMethod?: PaymentMethod | null;
     partialRefundAmount?: number | null;
+    bankAccountId?: number | null;
     notesAr: string;
   },
 ): Promise<{ invoice: Invoice }> {
@@ -273,14 +275,23 @@ export async function cancelOpenInvoice(
       throw new Error('REFUND_METHOD_REQUIRED');
     }
 
-    // Resolve bank for instapay refund.
+    // Resolve bank for instapay refund. Caller-provided bank wins; fall back
+    // to the default-active account so older clients keep working.
     let refundBankId: number | null = null;
     if (refundAmount > 0 && opts.refundMethod === 'instapay') {
-      const def = await trx('bank_accounts')
-        .where({ is_default: true, is_active: true })
-        .first();
-      if (!def) throw new Error('NO_DEFAULT_BANK_ACCOUNT');
-      refundBankId = def.id as number;
+      if (opts.bankAccountId != null) {
+        const acc = await trx('bank_accounts')
+          .where({ id: opts.bankAccountId, is_active: true })
+          .first();
+        if (!acc) throw new Error('NO_DEFAULT_BANK_ACCOUNT');
+        refundBankId = acc.id as number;
+      } else {
+        const def = await trx('bank_accounts')
+          .where({ is_default: true, is_active: true })
+          .first();
+        if (!def) throw new Error('NO_DEFAULT_BANK_ACCOUNT');
+        refundBankId = def.id as number;
+      }
     }
 
     // Flip rolls back to in_stock + emit unreserve movements.
@@ -448,18 +459,38 @@ export async function getStatusHistory(invoiceId: number): Promise<StatusHistory
 }
 
 export async function listOpenInvoices(): Promise<
-  Array<Invoice & { customer_name_ar: string; age_days: number }>
+  Array<
+    Invoice & {
+      customer_name_ar: string;
+      age_days: number;
+      is_stale: boolean;
+      stale_threshold_days: number;
+    }
+  >
 > {
+  const staleDays = await getSetting<number>(undefined, 'stale_invoice_days', 7);
   const rows = await db('invoices as i')
     .leftJoin('customers as c', 'i.customer_id', 'c.id')
     .where('i.status', 'open')
     .select('i.*', 'c.name_ar as customer_name_ar')
     .orderBy('i.created_at', 'asc');
   const now = Date.now();
-  return rows.map((r) => ({
-    ...r,
-    age_days: Math.floor((now - new Date(r.created_at).getTime()) / 86_400_000),
-  })) as Array<Invoice & { customer_name_ar: string; age_days: number }>;
+  return rows.map((r) => {
+    const ageDays = Math.floor((now - new Date(r.created_at).getTime()) / 86_400_000);
+    return {
+      ...r,
+      age_days: ageDays,
+      is_stale: ageDays >= staleDays,
+      stale_threshold_days: staleDays,
+    };
+  }) as Array<
+    Invoice & {
+      customer_name_ar: string;
+      age_days: number;
+      is_stale: boolean;
+      stale_threshold_days: number;
+    }
+  >;
 }
 
 export async function listPendingPickup(): Promise<

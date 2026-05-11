@@ -13,6 +13,7 @@ import { ownerRouter } from '../domain/owner/owner.routes.js';
 import { settingsRouter } from '../domain/settings/settings.routes.js';
 import { permissionsRouter } from '../domain/permissions/permissions.routes.js';
 import { approvalsRouter } from '../domain/approvals/approvals.routes.js';
+import { adminRouter } from '../domain/admin/admin.routes.js';
 
 export const apiRouter = Router();
 apiRouter.use('/health',       healthRouter);
@@ -29,3 +30,4 @@ apiRouter.use('/owner',        ownerRouter);
 apiRouter.use('/settings',     settingsRouter);
 apiRouter.use('/permissions',  permissionsRouter);
 apiRouter.use('/approvals',    approvalsRouter);
+apiRouter.use('/admin',        adminRouter);

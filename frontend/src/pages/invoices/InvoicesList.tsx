@@ -17,7 +17,6 @@ import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
 
 const PAGE_SIZE = 30;
-const STALE_DAYS_DEFAULT = 7;
 
 const STATUS_COLORS: Record<InvoiceStatus, string> = {
   open: 'bg-amber-100 text-amber-800',
@@ -240,19 +239,16 @@ function OpenInvoicesTab() {
     {
       key: 'age',
       header: ar.invoices.age,
-      cell: (r) => {
-        const stale = r.age_days >= STALE_DAYS_DEFAULT;
-        return (
-          <span>
-            <span dir="ltr">{r.age_days}</span> {ar.invoices.days}
-            {stale && (
-              <span className="ms-2 inline-block px-2 py-0.5 rounded text-xs bg-yellow-200 text-yellow-900">
-                {ar.invoices.staleBadge}
-              </span>
-            )}
-          </span>
-        );
-      },
+      cell: (r) => (
+        <span>
+          <span dir="ltr">{r.age_days}</span> {ar.invoices.days}
+          {r.is_stale && (
+            <span className="ms-2 inline-block px-2 py-0.5 rounded text-xs bg-yellow-200 text-yellow-900">
+              {ar.invoices.staleBadge}
+            </span>
+          )}
+        </span>
+      ),
     },
     {
       key: 'actions',
@@ -274,7 +270,7 @@ function OpenInvoicesTab() {
       rowKey={(r) => String(r.id)}
       onRowClick={(r) => { window.location.href = `/invoices/${r.id}`; }}
       empty={ar.invoices.empty}
-      rowClassName={(r) => (r.age_days >= STALE_DAYS_DEFAULT ? 'bg-yellow-50' : '')}
+      rowClassName={(r) => (r.is_stale ? 'bg-yellow-50' : '')}
     />
   );
 }

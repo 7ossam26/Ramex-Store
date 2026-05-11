@@ -550,8 +550,17 @@ function CancelOpenDialog({
   const [handling, setHandling] = useState<DepositHandling>('full_refund');
   const [refundMethod, setRefundMethod] = useState<PaymentMethod>('cash');
   const [partialAmount, setPartialAmount] = useState('');
+  const [bankAccountId, setBankAccountId] = useState<number | ''>('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  const showBankPicker = handling !== 'keep_as_credit' && refundMethod === 'instapay';
+
+  const banks = useQuery<BankAccount[]>({
+    queryKey: ['bank-accounts'],
+    queryFn: salesApi.bankAccounts,
+    enabled: open && showBankPicker,
+  });
 
   const mut = useMutation({
     mutationFn: (body: CancelOpenInvoiceBody) => salesApi.cancelOpenInvoice(invoiceId, body),
@@ -576,6 +585,7 @@ function CancelOpenDialog({
       notes_ar: notes,
       refund_method: handling === 'keep_as_credit' ? null : refundMethod,
       partial_refund_amount: handling === 'partial_refund' ? parseAmount(partialAmount) : null,
+      bank_account_id: showBankPicker && bankAccountId !== '' ? Number(bankAccountId) : null,
     };
     mut.mutate(body);
   }
@@ -623,6 +633,21 @@ function CancelOpenDialog({
               >
                 <option value="cash">{ar.pos.cash}</option>
                 <option value="instapay">{ar.pos.instapay}</option>
+              </select>
+            </div>
+          )}
+          {showBankPicker && (
+            <div className="space-y-1">
+              <Label>{ar.pos.bankAccount}</Label>
+              <select
+                className="h-9 w-full border border-border rounded px-2 bg-canvas"
+                value={bankAccountId === '' ? '' : String(bankAccountId)}
+                onChange={(e) => setBankAccountId(e.target.value === '' ? '' : Number(e.target.value))}
+              >
+                <option value="">—</option>
+                {(banks.data ?? []).map((b) => (
+                  <option key={b.id} value={b.id}>{b.name_ar}</option>
+                ))}
               </select>
             </div>
           )}

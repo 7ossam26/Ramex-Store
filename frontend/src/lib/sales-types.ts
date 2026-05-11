@@ -24,7 +24,11 @@ export type Invoice = {
 };
 
 export type InvoiceListRow = Invoice & { customer_name_ar: string };
-export type OpenInvoiceRow = InvoiceListRow & { age_days: number };
+export type OpenInvoiceRow = InvoiceListRow & {
+  age_days: number;
+  is_stale: boolean;
+  stale_threshold_days: number;
+};
 export type PendingPickupRow = InvoiceListRow & { customer_phone: string };
 
 export type InvoiceStatusHistoryEntry = {
@@ -52,6 +56,7 @@ export type CancelOpenInvoiceBody = {
   deposit_handling: DepositHandling;
   refund_method?: PaymentMethod | null;
   partial_refund_amount?: number | null;
+  bank_account_id?: number | null;
   notes_ar: string;
 };
 
