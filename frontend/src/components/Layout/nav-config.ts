@@ -82,6 +82,7 @@ export const subTabsBySection: Record<SectionKey, SubTab[]> = {
     { label: ar.inventory.stocktake, href: '/inventory/stocktake' },
     { label: ar.inventory.adjustments, href: '/inventory/adjustments' },
     { label: ar.inventory.damage, href: '/inventory/damage' },
+    { label: ar.codes.hubLabel, href: '/inventory/codes' },
   ],
   shipments: [
     { label: ar.shipments.create, href: '/shipments/create', visibleTo: ['owner', 'factory_sender'] },
