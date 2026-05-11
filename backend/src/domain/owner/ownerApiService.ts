@@ -309,9 +309,9 @@ export async function damageLoss(from?: string, to?: string) {
 // ── Daily totals (cross-branch) ───────────────────────────────────────────────
 
 export async function dailyTotals(from: string, to: string) {
-  const rows = await db.raw<{ rows: Array<Record<string, unknown>> }>(`
+  const [rows] = await db.raw<[Array<Record<string, unknown>>]>(`
     SELECT
-      DATE(created_at AT TIME ZONE 'Africa/Cairo') AS date,
+      DATE(CONVERT_TZ(created_at, '+00:00', '+02:00')) AS date,
       COALESCE(SUM(CASE WHEN status NOT IN ('cancelled') THEN total_egp END), 0) AS revenue_egp,
       COALESCE(SUM(CASE WHEN status NOT IN ('cancelled') THEN
         (SELECT COALESCE(SUM(r.purchase_price_egp * il2.line_total_egp / NULLIF(il2.selling_price_egp, 0)), 0)
@@ -319,12 +319,12 @@ export async function dailyTotals(from: string, to: string) {
          JOIN rolls r ON il2.roll_id = r.id
          WHERE il2.invoice_id = invoices.id) END), 0) AS cost_egp
     FROM invoices
-    WHERE DATE(created_at AT TIME ZONE 'Africa/Cairo') BETWEEN ? AND ?
-    GROUP BY DATE(created_at AT TIME ZONE 'Africa/Cairo')
+    WHERE DATE(CONVERT_TZ(created_at, '+00:00', '+02:00')) BETWEEN ? AND ?
+    GROUP BY DATE(CONVERT_TZ(created_at, '+00:00', '+02:00'))
     ORDER BY date
   `, [from, to]);
 
-  return rows.rows.map((r) => {
+  return rows.map((r) => {
     const revenue = toNum(r.revenue_egp);
     const cost    = toNum(r.cost_egp);
     return { date: r.date, revenue_egp: revenue, cost_egp: cost, net_egp: revenue - cost };
@@ -336,21 +336,21 @@ export async function dailyTotals(from: string, to: string) {
 export async function hourlySalesCurve(date: string) {
   const { startUtc, endUtc } = cairoDayWindow(date);
 
-  const rows = await db.raw<{ rows: Array<Record<string, unknown>> }>(`
+  const [rows] = await db.raw<[Array<Record<string, unknown>>]>(`
     SELECT
-      EXTRACT(HOUR FROM created_at AT TIME ZONE 'Africa/Cairo')::int AS hour,
+      HOUR(CONVERT_TZ(created_at, '+00:00', '+02:00')) AS hour,
       COUNT(*) AS count,
       COALESCE(SUM(total_egp), 0) AS revenue_egp
     FROM invoices
     WHERE created_at >= ? AND created_at < ?
       AND status NOT IN ('cancelled')
-    GROUP BY EXTRACT(HOUR FROM created_at AT TIME ZONE 'Africa/Cairo')
+    GROUP BY HOUR(CONVERT_TZ(created_at, '+00:00', '+02:00'))
     ORDER BY hour
   `, [startUtc.toISOString(), endUtc.toISOString()]);
 
   // Fill all 24 hours (0-23) with zeros for missing hours
   const map = new Map<number, { count: number; revenue_egp: number }>();
-  for (const r of rows.rows) {
+  for (const r of rows) {
     map.set(Number(r.hour), { count: toNum(r.count), revenue_egp: toNum(r.revenue_egp) });
   }
   return Array.from({ length: 24 }, (_, h) => ({

@@ -47,17 +47,18 @@ export async function notify(input: NotifyInput): Promise<NotificationRow> {
     tag: input.tag ?? null,
     title_ar: input.titleAr,
     body_ar: input.bodyAr,
-    payload_jsonb: input.payload ?? null,
+    payload_jsonb: input.payload ? JSON.stringify(input.payload) : null,
     is_blocking: input.isBlocking ?? false,
-    blocked_action_payload_jsonb: input.blockedActionPayload ?? null,
+    blocked_action_payload_jsonb: input.blockedActionPayload ? JSON.stringify(input.blockedActionPayload) : null,
   };
 
-  const [inserted] = await db('notifications').insert(row).returning('*');
+  const [id] = await db('notifications').insert(row);
+  const inserted = await db('notifications').where({ id }).first() as NotificationRow;
   logger.info(
-    { notificationId: (inserted as NotificationRow).id, eventType: input.eventType, severity: input.severity },
+    { notificationId: inserted.id, eventType: input.eventType, severity: input.severity },
     `notification[${input.severity}] ${input.eventType}`,
   );
-  return inserted as NotificationRow;
+  return inserted;
 }
 
 export async function markRead(notificationId: number, userId: number): Promise<void> {
@@ -70,7 +71,7 @@ export async function markRead(notificationId: number, userId: number): Promise<
     (n.recipient_role !== null && user?.role === n.recipient_role);
 
   if (!isRecipient) throw new Error('NOTIFICATION_FORBIDDEN');
-  if (n.read_at) return; // already read
+  if (n.read_at) return;
 
   await db('notifications').where({ id: notificationId }).update({ read_at: db.fn.now() });
 }
@@ -83,9 +84,7 @@ export async function markAllRead(userId: number): Promise<{ updated: number }> 
     .whereNull('read_at')
     .whereNull('archived_at')
     .where((qb) =>
-      qb
-        .where('recipient_user_id', userId)
-        .orWhere('recipient_role', user.role),
+      qb.where('recipient_user_id', userId).orWhere('recipient_role', user.role),
     )
     .update({ read_at: db.fn.now() });
 
@@ -101,22 +100,19 @@ export async function resolve(
   if (!n) throw new Error('NOTIFICATION_NOT_FOUND');
   if (n.resolved_at) throw new Error('NOTIFICATION_ALREADY_RESOLVED');
 
-  const [updated] = await db('notifications')
-    .where({ id: notificationId })
-    .update({
-      resolved_at: db.fn.now(),
-      resolved_by_user_id: ownerUserId,
-      resolution,
-      read_at: db.fn.now(),
-    })
-    .returning('*');
+  await db('notifications').where({ id: notificationId }).update({
+    resolved_at: db.fn.now(),
+    resolved_by_user_id: ownerUserId,
+    resolution,
+    read_at: db.fn.now(),
+  });
+  const updated = await db('notifications').where({ id: notificationId }).first() as NotificationRow;
 
-  // If blocking and approved, dispatch the stored action
   if (resolution === 'approved' && n.is_blocking && n.blocked_action_payload_jsonb) {
     await dispatch(n.blocked_action_payload_jsonb as Record<string, unknown>, ownerUserId);
   }
 
-  return updated as NotificationRow;
+  return updated;
 }
 
 export async function listForUser(
@@ -149,24 +145,14 @@ export async function listForUser(
   if (opts.to) base.where('created_at', '<=', opts.to);
 
   const [countRow] = await base.clone().clearSelect().count<Array<{ count: string }>>('id as count');
-  const rows = await base
-    .clone()
-    .select('*')
-    .orderBy('created_at', 'desc')
-    .limit(limit)
-    .offset(offset);
+  const rows = await base.clone().select('*').orderBy('created_at', 'desc').limit(limit).offset(offset);
 
-  return {
-    rows: rows as NotificationRow[],
-    total: Number((countRow as { count: string }).count),
-  };
+  return { rows: rows as NotificationRow[], total: Number((countRow as { count: string }).count) };
 }
 
 export async function unreadCount(userId: number, userRole: string): Promise<number> {
   const [row] = await db('notifications')
-    .where((qb) =>
-      qb.where('recipient_user_id', userId).orWhere('recipient_role', userRole),
-    )
+    .where((qb) => qb.where('recipient_user_id', userId).orWhere('recipient_role', userRole))
     .whereNull('read_at')
     .whereNull('archived_at')
     .count<Array<{ count: string }>>('id as count');

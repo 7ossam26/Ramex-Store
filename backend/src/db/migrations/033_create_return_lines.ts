@@ -10,10 +10,7 @@ export async function up(db: Knex): Promise<void> {
     t.bigInteger('roll_id').unsigned().notNullable()
       .references('id').inTable('rolls').onDelete('RESTRICT');
     t.decimal('refund_amount_egp', 10, 2).notNullable();
-    t.enu('roll_disposition', ['back_to_stock', 'damaged'], {
-      useNative: false,
-      enumName: 'return_lines_disposition_check',
-    }).notNullable().defaultTo('back_to_stock');
+    t.enu('roll_disposition', ['back_to_stock', 'damaged']).notNullable().defaultTo('back_to_stock');
     t.text('notes_ar').nullable();
 
     t.index(['return_id']);

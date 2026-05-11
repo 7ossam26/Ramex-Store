@@ -10,13 +10,13 @@ export async function up(knex: Knex): Promise<void> {
     t.boolean('requires_approval').notNullable().defaultTo(false);
     t.bigInteger('approved_by_user_id').unsigned().nullable()
       .references('id').inTable('users').onDelete('RESTRICT');
-    t.timestamp('approved_at', { useTz: true }).nullable();
-    t.enu('paid_from', ['cash', 'bank'], { useNative: false, enumName: 'expenses_paid_from_check' }).notNullable();
+    t.datetime('approved_at').nullable();
+    t.enu('paid_from', ['cash', 'bank']).notNullable();
     t.bigInteger('bank_account_id').unsigned().nullable()
       .references('id').inTable('bank_accounts').onDelete('RESTRICT');
     t.bigInteger('actor_user_id').unsigned().notNullable()
       .references('id').inTable('users').onDelete('RESTRICT');
-    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(knex.fn.now());
+    t.datetime('created_at').notNullable().defaultTo(knex.fn.now());
   });
 }
 

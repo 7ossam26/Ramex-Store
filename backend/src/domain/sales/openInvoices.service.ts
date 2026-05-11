@@ -156,15 +156,13 @@ export async function addFinalPayment(
 
     const newStatus: InvoiceStatus = closed ? 'closed_pending_pickup' : 'open';
 
-    const [updated] = await trx('invoices')
-      .where({ id: invoiceId })
-      .update({
-        paid_egp: newPaid,
-        balance_egp: newBalance,
-        status: newStatus,
-        closed_at: closed ? trx.fn.now() : invoice.closed_at,
-      })
-      .returning('*');
+    await trx('invoices').where({ id: invoiceId }).update({
+      paid_egp: newPaid,
+      balance_egp: newBalance,
+      status: newStatus,
+      closed_at: closed ? trx.fn.now() : invoice.closed_at,
+    });
+    const updated = await trx('invoices').where({ id: invoiceId }).first();
 
     if (closed) {
       await appendStatusHistory(trx, invoiceId, 'open', 'closed_pending_pickup', actorUserId);
@@ -198,15 +196,13 @@ export async function markDelivered(
       throw new Error('INVOICE_NOT_PENDING_PICKUP');
     }
 
-    const [updated] = await trx('invoices')
-      .where({ id: invoiceId })
-      .update({
-        status: 'completed',
-        delivered_at: trx.fn.now(),
-        delivered_by_user_id: actorUserId,
-        pickup_at: trx.fn.now(),
-      })
-      .returning('*');
+    await trx('invoices').where({ id: invoiceId }).update({
+      status: 'completed',
+      delivered_at: trx.fn.now(),
+      delivered_by_user_id: actorUserId,
+      pickup_at: trx.fn.now(),
+    });
+    const updated = await trx('invoices').where({ id: invoiceId }).first();
 
     await appendStatusHistory(
       trx,
@@ -391,14 +387,12 @@ export async function cancelOpenInvoice(
         updated_at: trx.fn.now(),
       });
 
-    const [updated] = await trx('invoices')
-      .where({ id: invoiceId })
-      .update({
-        status: 'cancelled',
-        cancelled_at: trx.fn.now(),
-        cancelled_reason_ar: opts.notesAr,
-      })
-      .returning('*');
+    await trx('invoices').where({ id: invoiceId }).update({
+      status: 'cancelled',
+      cancelled_at: trx.fn.now(),
+      cancelled_reason_ar: opts.notesAr,
+    });
+    const updated = await trx('invoices').where({ id: invoiceId }).first();
 
     await appendStatusHistory(trx, invoiceId, invoice.status, 'cancelled', actorUserId, opts.notesAr);
 

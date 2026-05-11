@@ -9,8 +9,8 @@ export async function up(db: Knex): Promise<void> {
       .references('id').inTable('colors').onDelete('RESTRICT');
     t.decimal('default_price_per_kg', 10, 2).notNullable();
     t.decimal('default_price_per_roll', 10, 2).nullable();
-    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now());
-    t.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(db.fn.now());
+    t.datetime('created_at').notNullable().defaultTo(db.fn.now());
+    t.datetime('updated_at').notNullable().defaultTo(db.fn.now());
     t.unique(['fabric_id', 'color_id']);
   });
 }

@@ -11,7 +11,6 @@ export async function up(db: Knex): Promise<void> {
     t.timestamps(true, true);
   });
 
-  // Wire the FK from payments.bank_account_id (column was created in 020).
   await db.raw(
     `ALTER TABLE payments
        ADD CONSTRAINT payments_bank_account_id_foreign
@@ -20,7 +19,6 @@ export async function up(db: Knex): Promise<void> {
        ON DELETE RESTRICT`,
   );
 
-  // Seed one default bank account so Phase 4 instapay payments have a target.
   await db('bank_accounts').insert({
     name_ar: 'البنك الافتراضي',
     is_default: true,
@@ -30,6 +28,6 @@ export async function up(db: Knex): Promise<void> {
 }
 
 export async function down(db: Knex): Promise<void> {
-  await db.raw(`ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_bank_account_id_foreign`);
+  await db.raw(`ALTER TABLE payments DROP FOREIGN KEY payments_bank_account_id_foreign`);
   await db.schema.dropTableIfExists('bank_accounts');
 }

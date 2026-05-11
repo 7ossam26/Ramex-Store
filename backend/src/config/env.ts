@@ -18,7 +18,6 @@ const Schema = z.object({
   DB_NAME: z.string().min(1),
   DB_USER: z.string().min(1),
   DB_PASSWORD: z.string().default(''),
-  DB_SSL: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
   JWT_SECRET: z.string().min(32),
   JWT_EXPIRES_IN: z.string().default('12h'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),

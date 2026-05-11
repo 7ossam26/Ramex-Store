@@ -35,20 +35,17 @@ export async function recordExpense(params: {
   const requiresApproval = threshold > 0 && params.amount > threshold;
 
   return db.transaction(async (trx) => {
-    const [row] = await trx('expenses')
-      .insert({
-        category: params.category,
-        amount_egp: params.amount,
-        notes_ar: params.notesAr ?? null,
-        photo_path: params.photoPath ?? null,
-        requires_approval: requiresApproval,
-        paid_from: params.paidFrom,
-        bank_account_id: params.bankAccountId ?? null,
-        actor_user_id: params.actorUserId,
-      })
-      .returning('*');
-
-    const expense = row as ExpenseRow;
+    const [id] = await trx('expenses').insert({
+      category: params.category,
+      amount_egp: params.amount,
+      notes_ar: params.notesAr ?? null,
+      photo_path: params.photoPath ?? null,
+      requires_approval: requiresApproval,
+      paid_from: params.paidFrom,
+      bank_account_id: params.bankAccountId ?? null,
+      actor_user_id: params.actorUserId,
+    });
+    const expense = await trx('expenses').where({ id }).first() as ExpenseRow;
 
     if (requiresApproval) {
       await notify({
@@ -68,30 +65,10 @@ export async function recordExpense(params: {
         },
       });
     } else {
-      // Deduct immediately
       if (params.paidFrom === 'cash') {
-        await cashRecordMovement(
-          trx,
-          'out',
-          'expense',
-          params.amount,
-          params.actorUserId,
-          'expense',
-          expense.id,
-          params.notesAr,
-        );
+        await cashRecordMovement(trx, 'out', 'expense', params.amount, params.actorUserId, 'expense', expense.id, params.notesAr);
       } else if (params.paidFrom === 'bank' && params.bankAccountId) {
-        await bankRecordMovement(
-          trx,
-          params.bankAccountId,
-          'out',
-          'other_out',
-          params.amount,
-          params.actorUserId,
-          'expense',
-          expense.id,
-          params.notesAr,
-        );
+        await bankRecordMovement(trx, params.bankAccountId, 'out', 'other_out', params.amount, params.actorUserId, 'expense', expense.id, params.notesAr);
       }
     }
 
@@ -100,12 +77,7 @@ export async function recordExpense(params: {
       action: 'expense_recorded',
       entity: 'expense',
       entityId: expense.id,
-      after: {
-        category: params.category,
-        amount_egp: params.amount,
-        paid_from: params.paidFrom,
-        requires_approval: requiresApproval,
-      },
+      after: { category: params.category, amount_egp: params.amount, paid_from: params.paidFrom, requires_approval: requiresApproval },
       severity: 'medium',
     });
 
@@ -113,50 +85,20 @@ export async function recordExpense(params: {
   });
 }
 
-export async function approveExpense(
-  expenseId: number,
-  actorUserId: number,
-): Promise<ExpenseRow> {
+export async function approveExpense(expenseId: number, actorUserId: number): Promise<ExpenseRow> {
   return db.transaction(async (trx) => {
     const expense = await trx('expenses').where({ id: expenseId }).forUpdate().first();
     if (!expense) throw new Error('EXPENSE_NOT_FOUND');
     if (!expense.requires_approval) throw new Error('EXPENSE_NOT_PENDING_APPROVAL');
     if (expense.approved_at !== null) throw new Error('EXPENSE_ALREADY_APPROVED');
 
-    const [updated] = await trx('expenses')
-      .where({ id: expenseId })
-      .update({
-        approved_by_user_id: actorUserId,
-        approved_at: trx.fn.now(),
-      })
-      .returning('*');
+    await trx('expenses').where({ id: expenseId }).update({ approved_by_user_id: actorUserId, approved_at: trx.fn.now() });
+    const upd = await trx('expenses').where({ id: expenseId }).first() as ExpenseRow;
 
-    const upd = updated as ExpenseRow;
-
-    // Deduct now
     if (upd.paid_from === 'cash') {
-      await cashRecordMovement(
-        trx,
-        'out',
-        'expense',
-        Number(upd.amount_egp),
-        actorUserId,
-        'expense',
-        expenseId,
-        upd.notes_ar,
-      );
+      await cashRecordMovement(trx, 'out', 'expense', Number(upd.amount_egp), actorUserId, 'expense', expenseId, upd.notes_ar);
     } else if (upd.paid_from === 'bank' && upd.bank_account_id) {
-      await bankRecordMovement(
-        trx,
-        upd.bank_account_id,
-        'out',
-        'other_out',
-        Number(upd.amount_egp),
-        actorUserId,
-        'expense',
-        expenseId,
-        upd.notes_ar,
-      );
+      await bankRecordMovement(trx, upd.bank_account_id, 'out', 'other_out', Number(upd.amount_egp), actorUserId, 'expense', expenseId, upd.notes_ar);
     }
 
     await auditFromService(trx, {
@@ -173,26 +115,18 @@ export async function approveExpense(
   });
 }
 
-export async function rejectExpense(
-  expenseId: number,
-  reasonAr: string,
-  actorUserId: number,
-): Promise<ExpenseRow> {
+export async function rejectExpense(expenseId: number, reasonAr: string, actorUserId: number): Promise<ExpenseRow> {
   return db.transaction(async (trx) => {
     const expense = await trx('expenses').where({ id: expenseId }).forUpdate().first();
     if (!expense) throw new Error('EXPENSE_NOT_FOUND');
     if (!expense.requires_approval) throw new Error('EXPENSE_NOT_PENDING_APPROVAL');
     if (expense.approved_at !== null) throw new Error('EXPENSE_ALREADY_PROCESSED');
 
-    const [updated] = await trx('expenses')
-      .where({ id: expenseId })
-      .update({
-        requires_approval: false,
-        notes_ar: expense.notes_ar
-          ? `${expense.notes_ar} | مرفوض: ${reasonAr}`
-          : `مرفوض: ${reasonAr}`,
-      })
-      .returning('*');
+    await trx('expenses').where({ id: expenseId }).update({
+      requires_approval: false,
+      notes_ar: expense.notes_ar ? `${expense.notes_ar} | مرفوض: ${reasonAr}` : `مرفوض: ${reasonAr}`,
+    });
+    const updated = await trx('expenses').where({ id: expenseId }).first() as ExpenseRow;
 
     await auditFromService(trx, {
       actorUserId,
@@ -203,7 +137,7 @@ export async function rejectExpense(
       severity: 'medium',
     });
 
-    return updated as ExpenseRow;
+    return updated;
   });
 }
 
@@ -220,11 +154,7 @@ export async function listExpenses(params: {
   const base = db('expenses as e')
     .leftJoin('users as u', 'e.actor_user_id', 'u.id')
     .leftJoin('users as ab', 'e.approved_by_user_id', 'ab.id')
-    .select(
-      'e.*',
-      'u.username as actor_username',
-      'ab.username as approved_by_username',
-    );
+    .select('e.*', 'u.username as actor_username', 'ab.username as approved_by_username');
 
   if (params.category) base.where('e.category', params.category);
   if (params.paidFrom) base.where('e.paid_from', params.paidFrom);
@@ -236,8 +166,5 @@ export async function listExpenses(params: {
   const [countRow] = await base.clone().clearSelect().count<Array<{ count: string }>>('e.id as count');
   const rows = await base.orderBy('e.created_at', 'desc').limit(params.limit).offset(offset);
 
-  return {
-    rows: rows as ExpenseRow[],
-    total: Number((countRow as { count: string }).count),
-  };
+  return { rows: rows as ExpenseRow[], total: Number((countRow as { count: string }).count) };
 }

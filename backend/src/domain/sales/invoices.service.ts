@@ -218,23 +218,22 @@ export async function createSale(
     // 7) Insert invoice header.
     const status = isFullyPaid ? 'completed' : 'open';
     const balance = roundEgp(totals.total - paidTotal);
-    const [invoice] = await trx('invoices')
-      .insert({
-        invoice_no,
-        customer_id: input.customerId,
-        cashier_user_id: cashierUserId,
-        status,
-        subtotal_egp: totals.subtotal,
-        cart_discount_egp: totals.cartDiscount,
-        tax_egp: totals.tax,
-        rounding_egp: totals.rounding,
-        total_egp: totals.total,
-        paid_egp: paidTotal,
-        balance_egp: balance,
-        notes_ar: input.notesAr ?? null,
-        closed_at: isFullyPaid ? trx.fn.now() : null,
-      })
-      .returning('*');
+    const [invoiceId] = await trx('invoices').insert({
+      invoice_no,
+      customer_id: input.customerId,
+      cashier_user_id: cashierUserId,
+      status,
+      subtotal_egp: totals.subtotal,
+      cart_discount_egp: totals.cartDiscount,
+      tax_egp: totals.tax,
+      rounding_egp: totals.rounding,
+      total_egp: totals.total,
+      paid_egp: paidTotal,
+      balance_egp: balance,
+      notes_ar: input.notesAr ?? null,
+      closed_at: isFullyPaid ? trx.fn.now() : null,
+    });
+    const invoice = await trx('invoices').where({ id: invoiceId }).first();
 
     // 8) Insert invoice lines.
     await trx('invoice_lines').insert(
@@ -313,18 +312,15 @@ export async function createSale(
       // Customer ledger entry per payment (positive = credit on the books).
       runningPaid = roundEgp(runningPaid + amount);
       const newBalance = roundEgp(Number(customer.current_balance_egp) + amount);
-      const [ledgerRow] = await trx('customer_ledger_entries')
-        .insert({
-          customer_id: input.customerId,
-          entry_type: kind === 'deposit' ? 'deposit' : 'payment',
-          reference_type: 'invoice',
-          reference_id: invoice.id,
-          amount_egp: amount,
-          balance_after_egp: newBalance,
-          actor_user_id: cashierUserId,
-        })
-        .returning('id');
-      void ledgerRow;
+      await trx('customer_ledger_entries').insert({
+        customer_id: input.customerId,
+        entry_type: kind === 'deposit' ? 'deposit' : 'payment',
+        reference_type: 'invoice',
+        reference_id: invoice.id,
+        amount_egp: amount,
+        balance_after_egp: newBalance,
+        actor_user_id: cashierUserId,
+      });
       await trx('customers')
         .where({ id: input.customerId })
         .update({
@@ -494,14 +490,12 @@ export async function voidInvoice(
       });
 
     // Update invoice header.
-    const [updated] = await trx('invoices')
-      .where({ id: invoiceId })
-      .update({
-        status: 'cancelled',
-        cancelled_at: trx.fn.now(),
-        cancelled_reason_ar: reasonAr,
-      })
-      .returning('*');
+    await trx('invoices').where({ id: invoiceId }).update({
+      status: 'cancelled',
+      cancelled_at: trx.fn.now(),
+      cancelled_reason_ar: reasonAr,
+    });
+    const updated = await trx('invoices').where({ id: invoiceId }).first();
 
     await auditFromService(trx, {
       actorUserId,

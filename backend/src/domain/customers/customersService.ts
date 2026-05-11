@@ -11,10 +11,9 @@ import type {
 } from './customers.schemas.js';
 
 async function nextCustomerCode(trx: Knex.Transaction): Promise<string> {
-  const r = await trx.raw<{ rows: Array<{ n: string }> }>(
-    `SELECT nextval('customers_code_seq') AS n`,
-  );
-  const n = Number(r.rows[0].n);
+  await trx.raw('UPDATE db_sequences SET last_value = LAST_INSERT_ID(last_value + 1) WHERE name = ?', ['customers_code_seq']);
+  const [[row]] = await trx.raw<[[{ n: number }]]>('SELECT LAST_INSERT_ID() AS n');
+  const n = Number(row.n);
   return `C-${n.toString().padStart(6, '0')}`;
 }
 
@@ -27,18 +26,17 @@ export async function create(
     if (existing) throw new Error('PHONE_DUPLICATE');
 
     const customer_code = await nextCustomerCode(trx);
-    const [row] = await trx('customers')
-      .insert({
-        customer_code,
-        name_ar: input.name_ar,
-        phone: input.phone,
-        phone_secondary: input.phone_secondary ?? null,
-        address_ar: input.address_ar ?? null,
-        tax_no: input.tax_no ?? null,
-        notes_ar: input.notes_ar ?? null,
-        created_by_user_id: actorUserId,
-      })
-      .returning('*');
+    const [id] = await trx('customers').insert({
+      customer_code,
+      name_ar: input.name_ar,
+      phone: input.phone,
+      phone_secondary: input.phone_secondary ?? null,
+      address_ar: input.address_ar ?? null,
+      tax_no: input.tax_no ?? null,
+      notes_ar: input.notes_ar ?? null,
+      created_by_user_id: actorUserId,
+    });
+    const row = await trx('customers').where({ id }).first();
 
     await auditFromService(trx, {
       actorUserId,
@@ -83,7 +81,8 @@ export async function update(
     if ('notes_ar' in input) updates.notes_ar = input.notes_ar ?? null;
     updates.updated_at = trx.fn.now();
 
-    const [updated] = await trx('customers').where({ id }).update(updates).returning('*');
+    await trx('customers').where({ id }).update(updates);
+    const updated = await trx('customers').where({ id }).first();
 
     await auditFromService(trx, {
       actorUserId,

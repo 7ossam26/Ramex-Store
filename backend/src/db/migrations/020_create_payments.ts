@@ -5,21 +5,15 @@ export async function up(db: Knex): Promise<void> {
     t.bigIncrements('id').primary();
     t.bigInteger('invoice_id').unsigned().notNullable()
       .references('id').inTable('invoices').onDelete('RESTRICT');
-    t.enu('method', ['cash', 'instapay'], {
-      useNative: false,
-      enumName: 'payments_method_check',
-    }).notNullable();
+    t.enu('method', ['cash', 'instapay']).notNullable();
     t.decimal('amount_egp', 12, 2).notNullable();
-    t.enu('payment_kind', ['deposit', 'final', 'refund'], {
-      useNative: false,
-      enumName: 'payments_kind_check',
-    }).notNullable();
+    t.enu('payment_kind', ['deposit', 'final', 'refund']).notNullable();
     // FK to bank_accounts is added in migration 022 once that table exists.
     t.bigInteger('bank_account_id').unsigned().nullable();
     t.text('notes_ar').nullable();
     t.bigInteger('actor_user_id').unsigned().notNullable()
       .references('id').inTable('users').onDelete('RESTRICT');
-    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now());
+    t.datetime('created_at').notNullable().defaultTo(db.fn.now());
 
     t.index(['invoice_id', 'created_at']);
     t.index(['method', 'created_at']);

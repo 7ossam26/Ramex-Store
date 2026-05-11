@@ -24,27 +24,24 @@ export async function appendEntry(
         ? prevLifetime + amountEgp
         : prevLifetime;
 
-    const [entry] = await trx('customer_ledger_entries')
-      .insert({
-        customer_id: customerId,
-        entry_type: entryType,
-        reference_type: referenceType ?? null,
-        reference_id: referenceId ?? null,
-        amount_egp: amountEgp,
-        balance_after_egp: newBalance,
-        notes_ar: notesAr ?? null,
-        actor_user_id: actorUserId,
-      })
-      .returning('*');
+    const [entryId] = await trx('customer_ledger_entries').insert({
+      customer_id: customerId,
+      entry_type: entryType,
+      reference_type: referenceType ?? null,
+      reference_id: referenceId ?? null,
+      amount_egp: amountEgp,
+      balance_after_egp: newBalance,
+      notes_ar: notesAr ?? null,
+      actor_user_id: actorUserId,
+    });
+    const entry = await trx('customer_ledger_entries').where({ id: entryId }).first();
 
-    const [updated] = await trx('customers')
-      .where({ id: customerId })
-      .update({
-        current_balance_egp: newBalance,
-        lifetime_volume_egp: newLifetime,
-        updated_at: trx.fn.now(),
-      })
-      .returning('*');
+    await trx('customers').where({ id: customerId }).update({
+      current_balance_egp: newBalance,
+      lifetime_volume_egp: newLifetime,
+      updated_at: trx.fn.now(),
+    });
+    const updated = await trx('customers').where({ id: customerId }).first();
 
     await auditFromService(trx, {
       actorUserId,

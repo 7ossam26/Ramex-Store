@@ -21,15 +21,15 @@ export async function up(db: Knex): Promise<void> {
     t.bigIncrements('id').primary();
     t.bigInteger('roll_id').unsigned().notNullable()
       .references('id').inTable('rolls').onDelete('RESTRICT');
-    t.enu('from_warehouse', WAREHOUSES, { useNative: false, enumName: 'stock_movements_from_warehouse_check' }).nullable();
-    t.enu('to_warehouse', WAREHOUSES, { useNative: false, enumName: 'stock_movements_to_warehouse_check' }).nullable();
-    t.enu('event_type', EVENT_TYPES, { useNative: false, enumName: 'stock_movements_event_type_check' }).notNullable();
+    t.enu('from_warehouse', WAREHOUSES).nullable();
+    t.enu('to_warehouse', WAREHOUSES).nullable();
+    t.enu('event_type', EVENT_TYPES).notNullable();
     t.string('reference_type', 32).nullable();
     t.bigInteger('reference_id').unsigned().nullable();
     t.bigInteger('actor_user_id').unsigned().notNullable()
       .references('id').inTable('users').onDelete('RESTRICT');
     t.text('notes_ar').nullable();
-    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now());
+    t.datetime('created_at').notNullable().defaultTo(db.fn.now());
 
     t.index(['roll_id', 'created_at']);
     t.index(['reference_type', 'reference_id']);

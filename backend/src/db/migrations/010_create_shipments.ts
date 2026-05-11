@@ -6,14 +6,11 @@ export async function up(db: Knex): Promise<void> {
     t.string('shipment_no', 32).notNullable().unique();
     t.bigInteger('created_by_user_id').unsigned().notNullable()
       .references('id').inTable('users').onDelete('RESTRICT');
-    t.timestamp('submitted_at', { useTz: true }).nullable();
+    t.datetime('submitted_at').nullable();
     t.bigInteger('reviewed_by_user_id').unsigned().nullable()
       .references('id').inTable('users').onDelete('SET NULL');
-    t.timestamp('reviewed_at', { useTz: true }).nullable();
-    t.enu('status', ['draft', 'pending_approval', 'partial_approved', 'approved', 'rejected', 'cancelled'], {
-      useNative: false,
-      enumName: 'shipment_status',
-    }).notNullable().defaultTo('draft');
+    t.datetime('reviewed_at').nullable();
+    t.enu('status', ['draft', 'pending_approval', 'partial_approved', 'approved', 'rejected', 'cancelled']).notNullable().defaultTo('draft');
     t.text('notes_ar').nullable();
     t.timestamps(true, true);
 

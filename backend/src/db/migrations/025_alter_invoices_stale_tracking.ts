@@ -2,7 +2,7 @@ import type { Knex } from 'knex';
 
 export async function up(db: Knex): Promise<void> {
   await db.schema.alterTable('invoices', (t) => {
-    t.timestamp('last_stale_notified_at', { useTz: true }).nullable();
+    t.datetime('last_stale_notified_at').nullable();
   });
 }
 
