@@ -77,3 +77,11 @@ export type Supplier = {
 };
 
 export type CodeRow = Grade | CodeColor | Composition | Brand | Supplier;
+
+export type RollReference = {
+  id: number;
+  internal_barcode: string;
+  status: string;
+  fabric_name: string;
+  color_name: string;
+};

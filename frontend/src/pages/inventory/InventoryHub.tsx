@@ -4,6 +4,7 @@ import {
   ClipboardList,
   Wrench,
   AlertTriangle,
+  Tags,
 } from 'lucide-react';
 import { HubLanding, type HubCard } from '@/components/Layout/HubLanding';
 import { ar } from '@/i18n/ar';
@@ -38,6 +39,12 @@ const cards: HubCard[] = [
     description: ar.hubs.inventoryDamageDesc,
     href: '/inventory/damage',
     icon: AlertTriangle,
+  },
+  {
+    label: ar.codes.hubLabel,
+    description: ar.codes.hubDesc,
+    href: '/inventory/codes',
+    icon: Tags,
   },
 ];
 

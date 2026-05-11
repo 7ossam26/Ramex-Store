@@ -109,3 +109,11 @@ export async function restoreEntity(req: Request, res: Response): Promise<void> 
   await auditLog(req, `restore_${entity}`, entity, id, before, after, { severity: 'low' });
   res.json(after);
 }
+
+export async function listEntityReferences(req: Request, res: Response): Promise<void> {
+  const entity = getEntity(req, res);
+  if (!entity) return;
+  const id = Number(req.params.id);
+  const refs = await svc.listRollReferences(entity, id);
+  res.json(refs);
+}
