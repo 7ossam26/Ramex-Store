@@ -5,6 +5,14 @@ const CompositionItemSchema = z.object({
   percent: z.number().min(0).max(100),
 });
 
+const defaultLabelFields = {
+  default_width_cm: z.number().int().min(1).max(500).nullable().optional(),
+  default_grade_id: z.number().int().positive().nullable().optional(),
+  default_color_id: z.number().int().positive().nullable().optional(),
+  default_composition_id: z.number().int().positive().nullable().optional(),
+  default_brand_id: z.number().int().positive().nullable().optional(),
+};
+
 export const CreateFabricSchema = z.object({
   code: z.string().min(1).max(32),
   name_ar: z.string().min(1).max(128),
@@ -12,6 +20,7 @@ export const CreateFabricSchema = z.object({
   width_cm: z.number().positive(),
   grade: z.string().min(1).max(16),
   notes: z.string().nullable().optional(),
+  ...defaultLabelFields,
 });
 export type CreateFabricInput = z.infer<typeof CreateFabricSchema>;
 
@@ -44,6 +53,15 @@ export const RollStatusEnum = z.enum([
 ]);
 export const RollWarehouseEnum = z.enum(['shop', 'factory', 'damaged_shop']);
 
+const labelRollFields = {
+  supplier_order_no: z.string().max(64).nullable().optional(),
+  top_number: z.number().int().positive().nullable().optional(),
+  width_cm: z.number().int().min(1).max(500).nullable().optional(),
+  grade_id: z.number().int().positive().nullable().optional(),
+  composition_id: z.number().int().positive().nullable().optional(),
+  brand_id: z.number().int().positive().nullable().optional(),
+};
+
 export const CreateRollSchema = z.object({
   fabric_id: z.number().int().positive(),
   color_id: z.number().int().positive(),
@@ -55,6 +73,7 @@ export const CreateRollSchema = z.object({
   purchase_price_egp: z.number().positive().nullable().optional(),
   selling_price_egp: z.number().positive().optional(),
   is_visible_at_pos: z.boolean().optional().default(true),
+  ...labelRollFields,
 });
 export type CreateRollInput = z.infer<typeof CreateRollSchema>;
 
@@ -68,6 +87,7 @@ export const UpdateRollSchema = z.object({
   warehouse: RollWarehouseEnum.optional(),
   status: RollStatusEnum.optional(),
   is_visible_at_pos: z.boolean().optional(),
+  ...labelRollFields,
 });
 export type UpdateRollInput = z.infer<typeof UpdateRollSchema>;
 
@@ -79,3 +99,14 @@ export const ListRollsQuerySchema = z.object({
   is_visible_at_pos: z.coerce.boolean().optional(),
 });
 export type ListRollsQueryInput = z.infer<typeof ListRollsQuerySchema>;
+
+export const FabricLabelQuerySchema = z.object({
+  format: z.enum(['thermal', 'a4']).optional().default('thermal'),
+});
+
+export const BatchFabricLabelSchema = z.object({
+  rollIds: z.array(z.number().int().positive()).min(1),
+  format: z.enum(['thermal', 'a4']).optional().default('thermal'),
+  perPage: z.number().int().min(1).max(100).optional().default(24),
+});
+export type BatchFabricLabelInput = z.infer<typeof BatchFabricLabelSchema>;

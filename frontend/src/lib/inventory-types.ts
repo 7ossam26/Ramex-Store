@@ -135,7 +135,13 @@ export type CreateFabricInput = {
   notes?: string | null;
 };
 
-export type UpdateFabricInput = Partial<CreateFabricInput> & { is_active?: boolean };
+export type UpdateFabricInput = Partial<CreateFabricInput> & {
+  is_active?: boolean;
+  default_grade_id?: number | null;
+  default_composition_id?: number | null;
+  default_brand_id?: number | null;
+  default_width_cm?: number | null;
+};
 
 // Tops batch (one-shot wizard) — input for POST /tops/batch
 export type FabricRef =
@@ -161,6 +167,13 @@ export type TopRollEntry = {
   roll_sr_no?: string | null;
   order_no?: string | null;
   purchase_price_egp?: number | null;
+  // Label fields (Phase 5)
+  supplier_order_no?: string | null;
+  top_number?: number | null;
+  width_cm?: number | null;
+  grade_id?: number | null;
+  composition_id?: number | null;
+  brand_id?: number | null;
 };
 
 export type CreateTopBatchInput = {

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { settingsApi, permissionsApi, usersApi, bankAccountsApi } from '@/lib/settings-api';
+import { codesApi, type CodeGrade, type CodeComposition, type CodeBrand, type CodeSupplier } from '@/lib/codes-api';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth';
@@ -10,11 +11,11 @@ import { useIsDesktop } from '@/hooks/useMediaQuery';
 
 type Section =
   | 'general' | 'tax' | 'pos' | 'cashDrawer' | 'banks'
-  | 'usersPermissions' | 'reasonCodes' | 'dayRollover' | 'system';
+  | 'usersPermissions' | 'reasonCodes' | 'dayRollover' | 'system' | 'fabricCodes';
 
 const SECTIONS: Section[] = [
   'general', 'tax', 'pos', 'cashDrawer', 'banks',
-  'usersPermissions', 'reasonCodes', 'dayRollover', 'system',
+  'usersPermissions', 'reasonCodes', 'dayRollover', 'system', 'fabricCodes',
 ];
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -654,6 +655,338 @@ function DayRolloverSection({ settings, onSave }: { settings: Record<string, unk
   );
 }
 
+// ── Section: Fabric Codes ─────────────────────────────────────────────────────
+
+type CodeTab = 'grades' | 'compositions' | 'brands' | 'suppliers';
+
+function extractApiError(e: unknown): string {
+  const msg =
+    (e as { response?: { data?: { message?: string; error?: string } } })?.response?.data?.message ??
+    (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+  return msg ?? ar.common.error;
+}
+
+function GradesTab() {
+  const qc = useQueryClient();
+  const { data: items = [], isLoading } = useQuery({
+    queryKey: ['codes-grades-all'],
+    queryFn: codesApi.listAllGrades,
+  });
+  const [form, setForm] = useState({ arabic_name: '', english_name: '' });
+  const [addOpen, setAddOpen] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const createMut = useMutation({
+    mutationFn: () => codesApi.create('grades', { arabic_name: form.arabic_name.trim(), english_name: form.english_name.trim() || null }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['codes-grades-all'] }); qc.invalidateQueries({ queryKey: ['codes-grades'] }); setForm({ arabic_name: '', english_name: '' }); setAddOpen(false); setErr(null); },
+    onError: (e) => setErr(extractApiError(e)),
+  });
+
+  const toggleMut = useMutation({
+    mutationFn: (item: CodeGrade) =>
+      item.is_active ? codesApi.deactivate('grades', item.id) : codesApi.restore('grades', item.id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['codes-grades-all'] }); qc.invalidateQueries({ queryKey: ['codes-grades'] }); setErr(null); },
+    onError: (e) => setErr(extractApiError(e)),
+  });
+
+  if (isLoading) return <p>{ar.loading}</p>;
+  return (
+    <div className="space-y-3">
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr className="border-b border-border text-muted-foreground">
+            <th className="py-2 text-right font-medium">{ar.settings.fabricCodes.arabicName}</th>
+            <th className="py-2 text-right font-medium">{ar.settings.fabricCodes.englishName}</th>
+            <th className="py-2 text-center font-medium">{ar.settings.fabricCodes.isActive}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.id} className="border-b border-border hover:bg-muted/40">
+              <td className="py-1.5">{item.arabic_name}</td>
+              <td className="py-1.5 text-muted-foreground">{item.english_name ?? '—'}</td>
+              <td className="py-1.5 text-center">
+                <Toggle checked={item.is_active} onChange={() => toggleMut.mutate(item)} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {err && <p className="text-sm text-red-600">{err}</p>}
+      {addOpen ? (
+        <div className="flex gap-2 flex-wrap items-end">
+          <Field label={ar.settings.fabricCodes.arabicName}>
+            <TextInput value={form.arabic_name} onChange={(v) => setForm({ ...form, arabic_name: v })} />
+          </Field>
+          <Field label={ar.settings.fabricCodes.englishName}>
+            <TextInput value={form.english_name} onChange={(v) => setForm({ ...form, english_name: v })} />
+          </Field>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => createMut.mutate()} disabled={!form.arabic_name || createMut.isPending}>{ar.common.save}</Button>
+            <Button size="sm" variant="outline" onClick={() => { setAddOpen(false); setErr(null); }}>{ar.common.cancel}</Button>
+          </div>
+        </div>
+      ) : (
+        <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>{ar.settings.fabricCodes.add}</Button>
+      )}
+    </div>
+  );
+}
+
+function CompositionsTab() {
+  const qc = useQueryClient();
+  const { data: items = [], isLoading } = useQuery({
+    queryKey: ['codes-compositions-all'],
+    queryFn: codesApi.listAllCompositions,
+  });
+  const [form, setForm] = useState({ arabic_name: '', description: '' });
+  const [addOpen, setAddOpen] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const createMut = useMutation({
+    mutationFn: () => codesApi.create('compositions', { arabic_name: form.arabic_name.trim(), description: form.description.trim() || null }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['codes-compositions-all'] }); qc.invalidateQueries({ queryKey: ['codes-compositions'] }); setForm({ arabic_name: '', description: '' }); setAddOpen(false); setErr(null); },
+    onError: (e) => setErr(extractApiError(e)),
+  });
+
+  const toggleMut = useMutation({
+    mutationFn: (item: CodeComposition) =>
+      item.is_active ? codesApi.deactivate('compositions', item.id) : codesApi.restore('compositions', item.id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['codes-compositions-all'] }); qc.invalidateQueries({ queryKey: ['codes-compositions'] }); setErr(null); },
+    onError: (e) => setErr(extractApiError(e)),
+  });
+
+  if (isLoading) return <p>{ar.loading}</p>;
+  return (
+    <div className="space-y-3">
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr className="border-b border-border text-muted-foreground">
+            <th className="py-2 text-right font-medium">{ar.settings.fabricCodes.arabicName}</th>
+            <th className="py-2 text-right font-medium">{ar.settings.fabricCodes.description}</th>
+            <th className="py-2 text-center font-medium">{ar.settings.fabricCodes.isActive}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.id} className="border-b border-border hover:bg-muted/40">
+              <td className="py-1.5">{item.arabic_name}</td>
+              <td className="py-1.5 text-muted-foreground text-xs max-w-48 truncate">{item.description ?? '—'}</td>
+              <td className="py-1.5 text-center">
+                <Toggle checked={item.is_active} onChange={() => toggleMut.mutate(item)} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {err && <p className="text-sm text-red-600">{err}</p>}
+      {addOpen ? (
+        <div className="flex gap-2 flex-wrap items-end">
+          <Field label={ar.settings.fabricCodes.arabicName}>
+            <TextInput value={form.arabic_name} onChange={(v) => setForm({ ...form, arabic_name: v })} />
+          </Field>
+          <Field label={ar.settings.fabricCodes.description}>
+            <TextInput value={form.description} onChange={(v) => setForm({ ...form, description: v })} />
+          </Field>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => createMut.mutate()} disabled={!form.arabic_name || createMut.isPending}>{ar.common.save}</Button>
+            <Button size="sm" variant="outline" onClick={() => { setAddOpen(false); setErr(null); }}>{ar.common.cancel}</Button>
+          </div>
+        </div>
+      ) : (
+        <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>{ar.settings.fabricCodes.add}</Button>
+      )}
+    </div>
+  );
+}
+
+function SuppliersTab() {
+  const qc = useQueryClient();
+  const { data: items = [], isLoading } = useQuery({
+    queryKey: ['codes-suppliers-all'],
+    queryFn: codesApi.listAllSuppliers,
+  });
+  const [form, setForm] = useState({ arabic_name: '', arabic_warning_text: '' });
+  const [addOpen, setAddOpen] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const createMut = useMutation({
+    mutationFn: () => codesApi.create('suppliers', { arabic_name: form.arabic_name.trim(), arabic_warning_text: form.arabic_warning_text.trim() || null }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['codes-suppliers-all'] }); qc.invalidateQueries({ queryKey: ['codes-suppliers'] }); setForm({ arabic_name: '', arabic_warning_text: '' }); setAddOpen(false); setErr(null); },
+    onError: (e) => setErr(extractApiError(e)),
+  });
+
+  const toggleMut = useMutation({
+    mutationFn: (item: CodeSupplier) =>
+      item.is_active ? codesApi.deactivate('suppliers', item.id) : codesApi.restore('suppliers', item.id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['codes-suppliers-all'] }); qc.invalidateQueries({ queryKey: ['codes-suppliers'] }); setErr(null); },
+    onError: (e) => setErr(extractApiError(e)),
+  });
+
+  if (isLoading) return <p>{ar.loading}</p>;
+  return (
+    <div className="space-y-3">
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr className="border-b border-border text-muted-foreground">
+            <th className="py-2 text-right font-medium">{ar.settings.fabricCodes.arabicName}</th>
+            <th className="py-2 text-right font-medium">{ar.settings.fabricCodes.warningText}</th>
+            <th className="py-2 text-center font-medium">{ar.settings.fabricCodes.isActive}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.id} className="border-b border-border hover:bg-muted/40">
+              <td className="py-1.5">{item.arabic_name}</td>
+              <td className="py-1.5 text-muted-foreground text-xs max-w-48 truncate">{item.arabic_warning_text ?? '—'}</td>
+              <td className="py-1.5 text-center">
+                <Toggle checked={item.is_active} onChange={() => toggleMut.mutate(item)} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {err && <p className="text-sm text-red-600">{err}</p>}
+      {addOpen ? (
+        <div className="flex gap-2 flex-wrap items-end">
+          <Field label={ar.settings.fabricCodes.arabicName}>
+            <TextInput value={form.arabic_name} onChange={(v) => setForm({ ...form, arabic_name: v })} />
+          </Field>
+          <Field label={ar.settings.fabricCodes.warningText}>
+            <TextInput value={form.arabic_warning_text} onChange={(v) => setForm({ ...form, arabic_warning_text: v })} />
+          </Field>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => createMut.mutate()} disabled={!form.arabic_name || createMut.isPending}>{ar.common.save}</Button>
+            <Button size="sm" variant="outline" onClick={() => { setAddOpen(false); setErr(null); }}>{ar.common.cancel}</Button>
+          </div>
+        </div>
+      ) : (
+        <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>{ar.settings.fabricCodes.add}</Button>
+      )}
+    </div>
+  );
+}
+
+function BrandsTab() {
+  const qc = useQueryClient();
+  const { data: items = [], isLoading } = useQuery({
+    queryKey: ['codes-brands-all'],
+    queryFn: codesApi.listAllBrands,
+  });
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ['codes-suppliers'],
+    queryFn: codesApi.listSuppliers,
+  });
+  const [form, setForm] = useState({ arabic_name: '', product_line: '', supplier_id: '' });
+  const [addOpen, setAddOpen] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const createMut = useMutation({
+    mutationFn: () => codesApi.create('brands', {
+      arabic_name: form.arabic_name.trim(),
+      product_line: form.product_line.trim() || null,
+      supplier_id: form.supplier_id ? Number(form.supplier_id) : null,
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['codes-brands-all'] }); qc.invalidateQueries({ queryKey: ['codes-brands'] }); setForm({ arabic_name: '', product_line: '', supplier_id: '' }); setAddOpen(false); setErr(null); },
+    onError: (e) => setErr(extractApiError(e)),
+  });
+
+  const toggleMut = useMutation({
+    mutationFn: (item: CodeBrand) =>
+      item.is_active ? codesApi.deactivate('brands', item.id) : codesApi.restore('brands', item.id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['codes-brands-all'] }); qc.invalidateQueries({ queryKey: ['codes-brands'] }); setErr(null); },
+    onError: (e) => setErr(extractApiError(e)),
+  });
+
+  const supplierName = (id: number | null) =>
+    suppliers.find((s) => s.id === id)?.arabic_name ?? '—';
+
+  if (isLoading) return <p>{ar.loading}</p>;
+  return (
+    <div className="space-y-3">
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr className="border-b border-border text-muted-foreground">
+            <th className="py-2 text-right font-medium">{ar.settings.fabricCodes.arabicName}</th>
+            <th className="py-2 text-right font-medium">{ar.settings.fabricCodes.productLine}</th>
+            <th className="py-2 text-right font-medium">{ar.settings.fabricCodes.supplierRef}</th>
+            <th className="py-2 text-center font-medium">{ar.settings.fabricCodes.isActive}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.id} className="border-b border-border hover:bg-muted/40">
+              <td className="py-1.5">{item.arabic_name}</td>
+              <td className="py-1.5 text-muted-foreground">{item.product_line ?? '—'}</td>
+              <td className="py-1.5 text-muted-foreground">{supplierName(item.supplier_id)}</td>
+              <td className="py-1.5 text-center">
+                <Toggle checked={item.is_active} onChange={() => toggleMut.mutate(item)} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {err && <p className="text-sm text-red-600">{err}</p>}
+      {addOpen ? (
+        <div className="flex gap-2 flex-wrap items-end">
+          <Field label={ar.settings.fabricCodes.arabicName}>
+            <TextInput value={form.arabic_name} onChange={(v) => setForm({ ...form, arabic_name: v })} />
+          </Field>
+          <Field label={ar.settings.fabricCodes.productLine}>
+            <TextInput value={form.product_line} onChange={(v) => setForm({ ...form, product_line: v })} />
+          </Field>
+          <Field label={ar.settings.fabricCodes.supplierRef}>
+            <select
+              className="border border-border rounded px-3 py-1.5 text-sm bg-canvas"
+              value={form.supplier_id}
+              onChange={(e) => setForm({ ...form, supplier_id: e.target.value })}
+            >
+              <option value="">—</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>{s.arabic_name}</option>
+              ))}
+            </select>
+          </Field>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => createMut.mutate()} disabled={!form.arabic_name || createMut.isPending}>{ar.common.save}</Button>
+            <Button size="sm" variant="outline" onClick={() => { setAddOpen(false); setErr(null); }}>{ar.common.cancel}</Button>
+          </div>
+        </div>
+      ) : (
+        <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>{ar.settings.fabricCodes.add}</Button>
+      )}
+    </div>
+  );
+}
+
+function FabricCodesSection() {
+  const [tab, setTab] = useState<CodeTab>('grades');
+  const tabs: CodeTab[] = ['grades', 'compositions', 'brands', 'suppliers'];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2 flex-wrap">
+        {tabs.map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={`px-3 py-1.5 rounded text-sm transition-colors cursor-pointer ${
+              tab === t ? 'bg-primary text-primary-foreground font-medium' : 'border border-border hover:bg-muted/60'
+            }`}
+          >
+            {ar.settings.fabricCodes.tabs[t]}
+          </button>
+        ))}
+      </div>
+      {tab === 'grades'       && <GradesTab />}
+      {tab === 'compositions' && <CompositionsTab />}
+      {tab === 'brands'       && <BrandsTab />}
+      {tab === 'suppliers'    && <SuppliersTab />}
+    </div>
+  );
+}
+
 // ── Section: System (read-only) ────────────────────────────────────────────────
 
 function SystemSection() {
@@ -711,6 +1044,7 @@ export function SettingsPage() {
         {s === 'reasonCodes'      && <ReasonCodesSection settings={safeSettings} onSave={handleSave} />}
         {s === 'dayRollover'      && <DayRolloverSection settings={safeSettings} onSave={handleSave} />}
         {s === 'system'           && <SystemSection />}
+        {s === 'fabricCodes'      && <FabricCodesSection />}
       </>
     );
   }

@@ -136,6 +136,12 @@ export async function createTopBatch(
         purchase_price_egp: entry.purchase_price_egp ?? null,
         roll_sr_no: entry.roll_sr_no ?? null,
         order_no: entry.order_no ?? null,
+        supplier_order_no: entry.supplier_order_no ?? null,
+        top_number: entry.top_number ?? null,
+        width_cm: entry.width_cm ?? null,
+        grade_id: entry.grade_id ?? null,
+        composition_id: entry.composition_id ?? null,
+        brand_id: entry.brand_id ?? null,
         internal_barcode,
         received_at: trx.fn.now(),
       });

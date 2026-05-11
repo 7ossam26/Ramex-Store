@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
 import { itemsApi } from '@/lib/items-api';
+import { codesApi } from '@/lib/codes-api';
 import type {
   CreateTopBatchInput,
   CreateTopBatchResult,
@@ -20,7 +21,7 @@ const DEFAULT_WEIGHT_KG = 25;
 
 type CompositionRow = { material: string; percent: string };
 type FabricFormState = {
-  pickedId: number | null; // null = "create new"
+  pickedId: number | null;
   code: string;
   name_ar: string;
   width_cm: string;
@@ -30,8 +31,8 @@ type FabricFormState = {
 };
 
 type RollRowState = {
-  uid: string; // local key
-  pickedColorId: number | null; // null = "create new"
+  uid: string;
+  pickedColorId: number | null;
   newColorNameAr: string;
   newColorCode: string;
   weight_kg: string;
@@ -40,7 +41,16 @@ type RollRowState = {
   roll_sr_no: string;
   order_no: string;
   purchase_price_egp: string;
+  // Label fields (Phase 5)
+  supplier_order_no: string;
+  top_number: string;
+  brand_id: number | null;
+  grade_id: number | null;
+  width_cm_roll: string;
+  composition_id: number | null;
 };
+
+type LabelPrintState = { open: boolean; format: 'thermal' | 'a4'; perPage: string };
 
 const blankFabric = (): FabricFormState => ({
   pickedId: null,
@@ -63,7 +73,25 @@ const blankRow = (color?: { pickedColorId: number | null; newColorNameAr: string
   roll_sr_no: '',
   order_no: '',
   purchase_price_egp: '',
+  supplier_order_no: '',
+  top_number: '',
+  brand_id: null,
+  grade_id: null,
+  width_cm_roll: '',
+  composition_id: null,
 });
+
+function copyLabelFields(src: RollRowState, dst: RollRowState): RollRowState {
+  return {
+    ...dst,
+    supplier_order_no: src.supplier_order_no,
+    brand_id: src.brand_id,
+    grade_id: src.grade_id,
+    width_cm_roll: src.width_cm_roll,
+    composition_id: src.composition_id,
+    // top_number intentionally not copied — each roll has a distinct top number
+  };
+}
 
 function num(s: string): number | undefined {
   if (s === '' || s == null) return undefined;
@@ -71,15 +99,26 @@ function num(s: string): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+function openPdfBlob(blob: Blob) {
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank', 'noreferrer');
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 export function AddTopPage() {
   const qc = useQueryClient();
   const fabricsQ = useQuery({ queryKey: ['fabrics'], queryFn: inventoryApi.listFabrics });
   const colorsQ = useQuery({ queryKey: ['colors'], queryFn: inventoryApi.listColors });
+  const gradesQ = useQuery({ queryKey: ['codes-grades'], queryFn: codesApi.listGrades });
+  const brandsQ = useQuery({ queryKey: ['codes-brands'], queryFn: codesApi.listBrands });
+  const compositionsQ = useQuery({ queryKey: ['codes-compositions'], queryFn: codesApi.listCompositions });
 
   const [fabric, setFabric] = useState<FabricFormState>(blankFabric());
   const [rows, setRows] = useState<RollRowState[]>([blankRow()]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [lastBatch, setLastBatch] = useState<CreateTopBatchResult | null>(null);
+  const [labelPrint, setLabelPrint] = useState<LabelPrintState>({ open: false, format: 'thermal', perPage: '24' });
+  const [labelPrinting, setLabelPrinting] = useState(false);
 
   const create = useMutation({
     mutationFn: (body: CreateTopBatchInput) => inventoryApi.createTopBatch(body),
@@ -89,7 +128,6 @@ export function AddTopPage() {
       qc.invalidateQueries({ queryKey: ['fabrics'] });
       qc.invalidateQueries({ queryKey: ['colors'] });
       qc.invalidateQueries({ queryKey: ['rolls-search'] });
-      // Reset rows; user reviews barcodes on screen, then explicitly clicks print.
       setRows([blankRow()]);
     },
     onError: (e: unknown) => {
@@ -103,11 +141,21 @@ export function AddTopPage() {
   });
 
   function openBatchPdf(rollIds: number[]) {
-    itemsApi.batchLabelsPdf(rollIds).then((blob) => {
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank', 'noreferrer');
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    });
+    itemsApi.batchLabelsPdf(rollIds).then((blob) => openPdfBlob(blob));
+  }
+
+  async function openSupplierLabelsPdf(rollIds: number[]) {
+    setLabelPrinting(true);
+    try {
+      const blob = await itemsApi.batchFabricLabels(
+        rollIds,
+        labelPrint.format,
+        num(labelPrint.perPage) ?? 24,
+      );
+      openPdfBlob(blob);
+    } finally {
+      setLabelPrinting(false);
+    }
   }
 
   const totalWeight = useMemo(
@@ -178,6 +226,12 @@ export function AddTopPage() {
         roll_sr_no: r.roll_sr_no.trim() || null,
         order_no: r.order_no.trim() || null,
         purchase_price_egp: num(r.purchase_price_egp) ?? null,
+        supplier_order_no: r.supplier_order_no.trim() || null,
+        top_number: num(r.top_number) ?? null,
+        width_cm: num(r.width_cm_roll) ?? null,
+        grade_id: r.grade_id ?? null,
+        composition_id: r.composition_id ?? null,
+        brand_id: r.brand_id ?? null,
       });
     }
     return { fabric: fabricRef, rolls: rollEntries, warehouse: 'shop' };
@@ -195,6 +249,12 @@ export function AddTopPage() {
     setRows([blankRow()]);
     setLastBatch(null);
     setErrorMsg(null);
+    setLabelPrint({ open: false, format: 'thermal', perPage: '24' });
+  }
+
+  function handleCopyLabelFromFirst() {
+    if (rows.length < 2) return;
+    setRows((rs) => rs.map((r, i) => (i === 0 ? r : copyLabelFields(rs[0], r))));
   }
 
   const fabricIsNew = fabric.pickedId === null;
@@ -237,17 +297,71 @@ export function AddTopPage() {
                 </div>
               ))}
             </div>
+
+            {/* Bulk print actions */}
             <div className="flex flex-wrap gap-2 pt-1">
               <Button
                 size="sm"
+                variant="outline"
                 onClick={() => openBatchPdf(lastBatch.rolls.map((r) => r.id))}
               >
-                🖨️ {ar.addTop.printAllBarcodes}
+                {ar.addTop.printAllBarcodes}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setLabelPrint((s) => ({ ...s, open: !s.open }))}
+              >
+                {ar.addTop.printSupplierLabels}
               </Button>
               <Button size="sm" variant="outline" onClick={startFresh}>
                 {ar.addTop.addAnotherFabric}
               </Button>
             </div>
+
+            {/* Supplier label format chooser */}
+            {labelPrint.open && (
+              <div className="flex flex-wrap items-center gap-3 p-3 rounded border border-border bg-white">
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant={labelPrint.format === 'thermal' ? 'default' : 'outline'}
+                    onClick={() => setLabelPrint((s) => ({ ...s, format: 'thermal' }))}
+                  >
+                    {ar.addTop.printFormatThermal}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={labelPrint.format === 'a4' ? 'default' : 'outline'}
+                    onClick={() => setLabelPrint((s) => ({ ...s, format: 'a4' }))}
+                  >
+                    {ar.addTop.printFormatA4}
+                  </Button>
+                </div>
+                {labelPrint.format === 'a4' && (
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm whitespace-nowrap">{ar.addTop.perPageLabel}</Label>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      value={labelPrint.perPage}
+                      onChange={(e) => setLabelPrint((s) => ({ ...s, perPage: e.target.value }))}
+                      dir="ltr"
+                      className="h-9 w-20"
+                      min={1}
+                      max={100}
+                    />
+                  </div>
+                )}
+                <Button
+                  size="sm"
+                  onClick={() => openSupplierLabelsPdf(lastBatch.rolls.map((r) => r.id))}
+                  disabled={labelPrinting}
+                >
+                  {labelPrinting ? ar.loading : ar.labels.print}
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -394,8 +508,19 @@ export function AddTopPage() {
 
       {/* Section 2 — Toob rows */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
           <CardTitle>{ar.addTop.rollsSection}</CardTitle>
+          {rows.length > 1 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleCopyLabelFromFirst}
+              className="text-xs"
+            >
+              {ar.addTop.copyLabelFromFirst}
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-3">
           {rows.map((row, idx) => {
@@ -568,6 +693,7 @@ export function AddTopPage() {
                     {ar.addTop.optionalFields}
                   </summary>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+                    {/* Existing optional fields */}
                     <div className="space-y-1">
                       <Label>{ar.addTop.rollSrNo}</Label>
                       <Input
@@ -613,6 +739,141 @@ export function AddTopPage() {
                         dir="ltr"
                         className="h-11 md:h-10"
                       />
+                    </div>
+
+                    {/* Label fields — Phase 5 */}
+                    <div className="col-span-full pt-1 border-t border-border">
+                      <p className="text-xs text-muted-foreground mb-2">بيانات ملصق المورد</p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label>{ar.addTop.supplierOrderNo}</Label>
+                      <Input
+                        value={row.supplier_order_no}
+                        onChange={(e) =>
+                          setRows((rs) =>
+                            rs.map((r, i) =>
+                              i === idx ? { ...r, supplier_order_no: e.target.value } : r,
+                            ),
+                          )
+                        }
+                        dir="ltr"
+                        className="h-11 md:h-10"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label>{ar.addTop.topNumber}</Label>
+                      <Input
+                        type="number"
+                        inputMode="numeric"
+                        value={row.top_number}
+                        onChange={(e) =>
+                          setRows((rs) =>
+                            rs.map((r, i) =>
+                              i === idx ? { ...r, top_number: e.target.value } : r,
+                            ),
+                          )
+                        }
+                        dir="ltr"
+                        className="h-11 md:h-10"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label>{ar.addTop.widthCmRoll}</Label>
+                      <Input
+                        type="number"
+                        inputMode="numeric"
+                        value={row.width_cm_roll}
+                        onChange={(e) =>
+                          setRows((rs) =>
+                            rs.map((r, i) =>
+                              i === idx ? { ...r, width_cm_roll: e.target.value } : r,
+                            ),
+                          )
+                        }
+                        dir="ltr"
+                        className="h-11 md:h-10"
+                        placeholder="150"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label>{ar.addTop.brand}</Label>
+                      <select
+                        className="w-full h-11 md:h-10 rounded border border-border bg-canvas px-3 text-sm"
+                        value={row.brand_id === null ? '' : String(row.brand_id)}
+                        onChange={(e) =>
+                          setRows((rs) =>
+                            rs.map((r, i) =>
+                              i === idx
+                                ? { ...r, brand_id: e.target.value ? Number(e.target.value) : null }
+                                : r,
+                            ),
+                          )
+                        }
+                      >
+                        <option value="">—</option>
+                        {brandsQ.data?.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.arabic_name}
+                            {b.product_line ? ` — ${b.product_line}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label>{ar.addTop.gradeCode}</Label>
+                      <select
+                        className="w-full h-11 md:h-10 rounded border border-border bg-canvas px-3 text-sm"
+                        value={row.grade_id === null ? '' : String(row.grade_id)}
+                        onChange={(e) =>
+                          setRows((rs) =>
+                            rs.map((r, i) =>
+                              i === idx
+                                ? { ...r, grade_id: e.target.value ? Number(e.target.value) : null }
+                                : r,
+                            ),
+                          )
+                        }
+                      >
+                        <option value="">—</option>
+                        {gradesQ.data?.map((g) => (
+                          <option key={g.id} value={g.id}>
+                            {g.arabic_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label>{ar.addTop.compositionCode}</Label>
+                      <select
+                        className="w-full h-11 md:h-10 rounded border border-border bg-canvas px-3 text-sm"
+                        value={row.composition_id === null ? '' : String(row.composition_id)}
+                        onChange={(e) =>
+                          setRows((rs) =>
+                            rs.map((r, i) =>
+                              i === idx
+                                ? {
+                                    ...r,
+                                    composition_id: e.target.value ? Number(e.target.value) : null,
+                                  }
+                                : r,
+                            ),
+                          )
+                        }
+                      >
+                        <option value="">—</option>
+                        {compositionsQ.data?.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.arabic_name}
+                            {c.description ? ` (${c.description})` : ''}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 </details>

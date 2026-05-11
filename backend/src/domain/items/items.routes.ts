@@ -32,8 +32,13 @@ itemsRouter.post('/tops/batch', requireRole('owner', 'shop_seller'), topsCtl.cre
 itemsRouter.get('/rolls/by-barcode/:barcode', rollsCtl.findByBarcode);
 itemsRouter.get('/rolls/search', rollsCtl.searchRolls);
 itemsRouter.post('/rolls/labels-batch', rollsCtl.getBatchLabelsPdf);
+// Fabric label batch (full 12-field sticker)
+itemsRouter.post('/rolls/fabric-labels/batch', requireRole('owner', 'shop_seller'), rollsCtl.getBatchFabricLabels);
 itemsRouter.get('/rolls', rollsCtl.listRolls);
 itemsRouter.post('/rolls', requireRole('owner'), rollsCtl.createRoll);
+// Fabric label for a single roll
+itemsRouter.get('/rolls/:id', rollsCtl.getRollDetail);
+itemsRouter.get('/rolls/:id/fabric-label', requireRole('owner', 'shop_seller'), rollsCtl.getFabricLabel);
 itemsRouter.get('/rolls/:id/label-pdf', rollsCtl.getLabelPdf);
 itemsRouter.post('/rolls/:id/reprint-label', rollsCtl.reprintLabel);
 itemsRouter.patch('/rolls/:id', requireRole('owner'), rollsCtl.updateRoll);

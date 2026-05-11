@@ -16,6 +16,133 @@ import {
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
 
+// ── Label card helpers ──────────────────────────────────────────────────────
+function LabelRow({ label, value }: { label: string; value: string | number | null | undefined }) {
+  if (value === null || value === undefined || value === '') return null;
+  return (
+    <div>
+      <span className="text-muted-foreground">{label}: </span>
+      <span className="font-medium">{value}</span>
+    </div>
+  );
+}
+
+function FabricLabelCard({ rollId }: { rollId: number }) {
+  const { data: roll, isLoading } = useQuery({
+    queryKey: ['roll-label', rollId],
+    queryFn: () => itemsApi.getRollDetail(rollId),
+  });
+
+  const [printOpen, setPrintOpen] = useState(false);
+
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground py-2">{ar.loading}</p>;
+  }
+
+  const hasLabelData =
+    roll &&
+    (roll.brand_arabic_name ||
+      roll.supplier_arabic_name ||
+      roll.grade_arabic_name ||
+      roll.composition_description ||
+      roll.supplier_order_no ||
+      roll.top_number ||
+      roll.width_cm);
+
+  if (!hasLabelData) {
+    return (
+      <p className="text-sm text-muted-foreground py-2">{ar.labels.noLabelData}</p>
+    );
+  }
+
+  function openLabel(format: 'thermal' | 'a4') {
+    window.open(itemsApi.fabricLabelUrl(rollId, format), '_blank');
+    setPrintOpen(false);
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Label preview card */}
+      <div className="rounded border border-border bg-muted/30 p-3 space-y-2 text-sm">
+        {/* Brand header */}
+        {roll!.brand_arabic_name && (
+          <div className="font-bold text-base">{roll!.brand_arabic_name}</div>
+        )}
+        {roll!.brand_arabic_name && roll!.brand_product_line && (
+          <div className="text-muted-foreground text-xs -mt-1">{roll!.brand_product_line}</div>
+        )}
+        {/* Supplier name */}
+        {roll!.supplier_arabic_name && (
+          <div className="text-muted-foreground text-xs">{roll!.supplier_arabic_name}</div>
+        )}
+        {/* Field grid */}
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1 pt-1">
+          {roll!.supplier_order_no && (
+            <LabelRow label="أمر الشراء" value={roll!.supplier_order_no} />
+          )}
+          {roll!.top_number != null && (
+            <LabelRow label="رقم التوب" value={roll!.top_number} />
+          )}
+          <LabelRow label="الصنف" value={roll!.fabric_name_ar} />
+          {roll!.grade_arabic_name && (
+            <LabelRow label="الدرجة" value={roll!.grade_arabic_name} />
+          )}
+          {roll!.width_cm != null && (
+            <LabelRow label="العرض" value={`${roll!.width_cm} سم`} />
+          )}
+          <LabelRow label="اللون" value={`${roll!.color_name_ar} / ${roll!.color_code}`} />
+          {roll!.composition_description && (
+            <div className="col-span-2">
+              <LabelRow label="التركيب" value={roll!.composition_description} />
+            </div>
+          )}
+        </div>
+        {/* Roll SR + barcode */}
+        {roll!.roll_sr_no && (
+          <div className="text-xs text-muted-foreground font-mono" dir="ltr">
+            SR: {roll!.roll_sr_no}
+          </div>
+        )}
+        <div className="text-xs font-mono" dir="ltr">{roll!.internal_barcode}</div>
+        {/* Arabic warning text */}
+        {roll!.supplier_arabic_warning_text && (
+          <div className="text-xs text-muted-foreground border-t border-border pt-2 mt-2">
+            {roll!.supplier_arabic_warning_text}
+          </div>
+        )}
+      </div>
+
+      {/* Print menu */}
+      <div className="relative">
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full h-11 md:h-10"
+          onClick={() => setPrintOpen((o) => !o)}
+        >
+          🏷️ {ar.labels.printThermal.replace('(حرارية)', '').trim()} ↓
+        </Button>
+        {printOpen && (
+          <div className="absolute z-50 top-full mt-1 right-0 left-0 rounded border border-border bg-canvas shadow-md overflow-hidden">
+            <button
+              className="w-full text-right px-4 py-2.5 text-sm hover:bg-muted transition-colors cursor-pointer"
+              onClick={() => openLabel('thermal')}
+            >
+              {ar.labels.printThermal}
+            </button>
+            <button
+              className="w-full text-right px-4 py-2.5 text-sm hover:bg-muted transition-colors cursor-pointer border-t border-border"
+              onClick={() => openLabel('a4')}
+            >
+              {ar.labels.printA4}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const statusColors: Record<string, string> = {
   in_stock: 'bg-green-100 text-green-800',
   reserved: 'bg-yellow-100 text-yellow-800',
@@ -221,6 +348,12 @@ export function RollsPage() {
                     🖨️ {ar.labels.printLabel}
                   </a>
                 </Button>
+              </div>
+
+              {/* Fabric label section */}
+              <div className="pt-2 border-t border-border space-y-2">
+                <p className="font-semibold text-sm">{ar.labels.fabricLabelSection}</p>
+                <FabricLabelCard rollId={detail.id} />
               </div>
             </div>
           )}
