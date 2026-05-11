@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
+import { codesApi } from '@/lib/codes-api';
 import type {
   CreateFabricInput,
   FabricFull,
@@ -31,6 +32,9 @@ type FormState = {
   notes: string;
   composition: CompositionRow[];
   is_active: boolean;
+  default_grade_id: string;
+  default_composition_id: string;
+  default_brand_id: string;
 };
 
 const blank = (): FormState => ({
@@ -41,9 +45,12 @@ const blank = (): FormState => ({
   notes: '',
   composition: [{ material: '', percent: '100' }],
   is_active: true,
+  default_grade_id: '',
+  default_composition_id: '',
+  default_brand_id: '',
 });
 
-function fromFabric(f: FabricFull): FormState {
+function fromFabric(f: FabricFull & { default_grade_id?: number | null; default_composition_id?: number | null; default_brand_id?: number | null }): FormState {
   return {
     code: f.code,
     name_ar: f.name_ar,
@@ -55,6 +62,9 @@ function fromFabric(f: FabricFull): FormState {
         ? f.composition.map((c) => ({ material: c.material, percent: String(c.percent) }))
         : [{ material: '', percent: '100' }],
     is_active: f.is_active,
+    default_grade_id: f.default_grade_id != null ? String(f.default_grade_id) : '',
+    default_composition_id: f.default_composition_id != null ? String(f.default_composition_id) : '',
+    default_brand_id: f.default_brand_id != null ? String(f.default_brand_id) : '',
   };
 }
 
@@ -71,6 +81,10 @@ export function FabricsPage() {
     queryKey: ['fabrics-full'],
     queryFn: inventoryApi.listFabricsFull,
   });
+
+  const gradesQ = useQuery({ queryKey: ['codes-grades'], queryFn: codesApi.listGrades });
+  const compositionsQ = useQuery({ queryKey: ['codes-compositions'], queryFn: codesApi.listCompositions });
+  const brandsQ = useQuery({ queryKey: ['codes-brands'], queryFn: codesApi.listBrands });
 
   const [editing, setEditing] = useState<FabricFull | null>(null);
   const [creating, setCreating] = useState(false);
@@ -156,8 +170,13 @@ export function FabricsPage() {
   function onSave() {
     const body = buildPayload();
     if (!body) return;
+    const defaultFields: Pick<UpdateFabricInput, 'default_grade_id' | 'default_composition_id' | 'default_brand_id'> = {
+      default_grade_id: form.default_grade_id ? Number(form.default_grade_id) : null,
+      default_composition_id: form.default_composition_id ? Number(form.default_composition_id) : null,
+      default_brand_id: form.default_brand_id ? Number(form.default_brand_id) : null,
+    };
     if (editing) {
-      updateMut.mutate({ id: editing.id, body: { ...body, is_active: form.is_active } });
+      updateMut.mutate({ id: editing.id, body: { ...body, is_active: form.is_active, ...defaultFields } });
     } else {
       createMut.mutate(body);
     }
@@ -381,6 +400,56 @@ export function FabricsPage() {
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
               />
             </div>
+
+            {/* Default label fields — shown only when editing */}
+            {editing && (
+              <details className="group">
+                <summary className="cursor-pointer text-sm font-medium text-muted-foreground py-1 select-none">
+                  {ar.fabrics.defaultLabelSection}
+                </summary>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">{ar.fabrics.defaultGrade}</label>
+                    <select
+                      className="w-full h-11 md:h-10 rounded border border-border bg-canvas px-3 text-sm"
+                      value={form.default_grade_id}
+                      onChange={(e) => setForm({ ...form, default_grade_id: e.target.value })}
+                    >
+                      <option value="">—</option>
+                      {(gradesQ.data ?? []).map((g) => (
+                        <option key={g.id} value={g.id}>{g.arabic_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">{ar.fabrics.defaultComposition}</label>
+                    <select
+                      className="w-full h-11 md:h-10 rounded border border-border bg-canvas px-3 text-sm"
+                      value={form.default_composition_id}
+                      onChange={(e) => setForm({ ...form, default_composition_id: e.target.value })}
+                    >
+                      <option value="">—</option>
+                      {(compositionsQ.data ?? []).map((c) => (
+                        <option key={c.id} value={c.id}>{c.arabic_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-sm font-medium">{ar.fabrics.defaultBrand}</label>
+                    <select
+                      className="w-full h-11 md:h-10 rounded border border-border bg-canvas px-3 text-sm"
+                      value={form.default_brand_id}
+                      onChange={(e) => setForm({ ...form, default_brand_id: e.target.value })}
+                    >
+                      <option value="">—</option>
+                      {(brandsQ.data ?? []).map((b) => (
+                        <option key={b.id} value={b.id}>{b.arabic_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </details>
+            )}
 
             {editing && (
               <div className="flex items-center gap-2">

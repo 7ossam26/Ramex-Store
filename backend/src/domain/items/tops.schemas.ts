@@ -34,6 +34,13 @@ const TopRollEntrySchema = z.object({
   roll_sr_no: z.string().max(32).nullable().optional(),
   order_no: z.string().max(32).nullable().optional(),
   purchase_price_egp: z.number().positive().nullable().optional(),
+  // Label fields (Phase 5)
+  supplier_order_no: z.string().max(64).nullable().optional(),
+  top_number: z.number().int().positive().nullable().optional(),
+  width_cm: z.number().int().min(1).max(500).nullable().optional(),
+  grade_id: z.number().int().positive().nullable().optional(),
+  composition_id: z.number().int().positive().nullable().optional(),
+  brand_id: z.number().int().positive().nullable().optional(),
 });
 
 export const CreateTopBatchSchema = z.object({

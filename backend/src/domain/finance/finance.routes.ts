@@ -26,6 +26,9 @@ financeRouter.patch('/banks/:id', requireRole('owner'), ctl.updateBank);
 financeRouter.get('/banks/:id/movements', ctl.getBankMovements);
 financeRouter.post('/banks/:id/reconcile', requireRole('owner', 'shop_seller'), ctl.reconcileBank);
 
+// ─── Treasuries Overview ──────────────────────────────────────────────────────
+financeRouter.get('/treasuries-overview', requireRole('owner'), ctl.getTreasuriesOverviewHandler);
+
 // ─── Expenses ─────────────────────────────────────────────────────────────────
 financeRouter.get('/expenses', ctl.listExpenses);
 financeRouter.post('/expenses', requireRole('owner', 'shop_seller'), ctl.createExpense);

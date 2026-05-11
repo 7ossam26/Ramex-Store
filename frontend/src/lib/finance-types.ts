@@ -89,3 +89,50 @@ export type ReconciliationResult = {
   id: number;
   variance_egp: number;
 };
+
+export type TreasuriesOverviewCashMovement = {
+  id: number;
+  direction: 'in' | 'out';
+  event_type: string;
+  amount_egp: string;
+  balance_after_egp: string;
+  notes_ar: string | null;
+  actor_username: string | null;
+  created_at: string;
+};
+
+export type TreasuriesOverviewBankMovement = {
+  id: number;
+  bank_account_id: number;
+  bank_name_ar: string | null;
+  direction: 'in' | 'out';
+  event_type: string;
+  amount_egp: string;
+  balance_after_egp: string;
+  notes_ar: string | null;
+  actor_username: string | null;
+  created_at: string;
+};
+
+export type TreasuriesOverviewBankAccount = {
+  bank_account_id: number;
+  name_ar: string;
+  bank_name_ar: string | null;
+  account_number_masked: string | null;
+  balance_egp: string;
+  is_default: boolean;
+};
+
+export type TreasuriesOverview = {
+  as_of: string;
+  cash: {
+    total_egp: string;
+    by_branch: Array<{ branch_id: number; branch_name_ar: string; balance_egp: string }>;
+    recent_movements: TreasuriesOverviewCashMovement[];
+  };
+  bank: {
+    total_egp: string;
+    by_account: TreasuriesOverviewBankAccount[];
+    recent_movements: TreasuriesOverviewBankMovement[];
+  };
+};

@@ -9,11 +9,21 @@ export const SaleLineSchema = z.object({
   lineDiscountEgp: nonNegativeAmount.nullable().optional(),
 });
 
-export const SalePaymentSchema = z.object({
-  method: z.enum(['cash', 'instapay']),
-  amount: positiveAmount,
-  bankAccountId: z.coerce.number().int().positive().nullable().optional(),
-});
+export const SalePaymentSchema = z
+  .object({
+    method: z.enum(['cash', 'instapay']),
+    amount: positiveAmount,
+    bankAccountId: z.coerce.number().int().positive().nullable().optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.method === 'instapay' && v.bankAccountId == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['bankAccountId'],
+        message: 'bank_account_id is required for instapay payments',
+      });
+    }
+  });
 
 export const CreateSaleSchema = z.object({
   customerId: z.coerce.number().int().positive(),
@@ -54,11 +64,21 @@ export type PdfVariantInput = z.infer<typeof PdfVariantSchema>;
 export const FinalPaymentSchema = z.object({
   payments: z
     .array(
-      z.object({
-        method: z.enum(['cash', 'instapay']),
-        amount: positiveAmount,
-        bankAccountId: z.coerce.number().int().positive().nullable().optional(),
-      }),
+      z
+        .object({
+          method: z.enum(['cash', 'instapay']),
+          amount: positiveAmount,
+          bankAccountId: z.coerce.number().int().positive().nullable().optional(),
+        })
+        .superRefine((v, ctx) => {
+          if (v.method === 'instapay' && v.bankAccountId == null) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['bankAccountId'],
+              message: 'bank_account_id is required for instapay payments',
+            });
+          }
+        }),
     )
     .min(1),
 });

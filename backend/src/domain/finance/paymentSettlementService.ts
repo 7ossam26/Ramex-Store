@@ -48,7 +48,8 @@ export async function settlePayment(
         referenceType, referenceId, notesAr,
       );
     }
-  } else if (method === 'instapay' && bankAccountId != null) {
+  } else if (method === 'instapay') {
+    if (bankAccountId == null) throw new Error('INSTAPAY_REQUIRES_BANK_ACCOUNT');
     if (paymentKind === 'deposit' || paymentKind === 'final') {
       await bankRecordMovement(
         trx, bankAccountId, 'in', 'instapay_payment', amount, actorUserId,
@@ -60,5 +61,7 @@ export async function settlePayment(
         referenceType, referenceId, notesAr,
       );
     }
+  } else {
+    throw new Error(`UNKNOWN_PAYMENT_METHOD:${method}`);
   }
 }

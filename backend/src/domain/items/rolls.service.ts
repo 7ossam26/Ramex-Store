@@ -1,5 +1,5 @@
 import { db } from '../../db/connection.js';
-import type { Roll, RollWithDetails } from './items.types.js';
+import type { Roll, RollWithDetails, RollWithLabelDetails } from './items.types.js';
 import type { CreateRollInput, UpdateRollInput } from './items.schemas.js';
 
 async function generateBarcode(): Promise<string> {
@@ -23,6 +23,29 @@ function rollDetailQuery() {
     .select(...ROLL_DETAIL_COLS);
 }
 
+function rollLabelQuery() {
+  return db('rolls as r')
+    .join('fabrics as f', 'r.fabric_id', 'f.id')
+    .join('colors as c', 'r.color_id', 'c.id')
+    .leftJoin('fabric_grades as g', 'r.grade_id', 'g.id')
+    .leftJoin('compositions as comp', 'r.composition_id', 'comp.id')
+    .leftJoin('brands as br', 'r.brand_id', 'br.id')
+    .leftJoin('suppliers as sup', 'br.supplier_id', 'sup.id')
+    .select(
+      'r.*',
+      'f.code as fabric_code',
+      'f.name_ar as fabric_name_ar',
+      'c.name_ar as color_name_ar',
+      'c.code as color_code',
+      'g.arabic_name as grade_arabic_name',
+      'comp.description as composition_description',
+      'br.arabic_name as brand_arabic_name',
+      'br.product_line as brand_product_line',
+      'sup.arabic_name as supplier_arabic_name',
+      'sup.arabic_warning_text as supplier_arabic_warning_text',
+    );
+}
+
 export async function listRolls(filters: {
   fabric_id?: number;
   color_id?: number;
@@ -43,6 +66,14 @@ export async function listRolls(filters: {
 
 export async function getRoll(id: number): Promise<RollWithDetails | undefined> {
   return rollDetailQuery().where('r.id', id).first();
+}
+
+export async function getRollWithLabel(id: number): Promise<RollWithLabelDetails | undefined> {
+  return rollLabelQuery().where('r.id', id).first();
+}
+
+export async function getRollsWithLabel(ids: number[]): Promise<RollWithLabelDetails[]> {
+  return rollLabelQuery().whereIn('r.id', ids);
 }
 
 export async function createRoll(data: CreateRollInput): Promise<Roll> {

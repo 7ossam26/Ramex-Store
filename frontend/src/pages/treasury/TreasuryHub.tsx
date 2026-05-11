@@ -1,8 +1,15 @@
-import { Banknote, Landmark, Receipt, Calculator } from 'lucide-react';
+import { Banknote, Landmark, Receipt, Calculator, LayoutDashboard } from 'lucide-react';
 import { HubLanding, type HubCard } from '@/components/Layout/HubLanding';
 import { ar } from '@/i18n/ar';
 
 const cards: HubCard[] = [
+  {
+    label: ar.treasuriesOverview.title,
+    description: ar.hubs.treasuriesOverviewDesc,
+    href: '/treasury/overview',
+    icon: LayoutDashboard,
+    visibleTo: ['owner'],
+  },
   {
     label: ar.cash.drawer,
     description: ar.hubs.cashDesc,

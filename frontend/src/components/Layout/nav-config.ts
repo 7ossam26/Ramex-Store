@@ -94,6 +94,7 @@ export const subTabsBySection: Record<SectionKey, SubTab[]> = {
     { label: ar.returns.title, href: '/returns' },
   ],
   treasury: [
+    { label: ar.treasuriesOverview.title, href: '/treasury/overview', visibleTo: ['owner'] as Role[] },
     { label: ar.cash.drawer, href: '/cash' },
     { label: ar.cash.banks, href: '/banks' },
     { label: ar.cash.expenses, href: '/expenses' },
