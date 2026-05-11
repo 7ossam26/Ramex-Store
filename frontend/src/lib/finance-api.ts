@@ -6,6 +6,7 @@ import type {
   CashMovement,
   Expense,
   ReconciliationResult,
+  TreasuriesOverview,
 } from './finance-types';
 
 export const financeApi = {
@@ -70,6 +71,10 @@ export const financeApi = {
     id: number,
     body: { date: string; actual_balance_egp: number; notes_ar?: string | null },
   ) => api.post<ReconciliationResult>(`/banks/${id}/reconcile`, body).then((r) => r.data),
+
+  // ── Treasuries Overview ──────────────────────────────────────────────────
+  getTreasuriesOverview: () =>
+    api.get<TreasuriesOverview>('/treasuries-overview').then((r) => r.data),
 
   // ── Expenses ─────────────────────────────────────────────────────────────
   listExpenses: (params?: {

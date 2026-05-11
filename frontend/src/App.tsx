@@ -23,6 +23,7 @@ import { BanksPage } from './pages/cash/Banks';
 import { ExpensesPage } from './pages/cash/Expenses';
 import { CashReconcilePage } from './pages/cash/CashReconcile';
 import { TreasuryHubPage } from './pages/treasury/TreasuryHub';
+import { TreasuriesOverviewPage } from './pages/treasury/TreasuriesOverview';
 import { ReturnsListPage } from './pages/returns/ReturnsList';
 import { ReturnDetailPage } from './pages/returns/ReturnDetail';
 import { LabelsPage } from './pages/items/Labels';
@@ -80,6 +81,7 @@ export function App() {
                 <Route path="/returns/:id" element={<ReturnDetailPage />} />
 
                 <Route path="/treasury" element={<TreasuryHubPage />} />
+                <Route path="/treasury/overview" element={<TreasuriesOverviewPage />} />
                 <Route path="/cash" element={<CashDrawerPage />} />
                 <Route path="/banks" element={<BanksPage />} />
                 <Route path="/expenses" element={<ExpensesPage />} />

@@ -2,6 +2,7 @@ import type { RequestHandler } from 'express';
 import * as cashDrawer from './cashDrawerService.js';
 import * as bank from './bankService.js';
 import * as expenses from './expensesService.js';
+import { getTreasuriesOverview } from './treasuriesOverviewService.js';
 import { db } from '../../db/connection.js';
 import { auditFromService } from '../inventory/audit.helper.js';
 import {
@@ -27,6 +28,7 @@ const ERR_MAP: Record<string, number> = {
   EXPENSE_ALREADY_APPROVED: 409,
   EXPENSE_ALREADY_PROCESSED: 409,
   NO_DEFAULT_BANK_ACCOUNT: 422,
+  INSTAPAY_REQUIRES_BANK_ACCOUNT: 400,
 };
 
 function handleErr(res: Parameters<RequestHandler>[1], err: unknown): void {
@@ -194,6 +196,14 @@ export const reconcileBank: RequestHandler = async (req, res) => {
       actorUserId: req.user!.sub,
     });
     res.json(result);
+  } catch (e) { handleErr(res, e); }
+};
+
+// ─── Treasuries Overview ──────────────────────────────────────────────────────
+
+export const getTreasuriesOverviewHandler: RequestHandler = async (_req, res) => {
+  try {
+    res.json(await getTreasuriesOverview());
   } catch (e) { handleErr(res, e); }
 };
 
