@@ -6,10 +6,10 @@ export async function up(db: Knex): Promise<void> {
 
     t.bigInteger('recipient_user_id').unsigned().nullable()
       .references('id').inTable('users').onDelete('CASCADE');
-    t.text('recipient_role').nullable();
+    t.string('recipient_role', 32).nullable();
 
     t.string('event_type', 64).notNullable();
-    t.text('severity').notNullable().defaultTo('low');
+    t.string('severity', 16).notNullable().defaultTo('low');
     t.string('tag', 32).nullable();
     t.string('title_ar', 128).notNullable();
     t.text('body_ar').notNullable();

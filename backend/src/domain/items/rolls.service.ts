@@ -3,7 +3,7 @@ import type { Roll, RollWithDetails } from './items.types.js';
 import type { CreateRollInput, UpdateRollInput } from './items.schemas.js';
 
 async function generateBarcode(): Promise<string> {
-  await db.raw('UPDATE db_sequences SET last_value = LAST_INSERT_ID(last_value + 1) WHERE name = ?', ['roll_barcode_seq']);
+  await db.raw('UPDATE db_sequences SET `last_value` = LAST_INSERT_ID(`last_value` + 1) WHERE name = ?', ['roll_barcode_seq']);
   const [[row]] = await db.raw<[[{ n: number }]]>('SELECT LAST_INSERT_ID() AS n');
   return `RMX-R-${String(row.n).padStart(6, '0')}`;
 }

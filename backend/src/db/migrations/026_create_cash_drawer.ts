@@ -9,8 +9,6 @@ export async function up(knex: Knex): Promise<void> {
     t.datetime('last_movement_at').nullable();
   });
 
-  await knex.raw(`ALTER TABLE cash_drawer ADD CONSTRAINT cash_drawer_singleton CHECK (id = 1)`);
-
   await knex('cash_drawer').insert({
     id: 1,
     current_balance_egp: 0,

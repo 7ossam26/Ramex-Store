@@ -15,7 +15,7 @@ import type {
 } from './inventory.schemas.js';
 
 async function generateRollBarcode(trx: Knex.Transaction): Promise<string> {
-  await trx.raw('UPDATE db_sequences SET last_value = LAST_INSERT_ID(last_value + 1) WHERE name = ?', ['roll_barcode_seq']);
+  await trx.raw('UPDATE db_sequences SET `last_value` = LAST_INSERT_ID(`last_value` + 1) WHERE name = ?', ['roll_barcode_seq']);
   const [[row]] = await trx.raw<[[{ n: number }]]>('SELECT LAST_INSERT_ID() AS n');
   return `RMX-R-${String(row.n).padStart(6, '0')}`;
 }

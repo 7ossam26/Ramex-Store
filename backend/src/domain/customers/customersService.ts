@@ -11,7 +11,7 @@ import type {
 } from './customers.schemas.js';
 
 async function nextCustomerCode(trx: Knex.Transaction): Promise<string> {
-  await trx.raw('UPDATE db_sequences SET last_value = LAST_INSERT_ID(last_value + 1) WHERE name = ?', ['customers_code_seq']);
+  await trx.raw('UPDATE db_sequences SET `last_value` = LAST_INSERT_ID(`last_value` + 1) WHERE name = ?', ['customers_code_seq']);
   const [[row]] = await trx.raw<[[{ n: number }]]>('SELECT LAST_INSERT_ID() AS n');
   const n = Number(row.n);
   return `C-${n.toString().padStart(6, '0')}`;
