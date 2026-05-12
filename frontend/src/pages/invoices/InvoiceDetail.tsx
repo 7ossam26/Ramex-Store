@@ -13,7 +13,6 @@ import type {
   FinalPaymentBody,
   InvoiceDetail,
   InvoiceLineDetail,
-  InvoiceStatus,
   InvoiceStatusHistoryEntry,
   PaymentMethod,
 } from '@/lib/sales-types';
@@ -29,13 +28,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ResponsiveDialog';
-
-const STATUS_COLORS: Record<InvoiceStatus, string> = {
-  open: 'bg-amber-100 text-amber-800',
-  closed_pending_pickup: 'bg-blue-100 text-blue-800',
-  completed: 'bg-green-100 text-green-800',
-  cancelled: 'bg-red-100 text-red-800',
-};
+import { PageHeader } from '@/components/PageHeader';
+import { InvoiceStatusPill } from '@/components/invoices/InvoiceStatusPill';
 
 function fmtMoney(s: string | number): string {
   return Number(s).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -109,7 +103,7 @@ export function InvoiceDetailPage() {
   });
 
   if (isLoading || !data) {
-    return <p className="text-center text-muted-foreground p-8">{ar.loading}</p>;
+    return <p className="text-center text-foreground-muted p-8">{ar.loading}</p>;
   }
   const inv = data;
   const variant: 'original' | 'reprint' | 'open' =
@@ -122,61 +116,59 @@ export function InvoiceDetailPage() {
   const canReturn = inv.status === 'completed';
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold font-mono">{inv.invoice_no}</h1>
-          <p className="text-sm text-muted-foreground">{fmtDate(inv.created_at)} · {ar.invoices.cashier}: {inv.cashier_username}</p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className={`px-2 py-1 rounded text-xs ${STATUS_COLORS[inv.status]}`}>
-            {ar.invoices.statuses[inv.status]}
-          </span>
-          <Button asChild variant="outline" size="sm">
-            <a href={salesApi.pdfUrl(inv.id, variant)} target="_blank" rel="noreferrer">
-              {ar.invoices.pdfDownload}
-            </a>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <a href={salesApi.pdfUrl(inv.id, 'reprint')} target="_blank" rel="noreferrer">
-              {ar.invoices.reprint}
-            </a>
-          </Button>
-          {canAddFinal && (
-            <Button size="sm" onClick={() => setFinalPayOpen(true)}>
-              {ar.invoices.addFinalPayment}
+    <div className="max-w-6xl mx-auto space-y-4">
+      <PageHeader
+        title={inv.invoice_no}
+        description={`${fmtDate(inv.created_at)} · ${ar.invoices.cashier}: ${inv.cashier_username}`}
+        actions={
+          <div className="flex items-center gap-2 flex-wrap">
+            <InvoiceStatusPill status={inv.status} />
+            <Button asChild variant="outline" size="sm">
+              <a href={salesApi.pdfUrl(inv.id, variant)} target="_blank" rel="noreferrer">
+                {ar.invoices.pdfDownload}
+              </a>
             </Button>
-          )}
-          {canDeliver && (
-            <Button
-              size="sm"
-              onClick={() => {
-                if (window.confirm(ar.invoices.markDeliveredConfirm)) {
-                  deliverMut.mutate();
-                }
-              }}
-              disabled={deliverMut.isPending}
-            >
-              {ar.invoices.markDelivered}
+            <Button asChild variant="outline" size="sm">
+              <a href={salesApi.pdfUrl(inv.id, 'reprint')} target="_blank" rel="noreferrer">
+                {ar.invoices.reprint}
+              </a>
             </Button>
-          )}
-          {canCancelOpen && (
-            <Button variant="outline" size="sm" onClick={() => setCancelOpen(true)}>
-              {ar.invoices.cancelOpenInvoice}
-            </Button>
-          )}
-          {canVoid && (
-            <Button variant="outline" size="sm" onClick={() => setVoidOpen(true)}>
-              {ar.invoices.voidAction}
-            </Button>
-          )}
-          {canReturn && (
-            <Button size="sm" onClick={() => setReturnOpen(true)}>
-              {ar.returns.processReturn}
-            </Button>
-          )}
-        </div>
-      </div>
+            {canAddFinal && (
+              <Button size="sm" onClick={() => setFinalPayOpen(true)}>
+                {ar.invoices.addFinalPayment}
+              </Button>
+            )}
+            {canDeliver && (
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (window.confirm(ar.invoices.markDeliveredConfirm)) {
+                    deliverMut.mutate();
+                  }
+                }}
+                disabled={deliverMut.isPending}
+              >
+                {ar.invoices.markDelivered}
+              </Button>
+            )}
+            {canCancelOpen && (
+              <Button variant="outline" size="sm" onClick={() => setCancelOpen(true)}>
+                {ar.invoices.cancelOpenInvoice}
+              </Button>
+            )}
+            {canVoid && (
+              <Button variant="outline" size="sm" onClick={() => setVoidOpen(true)}>
+                {ar.invoices.voidAction}
+              </Button>
+            )}
+            {canReturn && (
+              <Button size="sm" onClick={() => setReturnOpen(true)}>
+                {ar.returns.processReturn}
+              </Button>
+            )}
+          </div>
+        }
+      />
 
       {/* Customer */}
       <Card>
@@ -184,11 +176,11 @@ export function InvoiceDetailPage() {
           <CardTitle className="text-base">{ar.invoices.customer}</CardTitle>
         </CardHeader>
         <CardContent>
-          <Link to={`/customers/${inv.customer_id}`} className="text-primary hover:underline font-medium">
+          <Link to={`/customers/${inv.customer_id}`} className="text-accent hover:text-accent-hover hover:underline underline-offset-2 font-medium">
             {inv.customer_name_ar}
           </Link>
-          <p className="text-sm text-muted-foreground">{inv.customer_phone} · {inv.customer_code}</p>
-          {inv.customer_address_ar && <p className="text-sm">{inv.customer_address_ar}</p>}
+          <p className="text-sm text-foreground-muted">{inv.customer_phone} · {inv.customer_code}</p>
+          {inv.customer_address_ar && <p className="text-sm text-foreground">{inv.customer_address_ar}</p>}
         </CardContent>
       </Card>
 
@@ -199,7 +191,7 @@ export function InvoiceDetailPage() {
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm min-w-[640px]">
-            <thead className="text-right text-xs text-muted-foreground border-b border-border">
+            <thead className="text-right text-xs text-foreground-muted uppercase tracking-wide border-b border-border-subtle">
               <tr>
                 <th className="px-3 py-2">الخامة / اللون</th>
                 <th className="px-3 py-2">كود التوب</th>
@@ -211,13 +203,13 @@ export function InvoiceDetailPage() {
             </thead>
             <tbody>
               {inv.lines.map((l) => (
-                <tr key={l.id} className="border-t border-border">
-                  <td className="px-3 py-2">{l.fabric_name_ar} / {l.color_name_ar}</td>
-                  <td className="px-3 py-2 font-mono text-xs" dir="ltr">{l.roll_sr_no ?? l.internal_barcode}</td>
-                  <td className="px-3 py-2" dir="ltr">{Number(l.weight_kg).toFixed(3)}</td>
-                  <td className="px-3 py-2" dir="ltr">{fmtMoney(l.selling_price_egp)}</td>
-                  <td className="px-3 py-2" dir="ltr">{fmtMoney(l.line_discount_egp)}</td>
-                  <td className="px-3 py-2 font-medium" dir="ltr">{fmtMoney(l.line_total_egp)}</td>
+                <tr key={l.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
+                  <td className="px-3 py-2.5 text-foreground">{l.fabric_name_ar} / {l.color_name_ar}</td>
+                  <td className="px-3 py-2.5 font-mono text-xs tabular-num" dir="ltr">{l.roll_sr_no ?? l.internal_barcode}</td>
+                  <td className="px-3 py-2.5 tabular-num" dir="ltr">{Number(l.weight_kg).toFixed(3)}</td>
+                  <td className="px-3 py-2.5 tabular-num" dir="ltr">{fmtMoney(l.selling_price_egp)}</td>
+                  <td className="px-3 py-2.5 tabular-num" dir="ltr">{fmtMoney(l.line_discount_egp)}</td>
+                  <td className="px-3 py-2.5 font-medium tabular-num" dir="ltr">{fmtMoney(l.line_total_egp)}</td>
                 </tr>
               ))}
             </tbody>
@@ -257,7 +249,7 @@ export function InvoiceDetailPage() {
               <p className="p-4 text-center text-muted-foreground text-sm">{ar.common.none}</p>
             ) : (
               <table className="w-full text-sm">
-                <thead className="text-right text-xs text-muted-foreground border-b border-border">
+                <thead className="text-right text-xs text-foreground-muted uppercase tracking-wide border-b border-border-subtle">
                   <tr>
                     <th className="px-3 py-2">التاريخ</th>
                     <th className="px-3 py-2">طريقة</th>
@@ -267,7 +259,7 @@ export function InvoiceDetailPage() {
                 </thead>
                 <tbody>
                   {inv.payments.map((p) => (
-                    <tr key={p.id} className="border-t border-border">
+                    <tr key={p.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
                       <td className="px-3 py-2" dir="ltr">{fmtDate(p.created_at)}</td>
                       <td className="px-3 py-2">{p.method === 'cash' ? ar.pos.cash : ar.pos.instapay}</td>
                       <td className="px-3 py-2 text-xs">{p.payment_kind}</td>
@@ -377,7 +369,7 @@ export function InvoiceDetailPage() {
               <Label>{ar.invoices.voidReason}</Label>
               <Input value={voidReason} onChange={(e) => setVoidReason(e.target.value)} dir="rtl" />
             </div>
-            {voidResult && <p className="text-sm text-amber-700">{voidResult}</p>}
+            {voidResult && <p className="text-sm text-warning-foreground" role="alert">{voidResult}</p>}
             <div className="flex gap-2 justify-end pt-2">
               <DialogClose asChild>
                 <Button variant="outline">{ar.common.cancel}</Button>
@@ -478,7 +470,7 @@ function FinalPaymentDialog({
           <div className="space-y-1">
             <Label>{ar.pos.paymentMethod}</Label>
             <select
-              className="h-9 w-full border border-border rounded px-2 bg-canvas"
+              className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
               value={method}
               onChange={(e) => setMethod(e.target.value as PaymentMethod | 'both')}
             >
@@ -508,7 +500,7 @@ function FinalPaymentDialog({
             <div className="space-y-1">
               <Label>{ar.pos.bankAccount}</Label>
               <select
-                className="h-9 w-full border border-border rounded px-2 bg-canvas"
+                className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
                 value={bankAccountId === '' ? '' : String(bankAccountId)}
                 onChange={(e) => setBankAccountId(e.target.value === '' ? '' : Number(e.target.value))}
               >
@@ -519,7 +511,7 @@ function FinalPaymentDialog({
               </select>
             </div>
           )}
-          {error && <p className="text-sm text-red-700">{error}</p>}
+          {error && <p className="text-sm text-danger transition-opacity duration-75 ease-standard" role="alert">{error}</p>}
           <div className="flex gap-2 justify-end pt-2">
             <DialogClose asChild>
               <Button variant="outline">{ar.common.cancel}</Button>
@@ -603,7 +595,7 @@ function CancelOpenDialog({
           <div className="space-y-1">
             <Label>{ar.invoices.depositHandling}</Label>
             <select
-              className="h-9 w-full border border-border rounded px-2 bg-canvas"
+              className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
               value={handling}
               onChange={(e) => setHandling(e.target.value as DepositHandling)}
             >
@@ -627,7 +619,7 @@ function CancelOpenDialog({
             <div className="space-y-1">
               <Label>{ar.invoices.refundMethod}</Label>
               <select
-                className="h-9 w-full border border-border rounded px-2 bg-canvas"
+                className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
                 value={refundMethod}
                 onChange={(e) => setRefundMethod(e.target.value as PaymentMethod)}
               >
@@ -640,7 +632,7 @@ function CancelOpenDialog({
             <div className="space-y-1">
               <Label>{ar.pos.bankAccount}</Label>
               <select
-                className="h-9 w-full border border-border rounded px-2 bg-canvas"
+                className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
                 value={bankAccountId === '' ? '' : String(bankAccountId)}
                 onChange={(e) => setBankAccountId(e.target.value === '' ? '' : Number(e.target.value))}
               >
@@ -655,7 +647,7 @@ function CancelOpenDialog({
             <Label>{ar.invoices.cancelReason}</Label>
             <Input value={notes} onChange={(e) => setNotes(e.target.value)} dir="rtl" />
           </div>
-          {error && <p className="text-sm text-red-700">{error}</p>}
+          {error && <p className="text-sm text-danger transition-opacity duration-75 ease-standard" role="alert">{error}</p>}
           <div className="flex gap-2 justify-end pt-2">
             <DialogClose asChild>
               <Button variant="outline">{ar.common.cancel}</Button>
@@ -672,9 +664,9 @@ function CancelOpenDialog({
 
 function Row({ label, value, bold = false }: { label: string; value: string; bold?: boolean }) {
   return (
-    <div className={`flex justify-between ${bold ? 'font-bold text-base border-t border-border pt-1 mt-1' : ''}`}>
+    <div className={`flex justify-between ${bold ? 'font-semibold text-base border-t border-border-subtle pt-2 mt-2 text-foreground' : 'text-foreground-muted'}`}>
       <span>{label}</span>
-      <span dir="ltr">{value}</span>
+      <span className="tabular-num text-foreground" dir="ltr">{value}</span>
     </div>
   );
 }
@@ -789,35 +781,36 @@ function ReturnModal({
           {/* Line selection */}
           <div>
             <p className="text-sm font-medium mb-2">{ar.returns.returnLines}</p>
-            <div className="border border-border rounded overflow-hidden">
+            <div className="border border-border-subtle rounded-md overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="text-right text-xs text-muted-foreground bg-muted">
+                <thead className="text-right text-xs text-foreground-muted bg-surface-hover/50 uppercase tracking-wide">
                   <tr>
-                    <th className="px-2 py-1">✓</th>
-                    <th className="px-2 py-1">الخامة / اللون</th>
-                    <th className="px-2 py-1">الوزن</th>
-                    <th className="px-2 py-1">{ar.returns.refundAmount}</th>
-                    <th className="px-2 py-1">{ar.returns.disposition}</th>
+                    <th className="px-2 py-2 font-medium">✓</th>
+                    <th className="px-2 py-2 font-medium">الخامة / اللون</th>
+                    <th className="px-2 py-2 font-medium">الوزن</th>
+                    <th className="px-2 py-2 font-medium">{ar.returns.refundAmount}</th>
+                    <th className="px-2 py-2 font-medium">{ar.returns.disposition}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {invoice.lines.map((l: InvoiceLineDetail) => {
                     const s = lineStates[l.id]!;
                     return (
-                      <tr key={l.id} className="border-t border-border">
-                        <td className="px-2 py-1">
+                      <tr key={l.id} className="border-t border-border-subtle hover:bg-surface-hover transition-colors duration-150">
+                        <td className="px-2 py-2">
                           <input
                             type="checkbox"
                             checked={s.checked}
                             onChange={(e) => updateLine(l.id, { checked: e.target.checked })}
+                            className="accent-accent cursor-pointer"
                           />
                         </td>
-                        <td className="px-2 py-1">{l.fabric_name_ar} / {l.color_name_ar}</td>
-                        <td className="px-2 py-1" dir="ltr">{Number(l.weight_kg).toFixed(3)}</td>
-                        <td className="px-2 py-1">
+                        <td className="px-2 py-2 text-foreground">{l.fabric_name_ar} / {l.color_name_ar}</td>
+                        <td className="px-2 py-2 tabular-num" dir="ltr">{Number(l.weight_kg).toFixed(3)}</td>
+                        <td className="px-2 py-2">
                           <input
                             type="number" inputMode="decimal"
-                            className="h-7 w-24 border border-border rounded px-1 text-sm"
+                            className="h-8 w-24 border border-border-default rounded-md px-2 text-sm bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75 disabled:opacity-50"
                             value={s.refundAmount}
                             disabled={!s.checked}
                             onChange={(e) => updateLine(l.id, { refundAmount: e.target.value })}
@@ -826,9 +819,9 @@ function ReturnModal({
                             step="0.01"
                           />
                         </td>
-                        <td className="px-2 py-1">
+                        <td className="px-2 py-2">
                           <select
-                            className="h-7 border border-border rounded px-1 text-sm bg-canvas"
+                            className="h-8 border border-border-default rounded-md px-2 text-sm bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75 disabled:opacity-50"
                             value={s.disposition}
                             disabled={!s.checked}
                             onChange={(e) => updateLine(l.id, { disposition: e.target.value as RollDisposition })}
@@ -849,7 +842,7 @@ function ReturnModal({
           <div className="space-y-1">
             <Label>{ar.returns.refundMethod}</Label>
             <select
-              className="h-9 w-full border border-border rounded px-2 bg-canvas"
+              className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
               value={refundMethod}
               onChange={(e) => setRefundMethod(e.target.value as RefundMethod)}
             >
@@ -863,7 +856,7 @@ function ReturnModal({
             <div className="space-y-1">
               <Label>{ar.pos.bankAccount}</Label>
               <select
-                className="h-9 w-full border border-border rounded px-2 bg-canvas"
+                className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
                 value={bankAccountId === '' ? '' : String(bankAccountId)}
                 onChange={(e) => setBankAccountId(e.target.value === '' ? '' : Number(e.target.value))}
               >
@@ -879,7 +872,7 @@ function ReturnModal({
           <div className="space-y-1">
             <Label>{ar.returns.notes}</Label>
             <input
-              className="h-9 w-full border border-border rounded px-2 text-sm"
+              className="h-10 w-full border border-border-default rounded-md px-3 text-sm bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
               value={notesAr}
               onChange={(e) => setNotesAr(e.target.value)}
               dir="rtl"
@@ -899,12 +892,12 @@ function ReturnModal({
           )}
 
           {mode === 'exchange' && (
-            <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <div className="rounded-md border border-warning/30 bg-warning-subtle p-3 text-sm text-warning-foreground">
               بعد تسجيل الإرجاع سيتم فتح فاتورة جديدة تلقائياً من نقطة البيع — أكمل عملية الاستبدال من شاشة POS.
             </div>
           )}
 
-          {error && <p className="text-sm text-red-700">{error}</p>}
+          {error && <p className="text-sm text-danger transition-opacity duration-75 ease-standard" role="alert">{error}</p>}
 
           <div className="flex gap-2 justify-end pt-2">
             <DialogClose asChild>

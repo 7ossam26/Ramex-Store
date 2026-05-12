@@ -4,11 +4,13 @@ import { useQuery } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { returnsApi } from '@/lib/returns-api';
 import type { ReturnListRow } from '@/lib/returns-types';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
+import { PageHeader } from '@/components/PageHeader';
+import { StatusPill } from '@/components/StatusPill';
 
 function fmtMoney(s: string | number): string {
   return Number(s).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -38,7 +40,7 @@ export function ReturnsListPage() {
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
 
-  const { data, isLoading } = useQuery<{ rows: ReturnListRow[]; total: number }>({
+  const q = useQuery<{ rows: ReturnListRow[]; total: number }>({
     queryKey: ['returns', dateFrom, dateTo, page],
     queryFn: () =>
       returnsApi.list({
@@ -49,8 +51,8 @@ export function ReturnsListPage() {
       }),
   });
 
-  const rows = data?.rows ?? [];
-  const total = data?.total ?? 0;
+  const rows = q.data?.rows ?? [];
+  const total = q.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / 30));
   const activeFilters = (dateFrom ? 1 : 0) + (dateTo ? 1 : 0);
 
@@ -59,14 +61,14 @@ export function ReturnsListPage() {
       key: 'return_no',
       header: ar.returns.returnNo,
       cell: (r) => (
-        <span className="font-mono text-xs" dir="ltr">{r.return_no}</span>
+        <span className="font-mono text-xs tabular-num text-foreground" dir="ltr">{r.return_no}</span>
       ),
       primary: true,
     },
     {
       key: 'date',
       header: ar.returns.date,
-      cell: (r) => <span className="text-xs" dir="ltr">{fmtDate(r.processed_at)}</span>,
+      cell: (r) => <span className="text-xs text-foreground-muted" dir="ltr">{fmtDate(r.processed_at)}</span>,
       secondary: true,
     },
     {
@@ -75,7 +77,7 @@ export function ReturnsListPage() {
       cell: (r) => (
         <Link
           to={`/invoices/${r.original_invoice_id}`}
-          className="text-primary hover:underline font-mono text-xs"
+          className="text-accent hover:text-accent-hover hover:underline underline-offset-2 font-mono text-xs tabular-num"
         >
           {r.original_invoice_no}
         </Link>
@@ -85,26 +87,29 @@ export function ReturnsListPage() {
     {
       key: 'kind',
       header: ar.returns.kind,
-      cell: (r) =>
-        r.kind === 'refund' ? ar.returns.kinds.refund : ar.returns.kinds.exchange,
+      cell: (r) => (
+        <StatusPill tone={r.kind === 'refund' ? 'danger' : 'info'}>
+          {r.kind === 'refund' ? ar.returns.kinds.refund : ar.returns.kinds.exchange}
+        </StatusPill>
+      ),
     },
     {
       key: 'total',
       header: ar.returns.totalRefund,
       cell: (r) => (
-        <span className="font-medium" dir="ltr">{fmtMoney(r.total_refund_egp)}</span>
+        <span className="font-medium tabular-num" dir="ltr">{fmtMoney(r.total_refund_egp)}</span>
       ),
     },
     {
       key: 'method',
       header: ar.returns.refundMethod,
-      cell: (r) => <span className="text-xs">{ar.returns.refundMethods[r.refund_method]}</span>,
+      cell: (r) => <span className="text-xs text-foreground-muted">{ar.returns.refundMethods[r.refund_method]}</span>,
     },
     {
       key: 'view',
       header: '',
       cell: (r) => (
-        <Link to={`/returns/${r.id}`} className="text-primary hover:underline text-xs">
+        <Link to={`/returns/${r.id}`} className="text-xs text-accent hover:text-accent-hover hover:underline underline-offset-2">
           {ar.invoices.view}
         </Link>
       ),
@@ -114,66 +119,62 @@ export function ReturnsListPage() {
   ];
 
   const filterControls = (
-    <>
+    <div className="rounded-lg border border-border-subtle bg-surface-elevated p-3 flex flex-wrap md:flex-nowrap gap-3 items-end">
       <div className="space-y-1 flex-1 min-w-0">
-        <label className="text-xs text-muted-foreground">{ar.invoices.filterDateFrom}</label>
+        <Label className="text-sm font-medium text-foreground">{ar.invoices.filterDateFrom}</Label>
         <Input
           type="date"
           value={dateFrom}
           onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-          className="h-11 md:h-9 w-full md:w-36"
+          className="h-11 md:h-10 w-full md:w-44"
           dir="ltr"
         />
       </div>
       <div className="space-y-1 flex-1 min-w-0">
-        <label className="text-xs text-muted-foreground">{ar.invoices.filterDateTo}</label>
+        <Label className="text-sm font-medium text-foreground">{ar.invoices.filterDateTo}</Label>
         <Input
           type="date"
           value={dateTo}
           onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-          className="h-11 md:h-9 w-full md:w-36"
+          className="h-11 md:h-10 w-full md:w-44"
           dir="ltr"
         />
       </div>
       <Button
         variant="outline"
         size="sm"
-        className="h-11 md:h-9 self-stretch md:self-end"
+        className="h-11 md:h-10"
         onClick={() => { setDateFrom(''); setDateTo(''); setPage(1); }}
       >
         {ar.common.refresh}
       </Button>
-    </>
+    </div>
   );
 
   return (
-    <div className="max-w-5xl mx-auto space-y-4">
-      <h1 className="text-xl font-bold">{ar.returns.title}</h1>
+    <div className="max-w-6xl mx-auto space-y-4">
+      <PageHeader title={ar.returns.title} description={ar.hubs.returnsDesc} />
 
       {/* Filters: inline ≥md, bottom sheet <md */}
       <MobileFilterSheet activeCount={activeFilters}>
-        <Card>
-          <CardContent className="p-3 flex flex-wrap md:flex-nowrap gap-3 items-end">
-            {filterControls}
-          </CardContent>
-        </Card>
+        {filterControls}
       </MobileFilterSheet>
 
-      <div className="text-sm text-muted-foreground">
-        {ar.returns.title} ({total})
+      <div className="text-sm text-foreground-muted">
+        {ar.returns.title}: <span className="tabular-num text-foreground" dir="ltr">{total}</span>
       </div>
 
-      {isLoading ? (
-        <p className="p-6 text-center text-muted-foreground">{ar.loading}</p>
-      ) : (
-        <ResponsiveTable
-          columns={columns}
-          rows={rows}
-          rowKey={(r) => String(r.id)}
-          onRowClick={(r) => { window.location.href = `/returns/${r.id}`; }}
-          empty={ar.returns.empty}
-        />
-      )}
+      <ResponsiveTable
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => String(r.id)}
+        onRowClick={(r) => { window.location.href = `/returns/${r.id}`; }}
+        empty={ar.returns.empty}
+        isLoading={q.isLoading}
+        isError={q.isError}
+        onRetry={() => q.refetch()}
+        resetKey={`${dateFrom}|${dateTo}|${page}`}
+      />
 
       {/* Pagination */}
       {totalPages > 1 && (
@@ -181,7 +182,7 @@ export function ReturnsListPage() {
           <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
             السابق
           </Button>
-          <span className="text-sm self-center" dir="ltr">{page} / {totalPages}</span>
+          <span className="text-sm text-foreground-muted self-center tabular-num" dir="ltr">{page} / {totalPages}</span>
           <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
             التالي
           </Button>

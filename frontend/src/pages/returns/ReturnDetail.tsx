@@ -5,6 +5,8 @@ import { returnsApi } from '@/lib/returns-api';
 import type { ReturnDetail } from '@/lib/returns-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/PageHeader';
+import { StatusPill } from '@/components/StatusPill';
 
 function fmtMoney(s: string | number): string {
   return Number(s).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -39,123 +41,136 @@ export function ReturnDetailPage() {
   });
 
   if (isLoading || !data) {
-    return <p className="text-center text-muted-foreground p-8">{ar.loading}</p>;
+    return <p className="text-center text-foreground-muted p-8">{ar.loading}</p>;
   }
   const ret = data;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-xl font-bold font-mono" dir="ltr">{ret.return_no}</h1>
-          <p className="text-sm text-muted-foreground">
-            {fmtDate(ret.processed_at)} · {ar.returns.actor}: {ret.actor_username}
-          </p>
-        </div>
-        <div className="flex gap-2 items-center">
-          <span className={`px-2 py-1 rounded text-xs ${ret.kind === 'refund' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>
-            {ret.kind === 'refund' ? ar.returns.kinds.refund : ar.returns.kinds.exchange}
-          </span>
-          <Button asChild variant="outline" size="sm">
-            <a href={returnsApi.slipPdfUrl(ret.id)} target="_blank" rel="noreferrer">
-              {ar.returns.slipPdf}
-            </a>
-          </Button>
-        </div>
-      </div>
+    <div className="max-w-6xl mx-auto space-y-4">
+      <PageHeader
+        title={ret.return_no}
+        description={`${fmtDate(ret.processed_at)} · ${ar.returns.actor}: ${ret.actor_username}`}
+        actions={
+          <div className="flex items-center gap-2 flex-wrap">
+            <StatusPill tone={ret.kind === 'refund' ? 'danger' : 'info'}>
+              {ret.kind === 'refund' ? ar.returns.kinds.refund : ar.returns.kinds.exchange}
+            </StatusPill>
+            <Button asChild variant="outline" size="sm">
+              <a href={returnsApi.slipPdfUrl(ret.id)} target="_blank" rel="noreferrer">
+                {ar.returns.slipPdf}
+              </a>
+            </Button>
+          </div>
+        }
+      />
 
-      {/* Meta */}
-      <Card>
-        <CardContent className="p-3 grid grid-cols-2 gap-2 text-sm">
-          <div>
-            <span className="text-muted-foreground">{ar.returns.originalInvoice}: </span>
-            <Link to={`/invoices/${ret.original_invoice_id}`} className="text-primary hover:underline font-mono">
-              {ret.original_invoice_no}
-            </Link>
-          </div>
-          <div>
-            <span className="text-muted-foreground">{ar.returns.refundMethod}: </span>
-            {ar.returns.refundMethods[ret.refund_method]}
-          </div>
-          {ret.exchange_new_invoice_id && (
-            <div>
-              <span className="text-muted-foreground">{ar.returns.exchangeNewInvoice}: </span>
-              <Link to={`/invoices/${ret.exchange_new_invoice_id}`} className="text-primary hover:underline font-mono">
-                #{ret.exchange_new_invoice_id}
+      {/* Two-column layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
+        {/* Main column — lines + customer + meta */}
+        <div className="space-y-4 min-w-0">
+          {/* Customer */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">{ar.returns.customer}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Link to={`/customers/${ret.customer_id}`} className="text-accent hover:text-accent-hover hover:underline underline-offset-2 font-medium">
+                {ret.customer_name_ar}
               </Link>
-            </div>
+              <p className="text-sm text-foreground-muted">{ret.customer_phone} · {ret.customer_code}</p>
+            </CardContent>
+          </Card>
+
+          {/* Lines */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">{ar.returns.returnLines}</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-right text-xs text-foreground-muted uppercase tracking-wide border-b border-border-subtle">
+                    <tr>
+                      <th className="px-3 py-3 font-medium">الخامة / اللون</th>
+                      <th className="px-3 py-3 font-medium">كود التوب</th>
+                      <th className="px-3 py-3 font-medium">الوزن</th>
+                      <th className="px-3 py-3 font-medium">{ar.returns.disposition}</th>
+                      <th className="px-3 py-3 font-medium">{ar.returns.refundAmount}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ret.lines.map((l) => (
+                      <tr key={l.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
+                        <td className="px-3 py-2.5 text-foreground">{l.fabric_name_ar} / {l.color_name_ar}</td>
+                        <td className="px-3 py-2.5 font-mono text-xs tabular-num" dir="ltr">
+                          {l.roll_sr_no ?? l.internal_barcode}
+                        </td>
+                        <td className="px-3 py-2.5 tabular-num" dir="ltr">{Number(l.weight_kg).toFixed(3)}</td>
+                        <td className="px-3 py-2.5">
+                          <StatusPill tone={l.roll_disposition === 'back_to_stock' ? 'success' : 'danger'}>
+                            {l.roll_disposition === 'back_to_stock'
+                              ? ar.returns.dispositions.back_to_stock
+                              : ar.returns.dispositions.damaged}
+                          </StatusPill>
+                        </td>
+                        <td className="px-3 py-2.5 font-medium tabular-num" dir="ltr">{fmtMoney(l.refund_amount_egp)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {ret.notes_ar && (
+            <Card>
+              <CardContent className="p-4 text-sm">
+                <span className="font-medium text-foreground">{ar.returns.notes}: </span>
+                <span className="text-foreground-muted">{ret.notes_ar}</span>
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Customer */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">{ar.returns.customer}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Link to={`/customers/${ret.customer_id}`} className="text-primary hover:underline font-medium">
-            {ret.customer_name_ar}
-          </Link>
-          <p className="text-sm text-muted-foreground">{ret.customer_phone} · {ret.customer_code}</p>
-        </CardContent>
-      </Card>
+        {/* Summary column — sticky on desktop */}
+        <aside className="lg:sticky lg:top-20 lg:self-start">
+          <div className="rounded-lg border border-border-subtle bg-surface-elevated p-5 space-y-4 shadow-sm">
+            <h2 className="text-base font-semibold text-foreground">المبالغ</h2>
 
-      {/* Lines */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">{ar.returns.returnLines}</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <table className="w-full text-sm">
-            <thead className="text-right text-xs text-muted-foreground border-b border-border">
-              <tr>
-                <th className="px-3 py-2">الخامة / اللون</th>
-                <th className="px-3 py-2">كود التوب</th>
-                <th className="px-3 py-2">الوزن</th>
-                <th className="px-3 py-2">{ar.returns.disposition}</th>
-                <th className="px-3 py-2">{ar.returns.refundAmount}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ret.lines.map((l) => (
-                <tr key={l.id} className="border-t border-border">
-                  <td className="px-3 py-2">{l.fabric_name_ar} / {l.color_name_ar}</td>
-                  <td className="px-3 py-2 font-mono text-xs" dir="ltr">
-                    {l.roll_sr_no ?? l.internal_barcode}
-                  </td>
-                  <td className="px-3 py-2" dir="ltr">{Number(l.weight_kg).toFixed(3)}</td>
-                  <td className="px-3 py-2">
-                    {l.roll_disposition === 'back_to_stock'
-                      ? ar.returns.dispositions.back_to_stock
-                      : ar.returns.dispositions.damaged}
-                  </td>
-                  <td className="px-3 py-2 font-medium" dir="ltr">{fmtMoney(l.refund_amount_egp)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </CardContent>
-      </Card>
+            <dl className="space-y-3 text-sm">
+              <div>
+                <dt className="text-xs text-foreground-muted">{ar.returns.originalInvoice}</dt>
+                <dd className="mt-0.5">
+                  <Link to={`/invoices/${ret.original_invoice_id}`} className="text-accent hover:text-accent-hover hover:underline underline-offset-2 font-mono tabular-num">
+                    {ret.original_invoice_no}
+                  </Link>
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-foreground-muted">{ar.returns.refundMethod}</dt>
+                <dd className="mt-0.5 text-foreground">{ar.returns.refundMethods[ret.refund_method]}</dd>
+              </div>
+              {ret.exchange_new_invoice_id && (
+                <div>
+                  <dt className="text-xs text-foreground-muted">{ar.returns.exchangeNewInvoice}</dt>
+                  <dd className="mt-0.5">
+                    <Link to={`/invoices/${ret.exchange_new_invoice_id}`} className="text-accent hover:text-accent-hover hover:underline underline-offset-2 font-mono tabular-num">
+                      #{ret.exchange_new_invoice_id}
+                    </Link>
+                  </dd>
+                </div>
+              )}
+            </dl>
 
-      {/* Total */}
-      <Card>
-        <CardContent className="p-3">
-          <div className="flex justify-between text-base font-bold">
-            <span>{ar.returns.totalRefund} (ج.م)</span>
-            <span dir="ltr">{fmtMoney(ret.total_refund_egp)}</span>
+            <div className="pt-3 border-t border-border-subtle">
+              <p className="text-xs text-foreground-muted">{ar.returns.totalRefund}</p>
+              <p className="text-2xl font-semibold text-foreground tabular-num mt-0.5" dir="ltr">
+                {fmtMoney(ret.total_refund_egp)} <span className="text-sm text-foreground-tertiary font-normal">ج.م</span>
+              </p>
+            </div>
           </div>
-        </CardContent>
-      </Card>
-
-      {ret.notes_ar && (
-        <Card>
-          <CardContent className="p-3 text-sm">
-            <span className="font-medium">{ar.returns.notes}: </span>{ret.notes_ar}
-          </CardContent>
-        </Card>
-      )}
+        </aside>
+      </div>
     </div>
   );
 }
