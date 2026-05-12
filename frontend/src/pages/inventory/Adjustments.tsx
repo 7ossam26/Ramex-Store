@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
+import { Inbox } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
 import type { RollStatus, Warehouse } from '@/lib/inventory-types';
@@ -8,6 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/PageHeader';
+import { TableSkeleton } from '@/components/TableSkeleton';
+import { EmptyState } from '@/components/EmptyState';
+import { ErrorBanner } from '@/components/ErrorBanner';
 
 type FormVals = {
   roll_id: number;
@@ -91,33 +95,45 @@ export function AdjustmentsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle>{ar.adjustments.title}</CardTitle></CardHeader>
-        <CardContent>
-          <table className="w-full text-sm">
-            <thead className="text-right text-xs text-foreground-muted uppercase tracking-wide">
-              <tr className="border-b border-border-subtle">
-                <th className="py-2.5 font-medium">{ar.stockMovements.when}</th>
-                <th className="font-medium">{ar.stockMovements.rollBarcode}</th>
-                <th className="font-medium">{ar.stockMovements.from}</th>
-                <th className="font-medium">{ar.stockMovements.to}</th>
-                <th className="font-medium">{ar.adjustments.notes}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(list.data ?? []).map((m) => (
-                <tr key={m.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
-                  <td className="py-2.5 text-foreground-muted">{new Date(m.created_at).toLocaleString('ar-EG-u-nu-latn')}</td>
-                  <td className="font-mono text-foreground">#{m.roll_id}</td>
-                  <td>{m.from_warehouse ? ar.warehouses[m.from_warehouse] : '—'}</td>
-                  <td>{m.to_warehouse ? ar.warehouses[m.to_warehouse] : '—'}</td>
-                  <td className="text-xs text-foreground-muted">{m.notes_ar ?? '—'}</td>
+      {list.isLoading ? (
+        <TableSkeleton rows={5} columns={5} />
+      ) : list.isError ? (
+        <ErrorBanner onRetry={() => list.refetch()} />
+      ) : (list.data ?? []).length === 0 ? (
+        <EmptyState
+          icon={Inbox}
+          title={ar.codes.noResults}
+          description={ar.adjustments.title}
+        />
+      ) : (
+        <Card>
+          <CardHeader><CardTitle>{ar.adjustments.title}</CardTitle></CardHeader>
+          <CardContent>
+            <table className="w-full text-sm">
+              <thead className="text-start text-xs text-foreground-muted uppercase tracking-wide">
+                <tr className="border-b border-border-subtle">
+                  <th className="py-2.5 font-medium">{ar.stockMovements.when}</th>
+                  <th className="font-medium">{ar.stockMovements.rollBarcode}</th>
+                  <th className="font-medium">{ar.stockMovements.from}</th>
+                  <th className="font-medium">{ar.stockMovements.to}</th>
+                  <th className="font-medium">{ar.adjustments.notes}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </CardContent>
-      </Card>
+              </thead>
+              <tbody>
+                {(list.data ?? []).map((m) => (
+                  <tr key={m.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
+                    <td className="py-2.5 text-foreground-muted">{new Date(m.created_at).toLocaleString('ar-EG-u-nu-latn')}</td>
+                    <td className="font-mono text-foreground">#{m.roll_id}</td>
+                    <td>{m.from_warehouse ? ar.warehouses[m.from_warehouse] : '—'}</td>
+                    <td>{m.to_warehouse ? ar.warehouses[m.to_warehouse] : '—'}</td>
+                    <td className="text-xs text-foreground-muted">{m.notes_ar ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

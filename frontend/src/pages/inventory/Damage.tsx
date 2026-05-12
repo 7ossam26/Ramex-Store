@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm, useWatch } from 'react-hook-form';
+import { AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
@@ -10,6 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusPill } from '@/components/StatusPill';
+import { TableSkeleton } from '@/components/TableSkeleton';
+import { EmptyState } from '@/components/EmptyState';
+import { ErrorBanner } from '@/components/ErrorBanner';
 
 const REASONS: DamageReasonCode[] = [
   'damage_in_transit', 'damage_in_shop', 'damage_quality_defect',
@@ -103,48 +107,60 @@ export function DamagePage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle>{ar.damage.title}</CardTitle></CardHeader>
-        <CardContent>
-          <table className="w-full text-sm">
-            <thead className="text-right text-xs text-foreground-muted uppercase tracking-wide">
-              <tr className="border-b border-border-subtle">
-                <th className="py-2.5 font-medium">{ar.stockMovements.when}</th>
-                <th className="font-medium">{ar.damage.rollId}</th>
-                <th className="font-medium">{ar.damage.reasonCode}</th>
-                <th className="font-medium">{ar.damage.disposition}</th>
-                <th className="font-medium">{ar.damage.valuation}</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {(list.data ?? []).map((e) => (
-                <tr key={e.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
-                  <td className="py-2.5 text-foreground-muted">{new Date(e.created_at).toLocaleString('ar-EG-u-nu-latn')}</td>
-                  <td className="font-mono text-foreground">#{e.roll_id}</td>
-                  <td>{ar.damage.reasons[e.reason_code]}</td>
-                  <td>{ar.damage.dispositions[e.disposition]}</td>
-                  <td className="tabular-num" dir="ltr">{e.valuation_egp}</td>
-                  <td>
-                    {e.requires_approval && !e.approved_at && user?.role === 'owner' ? (
-                      <div className="flex gap-1">
-                        <Button size="sm" onClick={() => approve.mutate({ id: e.id, ok: true })}>
-                          {ar.damage.approve}
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => approve.mutate({ id: e.id, ok: false })}>
-                          {ar.damage.reject}
-                        </Button>
-                      </div>
-                    ) : e.requires_approval && !e.approved_at ? (
-                      <StatusPill tone="warning">{ar.damage.requiresApproval}</StatusPill>
-                    ) : null}
-                  </td>
+      {list.isLoading ? (
+        <TableSkeleton rows={5} columns={6} />
+      ) : list.isError ? (
+        <ErrorBanner onRetry={() => list.refetch()} />
+      ) : (list.data ?? []).length === 0 ? (
+        <EmptyState
+          icon={AlertTriangle}
+          title={ar.codes.noResults}
+          description={ar.damage.title}
+        />
+      ) : (
+        <Card>
+          <CardHeader><CardTitle>{ar.damage.title}</CardTitle></CardHeader>
+          <CardContent>
+            <table className="w-full text-sm">
+              <thead className="text-start text-xs text-foreground-muted uppercase tracking-wide">
+                <tr className="border-b border-border-subtle">
+                  <th className="py-2.5 font-medium">{ar.stockMovements.when}</th>
+                  <th className="font-medium">{ar.damage.rollId}</th>
+                  <th className="font-medium">{ar.damage.reasonCode}</th>
+                  <th className="font-medium">{ar.damage.disposition}</th>
+                  <th className="font-medium">{ar.damage.valuation}</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </CardContent>
-      </Card>
+              </thead>
+              <tbody>
+                {(list.data ?? []).map((e) => (
+                  <tr key={e.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
+                    <td className="py-2.5 text-foreground-muted">{new Date(e.created_at).toLocaleString('ar-EG-u-nu-latn')}</td>
+                    <td className="font-mono text-foreground">#{e.roll_id}</td>
+                    <td>{ar.damage.reasons[e.reason_code]}</td>
+                    <td>{ar.damage.dispositions[e.disposition]}</td>
+                    <td className="tabular-num" dir="ltr">{e.valuation_egp}</td>
+                    <td>
+                      {e.requires_approval && !e.approved_at && user?.role === 'owner' ? (
+                        <div className="flex gap-1">
+                          <Button size="sm" onClick={() => approve.mutate({ id: e.id, ok: true })}>
+                            {ar.damage.approve}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => approve.mutate({ id: e.id, ok: false })}>
+                            {ar.damage.reject}
+                          </Button>
+                        </div>
+                      ) : e.requires_approval && !e.approved_at ? (
+                        <StatusPill tone="warning">{ar.damage.requiresApproval}</StatusPill>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
