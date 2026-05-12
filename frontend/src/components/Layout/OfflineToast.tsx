@@ -5,7 +5,10 @@ export function OfflineToast() {
   const online = useOnline();
   if (online) return null;
   return (
-    <div className="fixed top-0 inset-x-0 z-toast bg-danger text-foreground-on-accent text-center py-2 text-sm font-medium">
+    <div
+      data-print="hide"
+      className="fixed top-0 inset-x-0 z-toast bg-danger text-foreground-on-accent text-center py-2 text-sm font-medium print:hidden"
+    >
       {ar.offline}
     </div>
   );

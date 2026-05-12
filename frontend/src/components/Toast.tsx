@@ -76,8 +76,9 @@ export function Toast({
 
   return (
     <div
+      data-print="hide"
       className={cn(
-        'fixed inset-x-0 bottom-6 z-toast flex justify-center pointer-events-none px-4',
+        'fixed inset-x-0 bottom-6 z-toast flex justify-center pointer-events-none px-4 print:hidden',
         className,
       )}
     >

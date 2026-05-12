@@ -95,7 +95,7 @@ export function ReportShell({
       <PageHeader
         title={title}
         actions={
-          <>
+          <span className="contents [&_a]:print:hidden [&_button]:print:hidden">
             {exportPdfUrl && (
               <Button asChild variant="outline" size="sm">
                 <a
@@ -130,13 +130,13 @@ export function ReportShell({
                 </a>
               </Button>
             )}
-          </>
+          </span>
         }
       />
 
-      {/* Filters */}
+      {/* Filters — hidden on print so the page is a clean snapshot of the data. */}
       {(showDateRange || extraFilters) && (
-        <div className="rounded-lg border border-border-subtle bg-surface-elevated p-4 shadow-sm flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
+        <div className="rounded-lg border border-border-subtle bg-surface-elevated p-4 shadow-sm flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end print:hidden">
           {showDateRange && (
             <>
               <div className="flex gap-2 overflow-x-auto -mx-1 px-1 whitespace-nowrap">

@@ -191,3 +191,87 @@
   transform-origin: right; /* RTL: drains from right to left */
   animation: rmx-toast-progress 4000ms linear 1 forwards;
 }
+
+/* ---------- Print styles ------------------------------------- *
+ * Browser-print (Ctrl+P) of the in-app InvoiceDetail / DailyReport
+ * surfaces. Server-side PDF printing (POS receipt, invoice PDF,
+ * daily report PDF) is unaffected — those hit /api endpoints that
+ * render their own templates.
+ *
+ * Goals:
+ *  - hide app chrome (TopBar, Rail, MobileDrawer, NotificationBell,
+ *    UserMenu, action buttons that aren't useful on paper)
+ *  - white background everywhere; black ink; preserve RTL
+ *  - monospace for barcodes / codes via .rmx-print-code
+ *  - flatten elevated surfaces so cards don't sit on a tinted page
+ *
+ * Opt-out with print:hidden Tailwind variant (use sparingly — the
+ * defaults below already hide app chrome and interactive controls). */
+@media print {
+  :root {
+    /* Force surfaces to white and ink to black for print. The Tailwind
+     * tokens still resolve normally; we override only at the variable
+     * layer so component classes don't need print: variants. */
+    --rmx-surface: 0 0% 100%;
+    --rmx-surface-elevated: 0 0% 100%;
+    --rmx-surface-row-alt: 0 0% 96%;
+    --rmx-surface-hover: 0 0% 96%;
+    --rmx-surface-active: 0 0% 92%;
+    --rmx-text-default: 0 0% 0%;
+    --rmx-text-muted: 0 0% 25%;
+    --rmx-text-tertiary: 0 0% 40%;
+    --rmx-border-subtle: 0 0% 80%;
+    --rmx-border-default: 0 0% 65%;
+    --color-canvas: 0 0% 100%;
+    --color-ink: 0 0% 0%;
+  }
+
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* Hide the chrome — TopBar, Rail, MobileDrawer trigger, NotificationBell,
+   * UserMenu, Flyout, CommandPalette, OfflineToast, Toast, sticky filter
+   * bars. Each chrome surface owns its own data-print="hide" or uses
+   * `print:hidden` directly; this rule catches them via a single hook. */
+  header[role='banner'],
+  aside[role='navigation'],
+  [data-print='hide'],
+  [role='dialog'][aria-modal='true']:not([data-print-keep]) {
+    display: none !important;
+  }
+
+  /* Strip shadows + force light borders so layered cards look flat. */
+  *,
+  *::before,
+  *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Avoid splitting key blocks mid-page. */
+  table, figure, .rmx-print-block {
+    break-inside: avoid;
+  }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+
+  /* Codes / serials / barcode digits — pin to a monospace stack. */
+  .rmx-print-code,
+  code,
+  kbd,
+  samp {
+    font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
+  }
+
+  /* Page margins — tighter for receipts, default for invoices/reports. */
+  @page { margin: 16mm; }
+  @page :first { margin-top: 12mm; }
+
+  /* Strip transitions/animations entirely for print. */
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -121,7 +121,7 @@ export function InvoiceDetailPage() {
         title={inv.invoice_no}
         description={`${fmtDate(inv.created_at)} · ${ar.invoices.cashier}: ${inv.cashier_username}`}
         actions={
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap [&_button]:print:hidden [&_a]:print:hidden">
             <InvoiceStatusPill status={inv.status} />
             <Button asChild variant="outline" size="sm">
               <a href={salesApi.pdfUrl(inv.id, variant)} target="_blank" rel="noreferrer">
