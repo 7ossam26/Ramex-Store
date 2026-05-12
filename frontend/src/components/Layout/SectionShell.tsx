@@ -1,3 +1,4 @@
+// DEPRECATED: sub-tab navigation moved into the new shell's Flyout (Phase 2). Removed in Phase 7.
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';

@@ -1,3 +1,4 @@
+// DEPRECATED: replaced by src/components/AppShell/TopBar in Phase 2. Removed in Phase 7.
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { ar } from '@/i18n/ar';

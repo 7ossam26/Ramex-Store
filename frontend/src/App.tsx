@@ -1,7 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import { LoginPage } from './pages/Login';
 import { HomePage } from './pages/Home';
-import { AppShell } from './components/Layout/AppShell';
+import { AppShell } from './components/AppShell';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { CreateShipmentPage } from './pages/shipments/CreateShipment';
 import { ShipmentsListPage } from './pages/shipments/ShipmentsList';

@@ -1,3 +1,4 @@
+// DEPRECATED: replaced by src/components/AppShell in Phase 2. Removed in Phase 7.
 import type { ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { OfflineToast } from './OfflineToast';

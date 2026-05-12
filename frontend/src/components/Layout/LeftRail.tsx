@@ -1,3 +1,4 @@
+// DEPRECATED: replaced by src/components/AppShell/Rail in Phase 2. Removed in Phase 7.
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ChevronsLeft, ChevronsRight, Search, X } from 'lucide-react';

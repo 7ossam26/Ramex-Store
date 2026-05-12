@@ -1,3 +1,4 @@
+// DEPRECATED: replaced by src/components/AppShell/MobileDrawer in Phase 2. Removed in Phase 7.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, Menu } from 'lucide-react';

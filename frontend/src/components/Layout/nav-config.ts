@@ -1,3 +1,4 @@
+// DEPRECATED: replaced by src/navigation/nav.config.ts in Phase 2. Removed in Phase 7.
 import {
   Home,
   ShoppingCart,
