@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { reportsApi, type DailyReport } from '@/lib/reports-api';
 import { ar } from '@/i18n/ar';
 import { ReportShell, ReportTable } from './ReportShell';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 
 function today(): string {
   const d = new Date();
@@ -36,16 +38,14 @@ export function DailyReportPage() {
       showDateRange={false}
       loading={isLoading}
       extraFilters={
-        <div className="flex items-end gap-2">
-          <div>
-            <label className="text-xs text-muted-foreground">اليوم</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="block border border-border rounded px-2 py-1 text-sm"
-            />
-          </div>
+        <div className="space-y-1">
+          <Label className="text-xs text-foreground-muted">اليوم</Label>
+          <Input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="h-10 w-full sm:w-44"
+          />
         </div>
       }
     >
@@ -54,14 +54,36 @@ export function DailyReportPage() {
   );
 }
 
+function SummaryStat({
+  label,
+  value,
+  suffix,
+}: {
+  label: string;
+  value: string | number;
+  suffix?: string;
+}) {
+  return (
+    <div className="rounded-lg border border-border-subtle bg-surface-elevated p-4 shadow-sm">
+      <p className="text-xs font-medium uppercase tracking-wide text-foreground-muted mb-1.5">
+        {label}
+      </p>
+      <p className="text-2xl font-semibold text-foreground tabular-num leading-none" dir="ltr">
+        {value}
+      </p>
+      {suffix && <p className="text-xs text-foreground-tertiary mt-1.5">{suffix}</p>}
+    </div>
+  );
+}
+
 function DailyReportContent({ report }: { report: DailyReport }) {
   const ss = report.sales_summary;
 
   return (
     <div className="space-y-6">
-      {/* Shift window */}
-      <p className="text-xs text-muted-foreground">
-        {ar.reports.shiftWindow}: {report.shift_start_cairo} → {report.shift_end_cairo} |{' '}
+      {/* Shift window meta */}
+      <p className="text-xs text-foreground-tertiary tabular-num" dir="ltr">
+        {ar.reports.shiftWindow}: {report.shift_start_cairo} → {report.shift_end_cairo} ·{' '}
         {ar.reports.generatedAt}: {report.generated_at}
       </p>
 
@@ -123,20 +145,15 @@ function DailyReportContent({ report }: { report: DailyReport }) {
       />
 
       {/* 4. Cash */}
-      <div>
-        <h2 className="font-semibold text-sm text-muted-foreground mb-2">4. الخزنة الكاش</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-          {[
-            { label: 'الرصيد الافتتاحي', value: fmt(report.cash.opening_balance_egp) },
-            { label: 'إجمالي الداخل', value: fmt(report.cash.total_in_egp) },
-            { label: 'إجمالي الخارج', value: fmt(report.cash.total_out_egp) },
-            { label: 'الرصيد الختامي', value: fmt(report.cash.closing_balance_egp) },
-          ].map((item) => (
-            <div key={item.label} className="bg-card border border-border rounded p-3">
-              <p className="text-xs text-muted-foreground">{item.label}</p>
-              <p className="font-bold text-lg">{item.value} ج.م</p>
-            </div>
-          ))}
+      <div className="space-y-3">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-foreground-muted">
+          4. الخزنة الكاش
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <SummaryStat label="الرصيد الافتتاحي" value={fmt(report.cash.opening_balance_egp)} suffix="ج.م" />
+          <SummaryStat label="إجمالي الداخل" value={fmt(report.cash.total_in_egp)} suffix="ج.م" />
+          <SummaryStat label="إجمالي الخارج" value={fmt(report.cash.total_out_egp)} suffix="ج.م" />
+          <SummaryStat label="الرصيد الختامي" value={fmt(report.cash.closing_balance_egp)} suffix="ج.م" />
         </div>
         <ReportTable
           columns={[
@@ -221,7 +238,10 @@ function DailyReportContent({ report }: { report: DailyReport }) {
           { label: 'نوع الحركة', key: 'event_type' },
           { label: 'العدد', key: 'count' },
         ]}
-        rows={report.stock_movements.map((m) => ({ event_type: m.event_type, count: String(m.count) }))}
+        rows={report.stock_movements.map((m) => ({
+          event_type: m.event_type,
+          count: String(m.count),
+        }))}
         emptyText="لا توجد حركات مخزون اليوم"
       />
     </div>

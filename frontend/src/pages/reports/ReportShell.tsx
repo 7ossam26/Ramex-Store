@@ -1,8 +1,12 @@
 import { useState } from 'react';
+import { Download, FileText, Printer } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/PageHeader';
+import { FilterChip } from '@/components/FilterChip';
+import { cn } from '@/lib/utils';
 
 export type DateRange = { from: string; to: string };
 
@@ -50,14 +54,24 @@ type Props = {
   dateRange?: DateRange;
   onDateRangeChange?: (r: DateRange) => void;
   extraFilters?: React.ReactNode;
+  /** Chart pane rendered between filters and table. Optional. */
+  chart?: React.ReactNode;
   children: React.ReactNode;
   loading?: boolean;
 };
 
 export function ReportShell({
-  title, exportPdfUrl, exportExcelUrl, printUrl,
-  showDateRange = true, dateRange, onDateRangeChange,
-  extraFilters, children, loading,
+  title,
+  exportPdfUrl,
+  exportExcelUrl,
+  printUrl,
+  showDateRange = true,
+  dateRange,
+  onDateRangeChange,
+  extraFilters,
+  chart,
+  children,
+  loading,
 }: Props) {
   const [preset, setPreset] = useState('today');
 
@@ -68,87 +82,133 @@ export function ReportShell({
     }
   };
 
-  const presets = [
+  const presets: [string, string][] = [
     ['today', ar.reports.presets.today],
     ['yesterday', ar.reports.presets.yesterday],
     ['thisWeek', ar.reports.presets.thisWeek],
     ['thisMonth', ar.reports.presets.thisMonth],
     ['custom', ar.reports.presets.custom],
-  ] as const;
+  ];
 
   return (
-    <div className="p-3 md:p-4 space-y-4">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <h1 className="text-xl font-bold">{title}</h1>
-        <div className="flex flex-wrap gap-2">
-          {exportPdfUrl && (
-            <a href={exportPdfUrl} target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-none">
-              <Button variant="outline" size="sm" className="h-11 md:h-9 w-full">{ar.reports.exportPdf}</Button>
-            </a>
-          )}
-          {exportExcelUrl && (
-            <a href={exportExcelUrl} target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-none">
-              <Button variant="outline" size="sm" className="h-11 md:h-9 w-full">{ar.reports.exportExcel}</Button>
-            </a>
-          )}
-          {printUrl && (
-            <a href={printUrl} target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-none">
-              <Button variant="outline" size="sm" className="h-11 md:h-9 w-full">{ar.reports.print}</Button>
-            </a>
-          )}
-        </div>
-      </div>
+    <div className="space-y-6 max-w-6xl mx-auto">
+      <PageHeader
+        title={title}
+        actions={
+          <>
+            {exportPdfUrl && (
+              <Button asChild variant="outline" size="sm">
+                <a
+                  href={exportPdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="gap-1.5"
+                >
+                  <FileText className="size-4" aria-hidden />
+                  {ar.reports.exportPdf}
+                </a>
+              </Button>
+            )}
+            {exportExcelUrl && (
+              <Button asChild variant="outline" size="sm">
+                <a
+                  href={exportExcelUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="gap-1.5"
+                >
+                  <Download className="size-4" aria-hidden />
+                  {ar.reports.exportExcel}
+                </a>
+              </Button>
+            )}
+            {printUrl && (
+              <Button asChild variant="outline" size="sm">
+                <a href={printUrl} target="_blank" rel="noopener noreferrer" className="gap-1.5">
+                  <Printer className="size-4" aria-hidden />
+                  {ar.reports.print}
+                </a>
+              </Button>
+            )}
+          </>
+        }
+      />
 
       {/* Filters */}
       {(showDateRange || extraFilters) && (
-        <div className="bg-card border border-border rounded-lg p-3 space-y-3 md:space-y-0 md:flex md:flex-wrap md:gap-3 md:items-end">
+        <div className="rounded-lg border border-border-subtle bg-surface-elevated p-4 shadow-sm flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
           {showDateRange && (
             <>
-              <div className="flex gap-1 overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0 whitespace-nowrap">
+              <div className="flex gap-2 overflow-x-auto -mx-1 px-1 whitespace-nowrap">
                 {presets.map(([p, label]) => (
-                  <Button
-                    key={p}
-                    size="sm"
-                    variant={preset === p ? 'default' : 'outline'}
-                    onClick={() => handlePreset(p)}
-                    className="h-11 md:h-9 shrink-0"
-                  >
+                  <FilterChip key={p} active={preset === p} onClick={() => handlePreset(p)}>
                     {label}
-                  </Button>
+                  </FilterChip>
                 ))}
               </div>
               {preset === 'custom' && dateRange && (
-                <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
-                  <div>
-                    <Label className="text-xs">{ar.reports.from}</Label>
+                <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-foreground-muted">{ar.reports.from}</Label>
                     <Input
                       type="date"
                       value={dateRange.from}
                       onChange={(e) => onDateRangeChange?.({ ...dateRange, from: e.target.value })}
-                      className="h-11 md:h-10 w-full sm:w-36"
+                      className="h-10 w-full sm:w-40"
                     />
                   </div>
-                  <div>
-                    <Label className="text-xs">{ar.reports.to}</Label>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-foreground-muted">{ar.reports.to}</Label>
                     <Input
                       type="date"
                       value={dateRange.to}
                       onChange={(e) => onDateRangeChange?.({ ...dateRange, to: e.target.value })}
-                      className="h-11 md:h-10 w-full sm:w-36"
+                      className="h-10 w-full sm:w-40"
                     />
                   </div>
                 </div>
               )}
             </>
           )}
-          {extraFilters}
+          {extraFilters && (
+            <div className="flex flex-wrap items-end gap-3">{extraFilters}</div>
+          )}
+        </div>
+      )}
+
+      {/* Chart pane */}
+      {chart && !loading && (
+        <div className="rounded-lg border border-border-subtle bg-surface-elevated p-5 shadow-sm">
+          {chart}
         </div>
       )}
 
       {/* Content */}
       {loading ? (
-        <div className="text-center text-muted-foreground py-12">{ar.loading}</div>
+        <div className="rounded-lg border border-border-subtle bg-surface-elevated overflow-hidden shadow-sm" aria-hidden>
+          <div className="px-3 py-3 border-b border-border-subtle bg-surface-hover/40 flex items-center gap-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                className="h-3 rounded bg-surface-hover animate-pulse"
+                style={{ width: '20%' }}
+              />
+            ))}
+          </div>
+          <div className="divide-y divide-border-subtle">
+            {Array.from({ length: 8 }).map((_, ri) => (
+              <div key={ri} className="px-3 py-3 flex items-center gap-3">
+                {[1, 2, 3, 4, 5].map((ci) => (
+                  <div
+                    key={ci}
+                    className="h-3 rounded bg-surface-hover animate-pulse"
+                    style={{ width: '20%', animationDelay: `${(ri * 5 + ci) * 30}ms` }}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
       ) : (
         children
       )}
@@ -164,52 +224,95 @@ type TableProps = {
   emptyText?: string;
 };
 
+/** Numeric keys get tabular-num + LTR for proper digit alignment. */
+const NUMERIC_KEY_HINT = /amount|egp|count|weight|balance|total|kg|age_days|valuation/i;
+
 export function ReportTable({ title, columns, rows, totals, emptyText }: TableProps) {
   const fmt = (v: string | number) => v ?? '';
 
   return (
-    <div className="mb-6">
-      {title && <h2 className="font-semibold text-sm text-muted-foreground mb-2">{title}</h2>}
-      <div className="overflow-x-auto rounded border border-border">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>
-              {columns.map((c) => (
-                <th key={c.key} className={`px-3 py-2 text-right font-medium ${c.className ?? ''}`}>
-                  {c.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td colSpan={columns.length} className="text-center text-muted-foreground py-8">
-                  {emptyText ?? ar.reports.noData}
-                </td>
-              </tr>
-            ) : (
-              rows.map((row, i) => (
-                <tr key={i} className="border-t border-border hover:bg-muted/20">
-                  {columns.map((c) => (
-                    <td key={c.key} className={`px-3 py-1.5 ${c.className ?? ''}`}>
-                      {fmt(row[c.key] as string | number)}
-                    </td>
-                  ))}
-                </tr>
-              ))
-            )}
-            {totals && rows.length > 0 && (
-              <tr className="border-t-2 border-border font-bold bg-muted/30">
+    <div className="space-y-3">
+      {title && (
+        <h2 className="text-xs font-medium uppercase tracking-wide text-foreground-muted">
+          {title}
+        </h2>
+      )}
+      <div className="rounded-lg border border-border-subtle bg-surface-elevated overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-surface-hover/40">
+              <tr className="text-right">
                 {columns.map((c) => (
-                  <td key={c.key} className={`px-3 py-2 ${c.className ?? ''}`}>
-                    {totals[c.key] !== undefined ? fmt(totals[c.key] as string | number) : ''}
-                  </td>
+                  <th
+                    key={c.key}
+                    className={cn(
+                      'px-3 py-3 font-medium text-xs uppercase tracking-wide text-foreground-muted',
+                      c.className,
+                    )}
+                  >
+                    {c.label}
+                  </th>
                 ))}
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={columns.length}
+                    className="text-center text-foreground-muted py-10"
+                  >
+                    {emptyText ?? ar.reports.noData}
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row, i) => (
+                  <tr
+                    key={i}
+                    className="border-t border-border-subtle even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150"
+                  >
+                    {columns.map((c) => {
+                      const isNumeric = NUMERIC_KEY_HINT.test(c.key);
+                      return (
+                        <td
+                          key={c.key}
+                          className={cn(
+                            'px-3 py-2.5 text-foreground align-middle',
+                            isNumeric && 'tabular-num',
+                            c.className,
+                          )}
+                          dir={isNumeric ? 'ltr' : undefined}
+                        >
+                          {fmt(row[c.key] as string | number)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))
+              )}
+              {totals && rows.length > 0 && (
+                <tr className="border-t-2 border-border-default font-semibold bg-surface-hover/60">
+                  {columns.map((c) => {
+                    const isNumeric = NUMERIC_KEY_HINT.test(c.key);
+                    return (
+                      <td
+                        key={c.key}
+                        className={cn(
+                          'px-3 py-2.5 text-foreground',
+                          isNumeric && 'tabular-num',
+                          c.className,
+                        )}
+                        dir={isNumeric ? 'ltr' : undefined}
+                      >
+                        {totals[c.key] !== undefined ? fmt(totals[c.key] as string | number) : ''}
+                      </td>
+                    );
+                  })}
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

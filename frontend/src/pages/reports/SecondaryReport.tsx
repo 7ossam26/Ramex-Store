@@ -6,9 +6,23 @@ import { ar } from '@/i18n/ar';
 import { ReportShell, ReportTable, type DateRange } from './ReportShell';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ErrorBanner } from '@/components/ErrorBanner';
+import { EmptyState } from '@/components/EmptyState';
+import { UserSquare } from 'lucide-react';
+import { SecondaryReportChart, type ChartDatum } from './SecondaryReportChart';
 
-// Per-report column definitions for the rendered HTML table
 type ColDef = { label: string; key: string };
+
+type ChartConfig = {
+  type: 'bar' | 'horizontalBar' | 'line' | 'pie';
+  title?: string;
+  seriesLabel?: string;
+  unit?: string;
+  isCurrency?: boolean;
+  /** Limit number of bars/slices rendered; remainder grouped as "أخرى". */
+  topN?: number;
+  derive: (raw: unknown) => ChartDatum[];
+};
 
 type ReportConfig = {
   titleAr: string;
@@ -17,10 +31,25 @@ type ReportConfig = {
   totals?: (data: unknown) => Record<string, string | number> | undefined;
   needsDateRange: boolean;
   needsCustomer?: boolean;
+  chart?: ChartConfig;
 };
 
 const fmt = (n: string | number) =>
   Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** Truncate long names so axis labels don't overflow. */
+const truncate = (s: string, max = 22) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
+
+/** Sort by value desc, take top N, group remainder as "أخرى". */
+function topNWithRest(data: ChartDatum[], topN?: number): ChartDatum[] {
+  if (!topN || data.length <= topN) return data;
+  const sorted = [...data].sort((a, b) => b.value - a.value);
+  const top = sorted.slice(0, topN);
+  const rest = sorted.slice(topN);
+  const restSum = rest.reduce((acc, d) => acc + d.value, 0);
+  if (restSum > 0) top.push({ name: 'أخرى', value: restSum });
+  return top;
+}
 
 const REPORT_CONFIGS: Record<string, ReportConfig> = {
   salesByFabricColor: {
@@ -34,12 +63,27 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
       { label: 'الإيراد (ج.م)', key: 'total_revenue_egp' },
       { label: 'متوسط السعر/كجم', key: 'avg_price_per_kg' },
     ],
-    flatten: (d) => (d as Record<string, unknown>[]).map((r) => ({
-      ...r as Record<string, string | number>,
-      roll_count: String((r as Record<string, unknown>)['roll_count']),
-      total_revenue_egp: fmt((r as Record<string, unknown>)['total_revenue_egp'] as string),
-      avg_price_per_kg: fmt((r as Record<string, unknown>)['avg_price_per_kg'] as string),
-    })),
+    flatten: (d) =>
+      (d as Record<string, unknown>[]).map((r) => ({
+        ...(r as Record<string, string | number>),
+        roll_count: String((r as Record<string, unknown>)['roll_count']),
+        total_revenue_egp: fmt((r as Record<string, unknown>)['total_revenue_egp'] as string),
+        avg_price_per_kg: fmt((r as Record<string, unknown>)['avg_price_per_kg'] as string),
+      })),
+    chart: {
+      type: 'horizontalBar',
+      title: 'الإيراد حسب الخامة واللون',
+      seriesLabel: 'الإيراد',
+      isCurrency: true,
+      topN: 8,
+      derive: (raw) =>
+        (raw as Array<{ fabric_name_ar: string; color_name_ar: string; total_revenue_egp: string }>).map(
+          (r) => ({
+            name: truncate(`${r.fabric_name_ar} · ${r.color_name_ar}`),
+            value: Number(r.total_revenue_egp),
+          }),
+        ),
+    },
   },
   outstandingOpenInvoices: {
     titleAr: ar.reports.outstandingOpenInvoices,
@@ -55,14 +99,27 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
       { label: 'الباقي (ج.م)', key: 'balance_egp' },
       { label: 'متأخرة؟', key: 'stale_ar' },
     ],
-    flatten: (d) => (d as Record<string, unknown>[]).map((r) => ({
-      ...r as Record<string, string | number>,
-      age_days: String((r as Record<string, unknown>)['age_days']),
-      total_egp: fmt((r as Record<string, unknown>)['total_egp'] as string),
-      deposit_paid_egp: fmt((r as Record<string, unknown>)['deposit_paid_egp'] as string),
-      balance_egp: fmt((r as Record<string, unknown>)['balance_egp'] as string),
-      stale_ar: (r as Record<string, unknown>)['is_stale'] ? 'نعم' : '',
-    })),
+    flatten: (d) =>
+      (d as Record<string, unknown>[]).map((r) => ({
+        ...(r as Record<string, string | number>),
+        age_days: String((r as Record<string, unknown>)['age_days']),
+        total_egp: fmt((r as Record<string, unknown>)['total_egp'] as string),
+        deposit_paid_egp: fmt((r as Record<string, unknown>)['deposit_paid_egp'] as string),
+        balance_egp: fmt((r as Record<string, unknown>)['balance_egp'] as string),
+        stale_ar: (r as Record<string, unknown>)['is_stale'] ? 'نعم' : '',
+      })),
+    chart: {
+      type: 'horizontalBar',
+      title: 'الفواتير حسب الرصيد المتبقي (أعلى ٨)',
+      seriesLabel: 'الباقي',
+      isCurrency: true,
+      topN: 8,
+      derive: (raw) =>
+        (raw as Array<{ invoice_no: string; balance_egp: string }>).map((r) => ({
+          name: r.invoice_no,
+          value: Number(r.balance_egp),
+        })),
+    },
   },
   stocktakeInventory: {
     titleAr: ar.reports.stocktakeInventory,
@@ -77,16 +134,45 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
       { label: 'التقييم (ج.م)', key: 'valuation_egp' },
     ],
     flatten: (d) => {
-      const summary = d as { rows: Record<string, unknown>[]; total_weight_kg: string; total_valuation_egp: string };
+      const summary = d as {
+        rows: Record<string, unknown>[];
+        total_weight_kg: string;
+        total_valuation_egp: string;
+      };
       return summary.rows.map((r) => ({
-        ...r as Record<string, string | number>,
+        ...(r as Record<string, string | number>),
         roll_sr_no: String((r as Record<string, unknown>)['roll_sr_no'] ?? ''),
         valuation_egp: fmt((r as Record<string, unknown>)['valuation_egp'] as string),
       }));
     },
     totals: (d) => {
-      const summary = d as { total_rolls: number; total_weight_kg: string; total_valuation_egp: string };
-      return { warehouse: 'الإجمالي', weight_kg: summary.total_weight_kg, valuation_egp: fmt(summary.total_valuation_egp) };
+      const summary = d as {
+        total_rolls: number;
+        total_weight_kg: string;
+        total_valuation_egp: string;
+      };
+      return {
+        warehouse: 'الإجمالي',
+        weight_kg: summary.total_weight_kg,
+        valuation_egp: fmt(summary.total_valuation_egp),
+      };
+    },
+    chart: {
+      type: 'bar',
+      title: 'التقييم حسب المخزن',
+      seriesLabel: 'التقييم',
+      isCurrency: true,
+      derive: (raw) => {
+        const summary = raw as { rows: Array<{ warehouse: string; valuation_egp: string }> };
+        const byWarehouse = new Map<string, number>();
+        for (const r of summary.rows) {
+          byWarehouse.set(r.warehouse, (byWarehouse.get(r.warehouse) ?? 0) + Number(r.valuation_egp));
+        }
+        return Array.from(byWarehouse.entries()).map(([name, value]) => ({
+          name: truncate(name),
+          value,
+        }));
+      },
     },
   },
   cashFlow: {
@@ -103,11 +189,28 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
     flatten: (d) => {
       const res = d as { rows: Record<string, unknown>[] };
       return res.rows.map((r) => ({
-        ...r as Record<string, string | number>,
+        ...(r as Record<string, string | number>),
         amount_egp: fmt((r as Record<string, unknown>)['amount_egp'] as string),
         running_balance_egp: fmt((r as Record<string, unknown>)['running_balance_egp'] as string),
         notes_ar: String((r as Record<string, unknown>)['notes_ar'] ?? ''),
       }));
+    },
+    chart: {
+      type: 'line',
+      title: 'الرصيد المتراكم على مدار الفترة',
+      seriesLabel: 'الرصيد المتراكم',
+      isCurrency: true,
+      derive: (raw) => {
+        const res = raw as { rows: Array<{ created_at: string; running_balance_egp: string }> };
+        return res.rows.map((r) => ({
+          name: new Date(r.created_at).toLocaleDateString('en-GB', {
+            timeZone: 'Africa/Cairo',
+            day: '2-digit',
+            month: '2-digit',
+          }),
+          value: Number(r.running_balance_egp),
+        }));
+      },
     },
   },
   bankReconciliation: {
@@ -121,12 +224,28 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
       { label: 'الفرق (ج.م)', key: 'variance_egp' },
       { label: 'بواسطة', key: 'performed_by' },
     ],
-    flatten: (d) => (d as Record<string, unknown>[]).map((r) => ({
-      ...r as Record<string, string | number>,
-      expected_balance_egp: fmt((r as Record<string, unknown>)['expected_balance_egp'] as string),
-      actual_balance_egp: fmt((r as Record<string, unknown>)['actual_balance_egp'] as string),
-      variance_egp: fmt((r as Record<string, unknown>)['variance_egp'] as string),
-    })),
+    flatten: (d) =>
+      (d as Record<string, unknown>[]).map((r) => ({
+        ...(r as Record<string, string | number>),
+        expected_balance_egp: fmt((r as Record<string, unknown>)['expected_balance_egp'] as string),
+        actual_balance_egp: fmt((r as Record<string, unknown>)['actual_balance_egp'] as string),
+        variance_egp: fmt((r as Record<string, unknown>)['variance_egp'] as string),
+      })),
+    chart: {
+      type: 'bar',
+      title: 'الفرق في التسويات',
+      seriesLabel: 'الفرق',
+      isCurrency: true,
+      derive: (raw) =>
+        (raw as Array<{ reconciled_at: string; variance_egp: string }>).map((r) => ({
+          name: new Date(r.reconciled_at).toLocaleDateString('en-GB', {
+            timeZone: 'Africa/Cairo',
+            day: '2-digit',
+            month: '2-digit',
+          }),
+          value: Number(r.variance_egp),
+        })),
+    },
   },
   expenses: {
     titleAr: ar.reports.expenses,
@@ -143,10 +262,28 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
     flatten: (d) => {
       const res = d as { rows: Record<string, unknown>[] };
       return res.rows.map((r) => ({
-        ...r as Record<string, string | number>,
+        ...(r as Record<string, string | number>),
         amount_egp: fmt((r as Record<string, unknown>)['amount_egp'] as string),
         notes_ar: String((r as Record<string, unknown>)['notes_ar'] ?? ''),
       }));
+    },
+    chart: {
+      type: 'pie',
+      title: 'المصروفات حسب الفئة',
+      seriesLabel: 'الإجمالي',
+      isCurrency: true,
+      derive: (raw) => {
+        const res = raw as { rows: Array<{ category: string; amount_egp: string }> };
+        const byCategory = new Map<string, number>();
+        for (const r of res.rows) {
+          byCategory.set(r.category, (byCategory.get(r.category) ?? 0) + Number(r.amount_egp));
+        }
+        const labels = ar.cash.expenseCategories as Record<string, string>;
+        return Array.from(byCategory.entries()).map(([name, value]) => ({
+          name: labels[name] ?? name,
+          value,
+        }));
+      },
     },
   },
   damageLoss: {
@@ -165,11 +302,28 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
     flatten: (d) => {
       const res = d as { rows: Record<string, unknown>[] };
       return res.rows.map((r) => ({
-        ...r as Record<string, string | number>,
+        ...(r as Record<string, string | number>),
         valuation_egp: fmt((r as Record<string, unknown>)['valuation_egp'] as string),
         roll_sr_no: String((r as Record<string, unknown>)['roll_sr_no'] ?? ''),
         notes_ar: String((r as Record<string, unknown>)['notes_ar'] ?? ''),
       }));
+    },
+    chart: {
+      type: 'bar',
+      title: 'القيمة المالية حسب السبب',
+      seriesLabel: 'التقييم',
+      isCurrency: true,
+      derive: (raw) => {
+        const res = raw as { rows: Array<{ reason_code: string; valuation_egp: string }> };
+        const byReason = new Map<string, number>();
+        for (const r of res.rows) {
+          byReason.set(r.reason_code, (byReason.get(r.reason_code) ?? 0) + Number(r.valuation_egp));
+        }
+        return Array.from(byReason.entries()).map(([name, value]) => ({
+          name: truncate(name, 18),
+          value,
+        }));
+      },
     },
   },
   salesByPaymentMethod: {
@@ -182,13 +336,30 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
       { label: 'الإجمالي (ج.م)', key: 'total_egp' },
     ],
     flatten: (d) => {
-      const res = d as { rows: Array<{ method: string; payment_kind: string; count: number; total_egp: string }> };
+      const res = d as {
+        rows: Array<{ method: string; payment_kind: string; count: number; total_egp: string }>;
+      };
       return res.rows.map((r) => ({
         method_ar: r.method === 'cash' ? 'نقدي' : 'انستاباي',
         kind_ar: r.payment_kind === 'deposit' ? 'عربون' : 'دفعة نهائية',
         count: String(r.count),
         total_egp: fmt(r.total_egp),
       }));
+    },
+    chart: {
+      type: 'pie',
+      title: 'المبيعات حسب وسيلة الدفع',
+      seriesLabel: 'الإجمالي',
+      isCurrency: true,
+      derive: (raw) => {
+        const res = raw as { rows: Array<{ method: string; total_egp: string }> };
+        const byMethod = new Map<string, number>();
+        for (const r of res.rows) {
+          const label = r.method === 'cash' ? 'نقدي' : 'انستاباي';
+          byMethod.set(label, (byMethod.get(label) ?? 0) + Number(r.total_egp));
+        }
+        return Array.from(byMethod.entries()).map(([name, value]) => ({ name, value }));
+      },
     },
   },
   auditLog: {
@@ -206,10 +377,26 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
     flatten: (d) => {
       const res = d as { rows: Record<string, unknown>[] };
       return res.rows.map((r) => ({
-        ...r as Record<string, string | number>,
+        ...(r as Record<string, string | number>),
         entity_id: String((r as Record<string, unknown>)['entity_id'] ?? ''),
         tag: String((r as Record<string, unknown>)['tag'] ?? ''),
       }));
+    },
+    chart: {
+      type: 'bar',
+      title: 'عدد العمليات حسب الكيان',
+      seriesLabel: 'العدد',
+      derive: (raw) => {
+        const res = raw as { rows: Array<{ entity: string }> };
+        const byEntity = new Map<string, number>();
+        for (const r of res.rows) {
+          byEntity.set(r.entity, (byEntity.get(r.entity) ?? 0) + 1);
+        }
+        return Array.from(byEntity.entries()).map(([name, value]) => ({
+          name: truncate(name, 16),
+          value,
+        }));
+      },
     },
   },
   customerLedger: {
@@ -228,12 +415,29 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
     flatten: (d) => {
       const res = d as { entries: Record<string, unknown>[] };
       return res.entries.map((r) => ({
-        ...r as Record<string, string | number>,
+        ...(r as Record<string, string | number>),
         invoice_no: String((r as Record<string, unknown>)['invoice_no'] ?? ''),
         notes_ar: String((r as Record<string, unknown>)['notes_ar'] ?? ''),
         amount_egp: fmt((r as Record<string, unknown>)['amount_egp'] as string),
         running_balance_egp: fmt((r as Record<string, unknown>)['running_balance_egp'] as string),
       }));
+    },
+    chart: {
+      type: 'line',
+      title: 'الرصيد المتراكم',
+      seriesLabel: 'الرصيد',
+      isCurrency: true,
+      derive: (raw) => {
+        const res = raw as { entries: Array<{ created_at: string; running_balance_egp: string }> };
+        return res.entries.map((r) => ({
+          name: new Date(r.created_at).toLocaleDateString('en-GB', {
+            timeZone: 'Africa/Cairo',
+            day: '2-digit',
+            month: '2-digit',
+          }),
+          value: Number(r.running_balance_egp),
+        }));
+      },
     },
   },
 };
@@ -260,24 +464,53 @@ export function SecondaryReportPage() {
 
   const enabled = !config?.needsCustomer || Boolean(customerId);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['report-secondary', key, range.from, range.to, customerId],
     queryFn: () => reportsApi.getSecondary(key, params),
     enabled,
   });
 
   if (!config) {
-    return <div className="p-4 text-destructive">تقرير غير موجود: {key}</div>;
+    return (
+      <div className="max-w-6xl mx-auto">
+        <ErrorBanner title="تقرير غير موجود" description={key} />
+      </div>
+    );
   }
 
   const token = localStorage.getItem('ramex_token') ?? '';
-  const exportParams = new URLSearchParams({ from: range.from, to: range.to, token, ...(customerId ? { customerId } : {}) });
+  const exportParams = new URLSearchParams({
+    from: range.from,
+    to: range.to,
+    token,
+    ...(customerId ? { customerId } : {}),
+  });
   const pdfUrl = `/api/reports/secondary/${key}/export?${exportParams}&format=pdf`;
   const excelUrl = `/api/reports/secondary/${key}/export?${exportParams}&format=excel`;
   const printUrl = `/api/reports/secondary/${key}/export?${exportParams}&format=print`;
 
-  const rows = data ? (config.flatten ? config.flatten(data) : (Array.isArray(data) ? data : [])) : [];
+  const rows = data
+    ? config.flatten
+      ? config.flatten(data)
+      : Array.isArray(data)
+      ? (data as Record<string, string | number>[])
+      : []
+    : [];
   const totals = data && config.totals ? config.totals(data) : undefined;
+
+  // Build chart datum (top-N applied per config). Only render when we have raw data + a chart config.
+  const chartData: ChartDatum[] = data && config.chart ? topNWithRest(config.chart.derive(data), config.chart.topN) : [];
+
+  const chartPane =
+    config.chart && data && rows.length > 0 ? (
+      <SecondaryReportChart
+        type={config.chart.type}
+        data={chartData}
+        title={config.chart.title}
+        seriesLabel={config.chart.seriesLabel}
+        isCurrency={config.chart.isCurrency}
+      />
+    ) : null;
 
   return (
     <ReportShell
@@ -289,33 +522,41 @@ export function SecondaryReportPage() {
       exportExcelUrl={enabled ? excelUrl : undefined}
       printUrl={enabled ? printUrl : undefined}
       loading={isLoading}
+      chart={chartPane}
       extraFilters={
         config.needsCustomer ? (
-          <div>
-            <Label className="text-xs">{ar.reports.selectCustomer} (ID)</Label>
+          <div className="space-y-1">
+            <Label className="text-xs text-foreground-muted">
+              {ar.reports.selectCustomer} (ID)
+            </Label>
             <Input
-              type="number" inputMode="decimal"
+              type="number"
+              inputMode="decimal"
               value={customerId}
               onChange={(e) => setCustomerId(e.target.value)}
               placeholder="رقم العميل"
-              className="w-32"
+              className="h-10 w-32"
             />
           </div>
         ) : undefined
       }
     >
       {error && (
-        <div className="text-destructive text-sm">حدث خطأ في تحميل البيانات</div>
+        <ErrorBanner
+          title="حدث خطأ في تحميل البيانات"
+          onRetry={() => refetch()}
+        />
       )}
       {!enabled && (
-        <div className="text-muted-foreground text-sm text-center py-8">
-          {ar.reports.selectCustomer} لعرض التقرير
-        </div>
+        <EmptyState
+          title={`${ar.reports.selectCustomer} لعرض التقرير`}
+          icon={UserSquare}
+        />
       )}
-      {enabled && !isLoading && (
+      {enabled && !isLoading && !error && (
         <ReportTable
           columns={config.columns}
-          rows={rows as Record<string, string | number>[]}
+          rows={rows}
           totals={totals as Record<string, string | number> | undefined}
           emptyText={ar.reports.noData}
         />
