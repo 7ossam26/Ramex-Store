@@ -224,6 +224,10 @@ type TableProps = {
 /** Numeric keys get tabular-num + LTR for proper digit alignment. */
 const NUMERIC_KEY_HINT = /amount|egp|count|weight|balance|total|kg|age_days|valuation/i;
 
+/** Identifier keys (invoice numbers, serials, barcodes) pin to monospace,
+ * including when printed (via the .rmx-print-code utility). */
+const IDENTIFIER_KEY_HINT = /\b(invoice_no|roll_sr_no|internal_barcode|sku|code|barcode|stocktake_no|shipment_no)\b/i;
+
 export function ReportTable({ title, columns, rows, totals, emptyText }: TableProps) {
   const fmt = (v: string | number) => v ?? '';
 
@@ -270,15 +274,17 @@ export function ReportTable({ title, columns, rows, totals, emptyText }: TablePr
                   >
                     {columns.map((c) => {
                       const isNumeric = NUMERIC_KEY_HINT.test(c.key);
+                      const isIdent = IDENTIFIER_KEY_HINT.test(c.key);
                       return (
                         <td
                           key={c.key}
                           className={cn(
                             'px-3 py-2.5 text-foreground align-middle',
                             isNumeric && 'tabular-num',
+                            isIdent && 'rmx-print-code font-mono tabular-num',
                             c.className,
                           )}
-                          dir={isNumeric ? 'ltr' : undefined}
+                          dir={isNumeric || isIdent ? 'ltr' : undefined}
                         >
                           {fmt(row[c.key] as string | number)}
                         </td>

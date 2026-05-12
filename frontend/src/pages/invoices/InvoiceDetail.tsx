@@ -223,7 +223,7 @@ export function InvoiceDetailPage() {
               {inv.lines.map((l) => (
                 <tr key={l.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
                   <td className="px-3 py-2.5 text-foreground">{l.fabric_name_ar} / {l.color_name_ar}</td>
-                  <td className="px-3 py-2.5 font-mono text-xs tabular-num" dir="ltr">{l.roll_sr_no ?? l.internal_barcode}</td>
+                  <td className="rmx-print-code px-3 py-2.5 font-mono text-xs tabular-num" dir="ltr">{l.roll_sr_no ?? l.internal_barcode}</td>
                   <td className="px-3 py-2.5 tabular-num" dir="ltr">{Number(l.weight_kg).toFixed(3)}</td>
                   <td className="px-3 py-2.5 tabular-num" dir="ltr">{fmtMoney(l.selling_price_egp)}</td>
                   <td className="px-3 py-2.5 tabular-num" dir="ltr">{fmtMoney(l.line_discount_egp)}</td>
