@@ -19,6 +19,7 @@ import {
   MoreVertical,
 } from 'lucide-react';
 import { Toast } from '@/components/Toast';
+import { Tooltip } from '@/components/Tooltip';
 import { ar } from '@/i18n/ar';
 import { salesApi } from '@/lib/sales-api';
 import { customersApi } from '@/lib/customers-api';
@@ -949,7 +950,6 @@ function EnrichedCartLine({
 }) {
   const r = line.roll;
   const fabric = isFabricRoll(r);
-  const [showCompTip, setShowCompTip] = useState(false);
 
   return (
     <div
@@ -997,21 +997,14 @@ function EnrichedCartLine({
             </Button>
           )}
           {fabric && r.composition_description && (
-            <button
-              onClick={() => setShowCompTip((s) => !s)}
-              onMouseEnter={() => setShowCompTip(true)}
-              onMouseLeave={() => setShowCompTip(false)}
-              className="size-8 p-0 cursor-pointer text-foreground-tertiary hover:text-accent inline-flex items-center justify-center rounded-md relative"
-              aria-label={ar.pos.composition}
-              title={r.composition_description}
-            >
-              <Info className="size-4" />
-              {showCompTip && (
-                <span className="absolute top-full mt-1 left-0 z-popover bg-surface-elevated border border-border-subtle rounded-md shadow-md text-xs px-2 py-1 whitespace-nowrap font-normal text-foreground">
-                  {r.composition_description}
-                </span>
-              )}
-            </button>
+            <Tooltip label={r.composition_description} placement="bottom">
+              <button
+                className="size-8 p-0 cursor-pointer text-foreground-tertiary hover:text-accent inline-flex items-center justify-center rounded-md"
+                aria-label={ar.pos.composition}
+              >
+                <Info className="size-4" />
+              </button>
+            </Tooltip>
           )}
         </div>
       </div>
