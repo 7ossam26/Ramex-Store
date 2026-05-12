@@ -62,7 +62,7 @@ export function ScannerInput({
           placeholder={placeholder}
           disabled={disabled}
           dir="ltr"
-          className="pr-9 text-base font-mono"
+          className="pe-9 text-base font-mono"
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="off"

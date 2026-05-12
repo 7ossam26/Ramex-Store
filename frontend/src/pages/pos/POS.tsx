@@ -874,7 +874,7 @@ function CartPanel({
           <p className="text-foreground-muted text-sm">{ar.pos.cartEmpty}</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pr-1 -mr-1">
+        <div className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pe-1 -me-1">
           <AnimatePresence initial={false}>
             {cart.map((l, idx) => (
               <motion.div

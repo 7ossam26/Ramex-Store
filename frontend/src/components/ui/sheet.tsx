@@ -74,7 +74,7 @@ SheetContent.displayName = 'SheetContent';
 export function SheetHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn('flex flex-col space-y-1.5 text-right pr-1 pl-8', className)}
+      className={cn('flex flex-col space-y-1.5 text-start ps-1 pe-8', className)}
       {...props}
     />
   );

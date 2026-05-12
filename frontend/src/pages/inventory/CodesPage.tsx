@@ -102,7 +102,7 @@ function Toolbar({
       </div>
       {isOwner && (
         <Button size="sm" onClick={onAdd}>
-          <Plus className="w-3.5 h-3.5 ml-1" />
+          <Plus className="w-3.5 h-3.5 me-1" />
           {ar.codes.addNew}
         </Button>
       )}
@@ -1192,7 +1192,7 @@ function SettingsReasonTab({
               className="border border-border rounded px-2 py-1.5 text-sm bg-canvas focus:outline-none focus:ring-1 focus:ring-primary w-40" />
           </div>
           <Button size="sm" variant="outline" onClick={addRow} disabled={!newCode || !newName}>
-            <Plus className="w-3.5 h-3.5 ml-1" />{ar.codes.addNew}
+            <Plus className="w-3.5 h-3.5 me-1" />{ar.codes.addNew}
           </Button>
           <Button size="sm" onClick={save} disabled={saving}>
             {saving ? ar.loading : ar.common.save}

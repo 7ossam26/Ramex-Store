@@ -71,7 +71,7 @@ export const DialogContent = React.forwardRef<
 DialogContent.displayName = 'ResponsiveDialogContent';
 
 export function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('flex flex-col space-y-1.5 text-right pl-8', className)} {...props} />;
+  return <div className={cn('flex flex-col space-y-1.5 text-start pe-8', className)} {...props} />;
 }
 
 export const DialogTitle = React.forwardRef<
