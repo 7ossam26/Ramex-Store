@@ -58,7 +58,7 @@ export function MobileDrawer({ open, onClose }: Props) {
   return (
     <AnimatePresence>
       {open && (
-        <div className="lg:hidden fixed inset-0 z-modal" role="dialog" aria-modal="true" aria-label="القائمة">
+        <div className="md:hidden fixed inset-0 z-modal" role="dialog" aria-modal="true" aria-label="القائمة">
           <motion.button
             type="button"
             aria-label="إغلاق القائمة"

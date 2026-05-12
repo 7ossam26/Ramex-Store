@@ -21,14 +21,22 @@ export function AppShell({ children }: { children: ReactNode }) {
     anchorsRef.current[id] = el;
   }, []);
 
-  // Global ⌘K / Ctrl+K to toggle the palette.
+  // Global ⌘K / Ctrl+K to toggle the palette. Skipped while the user is
+  // typing into an input, textarea, or contentEditable element so the
+  // shortcut doesn't steal focus mid-typing (POS / forms / Settings).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const isModK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k';
-      if (isModK) {
-        e.preventDefault();
-        setPaletteOpen((v) => !v);
-      }
+      if (!isModK) return;
+      const t = e.target as HTMLElement | null;
+      const isTyping =
+        t instanceof HTMLInputElement ||
+        t instanceof HTMLTextAreaElement ||
+        t instanceof HTMLSelectElement ||
+        (t?.isContentEditable ?? false);
+      if (isTyping) return;
+      e.preventDefault();
+      setPaletteOpen((v) => !v);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

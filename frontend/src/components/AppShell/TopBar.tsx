@@ -36,11 +36,13 @@ export function TopBar({ onOpenCommandPalette, onOpenMobileDrawer }: Props) {
       className="bg-chrome text-chrome-text border-b border-chrome-border sticky top-0 z-sticky h-[52px] md:h-14 flex items-center px-3 md:px-4 gap-2 md:gap-4"
       role="banner"
     >
-      {/* RTL leading edge (right) — DOM order is right-to-left under dir="rtl" */}
+      {/* RTL leading edge (right) — DOM order is right-to-left under dir="rtl".
+          Gated at md:hidden (not lg:hidden) so 768–1023px tablets that already
+          show the rail don't also see a redundant hamburger. */}
       <button
         type="button"
         onClick={onOpenMobileDrawer}
-        className="lg:hidden inline-flex items-center justify-center size-11 -ms-2 rounded-md text-chrome-text hover:bg-chrome-elevated transition-colors duration-150"
+        className="md:hidden inline-flex items-center justify-center size-11 -ms-2 rounded-md text-chrome-text hover:bg-chrome-elevated transition-colors duration-150"
         aria-label="فتح القائمة"
       >
         <Menu className="size-5" aria-hidden />

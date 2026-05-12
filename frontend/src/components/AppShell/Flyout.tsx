@@ -31,6 +31,8 @@ export function Flyout({ section, anchor, onClose }: Props) {
   const lastPathnameOnOpen = useRef(location.pathname);
 
   // Recalculate vertical position whenever the anchor changes / on resize.
+  // Note: pathname is NOT in this effect's deps — capturing pathname here
+  // would defeat the route-change-close check below.
   useLayoutEffect(() => {
     if (!section || !anchor) {
       setPosition(null);
@@ -42,17 +44,26 @@ export function Flyout({ section, anchor, onClose }: Props) {
       setPosition({ top });
     };
     update();
-    lastPathnameOnOpen.current = location.pathname;
     window.addEventListener('resize', update);
     window.addEventListener('scroll', update, true);
     return () => {
       window.removeEventListener('resize', update);
       window.removeEventListener('scroll', update, true);
     };
-  }, [section, anchor, location.pathname]);
+  }, [section, anchor]);
+
+  // Capture the pathname only when the flyout opens for a section — keyed on
+  // section?.id so a fresh "opened" pathname is stored once per open cycle.
+  useEffect(() => {
+    if (!section) return;
+    lastPathnameOnOpen.current = location.pathname;
+    // We intentionally do NOT depend on location.pathname — that's the whole
+    // point: capture once on open, then let the close effect react to drift.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section?.id]);
 
   // Auto-close on route change (when the user navigates via a leaf inside the
-  // flyout, or anywhere else in the app while the flyout is open).
+  // flyout, programmatic nav, browser back, or anywhere else in the app).
   useEffect(() => {
     if (!section) return;
     if (location.pathname !== lastPathnameOnOpen.current) {
@@ -122,9 +133,11 @@ export function Flyout({ section, anchor, onClose }: Props) {
         onClose();
         anchor?.focus();
       } else if (e.key === 'Tab' && !e.shiftKey && isLast) {
-        // Let Tab move focus forward naturally; close the flyout so the next
-        // focus target lives outside the (about-to-be-unmounted) menu.
+        // Symmetric with Shift+Tab from the first row: return focus to the
+        // opening rail icon instead of leaking into the page content beyond.
+        e.preventDefault();
         onClose();
+        anchor?.focus();
       }
     },
     [anchor, onClose],
