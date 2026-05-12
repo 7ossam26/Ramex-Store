@@ -902,7 +902,7 @@ function CompositionsTab({ isOwner }: { isOwner: boolean }) {
             )}
             {filtered.map((c) =>
               editingId === c.id ? (
-                <tr key={c.id} className="bg-blue-50/40 align-top">
+                <tr key={c.id} className="bg-info-subtle/60 align-top">
                   <CompFormCells form={editForm} mode={editMode} onChange={setEditForm} onModeChange={setEditMode} />
                   <Td center>{c.usage_count}</Td>
                   <Td center><StatusBadge active={c.is_active} /></Td>
@@ -1043,7 +1043,7 @@ function SuppliersTab({ isOwner }: { isOwner: boolean }) {
             )}
             {filtered.map((s) =>
               editingId === s.id ? (
-                <tr key={s.id} className="bg-blue-50/40 align-top">
+                <tr key={s.id} className="bg-info-subtle/60 align-top">
                   <Td><InlineInput value={editForm.arabic_name} onChange={(v) => setEditForm({ ...editForm, arabic_name: v })} /></Td>
                   <Td>
                     <textarea dir="rtl" value={editForm.arabic_warning_text}
@@ -1197,7 +1197,7 @@ function SettingsReasonTab({
           <Button size="sm" onClick={save} disabled={saving}>
             {saving ? ar.loading : ar.common.save}
           </Button>
-          {saved && <span className="text-sm text-green-600">{ar.common.success}</span>}
+          {saved && <span className="text-sm text-success-foreground">{ar.common.success}</span>}
         </div>
       )}
     </div>

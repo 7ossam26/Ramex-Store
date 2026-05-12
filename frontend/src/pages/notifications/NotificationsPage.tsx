@@ -10,17 +10,17 @@ import { Button } from '@/components/ui/button';
 type Tab = 'unread' | 'read' | 'archived';
 
 const severityStripe: Record<string, string> = {
-  low: 'border-r-4 border-gray-300',
-  medium: 'border-r-4 border-blue-400',
-  high: 'border-r-4 border-orange-400',
-  critical: 'border-r-4 border-red-600',
+  low: 'border-s-4 border-border-default',
+  medium: 'border-s-4 border-info',
+  high: 'border-s-4 border-warning',
+  critical: 'border-s-4 border-danger',
 };
 
 const severityBadge: Record<string, string> = {
-  low: 'bg-gray-100 text-gray-600',
-  medium: 'bg-blue-100 text-blue-700',
-  high: 'bg-orange-100 text-orange-700',
-  critical: 'bg-red-100 text-red-700',
+  low: 'bg-surface-active text-foreground-muted',
+  medium: 'bg-info-subtle text-info-foreground',
+  high: 'bg-warning-subtle text-warning-foreground',
+  critical: 'bg-danger-subtle text-danger-foreground',
 };
 
 function timeAgo(dateStr: string): string {
@@ -235,23 +235,23 @@ function NotificationRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
             {isTheft && (
-              <span className="text-xs bg-red-100 text-red-700 font-bold px-1.5 py-0.5 rounded">سرقة</span>
+              <span className="text-xs bg-danger-subtle text-danger-foreground font-bold px-2 py-0.5 rounded-pill">سرقة</span>
             )}
             <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${severityBadge[n.severity] ?? ''}`}>
               {getSeverityLabel(n.severity)}
             </span>
             <span className="text-xs text-muted-foreground">{getEventTypeLabel(n.event_type)}</span>
             {n.is_blocking && !n.resolved_at && (
-              <span className="text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded">يستلزم موافقة</span>
+              <span className="text-xs bg-warning-subtle text-warning-foreground px-2 py-0.5 rounded-pill">يستلزم موافقة</span>
             )}
             {n.resolved_at && (
-              <span className={`text-xs px-1.5 py-0.5 rounded ${n.resolution === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              <span className={`text-xs px-2 py-0.5 rounded-pill ${n.resolution === 'approved' ? 'bg-success-subtle text-success-foreground' : 'bg-danger-subtle text-danger-foreground'}`}>
                 {n.resolution === 'approved' ? 'تمت الموافقة' : n.resolution === 'rejected' ? 'مرفوض' : 'تم الإقرار'}
               </span>
             )}
           </div>
 
-          <div className={`text-sm ${isUnread ? 'font-semibold' : ''} ${isTheft ? 'text-red-700' : ''}`}>
+          <div className={`text-sm ${isUnread ? 'font-semibold' : ''} ${isTheft ? 'text-danger-foreground' : ''}`}>
             {n.title_ar}
           </div>
           <div className="text-sm text-muted-foreground mt-0.5">{n.body_ar}</div>
@@ -272,13 +272,13 @@ function NotificationRow({
           {n.is_blocking && !n.resolved_at && isOwner && (
             <div className="flex gap-1">
               <button
-                className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 font-medium"
+                className="text-xs px-2 py-1 bg-success-subtle text-success-foreground rounded hover:bg-success/20 font-medium transition-colors"
                 onClick={() => onResolve(n.id, 'approved')}
               >
                 موافقة
               </button>
               <button
-                className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 font-medium"
+                className="text-xs px-2 py-1 bg-danger-subtle text-danger-foreground rounded hover:bg-danger/20 font-medium transition-colors"
                 onClick={() => onResolve(n.id, 'rejected')}
               >
                 رفض

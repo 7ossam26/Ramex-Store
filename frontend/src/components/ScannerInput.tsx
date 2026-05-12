@@ -145,7 +145,7 @@ function CameraScanDialog({
           <DialogTitle>مسح الباركود بالكاميرا</DialogTitle>
         </DialogHeader>
         {error ? (
-          <p className="text-sm text-red-600 text-center p-4">{error}</p>
+          <p className="text-sm text-danger text-center p-4" role="alert">{error}</p>
         ) : (
           <div className="relative">
             <video

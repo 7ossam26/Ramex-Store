@@ -49,7 +49,7 @@ export function LoginPage() {
               <Label htmlFor="password">{ar.login.password}</Label>
               <Input id="password" type="password" {...register('password')} />
             </div>
-            {err && <p className="text-sm text-red-600">{err}</p>}
+            {err && <p className="text-sm text-danger" role="alert">{err}</p>}
             <Button type="submit" disabled={isSubmitting} className="w-full">
               {ar.login.submit}
             </Button>
