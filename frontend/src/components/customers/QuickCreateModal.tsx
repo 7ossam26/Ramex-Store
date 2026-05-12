@@ -47,7 +47,10 @@ export function QuickCreateModal({ open, onOpenChange, onCreated }: Props) {
           className="space-y-3"
         >
           <div className="space-y-1">
-            <Label>{ar.customers.nameAr}</Label>
+            <Label className="text-sm font-medium text-foreground">
+              {ar.customers.nameAr}
+              <span className="text-danger ms-1" aria-hidden>*</span>
+            </Label>
             <Input
               {...form.register('name_ar', { required: true })}
               placeholder={ar.customers.nameAr}
@@ -55,7 +58,10 @@ export function QuickCreateModal({ open, onOpenChange, onCreated }: Props) {
             />
           </div>
           <div className="space-y-1">
-            <Label>{ar.customers.phone}</Label>
+            <Label className="text-sm font-medium text-foreground">
+              {ar.customers.phone}
+              <span className="text-danger ms-1" aria-hidden>*</span>
+            </Label>
             <Input
               {...form.register('phone', { required: true })}
               placeholder="01012345678"
@@ -64,7 +70,7 @@ export function QuickCreateModal({ open, onOpenChange, onCreated }: Props) {
               autoComplete="tel"
             />
             {create.error && (
-              <p className="text-sm text-red-600">
+              <p className="text-sm text-danger transition-opacity duration-75 ease-standard" role="alert">
                 {(create.error as { response?: { data?: { message?: string } } })?.response?.data
                   ?.message ?? ar.common.error}
               </p>

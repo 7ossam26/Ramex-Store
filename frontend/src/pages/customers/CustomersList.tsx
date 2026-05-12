@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { Link, useSearchParams } from 'react-router-dom';
+import { Search } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { customersApi } from '@/lib/customers-api';
 import { Button } from '@/components/ui/button';
@@ -15,15 +16,16 @@ import {
   DialogClose,
 } from '@/components/ResponsiveDialog';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
+import { PageHeader } from '@/components/PageHeader';
 import type { Customer } from '@/lib/customers-types';
 
 const PAGE_SIZE = 30;
 
 function balanceColor(balance: string) {
   const n = Number(balance);
-  if (n < 0) return 'text-red-600';
-  if (n > 0) return 'text-green-600';
-  return 'text-muted-foreground';
+  if (n < 0) return 'text-danger';
+  if (n > 0) return 'text-success-foreground';
+  return 'text-foreground-muted';
 }
 
 function balanceLabel(balance: string) {
@@ -50,7 +52,7 @@ export function CustomersListPage() {
   const [createOpen, setCreateOpen] = useState(searchParams.get('create') === '1');
   const qc = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const q = useQuery({
     queryKey: ['customers', search, page],
     queryFn: () => customersApi.list({ search: search || undefined, page, limit: PAGE_SIZE }),
   });
@@ -87,22 +89,22 @@ export function CustomersListPage() {
     if (!open) setSearchParams({});
   }, [setSearchParams]);
 
-  const rows: Customer[] = data?.rows ?? [];
-  const total = data?.total ?? 0;
+  const rows: Customer[] = q.data?.rows ?? [];
+  const total = q.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const columns: Column<Customer>[] = [
     {
       key: 'code',
       header: ar.customers.customerCode,
-      cell: (c) => <span className="font-mono text-xs">{c.customer_code}</span>,
+      cell: (c) => <span className="font-mono text-xs text-foreground-muted">{c.customer_code}</span>,
       secondary: true,
     },
     {
       key: 'name',
       header: ar.customers.nameAr,
       cell: (c) => (
-        <Link to={`/customers/${c.id}`} className="text-primary hover:underline font-medium">
+        <Link to={`/customers/${c.id}`} className="text-accent hover:text-accent-hover hover:underline underline-offset-2 font-medium">
           {c.name_ar}
         </Link>
       ),
@@ -111,20 +113,23 @@ export function CustomersListPage() {
     {
       key: 'phone',
       header: ar.customers.phone,
-      cell: (c) => <span className="font-mono" dir="ltr">{c.phone}</span>,
+      cell: (c) => <span className="font-mono tabular-num" dir="ltr">{c.phone}</span>,
       secondary: true,
     },
     {
       key: 'volume',
       header: ar.customers.lifetimeVolume,
-      cell: (c) =>
-        `${Number(c.lifetime_volume_egp).toLocaleString('ar-EG-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج.م`,
+      cell: (c) => (
+        <span className="tabular-num" dir="ltr">
+          {Number(c.lifetime_volume_egp).toLocaleString('ar-EG-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-foreground-tertiary text-xs">ج.م</span>
+        </span>
+      ),
     },
     {
       key: 'balance',
       header: ar.customers.currentBalance,
       cell: (c) => (
-        <span className={`font-medium ${balanceColor(c.current_balance_egp)}`}>
+        <span className={`font-medium tabular-num ${balanceColor(c.current_balance_egp)}`} dir="ltr">
           {balanceLabel(c.current_balance_egp)}
         </span>
       ),
@@ -133,36 +138,42 @@ export function CustomersListPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-4">
-      {/* Header row */}
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-bold">{ar.customers.title}</h1>
-        <Button onClick={openCreate} className="h-11 md:h-10">{ar.customers.addCustomer}</Button>
+      <PageHeader
+        title={ar.customers.title}
+        actions={<Button onClick={openCreate}>{ar.customers.addCustomer}</Button>}
+      />
+
+      {/* Filter bar */}
+      <div className="rounded-lg border border-border-subtle bg-surface-elevated p-3 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="relative flex-1 min-w-0 sm:max-w-md">
+          <Search
+            className="size-4 absolute top-1/2 -translate-y-1/2 start-3 text-foreground-tertiary pointer-events-none"
+            aria-hidden
+          />
+          <Input
+            placeholder={ar.customers.search}
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            dir="rtl"
+            className="ps-9 h-10"
+          />
+        </div>
+        <div className="text-sm text-foreground-muted sm:ms-auto">
+          نتائج: <span className="tabular-num text-foreground" dir="ltr">{total}</span>
+        </div>
       </div>
 
-      {/* Search */}
-      <div className="md:max-w-sm">
-        <Input
-          placeholder={ar.customers.search}
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-          dir="rtl"
-          className="h-11 md:h-10"
-        />
-      </div>
+      <ResponsiveTable
+        columns={columns}
+        rows={rows}
+        rowKey={(c) => String(c.id)}
+        empty={ar.customers.empty}
+        isLoading={q.isLoading}
+        isError={q.isError}
+        onRetry={() => q.refetch()}
+        resetKey={`${search}|${page}`}
+      />
 
-      {/* Table / Cards */}
-      {isLoading ? (
-        <p className="p-4 text-center text-muted-foreground">{ar.loading}</p>
-      ) : (
-        <ResponsiveTable
-          columns={columns}
-          rows={rows}
-          rowKey={(c) => String(c.id)}
-          empty={ar.customers.empty}
-        />
-      )}
-
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
           <Button
@@ -173,8 +184,8 @@ export function CustomersListPage() {
           >
             السابق
           </Button>
-          <span className="text-sm text-muted-foreground">
-            صفحة {page} من {totalPages}
+          <span className="text-sm text-foreground-muted">
+            صفحة <span className="tabular-num text-foreground" dir="ltr">{page}</span> من <span className="tabular-num text-foreground" dir="ltr">{totalPages}</span>
           </span>
           <Button
             variant="outline"
@@ -196,32 +207,38 @@ export function CustomersListPage() {
           <form onSubmit={form.handleSubmit((v) => create.mutate(v))} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>{ar.customers.nameAr} *</Label>
+                <Label className="text-sm font-medium text-foreground">
+                  {ar.customers.nameAr}
+                  <span className="text-danger ms-1" aria-hidden>*</span>
+                </Label>
                 <Input {...form.register('name_ar', { required: true })} dir="rtl" />
               </div>
               <div className="space-y-1">
-                <Label>{ar.customers.phone} *</Label>
+                <Label className="text-sm font-medium text-foreground">
+                  {ar.customers.phone}
+                  <span className="text-danger ms-1" aria-hidden>*</span>
+                </Label>
                 <Input {...form.register('phone', { required: true })} placeholder="01012345678" dir="ltr" inputMode="tel" autoComplete="tel" />
               </div>
               <div className="space-y-1">
-                <Label>{ar.customers.phoneSecondary}</Label>
+                <Label className="text-sm font-medium text-foreground">{ar.customers.phoneSecondary}</Label>
                 <Input {...form.register('phone_secondary')} placeholder="01012345678" dir="ltr" inputMode="tel" autoComplete="tel" />
               </div>
               <div className="space-y-1">
-                <Label>{ar.customers.taxNo}</Label>
+                <Label className="text-sm font-medium text-foreground">{ar.customers.taxNo}</Label>
                 <Input {...form.register('tax_no')} dir="ltr" />
               </div>
               <div className="space-y-1 col-span-2">
-                <Label>{ar.customers.address}</Label>
+                <Label className="text-sm font-medium text-foreground">{ar.customers.address}</Label>
                 <Input {...form.register('address_ar')} dir="rtl" />
               </div>
               <div className="space-y-1 col-span-2">
-                <Label>{ar.customers.notes}</Label>
+                <Label className="text-sm font-medium text-foreground">{ar.customers.notes}</Label>
                 <Input {...form.register('notes_ar')} dir="rtl" />
               </div>
             </div>
             {create.error && (
-              <p className="text-sm text-red-600">
+              <p className="text-sm text-danger transition-opacity duration-75 ease-standard" role="alert">
                 {(create.error as { response?: { data?: { message?: string } } })?.response?.data?.message ?? ar.common.error}
               </p>
             )}
