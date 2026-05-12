@@ -14,6 +14,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import { Badge } from '@/components/Badge';
 
 const severityStripe: Record<string, string> = {
   low: 'border-s-4 border-border-default',
@@ -126,9 +127,12 @@ export function NotificationBell() {
     >
       <Bell className="size-5" />
       {count > 0 && (
-        <span className="absolute top-1 start-1 size-4 flex items-center justify-center rounded-pill bg-danger text-foreground-on-accent text-[10px] font-bold">
+        <Badge
+          tone="danger"
+          className="absolute top-1 start-1 size-4 min-w-4 h-4 px-1 text-[10px] font-bold"
+        >
           {count > 99 ? '99+' : count}
-        </span>
+        </Badge>
       )}
     </button>
   );

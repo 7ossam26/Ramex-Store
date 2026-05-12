@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   MoreVertical,
 } from 'lucide-react';
+import { Toast } from '@/components/Toast';
 import { ar } from '@/i18n/ar';
 import { salesApi } from '@/lib/sales-api';
 import { customersApi } from '@/lib/customers-api';
@@ -115,21 +116,13 @@ export function POSPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   /* Bottom toast (functional error feedback). */
-  type Toast = { id: number; message: string };
-  const [toast, setToast] = useState<Toast | null>(null);
+  type ToastState = { id: number; message: string };
+  const [toast, setToast] = useState<ToastState | null>(null);
   const toastIdRef = useRef(0);
   function showToast(message: string) {
     toastIdRef.current += 1;
     setToast({ id: toastIdRef.current, message });
   }
-  useEffect(() => {
-    if (!toast) return;
-    const id = toast.id;
-    const t = setTimeout(() => {
-      setToast((curr) => (curr && curr.id === id ? null : curr));
-    }, 4000);
-    return () => clearTimeout(t);
-  }, [toast]);
 
   const { data: banks = [] } = useQuery<BankAccount[]>({
     queryKey: ['bank-accounts'],
@@ -571,40 +564,18 @@ export function POSPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Bottom-of-viewport error toast (functional motion — auto-dismiss 4s) */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            key={toast.id}
-            data-functional-motion
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 12 }}
-            transition={{ duration: 0.2, ease: [0, 0, 0.2, 1] }}
-            role="alert"
-            className="fixed bottom-20 lg:bottom-6 inset-x-0 mx-auto z-toast w-[min(92vw,420px)] rounded-lg border border-danger/40 bg-danger-subtle text-danger-foreground shadow-lg overflow-hidden"
-          >
-            <div className="flex items-start gap-2 p-3">
-              <AlertTriangle className="size-5 shrink-0 mt-0.5 text-danger" />
-              <p className="text-sm font-medium flex-1">{toast.message}</p>
-              <button
-                onClick={() => setToast(null)}
-                className="text-danger-foreground/70 hover:text-danger-foreground cursor-pointer p-0.5"
-                aria-label={ar.common.cancel}
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-            <div className="h-1 bg-danger/15">
-              <div
-                key={toast.id}
-                data-functional-motion
-                className="rmx-toast-progress h-full bg-danger"
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Bottom-of-viewport error toast (functional motion — auto-dismiss 4s). */}
+      <Toast
+        key={toast?.id}
+        open={!!toast}
+        message={toast?.message ?? ''}
+        tone="danger"
+        autoDismissMs={4000}
+        showProgress
+        dismissible
+        onClose={() => setToast(null)}
+        className="bottom-20 lg:bottom-6"
+      />
     </div>
   );
 }

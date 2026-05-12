@@ -11,8 +11,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { AnimatePresence, motion } from 'framer-motion';
-import { CheckCircle2 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { ar } from '@/i18n/ar';
 import { settingsApi, permissionsApi, usersApi, bankAccountsApi } from '@/lib/settings-api';
 import { codesApi, type CodeGrade, type CodeComposition, type CodeBrand, type CodeSupplier } from '@/lib/codes-api';
@@ -21,6 +20,7 @@ import { useAuth } from '@/lib/auth';
 import { useIsDesktop } from '@/hooks/useMediaQuery';
 import { PageHeader } from '@/components/PageHeader';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { Toast } from '@/components/Toast';
 import { cn } from '@/lib/utils';
 import {
   SETTINGS_SECTIONS,
@@ -1465,35 +1465,18 @@ function FormSkeleton() {
 }
 
 // ─── Success toast (3s auto-dismiss, bottom of viewport) ────────────────────
+// Thin wrapper around the shared <Toast> primitive for the canonical success
+// message; per Re-Skin Standard "تم الحفظ بنجاح" is the single string used.
 
 function SavedToast({ open, onDone }: { open: boolean; onDone: () => void }) {
-  useEffect(() => {
-    if (!open) return;
-    const t = setTimeout(onDone, 3000);
-    return () => clearTimeout(t);
-  }, [open, onDone]);
-
   return (
-    <div className="fixed inset-x-0 bottom-6 z-toast flex justify-center pointer-events-none px-4">
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            role="status"
-            aria-live="polite"
-            initial={{ y: 16, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 16, opacity: 0 }}
-            transition={{ duration: 0.2, ease: [0, 0, 0.2, 1] }}
-            className={cn(
-              'pointer-events-auto flex items-center gap-2 rounded-pill bg-surface-elevated border border-success/40 shadow-lg px-4 py-2.5',
-            )}
-          >
-            <CheckCircle2 className="size-4 text-success" aria-hidden />
-            <span className="text-sm font-medium text-foreground">تم الحفظ بنجاح</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+    <Toast
+      open={open}
+      message="تم الحفظ بنجاح"
+      tone="success"
+      autoDismissMs={3000}
+      onClose={onDone}
+    />
   );
 }
 
