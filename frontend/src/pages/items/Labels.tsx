@@ -3,7 +3,6 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { itemsApi } from '@/lib/items-api';
 import type { RollWithDetails } from '@/lib/items-types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +14,8 @@ import {
 } from '@/components/ResponsiveDialog';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
+import { PageHeader } from '@/components/PageHeader';
+import { RollStatusPill } from '@/components/items/RollStatusPill';
 
 function openBlobPdf(blob: Blob) {
   const url = URL.createObjectURL(blob);
@@ -60,6 +61,7 @@ export function LabelsPage() {
 
   const rolls = q.data ?? [];
   const activeFilters = Object.values(filters).filter((v) => v.trim()).length;
+  const resetKey = JSON.stringify(applied);
 
   function toggleSelect(id: number) {
     setSelected((s) => {
@@ -80,58 +82,54 @@ export function LabelsPage() {
   }
 
   const filterControls = (
-    <Card>
-      <CardHeader>
-        <CardTitle>{ar.labels.title}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="space-y-1">
-            <Label>{ar.labels.fabricFilter}</Label>
-            <Input
-              value={filters.fabric}
-              onChange={(e) => setFilters((f) => ({ ...f, fabric: e.target.value }))}
-              placeholder={ar.labels.fabricFilter}
-              dir="rtl"
-              className="h-11 md:h-10"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label>{ar.labels.colorFilter}</Label>
-            <Input
-              value={filters.color}
-              onChange={(e) => setFilters((f) => ({ ...f, color: e.target.value }))}
-              placeholder={ar.labels.colorFilter}
-              dir="rtl"
-              className="h-11 md:h-10"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label>{ar.labels.rollSrNoFilter}</Label>
-            <Input
-              value={filters.rollSrNo}
-              onChange={(e) => setFilters((f) => ({ ...f, rollSrNo: e.target.value }))}
-              placeholder="SR-001"
-              dir="ltr"
-              className="h-11 md:h-10"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label>{ar.labels.barcodeFilter}</Label>
-            <Input
-              value={filters.barcodePartial}
-              onChange={(e) => setFilters((f) => ({ ...f, barcodePartial: e.target.value }))}
-              placeholder="RMX-R-"
-              dir="ltr"
-              className="h-11 md:h-10"
-            />
-          </div>
+    <div className="rounded-lg border border-border-subtle bg-surface-elevated p-3 space-y-3">
+      <h2 className="text-base font-semibold text-foreground">{ar.labels.title}</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="space-y-1">
+          <Label className="text-sm font-medium text-foreground">{ar.labels.fabricFilter}</Label>
+          <Input
+            value={filters.fabric}
+            onChange={(e) => setFilters((f) => ({ ...f, fabric: e.target.value }))}
+            placeholder={ar.labels.fabricFilter}
+            dir="rtl"
+            className="h-11 md:h-10"
+          />
         </div>
-        <Button onClick={handleSearch} disabled={q.isFetching} className="h-11 md:h-10 w-full md:w-auto">
-          {q.isFetching ? ar.loading : ar.labels.search}
-        </Button>
-      </CardContent>
-    </Card>
+        <div className="space-y-1">
+          <Label className="text-sm font-medium text-foreground">{ar.labels.colorFilter}</Label>
+          <Input
+            value={filters.color}
+            onChange={(e) => setFilters((f) => ({ ...f, color: e.target.value }))}
+            placeholder={ar.labels.colorFilter}
+            dir="rtl"
+            className="h-11 md:h-10"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-sm font-medium text-foreground">{ar.labels.rollSrNoFilter}</Label>
+          <Input
+            value={filters.rollSrNo}
+            onChange={(e) => setFilters((f) => ({ ...f, rollSrNo: e.target.value }))}
+            placeholder="SR-001"
+            dir="ltr"
+            className="h-11 md:h-10"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-sm font-medium text-foreground">{ar.labels.barcodeFilter}</Label>
+          <Input
+            value={filters.barcodePartial}
+            onChange={(e) => setFilters((f) => ({ ...f, barcodePartial: e.target.value }))}
+            placeholder="RMX-R-"
+            dir="ltr"
+            className="h-11 md:h-10"
+          />
+        </div>
+      </div>
+      <Button onClick={handleSearch} disabled={q.isFetching} className="h-11 md:h-10 w-full md:w-auto">
+        {q.isFetching ? ar.loading : ar.labels.search}
+      </Button>
+    </div>
   );
 
   const columns: Column<RollWithDetails>[] = [
@@ -142,7 +140,7 @@ export function LabelsPage() {
           type="checkbox"
           checked={selected.size === rolls.length && rolls.length > 0}
           onChange={toggleAll}
-          className="size-4"
+          className="size-4 accent-accent cursor-pointer"
           aria-label="تحديد الكل"
         />
       ),
@@ -152,7 +150,7 @@ export function LabelsPage() {
           checked={selected.has(r.id)}
           onChange={() => toggleSelect(r.id)}
           onClick={(e) => e.stopPropagation()}
-          className="size-5"
+          className="size-5 accent-accent cursor-pointer"
           aria-label={`تحديد ${r.internal_barcode}`}
         />
       ),
@@ -169,7 +167,7 @@ export function LabelsPage() {
             checked={selected.has(r.id)}
             onChange={() => toggleSelect(r.id)}
             onClick={(e) => e.stopPropagation()}
-            className="size-5 md:hidden"
+            className="size-5 md:hidden accent-accent cursor-pointer"
             aria-label={`تحديد ${r.internal_barcode}`}
           />
           {r.fabric_name_ar}
@@ -180,38 +178,40 @@ export function LabelsPage() {
     {
       key: 'sr_no',
       header: ar.labels.rollSrNoFilter,
-      cell: (r) => <span className="font-mono text-xs">{r.roll_sr_no ?? '—'}</span>,
+      cell: (r) => <span className="font-mono text-xs text-foreground">{r.roll_sr_no ?? '—'}</span>,
       secondary: true,
     },
     { key: 'color', header: ar.labels.colorFilter, cell: (r) => r.color_name_ar, secondary: true },
     {
       key: 'barcode',
       header: ar.labels.barcode,
-      cell: (r) => <span className="font-mono text-xs" dir="ltr">{r.internal_barcode}</span>,
+      cell: (r) => <span className="font-mono text-xs tabular-num" dir="ltr">{r.internal_barcode}</span>,
     },
     {
       key: 'weight',
       header: ar.labels.weight,
-      cell: (r) => <span dir="ltr">{Number(r.weight_kg).toFixed(3)} kg</span>,
+      cell: (r) => <span className="tabular-num" dir="ltr">{Number(r.weight_kg).toFixed(3)} kg</span>,
     },
     {
       key: 'status',
       header: ar.labels.status,
-      cell: (r) => <StatusBadge status={r.status} />,
+      cell: (r) => <RollStatusPill status={r.status} />,
     },
   ];
 
   return (
     <div className="max-w-6xl mx-auto space-y-4">
+      <PageHeader title={ar.labels.title} description={ar.hubs.itemsLabelsDesc} />
+
       <MobileFilterSheet activeCount={activeFilters}>{filterControls}</MobileFilterSheet>
 
       {/* Results */}
       {applied !== null && (
         <>
           <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div className="text-sm text-muted-foreground">
-              {ar.labels.results}: {rolls.length}
-              {selected.size > 0 ? ` · المحدد: ${selected.size}` : ''}
+            <div className="text-sm text-foreground-muted">
+              {ar.labels.results}: <span className="tabular-num text-foreground" dir="ltr">{rolls.length}</span>
+              {selected.size > 0 ? <> · المحدد: <span className="tabular-num text-foreground" dir="ltr">{selected.size}</span></> : ''}
             </div>
             <div className="flex gap-2">
               <Button
@@ -241,6 +241,10 @@ export function LabelsPage() {
             rows={rolls}
             rowKey={(r) => String(r.id)}
             empty={ar.common.none}
+            isLoading={q.isLoading}
+            isError={q.isError}
+            onRetry={() => q.refetch()}
+            resetKey={resetKey}
             actions={(r) => (
               <div className="flex gap-1">
                 <Button size="sm" variant="outline" asChild>
@@ -269,13 +273,13 @@ export function LabelsPage() {
           </DialogHeader>
           {reprintTarget && (
             <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-foreground-muted">
                 {reprintTarget.fabric_name_ar} / {reprintTarget.color_name_ar}
                 {' · '}
-                <span dir="ltr">{reprintTarget.internal_barcode}</span>
+                <span className="font-mono tabular-num" dir="ltr">{reprintTarget.internal_barcode}</span>
               </p>
               <div className="space-y-1">
-                <Label>{ar.labels.reprintReason}</Label>
+                <Label className="text-sm font-medium text-foreground">{ar.labels.reprintReason}</Label>
                 <Input
                   value={reprintReason}
                   onChange={(e) => setReprintReason(e.target.value)}
@@ -305,25 +309,5 @@ export function LabelsPage() {
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-const statusColors: Record<string, string> = {
-  in_stock: 'bg-green-100 text-green-800',
-  reserved: 'bg-yellow-100 text-yellow-800',
-  sold: 'bg-gray-100 text-gray-600',
-  damaged: 'bg-red-100 text-red-800',
-  sample: 'bg-blue-100 text-blue-800',
-  returned: 'bg-purple-100 text-purple-800',
-  written_off: 'bg-gray-100 text-gray-500',
-};
-
-function StatusBadge({ status }: { status: string }) {
-  const key = status as keyof typeof statusColors;
-  const cls = statusColors[key] ?? 'bg-gray-100 text-gray-600';
-  return (
-    <span className={`px-1.5 py-0.5 rounded text-xs ${cls}`}>
-      {ar.rollStatuses[key as keyof typeof ar.rollStatuses] ?? status}
-    </span>
   );
 }

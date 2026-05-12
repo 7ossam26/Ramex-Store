@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Code128 } from '@/components/Code128';
+import { PageHeader } from '@/components/PageHeader';
 
 const NEW = '__new__';
 const DEFAULT_WEIGHT_KG = 25;
@@ -261,33 +262,35 @@ export function AddTopPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-4" dir="rtl">
+      <PageHeader title={ar.addTop.navTitle} description={ar.hubs.itemsAddTopDesc} />
+
       {lastBatch && (
-        <Card className="border-green-300 bg-green-50/40">
+        <Card className="border-success/40 bg-success-subtle">
           <CardHeader>
-            <CardTitle className="text-green-700">
+            <CardTitle className="text-success-foreground">
               {ar.addTop.successPrefix} {lastBatch.rolls.length} {ar.addTop.successSuffix}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">{ar.addTop.previewHint}</p>
+            <p className="text-sm text-success-foreground/80">{ar.addTop.previewHint}</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {lastBatch.rolls.map((r, i) => (
                 <div
                   key={r.id}
-                  className="border border-border rounded-md p-3 bg-white space-y-2"
+                  className="border border-border-subtle rounded-md p-3 bg-surface-elevated space-y-2"
                 >
                   <div className="flex items-baseline justify-between text-sm">
                     <div>
-                      <span className="text-muted-foreground">{ar.addTop.rollIndexPrefix} </span>
-                      <span className="font-medium">{i + 1}</span>
+                      <span className="text-foreground-muted">{ar.addTop.rollIndexPrefix} </span>
+                      <span className="font-medium text-foreground tabular-num">{i + 1}</span>
                     </div>
-                    <div className="text-xs text-muted-foreground" dir="ltr">
+                    <div className="text-xs text-foreground-muted tabular-num" dir="ltr">
                       {Number(r.weight_kg).toFixed(3)} kg
                     </div>
                   </div>
                   <div className="text-sm">
-                    <div className="font-medium">{r.fabric_name_ar}</div>
-                    <div className="text-muted-foreground">
+                    <div className="font-medium text-foreground">{r.fabric_name_ar}</div>
+                    <div className="text-foreground-muted">
                       {r.color_name_ar} ({r.color_code})
                     </div>
                   </div>
@@ -321,7 +324,7 @@ export function AddTopPage() {
 
             {/* Supplier label format chooser */}
             {labelPrint.open && (
-              <div className="flex flex-wrap items-center gap-3 p-3 rounded border border-border bg-white">
+              <div className="flex flex-wrap items-center gap-3 p-3 rounded-md border border-border-subtle bg-surface-elevated">
                 <div className="flex gap-2">
                   <Button
                     size="sm"
@@ -902,7 +905,7 @@ export function AddTopPage() {
       </Card>
 
       {errorMsg && (
-        <div className="p-3 rounded border border-red-300 bg-red-50 text-sm text-red-700">
+        <div role="alert" className="p-3 rounded-md border border-danger/30 bg-danger-subtle text-sm text-danger-foreground transition-opacity duration-75 ease-standard">
           {errorMsg}
         </div>
       )}
