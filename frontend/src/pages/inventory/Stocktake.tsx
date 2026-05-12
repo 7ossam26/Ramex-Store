@@ -8,12 +8,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScannerInput } from '@/components/ScannerInput';
+import { PageHeader } from '@/components/PageHeader';
+import { StatusPill } from '@/components/StatusPill';
 
 export function StocktakePage() {
   const [active, setActive] = useState<Stocktake | null>(null);
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
+      <PageHeader title={ar.stocktake.title} description={ar.hubs.inventoryStocktakeDesc} />
       {!active ? <StartCard onStarted={setActive} /> : <RunStocktake stocktake={active} onComplete={() => setActive(null)} />}
       <PastStocktakes />
     </div>
@@ -40,7 +43,7 @@ function StartCard({ onStarted }: { onStarted: (s: Stocktake) => void }) {
           <select
             value={mode}
             onChange={(e) => setMode(e.target.value as StocktakeMode)}
-            className="w-full h-10 rounded border border-border bg-canvas px-3 text-sm"
+            className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
           >
             <option value="roll_level">{ar.stocktake.rollLevel}</option>
             <option value="aggregate">{ar.stocktake.aggregate}</option>
@@ -51,7 +54,7 @@ function StartCard({ onStarted }: { onStarted: (s: Stocktake) => void }) {
           <select
             value={warehouse}
             onChange={(e) => setWarehouse(e.target.value as Warehouse)}
-            className="w-full h-10 rounded border border-border bg-canvas px-3 text-sm"
+            className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
           >
             <option value="shop">{ar.warehouses.shop}</option>
             <option value="factory">{ar.warehouses.factory}</option>
@@ -125,27 +128,27 @@ function RunStocktake({ stocktake, onComplete }: { stocktake: Stocktake; onCompl
                     disabled={scanM.isPending}
                   />
                 </div>
-                {scanFlash && <span className="text-xs text-green-600">✓ {scanFlash}</span>}
+                {scanFlash && <span className="text-xs text-success-foreground font-mono tabular-num" dir="ltr">✓ {scanFlash}</span>}
               </div>
             </div>
             <table className="w-full text-sm">
-              <thead className="text-right text-xs text-muted-foreground">
-                <tr>
-                  <th className="py-2">{ar.stockMovements.rollBarcode}</th>
-                  <th>{ar.stocktake.expected}</th>
-                  <th>{ar.stocktake.actual}</th>
-                  <th>{ar.stocktake.variance}</th>
+              <thead className="text-right text-xs text-foreground-muted uppercase tracking-wide">
+                <tr className="border-b border-border-subtle">
+                  <th className="py-2.5 font-medium">{ar.stockMovements.rollBarcode}</th>
+                  <th className="font-medium">{ar.stocktake.expected}</th>
+                  <th className="font-medium">{ar.stocktake.actual}</th>
+                  <th className="font-medium">{ar.stocktake.variance}</th>
                 </tr>
               </thead>
               <tbody>
                 {data.lines.map((l) => (
-                  <tr key={l.id} className="border-t border-border">
-                    <td className="py-2 font-mono">#{l.roll_id}</td>
-                    <td>{l.expected_count ?? '—'}</td>
-                    <td className={l.actual_count == null ? 'text-amber-600' : ''}>
+                  <tr key={l.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
+                    <td className="py-2.5 font-mono text-foreground">#{l.roll_id}</td>
+                    <td className="tabular-num">{l.expected_count ?? '—'}</td>
+                    <td className={`tabular-num ${l.actual_count == null ? 'text-warning-foreground' : 'text-foreground'}`}>
                       {l.actual_count ?? '—'}
                     </td>
-                    <td>{l.variance ?? '—'}</td>
+                    <td className="tabular-num">{l.variance ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -175,12 +178,12 @@ function AggregateGrid({
   const [draft, setDraft] = useState<Record<number, { count?: string; weight?: string }>>({});
   return (
     <table className="w-full text-sm">
-      <thead className="text-right text-xs text-muted-foreground">
-        <tr>
-          <th className="py-2">{ar.shipments.rollFabric}</th>
-          <th>{ar.shipments.rollColor}</th>
-          <th>{ar.stocktake.expected}</th>
-          <th>{ar.stocktake.actual}</th>
+      <thead className="text-right text-xs text-foreground-muted uppercase tracking-wide">
+        <tr className="border-b border-border-subtle">
+          <th className="py-2.5 font-medium">{ar.shipments.rollFabric}</th>
+          <th className="font-medium">{ar.shipments.rollColor}</th>
+          <th className="font-medium">{ar.stocktake.expected}</th>
+          <th className="font-medium">{ar.stocktake.actual}</th>
           <th></th>
         </tr>
       </thead>
@@ -190,7 +193,7 @@ function AggregateGrid({
           const col = colors.find((c) => c.id === l.color_id);
           const d = draft[l.id] ?? {};
           return (
-            <tr key={l.id} className="border-t border-border">
+            <tr key={l.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
               <td className="py-2">{fab?.name_ar ?? l.fabric_id}</td>
               <td>{col ? `${col.name_ar} (${col.code})` : l.color_id}</td>
               <td>{l.expected_count ?? '—'} / {l.expected_weight_kg ?? '—'}</td>
@@ -239,23 +242,35 @@ function PastStocktakes() {
       <CardHeader><CardTitle>{ar.stocktake.title}</CardTitle></CardHeader>
       <CardContent>
         <table className="w-full text-sm">
-          <thead className="text-right text-xs text-muted-foreground">
-            <tr>
-              <th className="py-2">رقم الجرد</th>
-              <th>{ar.stocktake.warehouse}</th>
-              <th>{ar.stocktake.mode}</th>
-              <th>الحالة</th>
-              <th>بدأ</th>
+          <thead className="text-right text-xs text-foreground-muted uppercase tracking-wide">
+            <tr className="border-b border-border-subtle">
+              <th className="py-2.5 font-medium">رقم الجرد</th>
+              <th className="font-medium">{ar.stocktake.warehouse}</th>
+              <th className="font-medium">{ar.stocktake.mode}</th>
+              <th className="font-medium">الحالة</th>
+              <th className="font-medium">بدأ</th>
             </tr>
           </thead>
           <tbody>
             {(q.data ?? []).map((s) => (
-              <tr key={s.id} className="border-t border-border">
-                <td className="py-2 font-mono">{s.stocktake_no}</td>
+              <tr key={s.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
+                <td className="py-2.5 font-mono text-foreground">{s.stocktake_no}</td>
                 <td>{ar.warehouses[s.warehouse]}</td>
                 <td>{s.mode === 'roll_level' ? ar.stocktake.rollLevel : ar.stocktake.aggregate}</td>
-                <td>{s.status === 'open' ? 'مفتوح' : s.status === 'completed' ? 'منتهي' : 'ملغى'}</td>
-                <td>{new Date(s.started_at).toLocaleString('ar-EG-u-nu-latn')}</td>
+                <td>
+                  <StatusPill
+                    tone={
+                      s.status === 'open'
+                        ? 'info'
+                        : s.status === 'completed'
+                          ? 'success'
+                          : 'neutral'
+                    }
+                  >
+                    {s.status === 'open' ? 'مفتوح' : s.status === 'completed' ? 'منتهي' : 'ملغى'}
+                  </StatusPill>
+                </td>
+                <td className="text-foreground-muted">{new Date(s.started_at).toLocaleString('ar-EG-u-nu-latn')}</td>
               </tr>
             ))}
           </tbody>

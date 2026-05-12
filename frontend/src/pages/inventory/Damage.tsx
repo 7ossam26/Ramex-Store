@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/PageHeader';
+import { StatusPill } from '@/components/StatusPill';
 
 const REASONS: DamageReasonCode[] = [
   'damage_in_transit', 'damage_in_shop', 'damage_quality_defect',
@@ -54,6 +56,8 @@ export function DamagePage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
+      <PageHeader title={ar.damage.title} description={ar.hubs.inventoryDamageDesc} />
+
       <Card>
         <CardHeader><CardTitle>{ar.damage.record}</CardTitle></CardHeader>
         <CardContent>
@@ -62,12 +66,12 @@ export function DamagePage() {
             className="grid grid-cols-2 md:grid-cols-3 gap-3"
           >
             <div className="space-y-1">
-              <Label>{ar.damage.rollId}</Label>
+              <Label className="text-sm font-medium text-foreground">{ar.damage.rollId}</Label>
               <Input type="number" inputMode="decimal" {...form.register('roll_id', { valueAsNumber: true, required: true })} />
             </div>
             <div className="space-y-1">
-              <Label>{ar.damage.reasonCode}</Label>
-              <select {...form.register('reason_code')} className="w-full h-10 rounded border border-border bg-canvas px-3 text-sm">
+              <Label className="text-sm font-medium text-foreground">{ar.damage.reasonCode}</Label>
+              <select {...form.register('reason_code')} className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75">
                 {REASONS.map((r) => (
                   <option key={r} value={r}>{ar.damage.reasons[r]}</option>
                 ))}
@@ -75,8 +79,8 @@ export function DamagePage() {
             </div>
             {!isLoss && (
               <div className="space-y-1">
-                <Label>{ar.damage.disposition}</Label>
-                <select {...form.register('disposition', { required: !isLoss })} className="w-full h-10 rounded border border-border bg-canvas px-3 text-sm">
+                <Label className="text-sm font-medium text-foreground">{ar.damage.disposition}</Label>
+                <select {...form.register('disposition', { required: !isLoss })} className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75">
                   <option value="">—</option>
                   <option value="damaged_stock">{ar.damage.dispositions.damaged_stock}</option>
                   <option value="return_to_factory">{ar.damage.dispositions.return_to_factory}</option>
@@ -84,13 +88,13 @@ export function DamagePage() {
               </div>
             )}
             <div className="space-y-1 col-span-2">
-              <Label>{ar.damage.notes}</Label>
+              <Label className="text-sm font-medium text-foreground">{ar.damage.notes}</Label>
               <Input {...form.register('notes_ar')} />
             </div>
-            <div className="col-span-full">
+            <div className="col-span-full flex items-center gap-3 flex-wrap">
               <Button type="submit" disabled={create.isPending}>{ar.damage.record}</Button>
               {create.error && (
-                <span className="text-sm text-red-600 mr-3">
+                <span className="text-sm text-danger transition-opacity duration-75 ease-standard" role="alert">
                   {(create.error as { response?: { data?: { message?: string } } })?.response?.data?.message ?? ar.common.error}
                 </span>
               )}
@@ -103,24 +107,24 @@ export function DamagePage() {
         <CardHeader><CardTitle>{ar.damage.title}</CardTitle></CardHeader>
         <CardContent>
           <table className="w-full text-sm">
-            <thead className="text-right text-xs text-muted-foreground">
-              <tr>
-                <th className="py-2">{ar.stockMovements.when}</th>
-                <th>{ar.damage.rollId}</th>
-                <th>{ar.damage.reasonCode}</th>
-                <th>{ar.damage.disposition}</th>
-                <th>{ar.damage.valuation}</th>
+            <thead className="text-right text-xs text-foreground-muted uppercase tracking-wide">
+              <tr className="border-b border-border-subtle">
+                <th className="py-2.5 font-medium">{ar.stockMovements.when}</th>
+                <th className="font-medium">{ar.damage.rollId}</th>
+                <th className="font-medium">{ar.damage.reasonCode}</th>
+                <th className="font-medium">{ar.damage.disposition}</th>
+                <th className="font-medium">{ar.damage.valuation}</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {(list.data ?? []).map((e) => (
-                <tr key={e.id} className="border-t border-border">
-                  <td className="py-2">{new Date(e.created_at).toLocaleString('ar-EG-u-nu-latn')}</td>
-                  <td className="font-mono">#{e.roll_id}</td>
+                <tr key={e.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
+                  <td className="py-2.5 text-foreground-muted">{new Date(e.created_at).toLocaleString('ar-EG-u-nu-latn')}</td>
+                  <td className="font-mono text-foreground">#{e.roll_id}</td>
                   <td>{ar.damage.reasons[e.reason_code]}</td>
                   <td>{ar.damage.dispositions[e.disposition]}</td>
-                  <td>{e.valuation_egp}</td>
+                  <td className="tabular-num" dir="ltr">{e.valuation_egp}</td>
                   <td>
                     {e.requires_approval && !e.approved_at && user?.role === 'owner' ? (
                       <div className="flex gap-1">
@@ -132,7 +136,7 @@ export function DamagePage() {
                         </Button>
                       </div>
                     ) : e.requires_approval && !e.approved_at ? (
-                      <span className="text-xs text-amber-600">{ar.damage.requiresApproval}</span>
+                      <StatusPill tone="warning">{ar.damage.requiresApproval}</StatusPill>
                     ) : null}
                   </td>
                 </tr>

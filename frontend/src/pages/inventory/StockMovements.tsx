@@ -5,6 +5,7 @@ import { inventoryApi } from '@/lib/inventory-api';
 import type { StockEventType } from '@/lib/inventory-types';
 import { Button } from '@/components/ui/button';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
+import { PageHeader } from '@/components/PageHeader';
 
 const PAGE_SIZE = 50;
 
@@ -60,7 +61,7 @@ export function StockMovementsPage() {
     {
       key: 'barcode',
       header: ar.stockMovements.rollBarcode,
-      cell: (m) => <span className="font-mono" dir="ltr">{m.internal_barcode}</span>,
+      cell: (m) => <span className="font-mono tabular-num" dir="ltr">{m.internal_barcode}</span>,
     },
     {
       key: 'fc',
@@ -81,7 +82,7 @@ export function StockMovementsPage() {
       key: 'ref',
       header: ar.stockMovements.reference,
       cell: (m) => (
-        <span className="text-xs text-muted-foreground">
+        <span className="text-xs text-foreground-muted">
           {m.reference_type ? `${m.reference_type}#${m.reference_id ?? ''}` : '—'}
         </span>
       ),
@@ -91,29 +92,36 @@ export function StockMovementsPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-4">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <h1 className="text-xl font-bold">{ar.stockMovements.title}</h1>
-        <select
-          value={event}
-          onChange={(e) => { setEvent(e.target.value as StockEventType | ''); setOffset(0); }}
-          className="h-11 md:h-9 rounded border border-border bg-canvas px-3 text-sm"
-        >
-          <option value="">{ar.common.none}</option>
-          {ALL_EVENTS.map((ev) => (
-            <option key={ev} value={ev}>{ar.stockMovements.events[ev]}</option>
-          ))}
-        </select>
-      </div>
+      <PageHeader
+        title={ar.stockMovements.title}
+        description={ar.hubs.inventoryMovementsDesc}
+        actions={
+          <select
+            value={event}
+            onChange={(e) => { setEvent(e.target.value as StockEventType | ''); setOffset(0); }}
+            className="h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
+          >
+            <option value="">{ar.common.none}</option>
+            {ALL_EVENTS.map((ev) => (
+              <option key={ev} value={ev}>{ar.stockMovements.events[ev]}</option>
+            ))}
+          </select>
+        }
+      />
 
       <ResponsiveTable
         columns={columns}
         rows={rows}
         rowKey={(m) => String(m.id)}
         empty={ar.common.none}
+        isLoading={q.isLoading}
+        isError={q.isError}
+        onRetry={() => q.refetch()}
+        resetKey={`${event}|${offset}`}
       />
 
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>{rows.length} / {total}</span>
+      <div className="flex items-center justify-between text-xs text-foreground-muted">
+        <span className="tabular-num" dir="ltr">{rows.length} / {total}</span>
         <div className="flex gap-1">
           <Button size="sm" variant="outline" disabled={offset === 0}
             onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}>

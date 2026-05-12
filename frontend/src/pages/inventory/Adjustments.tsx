@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/PageHeader';
 
 type FormVals = {
   roll_id: number;
@@ -39,6 +40,8 @@ export function AdjustmentsPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
+      <PageHeader title={ar.adjustments.title} description={ar.hubs.inventoryAdjustmentsDesc} />
+
       <Card>
         <CardHeader><CardTitle>{ar.adjustments.create}</CardTitle></CardHeader>
         <CardContent>
@@ -47,12 +50,12 @@ export function AdjustmentsPage() {
             className="grid grid-cols-2 md:grid-cols-3 gap-3"
           >
             <div className="space-y-1">
-              <Label>{ar.adjustments.rollId}</Label>
+              <Label className="text-sm font-medium text-foreground">{ar.adjustments.rollId}</Label>
               <Input type="number" inputMode="decimal" {...form.register('roll_id', { valueAsNumber: true, required: true })} />
             </div>
             <div className="space-y-1">
-              <Label>{ar.adjustments.newWarehouse}</Label>
-              <select {...form.register('new_warehouse')} className="w-full h-10 rounded border border-border bg-canvas px-3 text-sm">
+              <Label className="text-sm font-medium text-foreground">{ar.adjustments.newWarehouse}</Label>
+              <select {...form.register('new_warehouse')} className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75">
                 <option value="">—</option>
                 <option value="shop">{ar.warehouses.shop}</option>
                 <option value="factory">{ar.warehouses.factory}</option>
@@ -60,8 +63,8 @@ export function AdjustmentsPage() {
               </select>
             </div>
             <div className="space-y-1">
-              <Label>{ar.adjustments.newStatus}</Label>
-              <select {...form.register('new_status')} className="w-full h-10 rounded border border-border bg-canvas px-3 text-sm">
+              <Label className="text-sm font-medium text-foreground">{ar.adjustments.newStatus}</Label>
+              <select {...form.register('new_status')} className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75">
                 <option value="">—</option>
                 {(['in_stock', 'reserved', 'damaged', 'sample', 'returned', 'written_off'] as RollStatus[]).map((s) => (
                   <option key={s} value={s}>{ar.rollStatuses[s]}</option>
@@ -69,17 +72,17 @@ export function AdjustmentsPage() {
               </select>
             </div>
             <div className="space-y-1">
-              <Label>{ar.adjustments.newWeight}</Label>
+              <Label className="text-sm font-medium text-foreground">{ar.adjustments.newWeight}</Label>
               <Input type="number" inputMode="decimal" step="0.001" {...form.register('new_weight_kg', { valueAsNumber: true })} />
             </div>
             <div className="space-y-1 col-span-2">
-              <Label>{ar.adjustments.notes}</Label>
+              <Label className="text-sm font-medium text-foreground">{ar.adjustments.notes}</Label>
               <Input {...form.register('notes_ar', { required: true, minLength: 1 })} />
             </div>
-            <div className="col-span-full">
+            <div className="col-span-full flex items-center gap-3 flex-wrap">
               <Button type="submit" disabled={create.isPending}>{ar.adjustments.create}</Button>
               {create.error && (
-                <span className="text-sm text-red-600 mr-3">
+                <span className="text-sm text-danger transition-opacity duration-75 ease-standard" role="alert">
                   {(create.error as { response?: { data?: { message?: string } } })?.response?.data?.message ?? ar.common.error}
                 </span>
               )}
@@ -92,23 +95,23 @@ export function AdjustmentsPage() {
         <CardHeader><CardTitle>{ar.adjustments.title}</CardTitle></CardHeader>
         <CardContent>
           <table className="w-full text-sm">
-            <thead className="text-right text-xs text-muted-foreground">
-              <tr>
-                <th className="py-2">{ar.stockMovements.when}</th>
-                <th>{ar.stockMovements.rollBarcode}</th>
-                <th>{ar.stockMovements.from}</th>
-                <th>{ar.stockMovements.to}</th>
-                <th>{ar.adjustments.notes}</th>
+            <thead className="text-right text-xs text-foreground-muted uppercase tracking-wide">
+              <tr className="border-b border-border-subtle">
+                <th className="py-2.5 font-medium">{ar.stockMovements.when}</th>
+                <th className="font-medium">{ar.stockMovements.rollBarcode}</th>
+                <th className="font-medium">{ar.stockMovements.from}</th>
+                <th className="font-medium">{ar.stockMovements.to}</th>
+                <th className="font-medium">{ar.adjustments.notes}</th>
               </tr>
             </thead>
             <tbody>
               {(list.data ?? []).map((m) => (
-                <tr key={m.id} className="border-t border-border">
-                  <td className="py-2">{new Date(m.created_at).toLocaleString('ar-EG-u-nu-latn')}</td>
-                  <td className="font-mono">#{m.roll_id}</td>
+                <tr key={m.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
+                  <td className="py-2.5 text-foreground-muted">{new Date(m.created_at).toLocaleString('ar-EG-u-nu-latn')}</td>
+                  <td className="font-mono text-foreground">#{m.roll_id}</td>
                   <td>{m.from_warehouse ? ar.warehouses[m.from_warehouse] : '—'}</td>
                   <td>{m.to_warehouse ? ar.warehouses[m.to_warehouse] : '—'}</td>
-                  <td className="text-xs text-muted-foreground">{m.notes_ar ?? '—'}</td>
+                  <td className="text-xs text-foreground-muted">{m.notes_ar ?? '—'}</td>
                 </tr>
               ))}
             </tbody>

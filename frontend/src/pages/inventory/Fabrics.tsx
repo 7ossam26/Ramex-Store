@@ -9,7 +9,6 @@ import type {
   FabricFull,
   UpdateFabricInput,
 } from '@/lib/inventory-types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,6 +19,8 @@ import {
   DialogTitle,
 } from '@/components/ResponsiveDialog';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
+import { PageHeader } from '@/components/PageHeader';
+import { StatusPill } from '@/components/StatusPill';
 import { useAuth } from '@/lib/auth';
 
 type CompositionRow = { material: string; percent: string };
@@ -212,20 +213,16 @@ export function FabricsPage() {
         key: 'composition',
         header: ar.fabrics.composition,
         cell: (f) => (
-          <span className="text-xs text-muted-foreground">{compositionSummary(f.composition)}</span>
+          <span className="text-xs text-foreground-muted">{compositionSummary(f.composition)}</span>
         ),
       },
       {
         key: 'is_active',
         header: ar.fabrics.isActive,
         cell: (f) => (
-          <span
-            className={`px-1.5 py-0.5 rounded text-xs ${
-              f.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-            }`}
-          >
+          <StatusPill tone={f.is_active ? 'success' : 'neutral'}>
             {f.is_active ? ar.common.yes : ar.common.no}
-          </span>
+          </StatusPill>
         ),
       },
     ],
@@ -234,45 +231,43 @@ export function FabricsPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-4" dir="rtl">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <CardTitle>{ar.fabrics.title}</CardTitle>
-          {isOwner && (
-            <Button onClick={openCreate}>
-              + {ar.fabrics.addFabric}
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="text-sm text-muted-foreground">
-            {ar.fabrics.hint}{' '}
-            <Link to="/items/tops/add" className="text-primary underline">
-              {ar.addTop.navTitle}
-            </Link>
-            .
-          </div>
-          {fabricsQ.isLoading ? (
-            <p>{ar.loading}</p>
-          ) : (
-            <ResponsiveTable
-              columns={columns}
-              rows={fabrics}
-              rowKey={(f) => String(f.id)}
-              onRowClick={isOwner ? openEdit : undefined}
-              empty={ar.common.none}
-              actions={
-                isOwner
-                  ? (f) => (
-                      <Button size="sm" variant="outline" onClick={() => openEdit(f)}>
-                        {ar.fabrics.edit}
-                      </Button>
-                    )
-                  : undefined
-              }
-            />
-          )}
-        </CardContent>
-      </Card>
+      <PageHeader
+        title={ar.fabrics.title}
+        description={ar.hubs.inventoryFabricsDesc}
+        actions={
+          isOwner && (
+            <Button onClick={openCreate}>+ {ar.fabrics.addFabric}</Button>
+          )
+        }
+      />
+
+      <div className="text-sm text-foreground-muted">
+        {ar.fabrics.hint}{' '}
+        <Link to="/items/tops/add" className="text-accent hover:text-accent-hover underline underline-offset-2">
+          {ar.addTop.navTitle}
+        </Link>
+        .
+      </div>
+
+      <ResponsiveTable
+        columns={columns}
+        rows={fabrics}
+        rowKey={(f) => String(f.id)}
+        onRowClick={isOwner ? openEdit : undefined}
+        empty={ar.common.none}
+        isLoading={fabricsQ.isLoading}
+        isError={fabricsQ.isError}
+        onRetry={() => fabricsQ.refetch()}
+        actions={
+          isOwner
+            ? (f) => (
+                <Button size="sm" variant="outline" onClick={() => openEdit(f)}>
+                  {ar.fabrics.edit}
+                </Button>
+              )
+            : undefined
+        }
+      />
 
       <Dialog open={isOpen} onOpenChange={(o) => !o && close()}>
         <DialogContent className="max-w-xl">
@@ -466,7 +461,7 @@ export function FabricsPage() {
             )}
 
             {errorMsg && (
-              <div className="p-2 rounded border border-red-300 bg-red-50 text-sm text-red-700">
+              <div role="alert" className="p-3 rounded-md border border-danger/30 bg-danger-subtle text-sm text-danger-foreground transition-opacity duration-75 ease-standard">
                 {errorMsg}
               </div>
             )}

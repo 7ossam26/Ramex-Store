@@ -47,8 +47,8 @@ function breakdownToString(bd: Array<{ material: string; percent: number }>): st
 function StatusBadge({ active }: { active: boolean }) {
   return (
     <span
-      className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${
-        active ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground'
+      className={`inline-flex items-center rounded-pill px-2 py-0.5 text-xs font-medium ${
+        active ? 'bg-success-subtle text-success-foreground' : 'bg-surface-hover text-foreground-muted'
       }`}
     >
       {active ? ar.codes.active : ar.codes.inactive}
@@ -57,12 +57,12 @@ function StatusBadge({ active }: { active: boolean }) {
 }
 
 function UsageBadge({ count, onClick }: { count: number; onClick: () => void }) {
-  if (count === 0) return <span className="text-muted-foreground text-xs">0</span>;
+  if (count === 0) return <span className="text-foreground-tertiary text-xs tabular-num">0</span>;
   return (
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 px-2 py-0.5 text-xs font-medium cursor-pointer hover:bg-blue-200 transition-colors"
+      className="inline-flex items-center rounded-pill bg-info-subtle text-info-foreground px-2 py-0.5 text-xs font-medium tabular-num cursor-pointer hover:bg-info-subtle/70 transition-colors duration-150"
     >
       {count}
     </button>
@@ -85,15 +85,15 @@ function Toolbar({
           placeholder={ar.codes.search}
           value={search}
           onChange={(e) => onSearch(e.target.value)}
-          className="border border-border rounded px-3 py-1.5 text-sm bg-canvas focus:outline-none focus:ring-1 focus:ring-primary w-44"
+          className="border border-border-default rounded-md px-3 py-1.5 text-sm bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75 w-44"
         />
-        <div className="flex rounded border border-border overflow-hidden text-sm">
+        <div className="flex rounded-md border border-border-default overflow-hidden text-sm">
           {(['active', 'inactive', 'all'] as StatusFilter[]).map((f) => (
             <button
               key={f}
               type="button"
               onClick={() => onFilter(f)}
-              className={`px-3 py-1.5 ${filter === f ? 'bg-primary text-primary-foreground' : 'bg-canvas text-muted-foreground hover:bg-muted'}`}
+              className={`px-3 py-1.5 transition-colors duration-75 ${filter === f ? 'bg-accent text-accent-foreground' : 'bg-surface-elevated text-foreground-muted hover:bg-surface-hover'}`}
             >
               {ar.codes.filter[f]}
             </button>
@@ -145,7 +145,7 @@ function DeleteDialog({
         </DialogHeader>
         <div className="space-y-4 text-sm">
           {hasRefs ? (
-            <p className="text-amber-700 bg-amber-50 border border-amber-200 rounded p-3">
+            <p className="text-warning-foreground bg-warning-subtle border border-warning/30 rounded-md p-3">
               {ar.codes.referencedWarning}{' '}
               <strong>{usageCount}</strong>{' '}
               {ar.codes.activePieces}
@@ -160,7 +160,7 @@ function DeleteDialog({
             </Button>
             {hasRefs ? (
               isOwner && (
-                <Button size="sm" className="bg-red-600 text-white hover:opacity-90" onClick={onForce} disabled={pending}>
+                <Button size="sm" className="bg-danger text-white hover:bg-danger/90" onClick={onForce} disabled={pending}>
                   {ar.codes.deactivateForce}
                 </Button>
               )
@@ -198,7 +198,7 @@ function RefsSheet({
           <p className="text-xs text-muted-foreground">{item.name}</p>
         </SheetHeader>
         <div className="mt-4 space-y-2">
-          {isLoading && <p className="text-sm text-muted-foreground">{ar.loading}</p>}
+          {isLoading && <p className="text-sm text-foreground-muted">{ar.loading}</p>}
           {!isLoading && refs.length === 0 && (
             <p className="text-sm text-muted-foreground">{ar.codes.refsEmpty}</p>
           )}
@@ -232,17 +232,17 @@ function RowActions({
       {isActive ? (
         <>
           <button type="button" onClick={onEdit} title={ar.codes.edit}
-            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+            className="p-1 rounded hover:bg-surface-hover text-foreground-muted hover:text-foreground transition-colors duration-150 cursor-pointer">
             <Pencil className="w-3.5 h-3.5" />
           </button>
           <button type="button" onClick={onDelete} title={ar.codes.deactivate}
-            className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors cursor-pointer">
+            className="p-1 rounded hover:bg-danger-subtle text-foreground-muted hover:text-danger transition-colors duration-150 cursor-pointer">
             <Trash2 className="w-3.5 h-3.5" />
           </button>
         </>
       ) : (
         <button type="button" onClick={onRestore} title={ar.codes.restore}
-          className="p-1 rounded hover:bg-green-50 text-muted-foreground hover:text-green-600 transition-colors cursor-pointer">
+          className="p-1 rounded hover:bg-success-subtle text-foreground-muted hover:text-success transition-colors duration-150 cursor-pointer">
           <RotateCcw className="w-3.5 h-3.5" />
         </button>
       )}
@@ -258,7 +258,7 @@ function SaveCancelBtns({ onSave, onCancel, disabled }: { onSave: () => void; on
         <Check className="w-3.5 h-3.5" />
       </button>
       <button type="button" onClick={onCancel}
-        className="p-1 rounded hover:bg-muted text-muted-foreground transition-colors cursor-pointer">
+        className="p-1 rounded hover:bg-surface-hover text-foreground-muted transition-colors duration-150 cursor-pointer">
         <X className="w-3.5 h-3.5" />
       </button>
     </div>
@@ -342,16 +342,16 @@ function ColorsTab({ isOwner }: { isOwner: boolean }) {
     setAddingNew(false);
   }
 
-  if (isLoading) return <p className="text-sm text-muted-foreground p-4">{ar.loading}</p>;
+  if (isLoading) return <p className="text-sm text-foreground-muted p-4">{ar.loading}</p>;
 
   return (
     <div className="space-y-4">
       <Toolbar search={search} onSearch={setSearch} filter={filter} onFilter={setFilter}
         isOwner={isOwner} onAdd={() => { setAddingNew(true); setEditingId(null); }} />
-      {err && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2">{err}</p>}
+      {err && <p role="alert" className="text-sm text-danger-foreground bg-danger-subtle border border-danger/30 rounded-md px-3 py-2 transition-opacity duration-75 ease-standard">{err}</p>}
       <div className="overflow-x-auto rounded border border-border">
         <table className="w-full border-collapse">
-          <thead className="bg-muted/40">
+          <thead className="bg-surface-hover/50 sticky top-0 z-sticky">
             <tr>
               <Th>{ar.codes.columns.code}</Th>
               <Th>{ar.codes.columns.nameAr}</Th>
@@ -363,7 +363,7 @@ function ColorsTab({ isOwner }: { isOwner: boolean }) {
           </thead>
           <tbody>
             {addingNew && (
-              <tr className="bg-blue-50/50">
+              <tr className="bg-info-subtle/50">
                 <Td><InlineInput value={newForm.code} onChange={(v) => setNewForm({ ...newForm, code: v })} placeholder="101" /></Td>
                 <Td><InlineInput value={newForm.name_ar} onChange={(v) => setNewForm({ ...newForm, name_ar: v })} placeholder="كسر بياض" /></Td>
                 <Td><InlineInput value={newForm.english_name} onChange={(v) => setNewForm({ ...newForm, english_name: v })} placeholder="Off White" /></Td>
@@ -383,7 +383,7 @@ function ColorsTab({ isOwner }: { isOwner: boolean }) {
             )}
             {filtered.map((c) =>
               editingId === c.id ? (
-                <tr key={c.id} className="bg-blue-50/40">
+                <tr key={c.id} className="bg-info-subtle/40">
                   <Td><InlineInput value={editForm.code} onChange={(v) => setEditForm({ ...editForm, code: v })} /></Td>
                   <Td><InlineInput value={editForm.name_ar} onChange={(v) => setEditForm({ ...editForm, name_ar: v })} /></Td>
                   <Td><InlineInput value={editForm.english_name} onChange={(v) => setEditForm({ ...editForm, english_name: v })} /></Td>
@@ -398,7 +398,7 @@ function ColorsTab({ isOwner }: { isOwner: boolean }) {
                   </Td>
                 </tr>
               ) : (
-                <tr key={c.id} className="hover:bg-muted/30 transition-colors">
+                <tr key={c.id} className="hover:bg-surface-hover transition-colors duration-150">
                   <Td muted>{c.code}</Td>
                   <Td>{c.name_ar}</Td>
                   <Td muted>{c.english_name ?? '—'}</Td>
@@ -488,16 +488,16 @@ function GradesTab({ isOwner }: { isOwner: boolean }) {
     onError: (e) => setErr(extractApiError(e)),
   });
 
-  if (isLoading) return <p className="text-sm text-muted-foreground p-4">{ar.loading}</p>;
+  if (isLoading) return <p className="text-sm text-foreground-muted p-4">{ar.loading}</p>;
 
   return (
     <div className="space-y-4">
       <Toolbar search={search} onSearch={setSearch} filter={filter} onFilter={setFilter}
         isOwner={isOwner} onAdd={() => { setAddingNew(true); setEditingId(null); }} />
-      {err && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2">{err}</p>}
+      {err && <p role="alert" className="text-sm text-danger-foreground bg-danger-subtle border border-danger/30 rounded-md px-3 py-2 transition-opacity duration-75 ease-standard">{err}</p>}
       <div className="overflow-x-auto rounded border border-border">
         <table className="w-full border-collapse">
-          <thead className="bg-muted/40">
+          <thead className="bg-surface-hover/50 sticky top-0 z-sticky">
             <tr>
               <Th>{ar.codes.columns.nameAr}</Th>
               <Th>{ar.codes.columns.nameEn}</Th>
@@ -508,7 +508,7 @@ function GradesTab({ isOwner }: { isOwner: boolean }) {
           </thead>
           <tbody>
             {addingNew && (
-              <tr className="bg-blue-50/50">
+              <tr className="bg-info-subtle/50">
                 <Td><InlineInput value={newForm.arabic_name} onChange={(v) => setNewForm({ ...newForm, arabic_name: v })} placeholder="درجة أ" /></Td>
                 <Td><InlineInput value={newForm.english_name} onChange={(v) => setNewForm({ ...newForm, english_name: v })} placeholder="Grade A" /></Td>
                 <Td center>—</Td>
@@ -523,7 +523,7 @@ function GradesTab({ isOwner }: { isOwner: boolean }) {
             )}
             {filtered.map((g) =>
               editingId === g.id ? (
-                <tr key={g.id} className="bg-blue-50/40">
+                <tr key={g.id} className="bg-info-subtle/40">
                   <Td><InlineInput value={editForm.arabic_name} onChange={(v) => setEditForm({ ...editForm, arabic_name: v })} /></Td>
                   <Td><InlineInput value={editForm.english_name} onChange={(v) => setEditForm({ ...editForm, english_name: v })} /></Td>
                   <Td center>{g.usage_count}</Td>
@@ -533,7 +533,7 @@ function GradesTab({ isOwner }: { isOwner: boolean }) {
                   </Td>
                 </tr>
               ) : (
-                <tr key={g.id} className="hover:bg-muted/30 transition-colors">
+                <tr key={g.id} className="hover:bg-surface-hover transition-colors duration-150">
                   <Td>{g.arabic_name}</Td>
                   <Td muted>{g.english_name ?? '—'}</Td>
                   <Td center>
@@ -639,16 +639,16 @@ function BrandsTab({ isOwner }: { isOwner: boolean }) {
     );
   }
 
-  if (isLoading) return <p className="text-sm text-muted-foreground p-4">{ar.loading}</p>;
+  if (isLoading) return <p className="text-sm text-foreground-muted p-4">{ar.loading}</p>;
 
   return (
     <div className="space-y-4">
       <Toolbar search={search} onSearch={setSearch} filter={filter} onFilter={setFilter}
         isOwner={isOwner} onAdd={() => { setAddingNew(true); setEditingId(null); }} />
-      {err && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2">{err}</p>}
+      {err && <p role="alert" className="text-sm text-danger-foreground bg-danger-subtle border border-danger/30 rounded-md px-3 py-2 transition-opacity duration-75 ease-standard">{err}</p>}
       <div className="overflow-x-auto rounded border border-border">
         <table className="w-full border-collapse">
-          <thead className="bg-muted/40">
+          <thead className="bg-surface-hover/50 sticky top-0 z-sticky">
             <tr>
               <Th>{ar.codes.columns.nameAr}</Th>
               <Th>{ar.codes.columns.supplier}</Th>
@@ -660,7 +660,7 @@ function BrandsTab({ isOwner }: { isOwner: boolean }) {
           </thead>
           <tbody>
             {addingNew && (
-              <tr className="bg-blue-50/50">
+              <tr className="bg-info-subtle/50">
                 <Td><InlineInput value={newForm.arabic_name} onChange={(v) => setNewForm({ ...newForm, arabic_name: v })} placeholder="ماركة جديدة" /></Td>
                 <Td><SupplierSelect value={newForm.supplier_id} onChange={(v) => setNewForm({ ...newForm, supplier_id: v })} /></Td>
                 <Td><InlineInput value={newForm.product_line} onChange={(v) => setNewForm({ ...newForm, product_line: v })} placeholder="خط الإنتاج" /></Td>
@@ -676,7 +676,7 @@ function BrandsTab({ isOwner }: { isOwner: boolean }) {
             )}
             {filtered.map((b) =>
               editingId === b.id ? (
-                <tr key={b.id} className="bg-blue-50/40">
+                <tr key={b.id} className="bg-info-subtle/40">
                   <Td><InlineInput value={editForm.arabic_name} onChange={(v) => setEditForm({ ...editForm, arabic_name: v })} /></Td>
                   <Td><SupplierSelect value={editForm.supplier_id} onChange={(v) => setEditForm({ ...editForm, supplier_id: v })} /></Td>
                   <Td><InlineInput value={editForm.product_line} onChange={(v) => setEditForm({ ...editForm, product_line: v })} /></Td>
@@ -687,7 +687,7 @@ function BrandsTab({ isOwner }: { isOwner: boolean }) {
                   </Td>
                 </tr>
               ) : (
-                <tr key={b.id} className="hover:bg-muted/30 transition-colors">
+                <tr key={b.id} className="hover:bg-surface-hover transition-colors duration-150">
                   <Td>{b.arabic_name}</Td>
                   <Td muted>{supplierName(b.supplier_id)}</Td>
                   <Td muted>{b.product_line ?? '—'}</Td>
@@ -816,14 +816,14 @@ function CompositionsTab({ isOwner }: { isOwner: boolean }) {
               onChange={(e) => { const n = [...items]; n[i] = { ...item, percent: Number(e.target.value) }; onChange(n); }}
               className="border border-border rounded px-2 py-0.5 text-xs bg-canvas w-14 focus:outline-none focus:ring-1 focus:ring-primary" />
             <span className="text-xs text-muted-foreground">%</span>
-            <button type="button" onClick={() => onChange(items.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 text-xs cursor-pointer">✕</button>
+            <button type="button" onClick={() => onChange(items.filter((_, j) => j !== i))} className="text-danger/60 hover:text-danger text-xs cursor-pointer transition-colors duration-150">✕</button>
           </div>
         ))}
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => onChange([...items, { material: '', percent: 0 }])}
             className="text-xs text-primary hover:underline cursor-pointer">{ar.codes.addMaterial}</button>
           {items.length > 0 && (
-            <span className={`text-xs font-medium ${sum === 100 ? 'text-green-600' : 'text-amber-600'}`}>{sum}%</span>
+            <span className={`text-xs font-medium tabular-num ${sum === 100 ? 'text-success' : 'text-warning-foreground'}`}>{sum}%</span>
           )}
         </div>
       </div>
@@ -857,23 +857,23 @@ function CompositionsTab({ isOwner }: { isOwner: boolean }) {
     );
   }
 
-  if (isLoading) return <p className="text-sm text-muted-foreground p-4">{ar.loading}</p>;
+  if (isLoading) return <p className="text-sm text-foreground-muted p-4">{ar.loading}</p>;
 
   return (
     <div className="space-y-4">
       <Toolbar search={search} onSearch={setSearch} filter={filter} onFilter={setFilter}
         isOwner={isOwner} onAdd={() => { setAddingNew(true); setEditingId(null); }} />
-      {err && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2">{err}</p>}
+      {err && <p role="alert" className="text-sm text-danger-foreground bg-danger-subtle border border-danger/30 rounded-md px-3 py-2 transition-opacity duration-75 ease-standard">{err}</p>}
       {sumWarn && (
-        <div className="bg-amber-50 border border-amber-200 rounded px-3 py-2 flex items-center gap-3">
-          <span className="text-sm text-amber-700">{ar.codes.compositionSum100Warn}</span>
+        <div className="bg-warning-subtle border border-warning/30 rounded-md px-3 py-2 flex items-center gap-3">
+          <span className="text-sm text-warning-foreground">{ar.codes.compositionSum100Warn}</span>
           <Button size="sm" variant="outline" onClick={() => { setSumWarn(false); createMut.mutate(); }}>{ar.common.confirm}</Button>
           <Button size="sm" variant="ghost" onClick={() => setSumWarn(false)}>{ar.common.cancel}</Button>
         </div>
       )}
       <div className="overflow-x-auto rounded border border-border">
         <table className="w-full border-collapse">
-          <thead className="bg-muted/40">
+          <thead className="bg-surface-hover/50 sticky top-0 z-sticky">
             <tr>
               <Th>{ar.codes.columns.nameAr}</Th>
               <Th>{ar.codes.columns.description}</Th>
@@ -884,7 +884,7 @@ function CompositionsTab({ isOwner }: { isOwner: boolean }) {
           </thead>
           <tbody>
             {addingNew && (
-              <tr className="bg-blue-50/50 align-top">
+              <tr className="bg-info-subtle/50 align-top">
                 <CompFormCells form={newForm} mode={newMode} onChange={setNewForm} onModeChange={setNewMode} />
                 <Td center>—</Td>
                 <Td center>—</Td>
@@ -915,7 +915,7 @@ function CompositionsTab({ isOwner }: { isOwner: boolean }) {
                   </Td>
                 </tr>
               ) : (
-                <tr key={c.id} className="hover:bg-muted/30 transition-colors">
+                <tr key={c.id} className="hover:bg-surface-hover transition-colors duration-150">
                   <Td>{c.arabic_name}</Td>
                   <Td muted><span className="truncate block max-w-64">{c.description ?? '—'}</span></Td>
                   <Td center>
@@ -1005,16 +1005,16 @@ function SuppliersTab({ isOwner }: { isOwner: boolean }) {
     onError: (e) => setErr(extractApiError(e)),
   });
 
-  if (isLoading) return <p className="text-sm text-muted-foreground p-4">{ar.loading}</p>;
+  if (isLoading) return <p className="text-sm text-foreground-muted p-4">{ar.loading}</p>;
 
   return (
     <div className="space-y-4">
       <Toolbar search={search} onSearch={setSearch} filter={filter} onFilter={setFilter}
         isOwner={isOwner} onAdd={() => { setAddingNew(true); setEditingId(null); }} />
-      {err && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2">{err}</p>}
+      {err && <p role="alert" className="text-sm text-danger-foreground bg-danger-subtle border border-danger/30 rounded-md px-3 py-2 transition-opacity duration-75 ease-standard">{err}</p>}
       <div className="overflow-x-auto rounded border border-border">
         <table className="w-full border-collapse">
-          <thead className="bg-muted/40">
+          <thead className="bg-surface-hover/50 sticky top-0 z-sticky">
             <tr>
               <Th>{ar.codes.columns.nameAr}</Th>
               <Th>{ar.codes.columns.warningText}</Th>
@@ -1024,7 +1024,7 @@ function SuppliersTab({ isOwner }: { isOwner: boolean }) {
           </thead>
           <tbody>
             {addingNew && (
-              <tr className="bg-blue-50/50">
+              <tr className="bg-info-subtle/50">
                 <Td><InlineInput value={newForm.arabic_name} onChange={(v) => setNewForm({ ...newForm, arabic_name: v })} placeholder="اسم المورد" /></Td>
                 <Td>
                   <textarea dir="rtl" value={newForm.arabic_warning_text}
@@ -1057,7 +1057,7 @@ function SuppliersTab({ isOwner }: { isOwner: boolean }) {
                   </Td>
                 </tr>
               ) : (
-                <tr key={s.id} className="hover:bg-muted/30 transition-colors">
+                <tr key={s.id} className="hover:bg-surface-hover transition-colors duration-150">
                   <Td>{s.arabic_name}</Td>
                   <Td muted><span className="truncate block max-w-64">{s.arabic_warning_text ?? '—'}</span></Td>
                   <Td center><StatusBadge active={s.is_active} /></Td>
@@ -1138,14 +1138,14 @@ function SettingsReasonTab({
     setNewName('');
   }
 
-  if (isLoading) return <p className="text-sm text-muted-foreground p-4">{ar.loading}</p>;
+  if (isLoading) return <p className="text-sm text-foreground-muted p-4">{ar.loading}</p>;
 
   return (
     <div className="space-y-4 max-w-lg">
-      {err && <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2">{err}</p>}
+      {err && <p role="alert" className="text-sm text-danger-foreground bg-danger-subtle border border-danger/30 rounded-md px-3 py-2 transition-opacity duration-75 ease-standard">{err}</p>}
       <div className="rounded border border-border overflow-hidden">
         <table className="w-full border-collapse">
-          <thead className="bg-muted/40">
+          <thead className="bg-surface-hover/50 sticky top-0 z-sticky">
             <tr>
               <Th>{ar.codes.columns.reasonCode}</Th>
               <Th>{ar.codes.columns.nameAr}</Th>
@@ -1154,7 +1154,7 @@ function SettingsReasonTab({
           </thead>
           <tbody>
             {items.map((item, idx) => (
-              <tr key={item.code} className="hover:bg-muted/30 transition-colors">
+              <tr key={item.code} className="hover:bg-surface-hover transition-colors duration-150">
                 <Td><span className="font-mono text-xs text-muted-foreground">{item.code}</span></Td>
                 <Td>
                   {isOwner ? (
@@ -1166,7 +1166,7 @@ function SettingsReasonTab({
                 {isOwner && (
                   <Td center>
                     <button type="button" onClick={() => setItems(items.filter((_, i) => i !== idx))}
-                      className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors cursor-pointer">
+                      className="p-1 rounded hover:bg-danger-subtle text-foreground-muted hover:text-danger transition-colors duration-150 cursor-pointer">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </Td>
@@ -1219,18 +1219,21 @@ export function CodesPage() {
   return (
     <div className="flex flex-col h-full" dir="rtl">
       {/* Page header + tab bar */}
-      <div className="px-6 pt-6 pb-0 border-b border-border bg-canvas sticky top-0 z-10 space-y-4">
-        <h1 className="text-xl font-bold">{ar.codes.pageTitle}</h1>
+      <div className="px-6 pt-6 pb-0 border-b border-border-subtle bg-surface sticky top-0 z-sticky space-y-4">
+        <div>
+          <h1 className="text-3xl font-semibold text-foreground">{ar.codes.pageTitle}</h1>
+          <p className="text-sm text-foreground-muted mt-1">{ar.codes.hubDesc}</p>
+        </div>
         <div className="flex gap-0 overflow-x-auto">
           {TABS.map((tab) => (
             <button
               key={tab.key}
               type="button"
               onClick={() => changeTab(tab.key)}
-              className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors cursor-pointer
+              className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors duration-200 ease-emphasized cursor-pointer
                 ${activeTab === tab.key
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+                  ? 'border-accent text-accent'
+                  : 'border-transparent text-foreground-muted hover:text-foreground hover:border-border-subtle'
                 }`}
             >
               {tab.label}
