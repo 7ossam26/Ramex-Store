@@ -1,139 +1,306 @@
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { motion } from 'framer-motion';
+import { AlertTriangle, RefreshCw, Inbox } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { ar } from '@/i18n/ar';
 import { useAuth } from '@/lib/auth';
 import { ownerApi } from '@/lib/owner-api';
 
-function fmt(n: number) {
-  return n.toLocaleString('ar-EG-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/* ────────────────────────────────────────────────────────────────────────── *
+ * Number formatting — Western digits with Arabic-Egypt locale grouping.
+ * Matches every other surface in the app (see owner-api.ts callers, POS, etc.).
+ * Documented in PR: numbers render as `ar-EG-u-nu-latn` (e.g. 1,234.56).
+ * ────────────────────────────────────────────────────────────────────────── */
+function fmtMoney(n: number): string {
+  return n.toLocaleString('ar-EG-u-nu-latn', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
-function StatCard({ title, value, sub }: { title: string; value: string; sub?: string }) {
+function fmtInt(n: number): string {
+  return Math.round(n).toLocaleString('ar-EG-u-nu-latn', { maximumFractionDigits: 0 });
+}
+
+/* ────────────────────────────────────────────────────────────────────────── *
+ * useTickUp — animate a value from 0 → target over `duration` ms.
+ * Skips animation when target is 0 OR `prefers-reduced-motion: reduce`.
+ * ────────────────────────────────────────────────────────────────────────── */
+function useTickUp(target: number, duration = 600): number {
+  const [value, setValue] = useState<number>(target);
+  const startRef = useRef<number | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const prefersReduced =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (target === 0 || prefersReduced) {
+      setValue(target);
+      return;
+    }
+
+    startRef.current = null;
+    setValue(0);
+
+    const tick = (ts: number) => {
+      if (startRef.current === null) startRef.current = ts;
+      const elapsed = ts - startRef.current;
+      const t = Math.min(1, elapsed / duration);
+      // ease-out-cubic
+      const eased = 1 - Math.pow(1 - t, 3);
+      setValue(target * eased);
+      if (t < 1) rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    };
+  }, [target, duration]);
+
+  return value;
+}
+
+/* ────────────────────────────────────────────────────────────────────────── *
+ * Motion variants — stagger 60ms between cards, 240ms each, decelerate.
+ * `prefers-reduced-motion` is honored globally by index.css transition rules.
+ * ────────────────────────────────────────────────────────────────────────── */
+const gridVariants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.06 } },
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 8 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.24, ease: [0, 0, 0.2, 1] as const },
+  },
+};
+
+/* ────────────────────────────────────────────────────────────────────────── *
+ * MetricCard
+ * ────────────────────────────────────────────────────────────────────────── */
+type MetricCardProps = {
+  label: string;
+  value: number;
+  format?: 'money' | 'int';
+  suffix?: string;
+  meta?: string;
+};
+
+function MetricCard({ label, value, format = 'money', suffix, meta }: MetricCardProps) {
+  const animated = useTickUp(value);
+  const displaySuffix = suffix ?? (format === 'money' ? 'ج.م' : '');
+  const formatted = format === 'money' ? fmtMoney(animated) : fmtInt(animated);
+
   return (
-    <Card>
-      <CardContent className="pt-4 pb-3">
-        <p className="text-xs text-muted-foreground mb-1">{title}</p>
-        <p className="text-xl font-bold text-ink">{value}</p>
-        {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
-      </CardContent>
-    </Card>
+    <motion.div
+      variants={cardVariants}
+      whileHover={{ y: -2 }}
+      transition={{ y: { duration: 0.15 } }}
+      className="rounded-lg border border-border-subtle bg-surface-elevated shadow-sm hover:shadow-md transition-shadow duration-150 p-5 tabular-num"
+    >
+      <p className="text-xs font-medium uppercase tracking-wide text-foreground-muted mb-2">
+        {label}
+      </p>
+      <div className="flex items-baseline gap-1.5">
+        <span className="text-3xl font-semibold text-foreground" dir="ltr">
+          {formatted}
+        </span>
+        {displaySuffix && (
+          <span className="text-sm text-foreground-tertiary">{displaySuffix}</span>
+        )}
+      </div>
+      {meta && <p className="text-xs text-foreground-tertiary mt-2">{meta}</p>}
+    </motion.div>
   );
 }
 
+/* ────────────────────────────────────────────────────────────────────────── *
+ * States
+ * ────────────────────────────────────────────────────────────────────────── */
+function SkeletonCard() {
+  return (
+    <div
+      className="rounded-lg border border-border-subtle bg-surface-elevated shadow-sm p-5"
+      aria-hidden
+    >
+      <div className="h-3 w-1/2 rounded bg-surface-hover animate-pulse mb-3" />
+      <div className="h-8 w-3/4 rounded bg-surface-hover animate-pulse mb-2" />
+      <div className="h-3 w-1/3 rounded bg-surface-hover animate-pulse" />
+    </div>
+  );
+}
+
+function ErrorState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div
+      role="alert"
+      className="rounded-lg border border-danger/30 bg-danger-subtle p-5 flex flex-col sm:flex-row sm:items-center gap-3"
+    >
+      <div className="flex items-start gap-3 flex-1">
+        <AlertTriangle className="size-5 text-danger shrink-0 mt-0.5" />
+        <div>
+          <p className="font-medium text-danger-foreground">
+            تعذر تحميل ملخص اليوم
+          </p>
+          <p className="text-sm text-danger-foreground/80 mt-0.5">
+            يرجى المحاولة مرة أخرى.
+          </p>
+        </div>
+      </div>
+      <Button onClick={onRetry} variant="outline" size="sm" className="gap-1.5 shrink-0">
+        <RefreshCw className="size-4" />
+        إعادة المحاولة
+      </Button>
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="rounded-lg border border-border-subtle bg-surface-elevated p-12 text-center">
+      <div
+        className="size-16 mx-auto mb-4 rounded-full bg-surface-hover flex items-center justify-center"
+        aria-hidden
+      >
+        <Inbox className="size-8 text-foreground-tertiary" />
+      </div>
+      <p className="text-foreground-muted text-base">لا توجد بيانات اليوم بعد</p>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── *
+ * OwnerDashboard
+ * ────────────────────────────────────────────────────────────────────────── */
 function OwnerDashboard() {
-  const { data: summary, isLoading: loadingSum } = useQuery({
+  const summaryQ = useQuery({
     queryKey: ['owner-summary-today'],
     queryFn: ownerApi.summaryToday,
     refetchInterval: 120_000,
   });
-
-  const { data: cash, isLoading: loadingCash } = useQuery({
+  const cashQ = useQuery({
     queryKey: ['owner-cash-position'],
     queryFn: ownerApi.cashPosition,
     refetchInterval: 120_000,
   });
 
-  const { data: topFabrics = [], isLoading: loadingFabrics } = useQuery({
-    queryKey: ['owner-top-fabrics'],
-    queryFn: () => ownerApi.topFabrics('7d'),
-    refetchInterval: 300_000,
-  });
+  const loading = summaryQ.isLoading || cashQ.isLoading;
+  const error = summaryQ.error || cashQ.error;
 
-  const loading = loadingSum || loadingCash || loadingFabrics;
-
-  if (loading && !summary) {
-    return <p className="text-sm text-muted-foreground">{ar.loading}</p>;
+  if (error) {
+    return (
+      <ErrorState
+        onRetry={() => {
+          void summaryQ.refetch();
+          void cashQ.refetch();
+        }}
+      />
+    );
   }
 
-  const totalBankBalance = (cash?.banks ?? []).reduce((s, b) => s + b.current_balance_egp, 0);
+  if (loading || !summaryQ.data || !cashQ.data) {
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          {Array.from({ length: 6 }, (_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      </div>
+    );
+  }
+
+  const summary = summaryQ.data;
+  const cash = cashQ.data;
+  const totalBankBalance = cash.banks.reduce((s, b) => s + b.current_balance_egp, 0);
+  const netCash = summary.cash_in_egp - summary.cash_out_egp;
+  const activeBanks = cash.banks.filter((b) => b.is_active).length;
+
+  const totalsAreZero =
+    summary.revenue_egp === 0 &&
+    summary.sales_count === 0 &&
+    summary.void_count === 0 &&
+    summary.refund_total_egp === 0 &&
+    summary.expenses_total_egp === 0 &&
+    netCash === 0 &&
+    cash.cash.current_balance_egp === 0 &&
+    totalBankBalance === 0;
+
+  if (totalsAreZero) return <EmptyState />;
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-ink">{ar.home.ownerWidgets}</h2>
+    <motion.div
+      className="space-y-4"
+      variants={gridVariants}
+      initial="hidden"
+      animate="show"
+    >
+      {/* Today's six metric cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <MetricCard
+          label={ar.home.todayRevenue}
+          value={summary.revenue_egp}
+          meta={`${fmtInt(summary.sales_count)} مبيعة`}
+        />
+        <MetricCard
+          label={ar.home.salesCount}
+          value={summary.sales_count}
+          format="int"
+        />
+        <MetricCard
+          label={ar.home.voidCount}
+          value={summary.void_count}
+          format="int"
+          meta={`${fmtMoney(summary.void_total_egp)} ج.م`}
+        />
+        <MetricCard
+          label={ar.home.refundTotal}
+          value={summary.refund_total_egp}
+          meta={`${fmtInt(summary.refund_count)} مرتجع`}
+        />
+        <MetricCard label={ar.home.expensesTotal} value={summary.expenses_total_egp} />
+        <MetricCard label="صافي الكاش اليوم" value={netCash} />
+      </div>
 
-      {/* Today summary */}
-      {summary && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <StatCard
-            title={ar.home.todayRevenue}
-            value={`${fmt(summary.revenue_egp)} ج.م`}
-            sub={`${summary.sales_count} مبيعة`}
-          />
-          <StatCard
-            title={ar.home.salesCount}
-            value={String(summary.sales_count)}
-          />
-          <StatCard
-            title={ar.home.voidCount}
-            value={String(summary.void_count)}
-            sub={`${fmt(summary.void_total_egp)} ج.م`}
-          />
-          <StatCard
-            title={ar.home.refundTotal}
-            value={`${fmt(summary.refund_total_egp)} ج.م`}
-            sub={`${summary.refund_count} مرتجع`}
-          />
-          <StatCard
-            title={ar.home.expensesTotal}
-            value={`${fmt(summary.expenses_total_egp)} ج.م`}
-          />
-          <StatCard
-            title="صافي الكاش اليوم"
-            value={`${fmt(summary.cash_in_egp - summary.cash_out_egp)} ج.م`}
+      {/* Two balance cards — span 3 of 6 columns on lg */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+        <div className="lg:col-span-3">
+          <MetricCard
+            label={ar.home.cashBalance}
+            value={cash.cash.current_balance_egp}
+            meta={
+              cash.cash.last_recon_date
+                ? `آخر تسوية: ${cash.cash.last_recon_date}`
+                : undefined
+            }
           />
         </div>
-      )}
-
-      {/* Cash position */}
-      {cash && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <StatCard
-            title={ar.home.cashBalance}
-            value={`${fmt(cash.cash.current_balance_egp)} ج.م`}
-            sub={cash.cash.last_recon_date ? `آخر تسوية: ${cash.cash.last_recon_date}` : undefined}
-          />
-          <StatCard
-            title={ar.home.bankBalance}
-            value={`${fmt(totalBankBalance)} ج.م`}
-            sub={`${cash.banks.filter((b) => b.is_active).length} حساب نشط`}
+        <div className="lg:col-span-3">
+          <MetricCard
+            label={ar.home.bankBalance}
+            value={totalBankBalance}
+            meta={`${fmtInt(activeBanks)} حساب نشط`}
           />
         </div>
-      )}
-
-      {/* Top fabrics */}
-      {topFabrics.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">{ar.home.topFabrics}</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-muted-foreground text-xs border-b border-border">
-                  <th className="py-1.5 text-right font-medium">الخامة</th>
-                  <th className="py-1.5 text-right font-medium">اللون</th>
-                  <th className="py-1.5 text-left font-medium">الإيراد (ج.م)</th>
-                  <th className="py-1.5 text-left font-medium">التوبات</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topFabrics.slice(0, 5).map((f) => (
-                  <tr key={`${f.fabric_id}-${f.color_id}`} className="border-b border-border hover:bg-muted/40">
-                    <td className="py-1.5">{f.fabric_name_ar}</td>
-                    <td className="py-1.5">{f.color_name_ar}</td>
-                    <td className="py-1.5 text-left">{fmt(f.revenue_egp)}</td>
-                    <td className="py-1.5 text-left">{f.roll_count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+      </div>
+    </motion.div>
   );
 }
 
+/* ────────────────────────────────────────────────────────────────────────── *
+ * Non-owner landing — minimal token re-skin of the module overview.
+ * ────────────────────────────────────────────────────────────────────────── */
 const modules = [
   ar.topbar.inventory,
   ar.topbar.sales,
@@ -144,27 +311,44 @@ const modules = [
   ar.topbar.settings,
 ];
 
+function SellerLanding() {
+  return (
+    <motion.div
+      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+      variants={gridVariants}
+      initial="hidden"
+      animate="show"
+    >
+      {modules.map((m) => (
+        <motion.div
+          key={m}
+          variants={cardVariants}
+          whileHover={{ y: -2 }}
+          transition={{ y: { duration: 0.15 } }}
+          className="rounded-lg border border-border-subtle bg-surface-elevated shadow-sm hover:shadow-md transition-shadow duration-150 p-5"
+        >
+          <p className="text-base font-semibold text-foreground">{m}</p>
+        </motion.div>
+      ))}
+    </motion.div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── *
+ * HomePage
+ * ────────────────────────────────────────────────────────────────────────── */
 export function HomePage() {
   const { user } = useAuth();
   const isOwner = user?.role === 'owner';
 
   return (
     <div className="space-y-6" dir="rtl">
-      <h1 className="text-2xl font-bold text-ink">{ar.home.welcome}</h1>
+      <header className="space-y-1">
+        <h1 className="text-3xl font-semibold text-foreground">{ar.home.welcome}</h1>
+        <p className="text-sm text-foreground-muted">{ar.home.ownerWidgets}</p>
+      </header>
 
-      {isOwner && <OwnerDashboard />}
-
-      {!isOwner && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {modules.map((m) => (
-            <Card key={m}>
-              <CardHeader>
-                <CardTitle className="text-base">{m}</CardTitle>
-              </CardHeader>
-            </Card>
-          ))}
-        </div>
-      )}
+      {isOwner ? <OwnerDashboard /> : <SellerLanding />}
     </div>
   );
 }
