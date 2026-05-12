@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/PageHeader';
 import { FilterChip } from '@/components/FilterChip';
+import { Skeleton } from '@/components/Skeleton';
 import { cn } from '@/lib/utils';
 
 export type DateRange = { from: string; to: string };
@@ -188,20 +189,16 @@ export function ReportShell({
         <div className="rounded-lg border border-border-subtle bg-surface-elevated overflow-hidden shadow-sm" aria-hidden>
           <div className="px-3 py-3 border-b border-border-subtle bg-surface-hover/40 flex items-center gap-3">
             {[1, 2, 3, 4, 5].map((i) => (
-              <div
-                key={i}
-                className="h-3 rounded bg-surface-hover animate-pulse"
-                style={{ width: '20%' }}
-              />
+              <Skeleton key={i} className="h-3" style={{ width: '20%' }} />
             ))}
           </div>
           <div className="divide-y divide-border-subtle">
             {Array.from({ length: 8 }).map((_, ri) => (
               <div key={ri} className="px-3 py-3 flex items-center gap-3">
                 {[1, 2, 3, 4, 5].map((ci) => (
-                  <div
+                  <Skeleton
                     key={ci}
-                    className="h-3 rounded bg-surface-hover animate-pulse"
+                    className="h-3"
                     style={{ width: '20%', animationDelay: `${(ri * 5 + ci) * 30}ms` }}
                   />
                 ))}

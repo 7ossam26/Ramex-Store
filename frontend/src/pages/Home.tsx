@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { AlertTriangle, RefreshCw, Inbox } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/Skeleton';
 import { ar } from '@/i18n/ar';
 import { useAuth } from '@/lib/auth';
 import { ownerApi } from '@/lib/owner-api';
@@ -130,9 +131,9 @@ function SkeletonCard() {
       className="rounded-lg border border-border-subtle bg-surface-elevated shadow-sm p-5"
       aria-hidden
     >
-      <div className="h-3 w-1/2 rounded bg-surface-hover animate-pulse mb-3" />
-      <div className="h-8 w-3/4 rounded bg-surface-hover animate-pulse mb-2" />
-      <div className="h-3 w-1/3 rounded bg-surface-hover animate-pulse" />
+      <Skeleton className="h-3 w-1/2 mb-3" />
+      <Skeleton className="h-8 w-3/4 mb-2" />
+      <Skeleton className="h-3 w-1/3" />
     </div>
   );
 }

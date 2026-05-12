@@ -8,6 +8,7 @@ import { ar } from '@/i18n/ar';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { Skeleton } from '@/components/Skeleton';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type {
@@ -294,9 +295,9 @@ export function TreasuriesOverviewPage() {
               className="rounded-lg border border-border-subtle bg-surface-elevated p-5 shadow-sm space-y-3"
               aria-hidden
             >
-              <div className="h-3 w-24 bg-surface-hover rounded animate-pulse" />
-              <div className="h-10 w-48 bg-surface-hover rounded animate-pulse" />
-              <div className="h-3 w-32 bg-surface-hover rounded animate-pulse" />
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-10 w-48" />
+              <Skeleton className="h-3 w-32" />
             </div>
           ))}
         </div>

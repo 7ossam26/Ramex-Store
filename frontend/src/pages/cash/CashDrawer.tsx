@@ -19,6 +19,7 @@ import {
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { PageHeader } from '@/components/PageHeader';
 import { TableFilterBar } from '@/components/TableFilterBar';
+import { Skeleton } from '@/components/Skeleton';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 50;
@@ -222,8 +223,8 @@ export function CashDrawerPage() {
       <div className="rounded-lg border border-border-subtle bg-surface-elevated p-5 shadow-sm">
         {balanceQ.isLoading ? (
           <div className="space-y-3" aria-hidden>
-            <div className="h-3 w-24 bg-surface-hover rounded animate-pulse" />
-            <div className="h-10 w-48 bg-surface-hover rounded animate-pulse" />
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-10 w-48" />
           </div>
         ) : balanceQ.data ? (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

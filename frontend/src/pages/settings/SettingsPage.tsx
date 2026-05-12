@@ -21,6 +21,7 @@ import { useIsDesktop } from '@/hooks/useMediaQuery';
 import { PageHeader } from '@/components/PageHeader';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { Toast } from '@/components/Toast';
+import { Skeleton } from '@/components/Skeleton';
 import { cn } from '@/lib/utils';
 import {
   SETTINGS_SECTIONS,
@@ -923,9 +924,9 @@ function CodesTableSkeleton() {
     <div className="rounded-lg border border-border-subtle overflow-hidden" aria-hidden>
       {Array.from({ length: 5 }).map((_, i) => (
         <div key={i} className="px-3 py-3 border-b border-border-subtle last:border-b-0 flex gap-3">
-          <div className="h-3 bg-surface-hover rounded animate-pulse flex-1" />
-          <div className="h-3 bg-surface-hover rounded animate-pulse flex-1" />
-          <div className="h-3 bg-surface-hover rounded animate-pulse w-12" />
+          <Skeleton className="h-3 flex-1" />
+          <Skeleton className="h-3 flex-1" />
+          <Skeleton className="h-3 w-12" />
         </div>
       ))}
     </div>
@@ -1456,8 +1457,8 @@ function FormSkeleton() {
     <div className="space-y-5" aria-hidden>
       {Array.from({ length: 4 }).map((_, i) => (
         <div key={i} className="space-y-2">
-          <div className="h-4 w-32 bg-surface-hover rounded animate-pulse" />
-          <div className="h-10 w-full bg-surface-hover rounded-md animate-pulse" />
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-10 w-full rounded-md" />
         </div>
       ))}
     </div>

@@ -1,13 +1,21 @@
+import type { CSSProperties } from 'react';
 import { cn } from '@/lib/utils';
 
 /* Base shimmer block. Use directly for one-offs (card/form placeholders),
  * compose into purpose-built skeletons (see TableSkeleton). The shimmer
  * is a single CSS animate-pulse on `bg-surface-hover` so the muted-motion
  * scope collapses it without ceremony. */
-export function Skeleton({ className }: { className?: string }) {
+export function Skeleton({
+  className,
+  style,
+}: {
+  className?: string;
+  style?: CSSProperties;
+}) {
   return (
     <div
       aria-hidden
+      style={style}
       className={cn('rounded bg-surface-hover animate-pulse', className)}
     />
   );

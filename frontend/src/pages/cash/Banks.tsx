@@ -20,6 +20,8 @@ import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { PageHeader } from '@/components/PageHeader';
 import { TableFilterBar } from '@/components/TableFilterBar';
 import { EmptyState } from '@/components/EmptyState';
+import { ErrorBanner } from '@/components/ErrorBanner';
+import { Skeleton } from '@/components/Skeleton';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 50;
@@ -237,12 +239,17 @@ export function BanksPage() {
               key={i}
               className="rounded-lg border border-border-subtle bg-surface-elevated p-5 shadow-sm space-y-3"
             >
-              <div className="h-4 w-32 bg-surface-hover rounded animate-pulse" />
-              <div className="h-7 w-40 bg-surface-hover rounded animate-pulse" />
-              <div className="h-3 w-24 bg-surface-hover rounded animate-pulse" />
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-7 w-40" />
+              <Skeleton className="h-3 w-24" />
             </div>
           ))}
         </div>
+      ) : banksQ.isError ? (
+        <ErrorBanner
+          title="تعذر تحميل الحسابات البنكية"
+          onRetry={() => banksQ.refetch()}
+        />
       ) : banksQ.data?.length === 0 ? (
         <EmptyState
           title="لا توجد حسابات بنكية بعد"
