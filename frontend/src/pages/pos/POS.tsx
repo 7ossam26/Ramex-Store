@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   X,
   ShoppingCart,
@@ -11,11 +12,11 @@ import {
   Tag,
   Receipt,
   CheckCircle2,
-  Trash2,
   Info,
   CreditCard,
   Banknote,
   AlertTriangle,
+  MoreVertical,
 } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { salesApi } from '@/lib/sales-api';
@@ -49,6 +50,8 @@ type CartLine = {
 };
 
 type PaymentMode = 'cash' | 'instapay' | 'both';
+
+type ScannerFeedback = 'idle' | 'success' | 'danger';
 
 function fmtMoney(n: number | string): string {
   const v = typeof n === 'number' ? n : Number(n);
@@ -85,6 +88,11 @@ export function POSPage() {
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanFlash, setScanFlash] = useState<RollLookup | null>(null);
 
+  /* Functional-motion feedback state — local UI only, no impact on scanning logic. */
+  const [scannerFeedback, setScannerFeedback] = useState<ScannerFeedback>('idle');
+  const [shakeNonce, setShakeNonce] = useState(0); // increments on each failed scan to re-trigger the keyframe
+  const [flashRowId, setFlashRowId] = useState<number | null>(null);
+
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [customerSearch, setCustomerSearch] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -106,6 +114,23 @@ export function POSPage() {
   const [completed, setCompleted] = useState<Invoice | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  /* Bottom toast (functional error feedback). */
+  type Toast = { id: number; message: string };
+  const [toast, setToast] = useState<Toast | null>(null);
+  const toastIdRef = useRef(0);
+  function showToast(message: string) {
+    toastIdRef.current += 1;
+    setToast({ id: toastIdRef.current, message });
+  }
+  useEffect(() => {
+    if (!toast) return;
+    const id = toast.id;
+    const t = setTimeout(() => {
+      setToast((curr) => (curr && curr.id === id ? null : curr));
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
   const { data: banks = [] } = useQuery<BankAccount[]>({
     queryKey: ['bank-accounts'],
     queryFn: () => salesApi.bankAccounts(),
@@ -124,6 +149,27 @@ export function POSPage() {
     const t = setTimeout(() => setScanFlash(null), 2000);
     return () => clearTimeout(t);
   }, [scanFlash]);
+
+  // Drop the green border 150ms after a successful scan.
+  useEffect(() => {
+    if (scannerFeedback !== 'success') return;
+    const t = setTimeout(() => setScannerFeedback('idle'), 150);
+    return () => clearTimeout(t);
+  }, [scannerFeedback]);
+
+  // Drop the red border 150ms after a failed scan.
+  useEffect(() => {
+    if (scannerFeedback !== 'danger') return;
+    const t = setTimeout(() => setScannerFeedback('idle'), 150);
+    return () => clearTimeout(t);
+  }, [scannerFeedback, shakeNonce]);
+
+  // Clear row-added flash after 200ms.
+  useEffect(() => {
+    if (flashRowId === null) return;
+    const t = setTimeout(() => setFlashRowId(null), 200);
+    return () => clearTimeout(t);
+  }, [flashRowId]);
 
   const subtotal = useMemo(() => cart.reduce((s, l) => s + lineSubtotal(l), 0), [cart]);
 
@@ -162,21 +208,30 @@ export function POSPage() {
     try {
       const roll = await salesApi.rollByBarcode(barcode.trim());
       if (roll.status !== 'in_stock') {
-        setScanError(ar.pos.notFound);
+        flagScanFailure(ar.pos.notFound);
       } else if (!roll.is_visible_at_pos) {
-        setScanError(ar.pos.notVisible);
+        flagScanFailure(ar.pos.notVisible);
       } else if (roll.warehouse !== 'shop' && roll.warehouse !== 'damaged_shop') {
-        setScanError(ar.pos.notAtShop);
+        flagScanFailure(ar.pos.notAtShop);
       } else if (cart.find((l) => l.roll.id === roll.id)) {
-        setScanError(ar.pos.alreadyInCart);
+        flagScanFailure(ar.pos.alreadyInCart);
       } else {
         setCart((c) => [...c, { roll, priceOverride: '', lineDiscount: '' }]);
         setScanFlash(roll);
+        setScannerFeedback('success');
+        setFlashRowId(roll.id);
       }
     } catch (e) {
       const status = axios.isAxiosError(e) ? e.response?.status : 0;
-      setScanError(status === 404 ? ar.pos.notFound : ar.common.error);
+      flagScanFailure(status === 404 ? ar.pos.notFound : ar.common.error);
     }
+  }
+
+  function flagScanFailure(message: string) {
+    setScanError(message);
+    setScannerFeedback('danger');
+    setShakeNonce((n) => n + 1);
+    showToast(message);
   }
 
   function removeLine(idx: number) {
@@ -249,6 +304,7 @@ export function POSPage() {
           ? (e.response.data as { message: string }).message
           : ar.common.error;
       setSubmitError(msg);
+      showToast(msg);
     },
   });
 
@@ -280,7 +336,10 @@ export function POSPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4 max-w-[1600px] mx-auto pb-24 lg:pb-4">
+    <div
+      data-motion="reduced"
+      className="flex flex-col gap-4 max-w-[1600px] mx-auto pb-24 lg:pb-4"
+    >
       {/* Top bar — customer + discount + open invoice + cart pill (mobile) */}
       <TopBar
         customer={customer}
@@ -303,10 +362,14 @@ export function POSPage() {
           onScan={handleScanEnter}
           error={scanError}
           flash={scanFlash}
+          feedback={scannerFeedback}
+          shakeNonce={shakeNonce}
           onPickManual={(roll) => {
             if (!cart.find((l) => l.roll.id === roll.id)) {
               setCart((c) => [...c, { roll, priceOverride: '', lineDiscount: '' }]);
               setScanFlash(roll);
+              setScannerFeedback('success');
+              setFlashRowId(roll.id);
             }
           }}
           onShowLabel={setLabelRoll}
@@ -321,6 +384,7 @@ export function POSPage() {
             useCartDiscount={useCartDiscount}
             updateLine={updateLine}
             removeLine={removeLine}
+            flashRowId={flashRowId}
             onShowLabel={setLabelRoll}
             onPay={() => setPaymentSheetOpen(true)}
             disabled={cart.length === 0}
@@ -342,6 +406,7 @@ export function POSPage() {
               useCartDiscount={useCartDiscount}
               updateLine={updateLine}
               removeLine={removeLine}
+              flashRowId={flashRowId}
               onShowLabel={setLabelRoll}
               onPay={() => {
                 setCartSheetOpen(false);
@@ -389,19 +454,17 @@ export function POSPage() {
 
       {/* Mobile sticky bottom bar — cart count + pay */}
       {cart.length > 0 && (
-        <div
-          className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-canvas border-t border-border px-3 py-2 flex items-center gap-3 pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-[0_-2px_8px_-2px_rgba(0,0,0,0.1)]"
-        >
+        <div className="lg:hidden fixed bottom-0 inset-x-0 z-sticky bg-surface/95 backdrop-blur border-t border-border-subtle px-3 py-2 flex items-center gap-3 pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-lg">
           <button
             onClick={() => setCartSheetOpen(true)}
-            className="flex items-center gap-2 cursor-pointer min-h-11 px-2"
+            className="flex items-center gap-2 cursor-pointer min-h-11 px-2 text-foreground"
             aria-label={ar.pos.cart}
           >
             <ShoppingCart className="size-5" />
             <span className="font-medium text-sm">
               {cart.length} · {ar.pos.subtotal}
             </span>
-            <span className="font-bold text-base" dir="ltr">
+            <span className="font-semibold text-base tabular-num" dir="ltr">
               {fmtMoney(preview?.total_egp ?? subtotal)}
             </span>
           </button>
@@ -429,7 +492,7 @@ export function POSPage() {
             dir="rtl"
             className="h-11 md:h-10"
           />
-          <div className="max-h-80 overflow-auto border border-border rounded">
+          <div className="max-h-80 overflow-auto border border-border-subtle rounded-md">
             {customerResults.rows.map((c) => (
               <button
                 key={c.id}
@@ -437,16 +500,16 @@ export function POSPage() {
                   setCustomer(c);
                   setPickerOpen(false);
                 }}
-                className="w-full text-right p-3 hover:bg-muted/40 border-b border-border last:border-0 min-h-12 cursor-pointer transition-colors"
+                className="w-full text-right p-3 hover:bg-surface-hover border-b border-border-subtle last:border-0 min-h-12 cursor-pointer transition-colors duration-150"
               >
-                <div className="font-medium">{c.name_ar}</div>
-                <div className="text-xs font-mono text-muted-foreground" dir="ltr">
+                <div className="font-medium text-foreground">{c.name_ar}</div>
+                <div className="text-xs font-mono text-foreground-tertiary" dir="ltr">
                   {c.phone}
                 </div>
               </button>
             ))}
             {customerResults.rows.length === 0 && (
-              <p className="p-4 text-center text-muted-foreground text-sm">
+              <p className="p-4 text-center text-foreground-tertiary text-sm">
                 {ar.customers.empty}
               </p>
             )}
@@ -474,10 +537,14 @@ export function POSPage() {
           </DialogHeader>
           {completed && (
             <div className="space-y-3 text-center">
-              <CheckCircle2 className="size-12 mx-auto text-green-600" />
-              <p className="text-2xl font-bold">{completed.invoice_no}</p>
-              <p className="text-muted-foreground">
-                {ar.pos.total}: {fmtMoney(completed.total_egp)} ج.م
+              <CheckCircle2 className="size-12 mx-auto text-success" />
+              <p className="text-2xl font-bold tabular-num">{completed.invoice_no}</p>
+              <p className="text-foreground-muted">
+                {ar.pos.total}:{' '}
+                <span className="tabular-num" dir="ltr">
+                  {fmtMoney(completed.total_egp)}
+                </span>{' '}
+                ج.م
               </p>
               <div className="flex flex-col sm:flex-row gap-2 pt-2">
                 <Button asChild variant="outline" className="flex-1 h-12 cursor-pointer">
@@ -495,7 +562,7 @@ export function POSPage() {
               </div>
               <Link
                 to={`/invoices/${completed.id}`}
-                className="text-xs text-primary hover:underline inline-block py-2"
+                className="text-xs text-accent hover:underline inline-block py-2"
               >
                 {ar.invoices.view}
               </Link>
@@ -503,6 +570,41 @@ export function POSPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Bottom-of-viewport error toast (functional motion — auto-dismiss 4s) */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            key={toast.id}
+            data-functional-motion
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            transition={{ duration: 0.2, ease: [0, 0, 0.2, 1] }}
+            role="alert"
+            className="fixed bottom-20 lg:bottom-6 inset-x-0 mx-auto z-toast w-[min(92vw,420px)] rounded-lg border border-danger/40 bg-danger-subtle text-danger-foreground shadow-lg overflow-hidden"
+          >
+            <div className="flex items-start gap-2 p-3">
+              <AlertTriangle className="size-5 shrink-0 mt-0.5 text-danger" />
+              <p className="text-sm font-medium flex-1">{toast.message}</p>
+              <button
+                onClick={() => setToast(null)}
+                className="text-danger-foreground/70 hover:text-danger-foreground cursor-pointer p-0.5"
+                aria-label={ar.common.cancel}
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <div className="h-1 bg-danger/15">
+              <div
+                key={toast.id}
+                data-functional-motion
+                className="rmx-toast-progress h-full bg-danger"
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -536,20 +638,22 @@ function TopBar({
   onOpenCart: () => void;
 }) {
   return (
-    <div className="sticky top-0 z-30 bg-canvas/95 backdrop-blur border-b border-border -mx-2 px-2 py-2 flex flex-wrap items-center gap-2">
+    <div className="sticky top-0 z-sticky bg-surface/95 backdrop-blur border-b border-border-subtle -mx-2 px-2 py-2 flex flex-wrap items-center gap-2">
       {/* Customer pill */}
       {customer ? (
-        <div className="flex items-center gap-2 rounded border border-border bg-muted/30 px-3 py-2 min-h-11">
-          <UserRound className="size-4 text-muted-foreground" />
+        <div className="flex items-center gap-2 rounded-md border border-border-default bg-surface-elevated px-3 py-2 min-h-11">
+          <UserRound className="size-4 text-foreground-muted" />
           <div className="flex flex-col leading-tight min-w-0">
-            <span className="font-medium text-sm truncate">{customer.name_ar}</span>
-            <span className="text-xs font-mono text-muted-foreground" dir="ltr">
+            <span className="font-medium text-sm truncate text-foreground">
+              {customer.name_ar}
+            </span>
+            <span className="text-xs font-mono text-foreground-tertiary" dir="ltr">
               {customer.phone}
             </span>
           </div>
           <button
             onClick={onClearCustomer}
-            className="cursor-pointer text-muted-foreground hover:text-foreground p-1"
+            className="cursor-pointer text-foreground-tertiary hover:text-foreground p-1"
             aria-label={ar.common.cancel}
           >
             <X className="size-4" />
@@ -577,28 +681,28 @@ function TopBar({
       )}
 
       {/* Discount inline */}
-      <div className="flex items-center gap-2 rounded border border-border px-3 py-1 min-h-11">
-        <Tag className="size-4 text-muted-foreground" />
-        <span className="text-xs text-muted-foreground">{ar.pos.targetFinal}</span>
+      <div className="flex items-center gap-2 rounded-md border border-border-default bg-surface-elevated px-3 py-1 min-h-11">
+        <Tag className="size-4 text-foreground-muted" />
+        <span className="text-xs text-foreground-muted">{ar.pos.targetFinal}</span>
         <Input
           value={targetFinalRaw}
           onChange={(e) => setTargetFinalRaw(e.target.value)}
           placeholder={fmtMoney(subtotalForPlaceholder)}
           dir="ltr"
           inputMode="decimal"
-          className="h-8 w-28 text-sm border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-1"
+          className="h-8 w-28 text-sm border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-1 tabular-num"
         />
       </div>
 
       {/* Save as open toggle */}
-      <label className="flex items-center gap-2 cursor-pointer text-sm rounded border border-border px-3 min-h-11">
+      <label className="flex items-center gap-2 cursor-pointer text-sm rounded-md border border-border-default bg-surface-elevated px-3 min-h-11 text-foreground">
         <input
           type="checkbox"
           checked={saveAsOpen}
           onChange={(e) => setSaveAsOpen(e.target.checked)}
-          className="size-4 cursor-pointer"
+          className="size-4 cursor-pointer accent-accent"
         />
-        <Receipt className="size-4 text-muted-foreground" />
+        <Receipt className="size-4 text-foreground-muted" />
         {ar.pos.saveAsOpen}
       </label>
 
@@ -607,14 +711,14 @@ function TopBar({
       {/* Cart pill (mobile/tablet only) */}
       <button
         onClick={onOpenCart}
-        className="lg:hidden flex items-center gap-2 cursor-pointer rounded border border-border bg-muted/30 px-3 min-h-11 hover:bg-muted/60 transition-colors"
+        className="lg:hidden flex items-center gap-2 cursor-pointer rounded-md border border-border-default bg-surface-elevated px-3 min-h-11 hover:bg-surface-hover transition-colors duration-150 text-foreground"
         aria-label={ar.pos.cart}
       >
         <ShoppingCart className="size-4" />
         <span className="font-medium text-sm">{cartCount}</span>
       </button>
 
-      <div className="hidden lg:flex items-center gap-1 text-xs text-muted-foreground">
+      <div className="hidden lg:flex items-center gap-1 text-xs text-foreground-tertiary">
         <Info className="size-3.5" />
         {ar.pos.keyboardHint}
       </div>
@@ -629,41 +733,70 @@ function ScanColumn({
   onScan,
   error,
   flash,
+  feedback,
+  shakeNonce,
   onPickManual,
   onShowLabel,
 }: {
   onScan: (b: string) => Promise<void>;
   error: string | null;
   flash: RollLookup | null;
+  feedback: ScannerFeedback;
+  shakeNonce: number;
   onPickManual: (r: RollLookup) => void;
   onShowLabel: (r: RollLookup) => void;
 }) {
+  // Border-color class on the scan input wrapper.
+  const borderClass =
+    feedback === 'success'
+      ? 'border-success'
+      : feedback === 'danger'
+        ? 'border-danger'
+        : 'border-border-default focus-within:border-accent';
+
   return (
     <Card className="overflow-hidden">
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2">
-          <Scan className="size-5" />
-          {ar.pos.scan}
+        <CardTitle className="flex items-center justify-between gap-2 text-lg">
+          <span className="flex items-center gap-2">
+            <Scan className="size-5 text-accent" />
+            {ar.pos.scan}
+          </span>
+          <button
+            type="button"
+            className="cursor-pointer p-1 text-foreground-tertiary hover:text-foreground"
+            aria-label="المزيد"
+            title="المزيد"
+          >
+            <MoreVertical className="size-4" />
+          </button>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {/* Hero scan input — large autofocused */}
-        <div className="rounded border-2 border-primary/30 focus-within:border-primary bg-muted/20 p-3 transition-colors">
+        {/* Hero scan input — 2px outline on focus, success/danger flash on feedback */}
+        <div
+          key={`scanwrap-${shakeNonce}`}
+          data-functional-motion={feedback === 'danger' ? 'shake' : ''}
+          className={`rounded-md border-2 bg-surface p-3 text-xl transition-colors duration-75 ${borderClass} ${
+            feedback === 'danger' ? 'rmx-shake' : ''
+          }`}
+        >
           <ScannerInput
             onScan={(b) => void onScan(b)}
             placeholder={ar.pos.scanFocus}
           />
         </div>
 
-        {error && (
-          <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">
-            <AlertTriangle className="size-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-
         {flash && (
           <FlashCard roll={flash} onShowLabel={() => onShowLabel(flash)} />
+        )}
+
+        {/* Inline error preserved as accessible status text; toast handles the loud notify. */}
+        {error && !flash && (
+          <p className="text-sm text-danger-foreground flex items-center gap-2" role="status">
+            <AlertTriangle className="size-4 text-danger" />
+            {error}
+          </p>
         )}
 
         <ManualSearchBlock onPick={onPickManual} />
@@ -675,14 +808,14 @@ function ScanColumn({
 function FlashCard({ roll, onShowLabel }: { roll: RollLookup; onShowLabel: () => void }) {
   const fabric = isFabricRoll(roll);
   return (
-    <div className="rounded border border-green-200 bg-green-50/60 p-3 flex items-start gap-3">
-      <CheckCircle2 className="size-5 text-green-600 shrink-0 mt-0.5" />
+    <div className="rounded-md border border-success/40 bg-success-subtle p-3 flex items-start gap-3">
+      <CheckCircle2 className="size-5 text-success shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0 space-y-1">
-        <div className="font-medium">{ar.pos.rollFound}</div>
-        <div className="text-sm">
+        <div className="font-medium text-success-foreground">{ar.pos.rollFound}</div>
+        <div className="text-sm text-foreground">
           <span className="font-medium">{roll.fabric_name_ar}</span>
           {roll.brand_arabic_name && (
-            <span className="text-muted-foreground">
+            <span className="text-foreground-muted">
               {' · '}
               {roll.brand_arabic_name}
               {roll.brand_product_line ? ` • ${roll.brand_product_line}` : ''}
@@ -691,7 +824,7 @@ function FlashCard({ roll, onShowLabel }: { roll: RollLookup; onShowLabel: () =>
         </div>
         {fabric && <ChipRow roll={roll} />}
         {!fabric && roll.color_name_ar && (
-          <div className="text-xs text-muted-foreground">{roll.color_name_ar}</div>
+          <div className="text-xs text-foreground-tertiary">{roll.color_name_ar}</div>
         )}
       </div>
       {fabric && (
@@ -719,6 +852,7 @@ function CartPanel({
   useCartDiscount,
   updateLine,
   removeLine,
+  flashRowId,
   onShowLabel,
   onPay,
   disabled,
@@ -730,6 +864,7 @@ function CartPanel({
   useCartDiscount: boolean;
   updateLine: (i: number, p: Partial<CartLine>) => void;
   removeLine: (i: number) => void;
+  flashRowId: number | null;
   onShowLabel: (r: RollLookup) => void;
   onPay: () => void;
   disabled: boolean;
@@ -741,12 +876,12 @@ function CartPanel({
     ) : (
       <Card className="lg:sticky lg:top-20">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2">
-            <ShoppingCart className="size-5" />
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <ShoppingCart className="size-5 text-accent" />
             {ar.pos.cart}
             {cart.length > 0 && (
-              <span className="text-sm text-muted-foreground font-normal">
-                ({cart.length})
+              <span className="inline-flex items-center justify-center rounded-pill bg-accent-subtle text-accent-foreground bg-accent px-2 py-0.5 text-xs font-medium min-w-[1.5rem]">
+                {cart.length}
               </span>
             )}
           </CardTitle>
@@ -758,31 +893,47 @@ function CartPanel({
   return (
     <Wrap>
       {cart.length === 0 ? (
-        <p className="text-center text-muted-foreground py-12 text-sm">
-          {ar.pos.cartEmpty}
-        </p>
+        <div className="text-center py-12">
+          <div
+            className="size-12 mx-auto mb-3 rounded-full bg-surface-hover flex items-center justify-center"
+            aria-hidden
+          >
+            <ShoppingCart className="size-6 text-foreground-tertiary" />
+          </div>
+          <p className="text-foreground-muted text-sm">{ar.pos.cartEmpty}</p>
+        </div>
       ) : (
         <div className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pr-1 -mr-1">
-          {cart.map((l, idx) => (
-            <EnrichedCartLine
-              key={l.roll.id}
-              line={l}
-              onUpdate={(p) => updateLine(idx, p)}
-              onRemove={() => removeLine(idx)}
-              onShowLabel={() => onShowLabel(l.roll)}
-            />
-          ))}
+          <AnimatePresence initial={false}>
+            {cart.map((l, idx) => (
+              <motion.div
+                key={l.roll.id}
+                data-functional-motion
+                initial={false}
+                exit={{ opacity: 0.4 }}
+                transition={{ duration: 0.1, ease: [0.4, 0, 1, 1] }}
+              >
+                <EnrichedCartLine
+                  line={l}
+                  flashing={flashRowId === l.roll.id}
+                  onUpdate={(p) => updateLine(idx, p)}
+                  onRemove={() => removeLine(idx)}
+                  onShowLabel={() => onShowLabel(l.roll)}
+                />
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       )}
 
       {cart.length > 0 && (
-        <div className="border-t border-border pt-3 space-y-1 text-sm">
+        <div className="border-t border-border-subtle pt-3 space-y-1 text-sm tabular-num">
           <Row label={ar.pos.subtotal} value={fmtMoney(preview?.subtotal_egp ?? subtotal)} />
           {useCartDiscount && preview && preview.cart_discount_egp > 0 && (
             <Row
               label={ar.pos.discount}
               value={`- ${fmtMoney(preview.cart_discount_egp)}`}
-              tone="green"
+              tone="success"
             />
           )}
           {preview && preview.tax_enabled && (
@@ -791,7 +942,11 @@ function CartPanel({
           {preview && preview.rounding_egp !== 0 && (
             <Row label={ar.pos.rounding} value={fmtMoney(preview.rounding_egp)} />
           )}
-          <Row label={ar.pos.total} value={fmtMoney(preview?.total_egp ?? subtotal)} bold />
+          <Row
+            label={ar.pos.total}
+            value={fmtMoney(preview?.total_egp ?? subtotal)}
+            size="lg"
+          />
         </div>
       )}
 
@@ -810,11 +965,13 @@ function CartPanel({
 
 function EnrichedCartLine({
   line,
+  flashing,
   onUpdate,
   onRemove,
   onShowLabel,
 }: {
   line: CartLine;
+  flashing: boolean;
   onUpdate: (p: Partial<CartLine>) => void;
   onRemove: () => void;
   onShowLabel: () => void;
@@ -824,18 +981,25 @@ function EnrichedCartLine({
   const [showCompTip, setShowCompTip] = useState(false);
 
   return (
-    <div className="rounded border border-border bg-canvas hover:border-primary/40 transition-colors p-3 space-y-2">
+    <div
+      data-functional-motion
+      className={`rounded-md border bg-surface-elevated p-3 space-y-2 transition-colors duration-200 ${
+        flashing ? 'border-success bg-success-subtle' : 'border-border-subtle'
+      }`}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0 space-y-1">
-          <div className="font-medium text-sm leading-tight">{r.fabric_name_ar}</div>
+          <div className="font-medium text-sm leading-tight text-foreground">
+            {r.fabric_name_ar}
+          </div>
           {r.brand_arabic_name && (
-            <div className="text-xs text-muted-foreground">
+            <div className="text-xs text-foreground-muted">
               {r.brand_arabic_name}
               {r.brand_product_line ? ` • ${r.brand_product_line}` : ''}
             </div>
           )}
           {fabric && <ChipRow roll={r} />}
-          <div className="text-xs text-muted-foreground font-mono" dir="ltr">
+          <div className="text-xs text-foreground-tertiary font-mono tabular-num" dir="ltr">
             {r.roll_sr_no ?? r.internal_barcode} · {Number(r.weight_kg).toFixed(3)} kg
           </div>
         </div>
@@ -844,7 +1008,7 @@ function EnrichedCartLine({
             variant="ghost"
             size="sm"
             onClick={onRemove}
-            className="size-8 p-0 cursor-pointer text-muted-foreground hover:text-red-600"
+            className="size-8 p-0 cursor-pointer text-foreground-tertiary hover:text-danger"
             aria-label={ar.common.cancel}
           >
             <X className="size-4" />
@@ -854,7 +1018,7 @@ function EnrichedCartLine({
               variant="ghost"
               size="sm"
               onClick={onShowLabel}
-              className="size-8 p-0 cursor-pointer text-muted-foreground hover:text-primary"
+              className="size-8 p-0 cursor-pointer text-foreground-tertiary hover:text-accent"
               aria-label={ar.pos.label}
               title={ar.pos.label}
             >
@@ -866,13 +1030,13 @@ function EnrichedCartLine({
               onClick={() => setShowCompTip((s) => !s)}
               onMouseEnter={() => setShowCompTip(true)}
               onMouseLeave={() => setShowCompTip(false)}
-              className="size-8 p-0 cursor-pointer text-muted-foreground hover:text-primary inline-flex items-center justify-center rounded relative"
+              className="size-8 p-0 cursor-pointer text-foreground-tertiary hover:text-accent inline-flex items-center justify-center rounded-md relative"
               aria-label={ar.pos.composition}
               title={r.composition_description}
             >
               <Info className="size-4" />
               {showCompTip && (
-                <span className="absolute top-full mt-1 left-0 z-50 bg-canvas border border-border rounded shadow-md text-xs px-2 py-1 whitespace-nowrap font-normal text-foreground">
+                <span className="absolute top-full mt-1 left-0 z-popover bg-surface-elevated border border-border-subtle rounded-md shadow-md text-xs px-2 py-1 whitespace-nowrap font-normal text-foreground">
                   {r.composition_description}
                 </span>
               )}
@@ -884,30 +1048,33 @@ function EnrichedCartLine({
       {/* Inline price + line discount + total */}
       <div className="grid grid-cols-3 gap-2 items-end">
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">{ar.pos.pricePerKg}</Label>
+          <Label className="text-xs text-foreground-muted">{ar.pos.pricePerKg}</Label>
           <Input
             value={line.priceOverride}
             onChange={(e) => onUpdate({ priceOverride: e.target.value })}
             placeholder={fmtMoney(r.selling_price_egp)}
             dir="ltr"
             inputMode="decimal"
-            className="h-9"
+            className="h-9 tabular-num"
           />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">{ar.pos.lineDiscount}</Label>
+          <Label className="text-xs text-foreground-muted">{ar.pos.lineDiscount}</Label>
           <Input
             value={line.lineDiscount}
             onChange={(e) => onUpdate({ lineDiscount: e.target.value })}
             placeholder="0"
             dir="ltr"
             inputMode="decimal"
-            className="h-9"
+            className="h-9 tabular-num"
           />
         </div>
         <div className="space-y-1 text-right">
-          <Label className="text-xs text-muted-foreground">{ar.pos.lineTotal}</Label>
-          <div className="h-9 flex items-center justify-end font-bold" dir="ltr">
+          <Label className="text-xs text-foreground-muted">{ar.pos.lineTotal}</Label>
+          <div
+            className="h-9 flex items-center justify-end font-semibold text-foreground tabular-num"
+            dir="ltr"
+          >
             {fmtMoney(lineSubtotal(line))}
           </div>
         </div>
@@ -934,9 +1101,9 @@ function ChipRow({ roll }: { roll: RollLookup }) {
       {chips.map((c) => (
         <span
           key={c.label + c.value}
-          className="inline-flex items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 text-[11px] text-foreground"
+          className="inline-flex items-center gap-1 rounded-pill bg-surface-row-alt px-2 py-0.5 text-[11px] text-foreground"
         >
-          <span className="text-muted-foreground">{c.label}:</span>
+          <span className="text-foreground-tertiary">{c.label}:</span>
           <span className="font-medium">{c.value}</span>
         </span>
       ))}
@@ -1002,10 +1169,10 @@ function PaymentForm({
               key={m}
               type="button"
               onClick={() => setPaymentMode(m)}
-              className={`cursor-pointer rounded-lg border-2 p-3 flex flex-col items-center justify-center gap-1 transition-colors min-h-[80px] ${
+              className={`cursor-pointer rounded-lg border-2 p-3 flex flex-col items-center justify-center gap-1 transition-colors duration-150 min-h-[80px] ${
                 active
-                  ? 'border-primary bg-primary/5 text-primary'
-                  : 'border-border bg-canvas hover:bg-muted/40'
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
               }`}
             >
               <Icon className="size-6" />
@@ -1025,7 +1192,7 @@ function PaymentForm({
               onChange={(e) => setCashAmount(e.target.value)}
               dir="ltr"
               inputMode="decimal"
-              className="h-11"
+              className="h-11 tabular-num"
             />
           </div>
         )}
@@ -1038,13 +1205,13 @@ function PaymentForm({
                 onChange={(e) => setInstaAmount(e.target.value)}
                 dir="ltr"
                 inputMode="decimal"
-                className="h-11"
+                className="h-11 tabular-num"
               />
             </div>
             <div className="space-y-1 sm:col-span-2">
               <Label>{ar.pos.bankAccount}</Label>
               <select
-                className="h-11 w-full border border-border rounded px-2 bg-canvas cursor-pointer"
+                className="h-11 w-full border border-border-default rounded-md px-2 bg-surface-elevated text-foreground cursor-pointer"
                 value={bankAccountId}
                 onChange={(e) =>
                   setBankAccountId(e.target.value ? Number(e.target.value) : '')
@@ -1064,12 +1231,12 @@ function PaymentForm({
       </div>
 
       {/* Save as open toggle (also surfaced in top bar; mirrored here for convenience) */}
-      <label className="flex items-center gap-2 text-sm cursor-pointer min-h-11">
+      <label className="flex items-center gap-2 text-sm cursor-pointer min-h-11 text-foreground">
         <input
           type="checkbox"
           checked={saveAsOpen}
           onChange={(e) => setSaveAsOpen(e.target.checked)}
-          className="size-5 cursor-pointer"
+          className="size-5 cursor-pointer accent-accent"
         />
         {ar.pos.saveAsOpen}
       </label>
@@ -1087,13 +1254,13 @@ function PaymentForm({
 
       {/* Summary */}
       {preview && (
-        <div className="rounded border border-border bg-muted/20 p-3 space-y-1 text-sm">
+        <div className="rounded-md border border-border-subtle bg-surface-row-alt p-3 space-y-1 text-sm tabular-num">
           <Row label={ar.pos.subtotal} value={fmtMoney(preview.subtotal_egp)} />
           {preview.cart_discount_egp > 0 && (
             <Row
               label={ar.pos.discount}
               value={`- ${fmtMoney(preview.cart_discount_egp)}`}
-              tone="green"
+              tone="success"
             />
           )}
           {preview.tax_enabled && (
@@ -1102,7 +1269,7 @@ function PaymentForm({
           {preview.rounding_egp !== 0 && (
             <Row label={ar.pos.rounding} value={fmtMoney(preview.rounding_egp)} />
           )}
-          <Row label={ar.pos.total} value={fmtMoney(preview.total_egp)} bold />
+          <Row label={ar.pos.total} value={fmtMoney(preview.total_egp)} size="lg" />
           <Row label={ar.pos.paid} value={fmtMoney(paymentSum)} />
           <Row
             label={ar.pos.balance}
@@ -1112,14 +1279,14 @@ function PaymentForm({
       )}
 
       {validation && (
-        <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">
-          <AlertTriangle className="size-4 shrink-0" />
+        <div className="flex items-center gap-2 text-sm text-danger-foreground bg-danger-subtle border border-danger/30 rounded-md p-2">
+          <AlertTriangle className="size-4 shrink-0 text-danger" />
           <span>{validation}</span>
         </div>
       )}
       {submitError && (
-        <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">
-          <AlertTriangle className="size-4 shrink-0" />
+        <div className="flex items-center gap-2 text-sm text-danger-foreground bg-danger-subtle border border-danger/30 rounded-md p-2">
+          <AlertTriangle className="size-4 shrink-0 text-danger" />
           <span>{submitError}</span>
         </div>
       )}
@@ -1179,7 +1346,7 @@ function ManualSearchBlock({ onPick }: { onPick: (r: RollLookup) => void }) {
             dir="rtl"
             className="h-11 md:h-10"
           />
-          <div className="max-h-96 overflow-auto border border-border rounded">
+          <div className="max-h-96 overflow-auto border border-border-subtle rounded-md">
             {filtered.map((r) => (
               <button
                 key={r.id}
@@ -1188,26 +1355,26 @@ function ManualSearchBlock({ onPick }: { onPick: (r: RollLookup) => void }) {
                   setOpen(false);
                   setSearch('');
                 }}
-                className="w-full text-right p-3 hover:bg-muted/40 border-b border-border last:border-0 text-sm min-h-12 cursor-pointer transition-colors"
+                className="w-full text-right p-3 hover:bg-surface-hover border-b border-border-subtle last:border-0 text-sm min-h-12 cursor-pointer transition-colors duration-150"
               >
                 <div className="flex justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="font-medium truncate">
+                    <div className="font-medium truncate text-foreground">
                       {r.fabric_name_ar} / {r.color_name_ar}
                     </div>
-                    <div className="text-xs text-muted-foreground" dir="ltr">
+                    <div className="text-xs text-foreground-tertiary tabular-num" dir="ltr">
                       {r.roll_sr_no ?? r.internal_barcode} ·{' '}
                       {Number(r.weight_kg).toFixed(3)} كجم
                     </div>
                   </div>
-                  <div className="text-left shrink-0">
+                  <div className="text-left shrink-0 tabular-num text-foreground">
                     <div dir="ltr">{fmtMoney(r.selling_price_egp)}</div>
                   </div>
                 </div>
               </button>
             ))}
             {filtered.length === 0 && (
-              <p className="p-4 text-center text-muted-foreground text-sm">
+              <p className="p-4 text-center text-foreground-tertiary text-sm">
                 {ar.common.none}
               </p>
             )}
@@ -1248,8 +1415,8 @@ function LabelPreviewModal({
         {roll && (
           <div className="space-y-3">
             <div className="text-sm">
-              <div className="font-medium">{roll.fabric_name_ar}</div>
-              <div className="text-xs text-muted-foreground font-mono" dir="ltr">
+              <div className="font-medium text-foreground">{roll.fabric_name_ar}</div>
+              <div className="text-xs text-foreground-tertiary font-mono tabular-num" dir="ltr">
                 {roll.internal_barcode}
               </div>
             </div>
@@ -1274,7 +1441,7 @@ function LabelPreviewModal({
             <iframe
               src={url}
               title={ar.pos.labelPreview}
-              className="w-full h-[60vh] border border-border rounded"
+              className="w-full h-[60vh] border border-border-subtle rounded-md"
             />
             <div className="flex justify-end gap-2">
               <DialogClose asChild>
@@ -1355,10 +1522,10 @@ function QuickCustomerDialog({
               dir="ltr"
               inputMode="tel"
               autoComplete="tel"
-              className="h-11 md:h-10"
+              className="h-11 md:h-10 tabular-num"
             />
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-danger-foreground">{error}</p>}
           <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end pt-2">
             <DialogClose asChild>
               <Button variant="outline" className="h-11 md:h-10 cursor-pointer">
@@ -1385,20 +1552,24 @@ function QuickCustomerDialog({
 function Row({
   label,
   value,
-  bold = false,
+  size = 'sm',
   tone,
 }: {
   label: string;
   value: string;
-  bold?: boolean;
-  tone?: 'green';
+  size?: 'sm' | 'lg';
+  tone?: 'success';
 }) {
-  const valueCls = bold ? 'font-bold text-base' : '';
-  const toneCls = tone === 'green' ? 'text-green-700' : '';
+  const bold = size === 'lg';
+  const toneCls = tone === 'success' ? 'text-success-foreground' : '';
   return (
-    <div className={`flex justify-between ${bold ? 'font-bold text-base' : ''} ${toneCls}`}>
-      <span>{label}</span>
-      <span dir="ltr" className={valueCls}>
+    <div
+      className={`flex justify-between ${
+        bold ? 'text-2xl font-semibold pt-1' : ''
+      } ${toneCls}`}
+    >
+      <span className={bold ? 'text-foreground' : 'text-foreground-muted'}>{label}</span>
+      <span dir="ltr" className={bold ? 'text-foreground tabular-num' : 'tabular-num'}>
         {value}
       </span>
     </div>
