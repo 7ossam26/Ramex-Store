@@ -1,20 +1,145 @@
+/* =============================================================
+ * RMX Store — global stylesheet
+ * Phase 1 (Foundations): design tokens, fonts, motion, reduced-motion.
+ * Do NOT add component styles here. Use Tailwind utilities + tokens.
+ * Source of truth: design-system/MASTER.md
+ * ============================================================= */
+
+/* ---------- Fonts: self-hosted IBM Plex Sans Arabic + Latin ---- */
+@import '@fontsource/ibm-plex-sans-arabic/300.css';
+@import '@fontsource/ibm-plex-sans-arabic/400.css';
+@import '@fontsource/ibm-plex-sans-arabic/500.css';
+@import '@fontsource/ibm-plex-sans-arabic/600.css';
+@import '@fontsource/ibm-plex-sans-arabic/700.css';
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-sans/700.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ---------- Design tokens (Warm Editorial) -------------------- */
 @layer base {
   :root {
-    --color-canvas: 36 25% 94%;
-    --color-ink: 0 0% 10%;
-    --color-primary: 240 35% 25%;
-    --color-primary-foreground: 36 25% 96%;
-    --color-accent: 33 47% 49%;
-    --color-accent-foreground: 0 0% 10%;
-    --color-muted: 36 15% 88%;
-    --color-muted-foreground: 0 0% 30%;
-    --color-border: 36 15% 80%;
-    --color-ring: 240 35% 25%;
+    /* Legacy tokens — kept as aliases so existing components inherit the new palette without file edits.
+     * Phase 7 sweeps these away once all components consume the new --rmx-* tokens. */
+    --color-canvas: 36 50% 96%;             /* surface #FBF7F2 */
+    --color-ink: 220 32% 15%;               /* text-default #1A2433 */
+    --color-primary: 12 51% 53%;            /* terracotta #C4624A (was navy in Phase 0) */
+    --color-primary-foreground: 36 50% 96%; /* warm-white text on terracotta */
+    --color-accent: 12 51% 53%;             /* terracotta — same as primary in Warm Editorial */
+    --color-accent-foreground: 36 50% 96%;
+    --color-muted: 36 35% 90%;              /* surface-hover #F0E9DC */
+    --color-muted-foreground: 220 12% 42%;  /* text-muted #5C6678 */
+    --color-border: 36 35% 86%;             /* border-subtle #E8DFD2 */
+    --color-ring: 12 51% 53%;               /* focus ring = accent */
+
+    /* Re-Skin Standard tokens — the canonical set, used by Phase 2+ components. */
+
+    /* Surfaces */
+    --rmx-surface: 36 50% 96%;              /* #FBF7F2 */
+    --rmx-surface-elevated: 0 0% 100%;      /* #FFFFFF */
+    --rmx-surface-row-alt: 36 38% 93%;      /* #F4EFE7 */
+    --rmx-surface-hover: 36 35% 90%;        /* #F0E9DC */
+    --rmx-surface-active: 36 35% 85%;       /* #E8DFCD */
+
+    /* Chrome (dark navigation surfaces) */
+    --rmx-chrome: 220 47% 16%;              /* #16213A */
+    --rmx-chrome-elevated: 220 41% 20%;     /* #1E2A47 */
+    --rmx-chrome-text: 36 45% 89%;          /* #F1EAD9 */
+    --rmx-chrome-text-muted: 220 17% 71%;   /* #A8B0C2 */
+    --rmx-chrome-border: 220 36% 25%;       /* #2A3858 */
+
+    /* Text */
+    --rmx-text-default: 220 32% 15%;        /* #1A2433 */
+    --rmx-text-muted: 220 12% 42%;          /* #5C6678 */
+    --rmx-text-tertiary: 220 12% 60%;       /* #8B94A6 */
+    --rmx-text-on-accent: 36 50% 96%;       /* #FBF7F2 */
+
+    /* Borders */
+    --rmx-border-subtle: 36 35% 86%;        /* #E8DFD2 */
+    --rmx-border-default: 36 28% 78%;       /* #D6C9B5 */
+    --rmx-border-strong: 36 22% 64%;        /* #B8A88F */
+
+    /* Accent */
+    --rmx-accent: 12 51% 53%;               /* #C4624A */
+    --rmx-accent-hover: 12 50% 44%;         /* #A84F3A */
+    --rmx-accent-subtle: 12 60% 88%;        /* #F4DAD0 */
+    --rmx-accent-foreground: 36 50% 96%;    /* #FBF7F2 */
+
+    /* Semantic — Success (sage) */
+    --rmx-success: 108 13% 51%;             /* #7C9472 */
+    --rmx-success-subtle: 100 22% 89%;      /* #E3EBDD */
+    --rmx-success-foreground: 108 19% 27%;  /* #3F5238 */
+
+    /* Semantic — Warning (warm amber) */
+    --rmx-warning: 36 67% 54%;              /* #D89B3A */
+    --rmx-warning-subtle: 40 80% 90%;       /* #FAEDD2 */
+    --rmx-warning-foreground: 36 67% 28%;   /* #7A5418 */
+
+    /* Semantic — Danger (warm red) */
+    --rmx-danger: 0 51% 48%;                /* #B83B3B */
+    --rmx-danger-subtle: 0 51% 91%;         /* #F5DDDD */
+    --rmx-danger-foreground: 0 55% 27%;     /* #6A1F1F */
+
+    /* Semantic — Info (muted blue tied to chrome) */
+    --rmx-info: 212 28% 43%;                /* #4F6B8E */
+    --rmx-info-subtle: 213 27% 89%;         /* #DCE3EC */
+    --rmx-info-foreground: 212 33% 26%;     /* #2D3F58 */
+
+    /* Focus */
+    --rmx-focus-ring: 12 51% 53%;           /* #C4624A */
   }
-  html { font-family: 'Cairo', system-ui, sans-serif; }
-  body { @apply bg-canvas text-ink antialiased; }
+
+  html {
+    font-family: 'IBM Plex Sans Arabic', 'IBM Plex Sans', system-ui, sans-serif;
+  }
+
+  body {
+    @apply bg-canvas text-ink antialiased;
+  }
+}
+
+/* ---------- Tabular-num utility ------------------------------- */
+/* Apply via class on numeric cells. Phase 5 may promote this to a Tailwind plugin. */
+.tabular-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Motion: reduced-motion scope ---------------------- *
+ * Two triggers, same effect:
+ *  1. [data-motion="reduced"] — explicit opt-in on a subtree (POS wraps its root in this).
+ *  2. @media (prefers-reduced-motion: reduce) — honors the OS-level user preference.
+ *
+ * Behavior: collapse durations to 1ms and neutralize transform-based motion. CSS keyframe
+ * animations are paused at their resting state. Functional micro-motions written directly
+ * with `transition-colors` (e.g. POS input focus tween, POS success-flash, POS error-shake)
+ * remain because they are NOT transforms. */
+[data-motion='reduced'] *,
+[data-motion='reduced'] *::before,
+[data-motion='reduced'] *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+  scroll-behavior: auto !important;
+}
+[data-motion='reduced'] [data-motion-transform],
+[data-motion='reduced'] *[style*='transform'] {
+  transform: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+  [data-motion-transform] {
+    transform: none !important;
+  }
 }
