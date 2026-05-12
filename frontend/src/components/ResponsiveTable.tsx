@@ -61,18 +61,23 @@ export function ResponsiveTable<T>({
   resetKey,
 }: Props<T>) {
   const visibleCols = columns;
-  const mountedRef = useRef(false);
+  // Stagger only on the very first paint. Subsequent resetKey flips (filter
+  // changes) re-key tbody so rows fade in, but without re-playing the cascade.
+  const hasPaintedRef = useRef(false);
   const [mountTick, setMountTick] = useState(0);
 
-  // Track resetKey changes to trigger a quick fade. On first mount, also "tick" to play stagger.
+  // After the first paint, flip the flag so subsequent resetKey-driven re-keys
+  // fade in instantly instead of replaying the row stagger.
   useEffect(() => {
-    if (!mountedRef.current) {
-      mountedRef.current = true;
-      setMountTick((t) => t + 1);
-    } else {
-      setMountTick((t) => t + 1);
-    }
+    hasPaintedRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    setMountTick((t) => t + 1);
   }, [resetKey]);
+
+  const rowDelay = (i: number) =>
+    hasPaintedRef.current ? 0 : Math.min(i, 9) * 0.03;
 
   if (isLoading) {
     return <TableSkeleton rows={8} columns={Math.min(visibleCols.length, 6)} className={className} />;
@@ -106,7 +111,10 @@ export function ResponsiveTable<T>({
         )}
       >
         <table className="w-full text-sm">
-          <thead className="sticky top-0 z-sticky bg-surface-elevated">
+          {/* No sticky behavior: the page (not the table wrapper) owns the
+              scroll context, so `position: sticky` here is inert. Dropped per
+              Phase 7 closeout-fix review. */}
+          <thead className="bg-surface-elevated">
             <tr className="text-right text-xs text-foreground-muted border-b border-border-subtle">
               {visibleCols.map((c) => (
                 <th
@@ -143,7 +151,7 @@ export function ResponsiveTable<T>({
                   transition={{
                     duration: 0.15,
                     ease: [0, 0, 0.2, 1],
-                    delay: Math.min(i, 9) * 0.03,
+                    delay: rowDelay(i),
                   }}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   className={cn(
@@ -198,7 +206,7 @@ export function ResponsiveTable<T>({
                 transition={{
                   duration: 0.15,
                   ease: [0, 0, 0.2, 1],
-                  delay: Math.min(i, 9) * 0.03,
+                  delay: rowDelay(i),
                 }}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
                 className={cn(
