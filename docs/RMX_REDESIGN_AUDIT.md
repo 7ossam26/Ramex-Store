@@ -451,8 +451,8 @@ Picked in Phase 1, 2026-05-12. Boutique-editorial register: warm-white surface, 
 
 | Scale | Count | Source |
 |---|---|---|
-| Color tokens — Re-Skin Standard (`--rmx-*`) | 35 | `index.css` :root |
-| Legacy aliases (`--color-*`) | 10 | `index.css` :root — kept as bridges, no longer referenced by Phase 2+ components |
+| Color tokens — Re-Skin Standard (`--rmx-*`) | 44 | `index.css` :root |
+| Legacy aliases (`--color-*`) | 12 | `index.css` :root — kept as bridges; mostly retired from Phase 2+ surfaces during the closeout-fix sweep, but one or two callsites may still resolve through them |
 | Spacing | Tailwind defaults (4/8/12/16/20/24/32/40/48/64/80/96) | no extension |
 | Radius | `sm`/`md`/`lg`/`xl`/`2xl`/`pill` | tailwind.config |
 | Shadow | `xs`/`sm`/`md`/`lg`/`xl` (warm-tinted via `220 32% 15%`) | tailwind.config |
@@ -495,7 +495,7 @@ Picked in Phase 1, 2026-05-12. Boutique-editorial register: warm-white surface, 
 3. **Chart token resolution at runtime** — `SecondaryReportChart.tsx` ships hex literals that mirror MASTER.md. A future improvement reads `getComputedStyle(document.documentElement).getPropertyValue('--rmx-accent')` so chart colors track palette changes automatically.
 4. **Mobile sweep** — every page renders through `ResponsiveTable` / `ResponsiveDialog` / `MobileFilterSheet` so the patterns are in place, but a 360px hands-on screenshot pass (devtools device emulation) on every route was not performed in this commit. Patterns sound, surface-level visual confirmation outstanding.
 5. **Recent-store in CommandPalette** — uses `localStorage`. If we ever adopt a single client store, move `rmx:cmdk:recent` into it.
-6. **Old `--color-*` legacy aliases** — `index.css` still defines `--color-canvas`, `--color-ink`, `--color-primary`, etc. revalued to Warm Editorial. They're no longer referenced by any Phase 2+ component but a final sweep + delete is appropriate once Phase 0 components are fully retired.
+6. **Old `--color-*` legacy aliases** — `index.css` still defines `--color-canvas`, `--color-ink`, `--color-primary`, etc. revalued to Warm Editorial. The closeout-fix pass swept most remaining Phase 2+ references (NotificationsPage, CodesPage); a final pass + delete is appropriate once Phase 0 components are fully retired.
 7. **Recharts hex literals** — documented exception in `SecondaryReportChart.tsx` (Recharts does not read CSS variables natively). Code128 hex literals are a documented exception (jsbarcode foreground/background — barcode rendering ignores tokens).
 
 ### 18.6 What `rmx-new-ui` ships
@@ -510,6 +510,21 @@ Picked in Phase 1, 2026-05-12. Boutique-editorial register: warm-white surface, 
 
 `rmx-new-ui` is the final state. Do not merge to `main` until the user explicitly requests it.
 
+### 18.7 Closeout-fix pass (2026-05-12, post-review)
+
+After a multi-reviewer code review of Phases 1–7, a follow-up pass landed on `rmx-new-ui` to close the gaps it surfaced. See [`docs/superpowers/plans/2026-05-12-phase-7-closeout-fixes.md`](superpowers/plans/2026-05-12-phase-7-closeout-fixes.md) for the plan. Highlights:
+
+- **States coverage** — error/loading/empty paths added to NotificationsPage, ApprovalsPage, Banks (banksQ.isError), Stocktake (detailsQ + PastStocktakes), InvoiceDetail. Each surface now reaches `ErrorBanner`+retry instead of silently rendering "empty" on query failure.
+- **Primitive adoption** — six inline `animate-pulse` skeleton blocks (Home, TreasuriesOverview, CashDrawer, Banks, ReportShell, SettingsPage) swapped to `<Skeleton>`. POS composition hint swapped to the shared `<Tooltip>`. Skeleton primitive now forwards `style` for staggered placeholder cascades.
+- **ResponsiveTable** — inert sticky header dropped; row stagger now fires on initial mount only (subsequent filter-change re-keys fade in with `delay: 0`).
+- **AppShell** — ⌘K listener gates on inputs/textareas/contentEditable; Flyout's route-change auto-close race fixed (pathname capture decoupled from position-update layout effect); Tab-forward from last menu row now returns focus to the rail anchor (symmetric with Shift+Tab); hamburger + MobileDrawer gated at `md:hidden` (not `lg:hidden`) so 768–1023px tablets don't see both rail and hamburger.
+- **RTL discipline** — full sweep of residual physical directional classes (`text-left/right`, `border-l/r`, `ml/mr/pl/pr-*`, `left/right-N`) → logical equivalents across Settings, CashReconcile, ResponsiveTable, InvoicesList, and ~15 other surfaces. The CashReconcile variance highlight now draws on the leading edge of the diff cell (was on the outer edge).
+- **Focus rings** — 21 `focus:ring-2 focus:ring-accent` occurrences in 8 inventory/shipments/invoices pages converted to `focus-visible:ring-2 focus-visible:ring-ring`. Mouse-click users no longer get a thick ring on every click.
+- **Print** — `.rmx-print-code` utility wired into JSX (was orphaned). InvoiceDetail roll serials carry it; ReportShell auto-applies `rmx-print-code + font-mono + tabular-num + dir="ltr"` to any column whose key matches `invoice_no | roll_sr_no | internal_barcode | sku | code | barcode | stocktake_no | shipment_no`.
+- **Approvals** — success toasts on approve/reject mutations (was row-flash only).
+
+Token counts above (§18.3) were corrected from the original 35/10 to the actual 44/12.
+
 ---
 
-*Closeout section added by Phase 7 / Polish & Closeout on 2026-05-12.*
+*Closeout section added by Phase 7 / Polish & Closeout on 2026-05-12; §18.7 added by the closeout-fix pass on the same date.*
