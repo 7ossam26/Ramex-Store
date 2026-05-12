@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
+import { Landmark, Plus, TrendingUp, TrendingDown, Star, Pencil } from 'lucide-react';
 import { financeApi } from '@/lib/finance-api';
 import { useAuth } from '@/lib/auth';
+import { ar } from '@/i18n/ar';
 import type { BankAccount, BankMovement } from '@/lib/finance-types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -15,31 +16,29 @@ import {
   DialogTitle,
   DialogClose,
 } from '@/components/ResponsiveDialog';
+import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
+import { PageHeader } from '@/components/PageHeader';
+import { TableFilterBar } from '@/components/TableFilterBar';
+import { EmptyState } from '@/components/EmptyState';
+import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 50;
 
 const fmt = (n: string | number) =>
-  Number(n).toLocaleString('ar-EG-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  Number(n).toLocaleString('en-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const fmtDate = (s: string) =>
-  new Date(s).toLocaleString('ar-EG-u-nu-latn', {
+  new Date(s).toLocaleString('en-GB', {
     timeZone: 'Africa/Cairo',
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    hour12: false,
   });
 
-const EVENT_LABELS: Record<string, string> = {
-  instapay_payment: 'انستاباي',
-  cash_deposit: 'إيداع نقدي',
-  refund: 'استرجاع',
-  reconciliation_adjustment: 'تسوية',
-  opening_balance_set: 'رصيد افتتاحي',
-  other_in: 'دخول آخر',
-  other_out: 'خروج آخر',
-};
+const EVENT_LABELS = ar.cash.bankEventTypes as Record<string, string>;
 
 type BankFormValues = {
   name_ar: string;
@@ -49,6 +48,7 @@ type BankFormValues = {
   account_number: string;
   notes_ar: string;
   is_default: boolean;
+  is_active?: boolean;
 };
 
 export function BanksPage() {
@@ -79,8 +79,13 @@ export function BanksPage() {
 
   const createForm = useForm<BankFormValues>({
     defaultValues: {
-      name_ar: '', bank_name_ar: '', branch_ar: '',
-      iban: '', account_number: '', notes_ar: '', is_default: false,
+      name_ar: '',
+      bank_name_ar: '',
+      branch_ar: '',
+      iban: '',
+      account_number: '',
+      notes_ar: '',
+      is_default: false,
     },
   });
 
@@ -114,6 +119,7 @@ export function BanksPage() {
         account_number: d.account_number || null,
         notes_ar: d.notes_ar || null,
         is_default: d.is_default,
+        is_active: d.is_active,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['banks'] });
@@ -131,145 +137,295 @@ export function BanksPage() {
       account_number: b.account_number ?? '',
       notes_ar: b.notes_ar ?? '',
       is_default: b.is_default,
+      is_active: b.is_active,
     });
   }
 
   const totalPages = movementsQ.data ? Math.ceil(movementsQ.data.total / PAGE_SIZE) : 1;
+  const movementRows: BankMovement[] = movementsQ.data?.rows ?? [];
+
+  const columns: Column<BankMovement>[] = [
+    {
+      key: 'date',
+      header: 'التاريخ',
+      cell: (m) => (
+        <span className="whitespace-nowrap text-foreground-muted tabular-num" dir="ltr">
+          {fmtDate(m.created_at)}
+        </span>
+      ),
+      secondary: true,
+    },
+    {
+      key: 'event',
+      header: 'النوع',
+      cell: (m) => EVENT_LABELS[m.event_type] ?? m.event_type,
+      primary: true,
+    },
+    {
+      key: 'dir',
+      header: 'الاتجاه',
+      cell: (m) => (
+        <span
+          className={cn(
+            'inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[11px] font-medium',
+            m.direction === 'in'
+              ? 'bg-info-subtle text-info-foreground'
+              : 'bg-danger-subtle text-danger-foreground',
+          )}
+        >
+          {m.direction === 'in' ? (
+            <TrendingUp className="size-3" aria-hidden />
+          ) : (
+            <TrendingDown className="size-3" aria-hidden />
+          )}
+          {m.direction === 'in' ? ar.treasuriesOverview.inbound : ar.treasuriesOverview.outbound}
+        </span>
+      ),
+    },
+    {
+      key: 'amount',
+      header: 'المبلغ',
+      cell: (m) => (
+        <span
+          className={cn(
+            'tabular-num font-medium',
+            m.direction === 'in' ? 'text-info-foreground' : 'text-danger-foreground',
+          )}
+          dir="ltr"
+        >
+          {m.direction === 'out' ? '−' : '+'}
+          {fmt(m.amount_egp)}
+        </span>
+      ),
+    },
+    {
+      key: 'balance',
+      header: 'الرصيد بعد',
+      cell: (m) => (
+        <span className="tabular-num text-foreground" dir="ltr">
+          {fmt(m.balance_after_egp)}
+        </span>
+      ),
+    },
+    {
+      key: 'actor',
+      header: 'بواسطة',
+      cell: (m) => <span className="text-foreground-muted">{m.actor_username ?? '—'}</span>,
+    },
+  ];
 
   return (
-    <div dir="rtl" className="space-y-4 md:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h1 className="text-xl md:text-2xl font-bold">البنوك</h1>
-        {isOwner && (
-          <Button onClick={() => setShowCreate(true)} className="h-11 md:h-10">إضافة حساب بنكي</Button>
-        )}
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title={ar.cash.banks}
+        description={ar.hubs.banksDesc}
+        actions={
+          isOwner ? (
+            <Button variant="accent" onClick={() => setShowCreate(true)} className="gap-1.5">
+              <Plus className="size-4" aria-hidden />
+              إضافة حساب بنكي
+            </Button>
+          ) : null
+        }
+      />
 
-      {/* Bank accounts list */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {(banksQ.data ?? []).map((b: BankAccount) => (
-          <Card
-            key={b.id}
-            className={`cursor-pointer transition-colors ${selectedBank?.id === b.id ? 'border-primary' : ''} ${!b.is_active ? 'opacity-60' : ''}`}
-            onClick={() => { setSelectedBank(b); setMovPage(1); }}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">{b.name_ar}</CardTitle>
-                <div className="flex gap-1">
-                  {b.is_default && (
-                    <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded">
-                      افتراضي
-                    </span>
-                  )}
-                  {!b.is_active && (
-                    <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded">
-                      غير نشط
-                    </span>
-                  )}
+      {/* Bank account cards */}
+      {banksQ.isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" aria-hidden>
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="rounded-lg border border-border-subtle bg-surface-elevated p-5 shadow-sm space-y-3"
+            >
+              <div className="h-4 w-32 bg-surface-hover rounded animate-pulse" />
+              <div className="h-7 w-40 bg-surface-hover rounded animate-pulse" />
+              <div className="h-3 w-24 bg-surface-hover rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
+      ) : banksQ.data?.length === 0 ? (
+        <EmptyState
+          title="لا توجد حسابات بنكية بعد"
+          description="ابدأ بإضافة حساب بنكي لاستقبال مدفوعات الانستاباي"
+          icon={Landmark}
+          action={
+            isOwner && (
+              <Button variant="accent" onClick={() => setShowCreate(true)} className="gap-1.5">
+                <Plus className="size-4" aria-hidden />
+                إضافة حساب بنكي
+              </Button>
+            )
+          }
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {(banksQ.data ?? []).map((b: BankAccount) => {
+            const active = selectedBank?.id === b.id;
+            return (
+              <button
+                type="button"
+                key={b.id}
+                onClick={() => {
+                  setSelectedBank(b);
+                  setMovPage(1);
+                }}
+                className={cn(
+                  'text-right rounded-lg border bg-surface-elevated p-5 shadow-sm transition-all duration-150 ease-decelerate cursor-pointer',
+                  'hover:shadow-md hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                  active ? 'border-accent ring-2 ring-accent/30' : 'border-border-subtle',
+                  !b.is_active && 'opacity-60',
+                )}
+              >
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="min-w-0">
+                    <p className="text-base font-semibold text-foreground truncate">{b.name_ar}</p>
+                    {b.bank_name_ar && (
+                      <p className="text-xs text-foreground-muted truncate">{b.bank_name_ar}</p>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    {b.is_default && (
+                      <span className="inline-flex items-center gap-1 rounded-pill bg-accent-subtle text-accent px-2 py-0.5 text-[11px] font-medium">
+                        <Star className="size-3" aria-hidden />
+                        افتراضي
+                      </span>
+                    )}
+                    {!b.is_active && (
+                      <span className="rounded-pill bg-surface-hover text-foreground-muted px-2 py-0.5 text-[11px]">
+                        غير نشط
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-              {b.bank_name_ar && <p className="text-sm text-muted-foreground">{b.bank_name_ar}</p>}
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">{fmt(b.current_balance_egp)} ج.م</p>
-              {b.account_number && (
-                <p className="text-xs text-muted-foreground mt-1">رقم الحساب: {b.account_number}</p>
-              )}
-              {isOwner && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="mt-2"
-                  onClick={(e) => { e.stopPropagation(); openEdit(b); }}
-                >
-                  تعديل
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-        {banksQ.data?.length === 0 && (
-          <p className="text-muted-foreground col-span-3">لا توجد حسابات بنكية</p>
-        )}
-      </div>
+                <p className="text-3xl font-semibold text-foreground tabular-num leading-none" dir="ltr">
+                  {fmt(b.current_balance_egp)}
+                </p>
+                <p className="text-xs text-foreground-tertiary mt-1.5">ج.م</p>
+                {b.account_number && (
+                  <p className="text-xs text-foreground-muted mt-3 tabular-num" dir="ltr">
+                    {b.account_number}
+                  </p>
+                )}
+                {isOwner && (
+                  <div className="flex justify-end mt-3 pt-3 border-t border-border-subtle">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEdit(b);
+                      }}
+                      className="inline-flex items-center gap-1.5 text-sm text-foreground-muted hover:text-accent transition-colors duration-150 cursor-pointer"
+                    >
+                      <Pencil className="size-3.5" aria-hidden />
+                      تعديل
+                    </button>
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Selected bank movements */}
       {selectedBank && (
-        <Card>
-          <CardHeader>
-            <CardTitle>حركات: {selectedBank.name_ar}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="space-y-1">
-                <Label>من تاريخ</Label>
-                <Input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setMovPage(1); }} className="h-11 md:h-10" />
-              </div>
-              <div className="space-y-1">
-                <Label>إلى تاريخ</Label>
-                <Input type="date" value={to} onChange={(e) => { setTo(e.target.value); setMovPage(1); }} className="h-11 md:h-10" />
-              </div>
-              <Button variant="ghost" onClick={() => { setFrom(''); setTo(''); setMovPage(1); }} className="h-11 md:h-10">
-                مسح
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">
+              حركات: <span className="text-accent">{selectedBank.name_ar}</span>
+            </h2>
+            <p className="text-sm text-foreground-muted mt-0.5">
+              {selectedBank.bank_name_ar ?? ''}
+              {selectedBank.account_number && (
+                <span className="tabular-num" dir="ltr">
+                  {' '}
+                  · {selectedBank.account_number}
+                </span>
+              )}
+            </p>
+          </div>
+
+          <TableFilterBar
+            filters={
+              <>
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs text-foreground-muted">من تاريخ</Label>
+                  <Input
+                    type="date"
+                    value={from}
+                    onChange={(e) => {
+                      setFrom(e.target.value);
+                      setMovPage(1);
+                    }}
+                    className="h-10 w-full sm:w-40"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs text-foreground-muted">إلى تاريخ</Label>
+                  <Input
+                    type="date"
+                    value={to}
+                    onChange={(e) => {
+                      setTo(e.target.value);
+                      setMovPage(1);
+                    }}
+                    className="h-10 w-full sm:w-40"
+                  />
+                </div>
+                {(from || to) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setFrom('');
+                      setTo('');
+                      setMovPage(1);
+                    }}
+                    className="self-end"
+                  >
+                    مسح
+                  </Button>
+                )}
+              </>
+            }
+            resultCount={movementsQ.data?.total}
+          />
+
+          <ResponsiveTable
+            columns={columns}
+            rows={movementRows}
+            rowKey={(m) => String(m.id)}
+            empty="لا توجد حركات"
+            isLoading={movementsQ.isLoading}
+            isError={movementsQ.isError}
+            onRetry={() => movementsQ.refetch()}
+            resetKey={`${selectedBank.id}-${from}-${to}`}
+          />
+
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={movPage <= 1}
+                onClick={() => setMovPage((p) => p - 1)}
+              >
+                السابق
+              </Button>
+              <span className="text-sm text-foreground-muted tabular-num" dir="ltr">
+                {movPage} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={movPage >= totalPages}
+                onClick={() => setMovPage((p) => p + 1)}
+              >
+                التالي
               </Button>
             </div>
-
-            {movementsQ.isLoading ? (
-              <p>جاري التحميل...</p>
-            ) : (
-              <div className="overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0">
-              <table className="w-full text-sm min-w-[640px]">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-right py-2 px-3">التاريخ</th>
-                    <th className="text-right py-2 px-3">النوع</th>
-                    <th className="text-right py-2 px-3">الاتجاه</th>
-                    <th className="text-right py-2 px-3">المبلغ</th>
-                    <th className="text-right py-2 px-3">الرصيد بعد</th>
-                    <th className="text-right py-2 px-3">بواسطة</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(movementsQ.data?.rows ?? []).map((m: BankMovement) => (
-                    <tr key={m.id} className="border-b hover:bg-muted/40">
-                      <td className="py-2 px-3 whitespace-nowrap">{fmtDate(m.created_at)}</td>
-                      <td className="py-2 px-3">{EVENT_LABELS[m.event_type] ?? m.event_type}</td>
-                      <td className="py-2 px-3">
-                        <span className={m.direction === 'in' ? 'text-green-600' : 'text-red-600'}>
-                          {m.direction === 'in' ? '↑ داخل' : '↓ خارج'}
-                        </span>
-                      </td>
-                      <td className="py-2 px-3 font-mono">{fmt(m.amount_egp)}</td>
-                      <td className="py-2 px-3 font-mono">{fmt(m.balance_after_egp)}</td>
-                      <td className="py-2 px-3">{m.actor_username ?? '-'}</td>
-                    </tr>
-                  ))}
-                  {movementsQ.data?.rows.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="py-6 text-center text-muted-foreground">
-                        لا توجد حركات
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-              </div>
-            )}
-
-            {totalPages > 1 && (
-              <div className="flex justify-center items-center gap-4 mt-4">
-                <Button variant="outline" size="sm" disabled={movPage <= 1} onClick={() => setMovPage((p) => p - 1)}>
-                  السابق
-                </Button>
-                <span className="text-sm">{movPage} / {totalPages}</span>
-                <Button variant="outline" size="sm" disabled={movPage >= totalPages} onClick={() => setMovPage((p) => p + 1)}>
-                  التالي
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          )}
+        </div>
       )}
 
       {/* Create Bank Dialog */}
@@ -279,40 +435,46 @@ export function BanksPage() {
             <DialogTitle>إضافة حساب بنكي جديد</DialogTitle>
           </DialogHeader>
           <form onSubmit={createForm.handleSubmit((d) => createMut.mutate(d))} className="space-y-3">
-            <div className="space-y-1">
-              <Label>اسم الحساب *</Label>
+            <div className="space-y-1.5">
+              <Label>
+                اسم الحساب <span className="text-danger">*</span>
+              </Label>
               <Input {...createForm.register('name_ar', { required: true })} />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <Label>اسم البنك</Label>
               <Input {...createForm.register('bank_name_ar')} />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <Label>الفرع</Label>
               <Input {...createForm.register('branch_ar')} />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <Label>رقم الحساب</Label>
               <Input {...createForm.register('account_number')} />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <Label>IBAN</Label>
               <Input {...createForm.register('iban')} />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <Label>ملاحظات</Label>
               <Input {...createForm.register('notes_ar')} />
             </div>
-            <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" id="is_default_c" {...createForm.register('is_default')} />
-              <Label htmlFor="is_default_c">حساب افتراضي</Label>
-            </div>
-            {createMut.error && <p className="text-red-600 text-sm">حدث خطأ</p>}
-            <div className="flex justify-end gap-2">
+              <span className="text-sm text-foreground">حساب افتراضي</span>
+            </label>
+            {createMut.error && (
+              <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">حدث خطأ</p>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
               <DialogClose asChild>
-                <Button type="button" variant="outline">إلغاء</Button>
+                <Button type="button" variant="outline">
+                  إلغاء
+                </Button>
               </DialogClose>
-              <Button type="submit" disabled={createMut.isPending}>
+              <Button type="submit" variant="accent" disabled={createMut.isPending}>
                 {createMut.isPending ? 'جاري الحفظ...' : 'حفظ'}
               </Button>
             </div>
@@ -331,44 +493,52 @@ export function BanksPage() {
               onSubmit={editForm.handleSubmit((d) => updateMut.mutate({ id: editBank.id, d }))}
               className="space-y-3"
             >
-              <div className="space-y-1">
-                <Label>اسم الحساب *</Label>
+              <div className="space-y-1.5">
+                <Label>
+                  اسم الحساب <span className="text-danger">*</span>
+                </Label>
                 <Input {...editForm.register('name_ar', { required: true })} />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <Label>اسم البنك</Label>
                 <Input {...editForm.register('bank_name_ar')} />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <Label>الفرع</Label>
                 <Input {...editForm.register('branch_ar')} />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <Label>رقم الحساب</Label>
                 <Input {...editForm.register('account_number')} />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <Label>IBAN</Label>
                 <Input {...editForm.register('iban')} />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <Label>ملاحظات</Label>
                 <Input {...editForm.register('notes_ar')} />
               </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="is_default_e" {...editForm.register('is_default')} />
-                <Label htmlFor="is_default_e">حساب افتراضي</Label>
+              <div className="flex flex-col gap-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" id="is_default_e" {...editForm.register('is_default')} />
+                  <span className="text-sm text-foreground">حساب افتراضي</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" id="is_active_e" {...editForm.register('is_active')} />
+                  <span className="text-sm text-foreground">نشط</span>
+                </label>
               </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="is_active_e" {...editForm.register('is_active' as keyof BankFormValues)} />
-                <Label htmlFor="is_active_e">نشط</Label>
-              </div>
-              {updateMut.error && <p className="text-red-600 text-sm">حدث خطأ</p>}
-              <div className="flex justify-end gap-2">
+              {updateMut.error && (
+                <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">حدث خطأ</p>
+              )}
+              <div className="flex justify-end gap-2 pt-2">
                 <DialogClose asChild>
-                  <Button type="button" variant="outline">إلغاء</Button>
+                  <Button type="button" variant="outline">
+                    إلغاء
+                  </Button>
                 </DialogClose>
-                <Button type="submit" disabled={updateMut.isPending}>
+                <Button type="submit" variant="accent" disabled={updateMut.isPending}>
                   {updateMut.isPending ? 'جاري الحفظ...' : 'حفظ'}
                 </Button>
               </div>
