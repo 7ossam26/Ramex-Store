@@ -126,13 +126,13 @@ function FabricLabelCard({ rollId }: { rollId: number }) {
         {printOpen && (
           <div className="absolute z-dropdown top-full mt-1 right-0 left-0 rounded-md border border-border-subtle bg-surface-elevated shadow-md overflow-hidden">
             <button
-              className="w-full text-right px-4 py-2.5 text-sm hover:bg-surface-hover transition-colors cursor-pointer"
+              className="w-full text-start px-4 py-2.5 text-sm hover:bg-surface-hover transition-colors cursor-pointer"
               onClick={() => openLabel('thermal')}
             >
               {ar.labels.printThermal}
             </button>
             <button
-              className="w-full text-right px-4 py-2.5 text-sm hover:bg-surface-hover transition-colors cursor-pointer border-t border-border-subtle"
+              className="w-full text-start px-4 py-2.5 text-sm hover:bg-surface-hover transition-colors cursor-pointer border-t border-border-subtle"
               onClick={() => openLabel('a4')}
             >
               {ar.labels.printA4}

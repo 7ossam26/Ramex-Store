@@ -89,7 +89,7 @@ export function ReturnDetailPage() {
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="text-right text-xs text-foreground-muted uppercase tracking-wide border-b border-border-subtle">
+                  <thead className="text-start text-xs text-foreground-muted uppercase tracking-wide border-b border-border-subtle">
                     <tr>
                       <th className="px-3 py-3 font-medium">الخامة / اللون</th>
                       <th className="px-3 py-3 font-medium">كود التوب</th>

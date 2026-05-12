@@ -113,7 +113,7 @@ export function ReviewShipmentPage() {
           )}
 
           <table className="w-full text-sm">
-            <thead className="text-right text-xs text-foreground-muted uppercase tracking-wide">
+            <thead className="text-start text-xs text-foreground-muted uppercase tracking-wide">
               <tr className="border-b border-border-subtle">
                 <th className="py-2.5 font-medium">{ar.stockMovements.rollBarcode}</th>
                 <th className="font-medium">{ar.shipments.rollFabric}</th>

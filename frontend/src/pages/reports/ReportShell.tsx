@@ -238,7 +238,7 @@ export function ReportTable({ title, columns, rows, totals, emptyText }: TablePr
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-surface-hover/40">
-              <tr className="text-right">
+              <tr className="text-start">
                 {columns.map((c) => (
                   <th
                     key={c.key}

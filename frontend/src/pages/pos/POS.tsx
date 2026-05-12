@@ -494,7 +494,7 @@ export function POSPage() {
                   setCustomer(c);
                   setPickerOpen(false);
                 }}
-                className="w-full text-right p-3 hover:bg-surface-hover border-b border-border-subtle last:border-0 min-h-12 cursor-pointer transition-colors duration-150"
+                className="w-full text-start p-3 hover:bg-surface-hover border-b border-border-subtle last:border-0 min-h-12 cursor-pointer transition-colors duration-150"
               >
                 <div className="font-medium text-foreground">{c.name_ar}</div>
                 <div className="text-xs font-mono text-foreground-tertiary" dir="ltr">
@@ -1033,7 +1033,7 @@ function EnrichedCartLine({
             className="h-9 tabular-num"
           />
         </div>
-        <div className="space-y-1 text-right">
+        <div className="space-y-1 text-start">
           <Label className="text-xs text-foreground-muted">{ar.pos.lineTotal}</Label>
           <div
             className="h-9 flex items-center justify-end font-semibold text-foreground tabular-num"
@@ -1319,7 +1319,7 @@ function ManualSearchBlock({ onPick }: { onPick: (r: RollLookup) => void }) {
                   setOpen(false);
                   setSearch('');
                 }}
-                className="w-full text-right p-3 hover:bg-surface-hover border-b border-border-subtle last:border-0 text-sm min-h-12 cursor-pointer transition-colors duration-150"
+                className="w-full text-start p-3 hover:bg-surface-hover border-b border-border-subtle last:border-0 text-sm min-h-12 cursor-pointer transition-colors duration-150"
               >
                 <div className="flex justify-between gap-2">
                   <div className="min-w-0">
@@ -1331,7 +1331,7 @@ function ManualSearchBlock({ onPick }: { onPick: (r: RollLookup) => void }) {
                       {Number(r.weight_kg).toFixed(3)} كجم
                     </div>
                   </div>
-                  <div className="text-left shrink-0 tabular-num text-foreground">
+                  <div className="text-end shrink-0 tabular-num text-foreground">
                     <div dir="ltr">{fmtMoney(r.selling_price_egp)}</div>
                   </div>
                 </div>

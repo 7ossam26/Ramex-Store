@@ -277,7 +277,7 @@ export function BanksPage() {
                   setMovPage(1);
                 }}
                 className={cn(
-                  'text-right rounded-lg border bg-surface-elevated p-5 shadow-sm transition-all duration-150 ease-decelerate cursor-pointer',
+                  'text-start rounded-lg border bg-surface-elevated p-5 shadow-sm transition-all duration-150 ease-decelerate cursor-pointer',
                   'hover:shadow-md hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
                   active ? 'border-accent ring-2 ring-accent/30' : 'border-border-subtle',
                   !b.is_active && 'opacity-60',

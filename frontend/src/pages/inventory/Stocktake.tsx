@@ -154,7 +154,7 @@ function RunStocktake({ stocktake, onComplete }: { stocktake: Stocktake; onCompl
               </div>
             </div>
             <table className="w-full text-sm">
-              <thead className="text-right text-xs text-foreground-muted uppercase tracking-wide">
+              <thead className="text-start text-xs text-foreground-muted uppercase tracking-wide">
                 <tr className="border-b border-border-subtle">
                   <th className="py-2.5 font-medium">{ar.stockMovements.rollBarcode}</th>
                   <th className="font-medium">{ar.stocktake.expected}</th>
@@ -200,7 +200,7 @@ function AggregateGrid({
   const [draft, setDraft] = useState<Record<number, { count?: string; weight?: string }>>({});
   return (
     <table className="w-full text-sm">
-      <thead className="text-right text-xs text-foreground-muted uppercase tracking-wide">
+      <thead className="text-start text-xs text-foreground-muted uppercase tracking-wide">
         <tr className="border-b border-border-subtle">
           <th className="py-2.5 font-medium">{ar.shipments.rollFabric}</th>
           <th className="font-medium">{ar.shipments.rollColor}</th>
@@ -278,7 +278,7 @@ function PastStocktakes() {
           />
         ) : (
         <table className="w-full text-sm">
-          <thead className="text-right text-xs text-foreground-muted uppercase tracking-wide">
+          <thead className="text-start text-xs text-foreground-muted uppercase tracking-wide">
             <tr className="border-b border-border-subtle">
               <th className="py-2.5 font-medium">رقم الجرد</th>
               <th className="font-medium">{ar.stocktake.warehouse}</th>

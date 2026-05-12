@@ -89,7 +89,7 @@ function ThreeColumnComparison({
 
   return (
     <div className="grid grid-cols-3 gap-3 rounded-lg border border-border-subtle bg-surface-elevated overflow-hidden shadow-sm">
-      <div className="p-4 border-l border-border-subtle">
+      <div className="p-4 border-e border-border-subtle">
         <p className="text-xs font-medium uppercase tracking-wide text-foreground-muted mb-1.5">
           {ar.cash.expected}
         </p>
@@ -98,7 +98,7 @@ function ThreeColumnComparison({
         </p>
         <p className="text-xs text-foreground-tertiary mt-1.5">ج.م</p>
       </div>
-      <div className="p-4 border-l border-border-subtle">
+      <div className="p-4 border-e border-border-subtle">
         <p className="text-xs font-medium uppercase tracking-wide text-foreground-muted mb-1.5">
           {ar.cash.actual}
         </p>
@@ -115,8 +115,11 @@ function ThreeColumnComparison({
       </div>
       <div
         className={cn(
-          'p-4 transition-colors duration-200 border-l-2',
-          diff === null ? 'border-l-border-subtle' : cls.box,
+          // Highlight on the leading edge (visually inside, abutting the
+          // "actual" column under RTL) so the variance cell reads as the
+          // emphasized one of the three. border-s = logical start.
+          'p-4 transition-colors duration-200 border-s-2',
+          diff === null ? 'border-s-border-subtle' : cls.box,
         )}
       >
         <p

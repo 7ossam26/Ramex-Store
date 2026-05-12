@@ -250,7 +250,7 @@ function OpenInvoicesTab() {
       isLoading={q.isLoading}
       isError={q.isError}
       onRetry={() => q.refetch()}
-      rowClassName={(r) => (r.is_stale ? 'border-r-2 border-r-warning' : '')}
+      rowClassName={(r) => (r.is_stale ? 'border-s-2 border-s-warning' : '')}
     />
   );
 }

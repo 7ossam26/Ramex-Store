@@ -209,7 +209,7 @@ export function InvoiceDetailPage() {
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm min-w-[640px]">
-            <thead className="text-right text-xs text-foreground-muted uppercase tracking-wide border-b border-border-subtle">
+            <thead className="text-start text-xs text-foreground-muted uppercase tracking-wide border-b border-border-subtle">
               <tr>
                 <th className="px-3 py-2">الخامة / اللون</th>
                 <th className="px-3 py-2">كود التوب</th>
@@ -267,7 +267,7 @@ export function InvoiceDetailPage() {
               <p className="p-4 text-center text-muted-foreground text-sm">{ar.common.none}</p>
             ) : (
               <table className="w-full text-sm">
-                <thead className="text-right text-xs text-foreground-muted uppercase tracking-wide border-b border-border-subtle">
+                <thead className="text-start text-xs text-foreground-muted uppercase tracking-wide border-b border-border-subtle">
                   <tr>
                     <th className="px-3 py-2">التاريخ</th>
                     <th className="px-3 py-2">طريقة</th>
@@ -801,7 +801,7 @@ function ReturnModal({
             <p className="text-sm font-medium mb-2">{ar.returns.returnLines}</p>
             <div className="border border-border-subtle rounded-md overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="text-right text-xs text-foreground-muted bg-surface-hover/50 uppercase tracking-wide">
+                <thead className="text-start text-xs text-foreground-muted bg-surface-hover/50 uppercase tracking-wide">
                   <tr>
                     <th className="px-2 py-2 font-medium">✓</th>
                     <th className="px-2 py-2 font-medium">الخامة / اللون</th>

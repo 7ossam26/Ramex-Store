@@ -217,7 +217,7 @@ export function CustomerDetailPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="sticky top-0 z-sticky bg-surface-elevated">
-                        <tr className="text-right text-xs text-foreground-muted uppercase tracking-wide border-b border-border-subtle">
+                        <tr className="text-start text-xs text-foreground-muted uppercase tracking-wide border-b border-border-subtle">
                           <th className="px-4 py-3 font-medium">التاريخ</th>
                           <th className="px-4 py-3 font-medium">النوع</th>
                           <th className="px-4 py-3 font-medium">المبلغ</th>

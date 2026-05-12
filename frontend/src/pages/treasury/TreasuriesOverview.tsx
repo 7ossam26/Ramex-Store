@@ -218,7 +218,7 @@ function BankAccountCard({ account }: { account: TreasuriesOverviewBankAccount }
             </p>
           )}
         </div>
-        <div className="text-left shrink-0">
+        <div className="text-end shrink-0">
           <p className="text-xl font-semibold text-foreground tabular-num" dir="ltr">
             {formatEgp(account.balance_egp)}
           </p>
@@ -344,7 +344,7 @@ export function TreasuriesOverviewPage() {
                   <p className="text-xs text-foreground-tertiary mt-1.5">ج.م</p>
                 </div>
                 {cashSeries.length >= 2 && (
-                  <div className="text-right">
+                  <div className="text-start">
                     <Sparkline points={cashSeries} accent="accent" />
                     <p className="text-[10px] text-foreground-tertiary mt-1">
                       {ar.treasuriesOverview.sparklineCaption}
@@ -410,7 +410,7 @@ export function TreasuriesOverviewPage() {
                   <p className="text-xs text-foreground-tertiary mt-1.5">ج.م</p>
                 </div>
                 {bankSeries.length >= 2 && (
-                  <div className="text-right">
+                  <div className="text-start">
                     <Sparkline points={bankSeries} accent="info" />
                     <p className="text-[10px] text-foreground-tertiary mt-1">
                       {ar.treasuriesOverview.sparklineCaption}

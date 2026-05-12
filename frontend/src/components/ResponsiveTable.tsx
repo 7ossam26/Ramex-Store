@@ -115,13 +115,13 @@ export function ResponsiveTable<T>({
               scroll context, so `position: sticky` here is inert. Dropped per
               Phase 7 closeout-fix review. */}
           <thead className="bg-surface-elevated">
-            <tr className="text-right text-xs text-foreground-muted border-b border-border-subtle">
+            <tr className="text-start text-xs text-foreground-muted border-b border-border-subtle">
               {visibleCols.map((c) => (
                 <th
                   key={c.key}
                   className={cn(
                     'px-3 py-3 font-medium uppercase tracking-wide',
-                    c.align === 'end' && 'text-left',
+                    c.align === 'end' && 'text-end',
                     c.className,
                   )}
                   style={c.width ? { width: c.width } : undefined}
@@ -165,7 +165,7 @@ export function ResponsiveTable<T>({
                       key={c.key}
                       className={cn(
                         'px-3 py-2.5 align-middle text-foreground',
-                        c.align === 'end' && 'text-left',
+                        c.align === 'end' && 'text-end',
                         c.className,
                       )}
                     >
@@ -174,7 +174,7 @@ export function ResponsiveTable<T>({
                   ))}
                   {actions && (
                     <td
-                      className="px-3 py-2.5 align-middle text-left whitespace-nowrap"
+                      className="px-3 py-2.5 align-middle text-end whitespace-nowrap"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {actions(row)}

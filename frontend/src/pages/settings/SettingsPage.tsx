@@ -464,9 +464,9 @@ function BanksSection({ notifySaved }: { notifySaved: () => void }) {
         <table className="w-full text-sm">
           <thead className="bg-surface-row-alt text-foreground-muted">
             <tr>
-              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.banks.nameAr}</th>
-              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.banks.bankNameAr}</th>
-              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.banks.isActive}</th>
+              <th className="py-2.5 px-3 text-start font-medium">{ar.settings.banks.nameAr}</th>
+              <th className="py-2.5 px-3 text-start font-medium">{ar.settings.banks.bankNameAr}</th>
+              <th className="py-2.5 px-3 text-start font-medium">{ar.settings.banks.isActive}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle bg-surface-elevated">
@@ -626,10 +626,10 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
           <table className="w-full text-sm">
             <thead className="bg-surface-row-alt text-foreground-muted">
               <tr>
-                <th className="py-2.5 px-3 text-right font-medium">{ar.settings.users.username}</th>
-                <th className="py-2.5 px-3 text-right font-medium">{ar.settings.users.fullNameAr}</th>
-                <th className="py-2.5 px-3 text-right font-medium">{ar.settings.users.role}</th>
-                <th className="py-2.5 px-3 text-right font-medium">{ar.settings.users.isActive}</th>
+                <th className="py-2.5 px-3 text-start font-medium">{ar.settings.users.username}</th>
+                <th className="py-2.5 px-3 text-start font-medium">{ar.settings.users.fullNameAr}</th>
+                <th className="py-2.5 px-3 text-start font-medium">{ar.settings.users.role}</th>
+                <th className="py-2.5 px-3 text-start font-medium">{ar.settings.users.isActive}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle bg-surface-elevated">
@@ -657,7 +657,7 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
           <table className="text-xs min-w-max">
             <thead>
               <tr className="bg-surface-row-alt text-foreground-muted">
-                <th className="py-2.5 px-3 text-right font-medium min-w-48 sticky right-0 bg-surface-row-alt z-10 border-l border-border-subtle">
+                <th className="py-2.5 px-3 text-start font-medium min-w-48 sticky start-0 bg-surface-row-alt z-10 border-e border-border-subtle">
                   {ar.settings.permissions.resource}
                 </th>
                 {(['read', 'write', 'approve'] as const).flatMap((action) => [
@@ -681,7 +681,7 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
                 >
                   <td
                     className={cn(
-                      'py-2 px-3 font-mono text-foreground-muted sticky right-0 z-10 border-l border-border-subtle',
+                      'py-2 px-3 font-mono text-foreground-muted sticky start-0 z-10 border-e border-border-subtle',
                       ri % 2 === 1 ? 'bg-surface-row-alt' : 'bg-surface-elevated',
                     )}
                   >
@@ -741,8 +741,8 @@ function ReasonCodeList({ items, onChange }: { items: ReasonCode[]; onChange: (v
         <table className="w-full text-sm">
           <thead className="bg-surface-row-alt text-foreground-muted">
             <tr>
-              <th className="py-2 px-3 text-right font-medium w-40">{ar.settings.reasonCodes.code}</th>
-              <th className="py-2 px-3 text-right font-medium">{ar.settings.reasonCodes.nameAr}</th>
+              <th className="py-2 px-3 text-start font-medium w-40">{ar.settings.reasonCodes.code}</th>
+              <th className="py-2 px-3 text-start font-medium">{ar.settings.reasonCodes.nameAr}</th>
               <th className="py-2 px-3 w-20" />
             </tr>
           </thead>
@@ -980,8 +980,8 @@ function GradesTab({ notifySaved }: { notifySaved: () => void }) {
         <table className="w-full text-sm">
           <thead className="bg-surface-row-alt text-foreground-muted">
             <tr>
-              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.fabricCodes.arabicName}</th>
-              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.fabricCodes.englishName}</th>
+              <th className="py-2.5 px-3 text-start font-medium">{ar.settings.fabricCodes.arabicName}</th>
+              <th className="py-2.5 px-3 text-start font-medium">{ar.settings.fabricCodes.englishName}</th>
               <th className="py-2.5 px-3 text-center font-medium w-20">{ar.settings.fabricCodes.isActive}</th>
             </tr>
           </thead>
@@ -1071,8 +1071,8 @@ function CompositionsTab({ notifySaved }: { notifySaved: () => void }) {
         <table className="w-full text-sm">
           <thead className="bg-surface-row-alt text-foreground-muted">
             <tr>
-              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.fabricCodes.arabicName}</th>
-              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.fabricCodes.description}</th>
+              <th className="py-2.5 px-3 text-start font-medium">{ar.settings.fabricCodes.arabicName}</th>
+              <th className="py-2.5 px-3 text-start font-medium">{ar.settings.fabricCodes.description}</th>
               <th className="py-2.5 px-3 text-center font-medium w-20">{ar.settings.fabricCodes.isActive}</th>
             </tr>
           </thead>
@@ -1160,8 +1160,8 @@ function SuppliersTab({ notifySaved }: { notifySaved: () => void }) {
         <table className="w-full text-sm">
           <thead className="bg-surface-row-alt text-foreground-muted">
             <tr>
-              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.fabricCodes.arabicName}</th>
-              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.fabricCodes.warningText}</th>
+              <th className="py-2.5 px-3 text-start font-medium">{ar.settings.fabricCodes.arabicName}</th>
+              <th className="py-2.5 px-3 text-start font-medium">{ar.settings.fabricCodes.warningText}</th>
               <th className="py-2.5 px-3 text-center font-medium w-20">{ar.settings.fabricCodes.isActive}</th>
             </tr>
           </thead>
@@ -1257,9 +1257,9 @@ function BrandsTab({ notifySaved }: { notifySaved: () => void }) {
         <table className="w-full text-sm">
           <thead className="bg-surface-row-alt text-foreground-muted">
             <tr>
-              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.fabricCodes.arabicName}</th>
-              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.fabricCodes.productLine}</th>
-              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.fabricCodes.supplierRef}</th>
+              <th className="py-2.5 px-3 text-start font-medium">{ar.settings.fabricCodes.arabicName}</th>
+              <th className="py-2.5 px-3 text-start font-medium">{ar.settings.fabricCodes.productLine}</th>
+              <th className="py-2.5 px-3 text-start font-medium">{ar.settings.fabricCodes.supplierRef}</th>
               <th className="py-2.5 px-3 text-center font-medium w-20">{ar.settings.fabricCodes.isActive}</th>
             </tr>
           </thead>
@@ -1366,7 +1366,7 @@ function DesktopSubNav({
               onClick={() => onChange(s.id)}
               aria-current={isActive ? 'page' : undefined}
               className={cn(
-                'relative w-full text-right px-3 py-2.5 rounded-md text-sm transition-colors duration-150 ease-standard',
+                'relative w-full text-start px-3 py-2.5 rounded-md text-sm transition-colors duration-150 ease-standard',
                 'flex items-center gap-3',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-elevated',
                 isActive ? 'text-foreground' : 'text-foreground-muted hover:text-foreground hover:bg-surface-hover',
@@ -1382,7 +1382,7 @@ function DesktopSubNav({
                   />
                   <motion.span
                     layoutId="settings-active-indicator"
-                    className="absolute inset-y-1.5 right-0 w-0.5 bg-accent rounded-full"
+                    className="absolute inset-y-1.5 start-0 w-0.5 bg-accent rounded-full"
                     transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
                     aria-hidden
                   />

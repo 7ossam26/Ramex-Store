@@ -269,7 +269,7 @@ function SaveCancelBtns({ onSave, onCancel, disabled }: { onSave: () => void; on
 
 function Th({ children, center }: { children: React.ReactNode; center?: boolean }) {
   return (
-    <th className={`py-2 px-3 text-sm font-medium text-muted-foreground border-b border-border ${center ? 'text-center' : 'text-right'}`}>
+    <th className={`py-2 px-3 text-sm font-medium text-foreground-muted border-b border-border-subtle ${center ? 'text-center' : 'text-start'}`}>
       {children}
     </th>
   );
@@ -277,7 +277,7 @@ function Th({ children, center }: { children: React.ReactNode; center?: boolean 
 
 function Td({ children, center, muted }: { children: React.ReactNode; center?: boolean; muted?: boolean }) {
   return (
-    <td className={`py-2 px-3 text-sm border-b border-border ${center ? 'text-center' : 'text-right'} ${muted ? 'text-muted-foreground' : ''}`}>
+    <td className={`py-2 px-3 text-sm border-b border-border-subtle ${center ? 'text-center' : 'text-start'} ${muted ? 'text-foreground-muted' : ''}`}>
       {children}
     </td>
   );
