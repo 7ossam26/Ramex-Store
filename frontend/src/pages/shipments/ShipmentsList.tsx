@@ -5,6 +5,8 @@ import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
 import type { ShipmentStatus } from '@/lib/inventory-types';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
+import { PageHeader } from '@/components/PageHeader';
+import { ShipmentStatusPill } from '@/components/shipments/ShipmentStatusPill';
 
 const STATUSES: Array<ShipmentStatus | ''> = [
   '', 'draft', 'pending_approval', 'partial_approved', 'approved', 'rejected', 'cancelled',
@@ -24,12 +26,14 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
     queryFn: () => inventoryApi.listShipments(status ? { status } : undefined),
   });
 
+  const rows = (q.data ?? []) as ShipmentRow[];
+
   const columns: Column<ShipmentRow>[] = [
     {
       key: 'shipment_no',
       header: ar.shipments.shipmentNo,
       cell: (s) => (
-        <Link to={`/shipments/${s.id}`} className="text-primary underline font-mono">
+        <Link to={`/shipments/${s.id}`} className="text-accent hover:text-accent-hover underline underline-offset-2 font-mono tabular-num">
           {s.shipment_no}
         </Link>
       ),
@@ -38,40 +42,44 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
     {
       key: 'status',
       header: 'الحالة',
-      cell: (s) => ar.shipments.status[s.status],
+      cell: (s) => <ShipmentStatusPill status={s.status} />,
     },
     {
       key: 'created',
       header: 'تاريخ الإنشاء',
-      cell: (s) => new Date(s.created_at).toLocaleString('ar-EG-u-nu-latn'),
+      cell: (s) => <span className="text-foreground-muted">{new Date(s.created_at).toLocaleString('ar-EG-u-nu-latn')}</span>,
       secondary: true,
     },
   ];
 
   return (
     <div className="space-y-4 max-w-5xl mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <h1 className="text-xl font-bold">
-          {defaultStatus === 'pending_approval' ? ar.shipments.pending : ar.shipments.all}
-        </h1>
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value as ShipmentStatus | '')}
-          className="h-11 md:h-9 rounded border border-border bg-canvas px-3 text-sm"
-        >
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s ? ar.shipments.status[s as ShipmentStatus] : ar.common.none}
-            </option>
-          ))}
-        </select>
-      </div>
+      <PageHeader
+        title={defaultStatus === 'pending_approval' ? ar.shipments.pending : ar.shipments.all}
+        actions={
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as ShipmentStatus | '')}
+            className="h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
+          >
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s ? ar.shipments.status[s as ShipmentStatus] : ar.common.none}
+              </option>
+            ))}
+          </select>
+        }
+      />
 
       <ResponsiveTable
         columns={columns}
-        rows={(q.data ?? []) as ShipmentRow[]}
+        rows={rows}
         rowKey={(s) => String(s.id)}
         empty={ar.shipments.empty}
+        isLoading={q.isLoading}
+        isError={q.isError}
+        onRetry={() => q.refetch()}
+        resetKey={status}
       />
     </div>
   );

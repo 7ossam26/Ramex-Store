@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/PageHeader';
 
 type AddRollForm = {
   fabric_id: number;
@@ -63,13 +64,13 @@ export function CreateShipmentPage() {
   if (submittedNo) {
     return (
       <div className="max-w-2xl mx-auto">
-        <Card>
+        <Card className="border-success/40 bg-success-subtle">
           <CardHeader>
-            <CardTitle>{ar.shipments.submittedSuccess}</CardTitle>
+            <CardTitle className="text-success-foreground">{ar.shipments.submittedSuccess}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="text-sm text-muted-foreground">{ar.shipments.shipmentNo}</div>
-            <div className="text-2xl font-bold">{submittedNo}</div>
+          <CardContent className="space-y-3">
+            <div className="text-sm text-success-foreground/80">{ar.shipments.shipmentNo}</div>
+            <div className="text-3xl font-semibold text-success-foreground tabular-num" dir="ltr">{submittedNo}</div>
             <Button onClick={() => { setShipment(null); setSubmittedNo(null); createDraft.mutate(); }}>
               {ar.shipments.new}
             </Button>
@@ -104,19 +105,19 @@ export function CreateShipmentPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
+      <PageHeader title={`${ar.shipments.create} — ${shipment.shipment_no}`} />
+
       <Card>
         <CardHeader>
-          <CardTitle>
-            {ar.shipments.create} — {shipment.shipment_no}
-          </CardTitle>
+          <CardTitle>{ar.shipments.addRoll}</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={form.handleSubmit(onAdd)} className="grid grid-cols-2 md:grid-cols-3 gap-3">
             <div className="space-y-1">
-              <Label>{ar.shipments.rollFabric}</Label>
+              <Label className="text-sm font-medium text-foreground">{ar.shipments.rollFabric}</Label>
               <select
                 {...form.register('fabric_id', { valueAsNumber: true, required: true })}
-                className="w-full h-10 rounded border border-border bg-canvas px-3 text-sm"
+                className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
               >
                 <option value="">—</option>
                 {fabricsQ.data?.map((f) => (
@@ -125,10 +126,10 @@ export function CreateShipmentPage() {
               </select>
             </div>
             <div className="space-y-1">
-              <Label>{ar.shipments.rollColor}</Label>
+              <Label className="text-sm font-medium text-foreground">{ar.shipments.rollColor}</Label>
               <select
                 {...form.register('color_id', { valueAsNumber: true, required: true })}
-                className="w-full h-10 rounded border border-border bg-canvas px-3 text-sm"
+                className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
               >
                 <option value="">—</option>
                 {colorsQ.data?.map((c) => (
@@ -152,10 +153,10 @@ export function CreateShipmentPage() {
               <Label>{ar.shipments.factoryPrice}</Label>
               <Input type="number" inputMode="decimal" step="0.01" {...form.register('factory_purchase_price_egp', { valueAsNumber: true })} />
             </div>
-            <div className="col-span-full">
+            <div className="col-span-full flex items-center gap-3 flex-wrap">
               <Button type="submit" disabled={addRoll.isPending}>{ar.shipments.addRoll}</Button>
               {addRoll.error && (
-                <span className="text-sm text-red-600 mr-3">
+                <span className="text-sm text-danger transition-opacity duration-75 ease-standard" role="alert">
                   {(addRoll.error as { response?: { data?: { message?: string } } })?.response?.data?.message ?? ar.common.error}
                 </span>
               )}
@@ -166,31 +167,33 @@ export function CreateShipmentPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{ar.shipments.rollsCount}: {lines.length}</CardTitle>
+          <CardTitle>
+            {ar.shipments.rollsCount}: <span className="tabular-num" dir="ltr">{lines.length}</span>
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {lines.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{ar.common.none}</p>
+            <p className="text-sm text-foreground-muted py-2">{ar.common.none}</p>
           ) : (
             <table className="w-full text-sm">
-              <thead className="text-right text-xs text-muted-foreground">
-                <tr>
-                  <th className="py-2">{ar.stockMovements.rollBarcode}</th>
-                  <th>{ar.shipments.rollFabric}</th>
-                  <th>{ar.shipments.rollColor}</th>
-                  <th>{ar.shipments.rollWeight}</th>
-                  <th>{ar.shipments.factoryPrice}</th>
+              <thead className="text-right text-xs text-foreground-muted uppercase tracking-wide">
+                <tr className="border-b border-border-subtle">
+                  <th className="py-2.5 font-medium">{ar.stockMovements.rollBarcode}</th>
+                  <th className="font-medium">{ar.shipments.rollFabric}</th>
+                  <th className="font-medium">{ar.shipments.rollColor}</th>
+                  <th className="font-medium">{ar.shipments.rollWeight}</th>
+                  <th className="font-medium">{ar.shipments.factoryPrice}</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {lines.map((l) => (
-                  <tr key={l.id} className="border-t border-border">
-                    <td className="py-2 font-mono">{l.internal_barcode}</td>
+                  <tr key={l.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
+                    <td className="py-2.5 font-mono tabular-num text-foreground">{l.internal_barcode}</td>
                     <td>{l.fabric_name_ar}</td>
                     <td>{l.color_name_ar} ({l.color_code})</td>
-                    <td>{l.weight_kg}</td>
-                    <td>{l.factory_purchase_price_egp ?? '—'}</td>
+                    <td className="tabular-num" dir="ltr">{l.weight_kg}</td>
+                    <td className="tabular-num" dir="ltr">{l.factory_purchase_price_egp ?? '—'}</td>
                     <td>
                       <Button variant="ghost" size="sm" onClick={() => removeLine.mutate(l.id)}>
                         {ar.common.cancel}

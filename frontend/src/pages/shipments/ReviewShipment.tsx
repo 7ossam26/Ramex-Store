@@ -8,6 +8,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScannerInput } from '@/components/ScannerInput';
 import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/PageHeader';
+import { ShipmentStatusPill } from '@/components/shipments/ShipmentStatusPill';
+import { StatusPill, type StatusTone } from '@/components/StatusPill';
+
+const LINE_STATUS_TONE: Record<string, StatusTone> = {
+  pending: 'info',
+  accepted: 'success',
+  rejected: 'danger',
+};
 
 export function ReviewShipmentPage() {
   const { id } = useParams<{ id: string }>();
@@ -61,16 +70,20 @@ export function ReviewShipmentPage() {
 
   return (
     <div className="space-y-4 max-w-5xl mx-auto">
+      <PageHeader
+        title={shipment.shipment_no}
+        actions={<ShipmentStatusPill status={shipment.status} />}
+      />
+
       <Card>
-        <CardHeader className="flex-row items-center justify-between">
-          <CardTitle>{shipment.shipment_no}</CardTitle>
-          <span className="text-sm">{ar.shipments.status[shipment.status]}</span>
+        <CardHeader>
+          <CardTitle>{ar.shipments.create}</CardTitle>
         </CardHeader>
         <CardContent>
           {isReviewable && (
             <div className="space-y-3 mb-3">
               <div className="space-y-1">
-                <Label>{ar.labels.scanHint}</Label>
+                <Label className="text-sm font-medium text-foreground">{ar.labels.scanHint}</Label>
                 <div className="flex gap-2 items-center">
                   <div className="flex-1 max-w-sm">
                     <ScannerInput
@@ -79,7 +92,7 @@ export function ReviewShipmentPage() {
                     />
                   </div>
                   {scanFlash && (
-                    <span className={`text-xs ${scanFlash.startsWith('✓') ? 'text-green-600' : 'text-red-600'}`}>
+                    <span className={`text-xs font-mono tabular-num ${scanFlash.startsWith('✓') ? 'text-success-foreground' : 'text-danger'}`} dir="ltr">
                       {scanFlash}
                     </span>
                   )}
@@ -100,24 +113,28 @@ export function ReviewShipmentPage() {
           )}
 
           <table className="w-full text-sm">
-            <thead className="text-right text-xs text-muted-foreground">
-              <tr>
-                <th className="py-2">{ar.stockMovements.rollBarcode}</th>
-                <th>{ar.shipments.rollFabric}</th>
-                <th>{ar.shipments.rollColor}</th>
-                <th>{ar.shipments.rollWeight}</th>
-                <th>الحالة</th>
+            <thead className="text-right text-xs text-foreground-muted uppercase tracking-wide">
+              <tr className="border-b border-border-subtle">
+                <th className="py-2.5 font-medium">{ar.stockMovements.rollBarcode}</th>
+                <th className="font-medium">{ar.shipments.rollFabric}</th>
+                <th className="font-medium">{ar.shipments.rollColor}</th>
+                <th className="font-medium">{ar.shipments.rollWeight}</th>
+                <th className="font-medium">الحالة</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {shipment.lines.map((l) => (
-                <tr key={l.id} className="border-t border-border align-top">
-                  <td className="py-2 font-mono">{l.internal_barcode}</td>
+                <tr key={l.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150 align-top">
+                  <td className="py-2.5 font-mono tabular-num text-foreground">{l.internal_barcode}</td>
                   <td>{l.fabric_name_ar}</td>
                   <td>{l.color_name_ar} ({l.color_code})</td>
-                  <td>{l.weight_kg}</td>
-                  <td>{ar.shipments.lineStatus[l.status]}</td>
+                  <td className="tabular-num" dir="ltr">{l.weight_kg}</td>
+                  <td>
+                    <StatusPill tone={LINE_STATUS_TONE[l.status] ?? 'neutral'}>
+                      {ar.shipments.lineStatus[l.status]}
+                    </StatusPill>
+                  </td>
                   <td>
                     {isReviewable && l.status === 'pending' ? (
                       <div className="flex flex-col gap-2 w-64">
@@ -150,7 +167,7 @@ export function ReviewShipmentPage() {
                       </div>
                     ) : (
                       l.reject_reason_ar && (
-                        <span className="text-xs text-muted-foreground">{l.reject_reason_ar}</span>
+                        <span className="text-xs text-foreground-muted">{l.reject_reason_ar}</span>
                       )
                     )}
                   </td>
