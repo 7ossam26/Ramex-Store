@@ -1,55 +1,101 @@
-import { useState } from 'react';
+/* =============================================================
+ * Settings (الإعدادات) — Phase 6 re-skin.
+ *
+ * 3-column island layout (right→left in RTL):
+ *   Rail (global, from AppShell) │ Settings sub-nav │ Form content
+ *
+ * Sub-nav source of truth: src/navigation/settings.config.ts.
+ * Form behavior, CRUD logic, and permission gating are preserved verbatim.
+ * Tokens only — no hex literals, no legacy palette utilities.
+ * ============================================================= */
+import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { CheckCircle2 } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { settingsApi, permissionsApi, usersApi, bankAccountsApi } from '@/lib/settings-api';
 import { codesApi, type CodeGrade, type CodeComposition, type CodeBrand, type CodeSupplier } from '@/lib/codes-api';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth';
 import { useIsDesktop } from '@/hooks/useMediaQuery';
+import { PageHeader } from '@/components/PageHeader';
+import { ErrorBanner } from '@/components/ErrorBanner';
+import { cn } from '@/lib/utils';
+import {
+  SETTINGS_SECTIONS,
+  SETTINGS_SECTION_IDS,
+  settingsSectionById,
+  type SettingsSectionId,
+} from '@/navigation/settings.config';
 
-type Section =
-  | 'general' | 'tax' | 'pos' | 'cashDrawer' | 'banks'
-  | 'usersPermissions' | 'reasonCodes' | 'dayRollover' | 'system' | 'fabricCodes';
+type Section = SettingsSectionId;
 
-const SECTIONS: Section[] = [
-  'general', 'tax', 'pos', 'cashDrawer', 'banks',
-  'usersPermissions', 'reasonCodes', 'dayRollover', 'system', 'fabricCodes',
-];
+// ─── Shared form primitives (token-aware) ────────────────────────────────────
 
-// ── helpers ───────────────────────────────────────────────────────────────────
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function FieldRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-1">
-      <label className="text-sm font-medium text-muted-foreground">{label}</label>
+    <div className="flex flex-col gap-1.5">
+      <label className="text-sm font-medium text-foreground">{label}</label>
       {children}
     </div>
   );
 }
 
-function TextInput({ value, onChange, placeholder = '' }: {
-  value: string; onChange: (v: string) => void; placeholder?: string;
+function TextInput({
+  value,
+  onChange,
+  placeholder = '',
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
 }) {
   return (
     <input
-      className="border border-border rounded px-3 py-1.5 text-sm bg-canvas focus:outline-none focus:ring-1 focus:ring-primary"
+      type="text"
+      className={cn(
+        'h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground',
+        'placeholder:text-foreground-tertiary transition-colors duration-75 ease-standard',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:border-accent',
+        'disabled:opacity-60 disabled:cursor-not-allowed',
+      )}
       dir="rtl"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
+      disabled={disabled}
     />
   );
 }
 
-function NumInput({ value, onChange, step = 1, min = 0, max }: {
-  value: number; onChange: (v: number) => void; step?: number; min?: number; max?: number;
+function NumInput({
+  value,
+  onChange,
+  step = 1,
+  min = 0,
+  max,
+  width = 'w-32',
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  step?: number;
+  min?: number;
+  max?: number;
+  width?: string;
 }) {
   return (
     <input
       type="number"
-      className="border border-border rounded px-3 py-1.5 text-sm bg-canvas focus:outline-none focus:ring-1 focus:ring-primary w-32"
+      className={cn(
+        'h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground tabular-num',
+        'placeholder:text-foreground-tertiary transition-colors duration-75 ease-standard',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:border-accent',
+        width,
+      )}
+      style={{ unicodeBidi: 'plaintext' }}
       value={value}
       step={step}
       min={min}
@@ -59,29 +105,123 @@ function NumInput({ value, onChange, step = 1, min = 0, max }: {
   );
 }
 
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+function Toggle({
+  checked,
+  onChange,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
   return (
     <button
       type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${checked ? 'bg-primary' : 'bg-border'}`}
+      className={cn(
+        'relative inline-flex h-6 w-11 items-center rounded-pill transition-colors duration-150 ease-standard',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-elevated',
+        'disabled:opacity-60 disabled:cursor-not-allowed',
+        checked ? 'bg-accent' : 'bg-border-default',
+      )}
     >
-      <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
+      <span
+        className={cn(
+          'inline-block size-4 rounded-full bg-surface-elevated shadow-sm transition-transform duration-200 ease-emphasized',
+          checked ? 'translate-x-6' : 'translate-x-1',
+        )}
+      />
     </button>
   );
 }
 
-function SaveButton({ onClick, saving }: { onClick: () => void; saving: boolean }) {
+function SelectInput({
+  value,
+  onChange,
+  children,
+  className,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <Button size="sm" onClick={onClick} disabled={saving}>
-      {saving ? ar.loading : ar.common.save}
-    </Button>
+    <select
+      className={cn(
+        'h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground',
+        'transition-colors duration-75 ease-standard',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:border-accent',
+        className,
+      )}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      {children}
+    </select>
   );
 }
 
-// ── Section: General ──────────────────────────────────────────────────────────
+/** Sticky bar at the bottom of long forms. Wraps a primary action. */
+function StickySaveBar({
+  onSave,
+  saving,
+  disabled,
+  label = ar.common.save,
+}: {
+  onSave: () => void;
+  saving: boolean;
+  disabled?: boolean;
+  label?: string;
+}) {
+  return (
+    <div className="sticky bottom-0 -mx-6 mt-6 px-6 py-4 bg-surface-elevated border-t border-border-subtle flex items-center justify-start gap-3">
+      <Button onClick={onSave} disabled={saving || disabled} className="gap-2 min-w-28">
+        {saving && (
+          <span
+            className="inline-block size-4 rounded-full border-2 border-foreground-on-accent/40 border-t-foreground-on-accent animate-spin"
+            aria-hidden
+          />
+        )}
+        {saving ? ar.loading : label}
+      </Button>
+    </div>
+  );
+}
 
-function GeneralSection({ settings, onSave }: { settings: Record<string, unknown>; onSave: (key: string, value: unknown) => Promise<void> }) {
+/** Per-section form-level error banner — surfaces save failures inline at the top. */
+function SaveErrorBanner({ message, onDismiss }: { message: string; onDismiss?: () => void }) {
+  return (
+    <ErrorBanner
+      title={ar.common.error}
+      description={message}
+      onRetry={onDismiss}
+      retryLabel={ar.mobile.close}
+      className="mb-4"
+    />
+  );
+}
+
+function extractApiError(e: unknown, fallback = ar.common.error): string {
+  const msg =
+    (e as { response?: { data?: { message?: string; error?: string } } })?.response?.data?.message ??
+    (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+    (e as { message?: string })?.message;
+  return msg ?? fallback;
+}
+
+// ─── Section: General ────────────────────────────────────────────────────────
+
+type SectionProps = {
+  settings: Record<string, unknown>;
+  onSave: (key: string, value: unknown) => Promise<void>;
+  notifySaved: () => void;
+};
+
+function GeneralSection({ settings, onSave, notifySaved }: SectionProps) {
   const [form, setForm] = useState({
     logoPath: String(settings['shop.logo_path'] ?? ''),
     addressAr: String(settings['shop.address_ar'] ?? ''),
@@ -90,9 +230,10 @@ function GeneralSection({ settings, onSave }: { settings: Record<string, unknown
     warningTextAr: String(settings['receipt.warning_text_ar'] ?? ''),
   });
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function save() {
+    setError(null);
     setSaving(true);
     try {
       await Promise.all([
@@ -102,53 +243,57 @@ function GeneralSection({ settings, onSave }: { settings: Record<string, unknown
         onSave('shop.tax_no', form.taxNo),
         onSave('receipt.warning_text_ar', form.warningTextAr),
       ]);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      notifySaved();
+    } catch (e) {
+      setError(extractApiError(e));
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div className="space-y-4">
-      <Field label={ar.settings.general.logoPath}>
+    <div className={cn('space-y-5', saving && 'opacity-70 pointer-events-none')}>
+      {error && <SaveErrorBanner message={error} onDismiss={() => setError(null)} />}
+      <FieldRow label={ar.settings.general.logoPath}>
         <TextInput value={form.logoPath} onChange={(v) => setForm({ ...form, logoPath: v })} placeholder="/images/logo.png" />
-      </Field>
-      <Field label={ar.settings.general.addressAr}>
+      </FieldRow>
+      <FieldRow label={ar.settings.general.addressAr}>
         <TextInput value={form.addressAr} onChange={(v) => setForm({ ...form, addressAr: v })} />
-      </Field>
-      <Field label={ar.settings.general.phone}>
+      </FieldRow>
+      <FieldRow label={ar.settings.general.phone}>
         <TextInput value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} placeholder="01XXXXXXXXX" />
-      </Field>
-      <Field label={ar.settings.general.taxNo}>
+      </FieldRow>
+      <FieldRow label={ar.settings.general.taxNo}>
         <TextInput value={form.taxNo} onChange={(v) => setForm({ ...form, taxNo: v })} />
-      </Field>
-      <Field label={ar.settings.general.warningTextAr}>
+      </FieldRow>
+      <FieldRow label={ar.settings.general.warningTextAr}>
         <textarea
           dir="rtl"
-          className="border border-border rounded px-3 py-1.5 text-sm bg-canvas focus:outline-none focus:ring-1 focus:ring-primary resize-y min-h-20"
+          className={cn(
+            'min-h-24 rounded-md border border-border-default bg-surface-elevated px-3 py-2 text-sm text-foreground',
+            'placeholder:text-foreground-tertiary transition-colors duration-75 ease-standard resize-y',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:border-accent',
+          )}
           value={form.warningTextAr}
           onChange={(e) => setForm({ ...form, warningTextAr: e.target.value })}
         />
-      </Field>
-      <div className="flex items-center gap-2">
-        <SaveButton onClick={save} saving={saving} />
-        {saved && <span className="text-sm text-green-600">{ar.settings.saved}</span>}
-      </div>
+      </FieldRow>
+      <StickySaveBar onSave={save} saving={saving} />
     </div>
   );
 }
 
-// ── Section: Tax ──────────────────────────────────────────────────────────────
+// ─── Section: Tax ────────────────────────────────────────────────────────────
 
-function TaxSection({ settings, onSave }: { settings: Record<string, unknown>; onSave: (key: string, value: unknown) => Promise<void> }) {
+function TaxSection({ settings, onSave, notifySaved }: SectionProps) {
   const [enabled, setEnabled] = useState(Boolean(settings['tax.enabled'] ?? false));
   const [rate, setRate] = useState(Number(settings['tax.rate'] ?? 0.14));
   const [labelAr, setLabelAr] = useState(String(settings['tax.label_ar'] ?? 'ضريبة'));
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function save() {
+    setError(null);
     setSaving(true);
     try {
       await Promise.all([
@@ -156,35 +301,34 @@ function TaxSection({ settings, onSave }: { settings: Record<string, unknown>; o
         onSave('tax.rate', rate),
         onSave('tax.label_ar', labelAr),
       ]);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      notifySaved();
+    } catch (e) {
+      setError(extractApiError(e));
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div className="space-y-4">
-      <Field label={ar.settings.tax.enabled}>
+    <div className={cn('space-y-5', saving && 'opacity-70 pointer-events-none')}>
+      {error && <SaveErrorBanner message={error} onDismiss={() => setError(null)} />}
+      <FieldRow label={ar.settings.tax.enabled}>
         <Toggle checked={enabled} onChange={setEnabled} />
-      </Field>
-      <Field label={ar.settings.tax.rate}>
+      </FieldRow>
+      <FieldRow label={ar.settings.tax.rate}>
         <NumInput value={rate} onChange={setRate} step={0.01} min={0} max={1} />
-      </Field>
-      <Field label={ar.settings.tax.labelAr}>
+      </FieldRow>
+      <FieldRow label={ar.settings.tax.labelAr}>
         <TextInput value={labelAr} onChange={setLabelAr} />
-      </Field>
-      <div className="flex items-center gap-2">
-        <SaveButton onClick={save} saving={saving} />
-        {saved && <span className="text-sm text-green-600">{ar.settings.saved}</span>}
-      </div>
+      </FieldRow>
+      <StickySaveBar onSave={save} saving={saving} />
     </div>
   );
 }
 
-// ── Section: POS ──────────────────────────────────────────────────────────────
+// ─── Section: POS ────────────────────────────────────────────────────────────
 
-function PosSection({ settings, onSave }: { settings: Record<string, unknown>; onSave: (key: string, value: unknown) => Promise<void> }) {
+function PosSection({ settings, onSave, notifySaved }: SectionProps) {
   const [form, setForm] = useState({
     minDepositPct: Number(settings['pos.min_deposit_pct'] ?? 0.25),
     voidTimeLimitHours: Number(settings['pos.void_time_limit_hours'] ?? 24),
@@ -193,9 +337,10 @@ function PosSection({ settings, onSave }: { settings: Record<string, unknown>; o
     returnWindowDays: Number(settings['pos.return_window_days'] ?? 14),
   });
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function save() {
+    setError(null);
     setSaving(true);
     try {
       await Promise.all([
@@ -205,52 +350,51 @@ function PosSection({ settings, onSave }: { settings: Record<string, unknown>; o
         onSave('pos.stale_invoice_days', form.staleInvoiceDays),
         onSave('pos.return_window_days', form.returnWindowDays),
       ]);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      notifySaved();
+    } catch (e) {
+      setError(extractApiError(e));
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div className="space-y-4">
-      <Field label={ar.settings.pos.minDepositPct}>
+    <div className={cn('space-y-5', saving && 'opacity-70 pointer-events-none')}>
+      {error && <SaveErrorBanner message={error} onDismiss={() => setError(null)} />}
+      <FieldRow label={ar.settings.pos.minDepositPct}>
         <NumInput value={form.minDepositPct} onChange={(v) => setForm({ ...form, minDepositPct: v })} step={0.01} min={0} max={1} />
-      </Field>
-      <Field label={ar.settings.pos.voidTimeLimitHours}>
+      </FieldRow>
+      <FieldRow label={ar.settings.pos.voidTimeLimitHours}>
         <NumInput value={form.voidTimeLimitHours} onChange={(v) => setForm({ ...form, voidTimeLimitHours: v })} min={0} />
-      </Field>
-      <Field label={ar.settings.pos.approvalThresholdEgp}>
+      </FieldRow>
+      <FieldRow label={ar.settings.pos.approvalThresholdEgp}>
         <NumInput value={form.approvalThreshold} onChange={(v) => setForm({ ...form, approvalThreshold: v })} step={100} min={0} />
-      </Field>
-      <Field label={ar.settings.pos.staleInvoiceDays}>
+      </FieldRow>
+      <FieldRow label={ar.settings.pos.staleInvoiceDays}>
         <NumInput value={form.staleInvoiceDays} onChange={(v) => setForm({ ...form, staleInvoiceDays: v })} min={1} />
-      </Field>
-      <Field label={ar.settings.pos.returnWindowDays}>
+      </FieldRow>
+      <FieldRow label={ar.settings.pos.returnWindowDays}>
         <NumInput value={form.returnWindowDays} onChange={(v) => setForm({ ...form, returnWindowDays: v })} min={0} />
-      </Field>
-      <div className="flex items-center gap-2">
-        <SaveButton onClick={save} saving={saving} />
-        {saved && <span className="text-sm text-green-600">{ar.settings.saved}</span>}
-      </div>
+      </FieldRow>
+      <StickySaveBar onSave={save} saving={saving} />
     </div>
   );
 }
 
-// ── Section: Cash Drawer (read-only) ──────────────────────────────────────────
+// ─── Section: Cash Drawer (read-only) ───────────────────────────────────────
 
 function CashDrawerSection() {
   return (
-    <div className="space-y-2">
-      <p className="text-sm text-muted-foreground">{ar.settings.cashDrawer.openingBalance}</p>
-      <p className="text-sm">{ar.settings.system.auditRetentionValue}</p>
+    <div className="rounded-lg border border-border-subtle bg-surface p-4">
+      <p className="text-sm text-foreground-muted mb-2">{ar.settings.cashDrawer.openingBalance}</p>
+      <p className="text-sm text-foreground">{ar.settings.system.auditRetentionValue}</p>
     </div>
   );
 }
 
-// ── Section: Banks ────────────────────────────────────────────────────────────
+// ─── Section: Banks ─────────────────────────────────────────────────────────
 
-function BanksSection() {
+function BanksSection({ notifySaved }: { notifySaved: () => void }) {
   const qc = useQueryClient();
   const { data: banks = [] } = useQuery({
     queryKey: ['settings-banks'],
@@ -259,66 +403,99 @@ function BanksSection() {
 
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name_ar: '', bank_name_ar: '', account_number: '' });
+  const [error, setError] = useState<string | null>(null);
 
   const createMut = useMutation({
-    mutationFn: () => bankAccountsApi.create({ name_ar: form.name_ar, bank_name_ar: form.bank_name_ar, account_number: form.account_number }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['settings-banks'] }); setShowAdd(false); setForm({ name_ar: '', bank_name_ar: '', account_number: '' }); },
+    mutationFn: () =>
+      bankAccountsApi.create({
+        name_ar: form.name_ar,
+        bank_name_ar: form.bank_name_ar,
+        account_number: form.account_number,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['settings-banks'] });
+      setShowAdd(false);
+      setForm({ name_ar: '', bank_name_ar: '', account_number: '' });
+      notifySaved();
+    },
+    onError: (e) => setError(extractApiError(e)),
   });
 
   const toggleMut = useMutation({
-    mutationFn: ({ id, is_active }: { id: number; is_active: boolean }) => bankAccountsApi.update(id, { is_active }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['settings-banks'] }),
+    mutationFn: ({ id, is_active }: { id: number; is_active: boolean }) =>
+      bankAccountsApi.update(id, { is_active }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['settings-banks'] });
+      notifySaved();
+    },
+    onError: (e) => setError(extractApiError(e)),
   });
 
   return (
     <div className="space-y-4">
+      {error && <SaveErrorBanner message={error} onDismiss={() => setError(null)} />}
       <Button size="sm" variant="outline" onClick={() => setShowAdd(!showAdd)}>
         {ar.settings.banks.addBank}
       </Button>
       {showAdd && (
-        <Card>
-          <CardContent className="pt-4 space-y-3">
-            <Field label={ar.settings.banks.nameAr}>
-              <TextInput value={form.name_ar} onChange={(v) => setForm({ ...form, name_ar: v })} />
-            </Field>
-            <Field label={ar.settings.banks.bankNameAr}>
-              <TextInput value={form.bank_name_ar} onChange={(v) => setForm({ ...form, bank_name_ar: v })} />
-            </Field>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={() => createMut.mutate()} disabled={!form.name_ar || createMut.isPending}>{ar.common.save}</Button>
-              <Button size="sm" variant="outline" onClick={() => setShowAdd(false)}>{ar.common.cancel}</Button>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="rounded-lg border border-border-subtle bg-surface p-4 space-y-3">
+          <FieldRow label={ar.settings.banks.nameAr}>
+            <TextInput value={form.name_ar} onChange={(v) => setForm({ ...form, name_ar: v })} />
+          </FieldRow>
+          <FieldRow label={ar.settings.banks.bankNameAr}>
+            <TextInput value={form.bank_name_ar} onChange={(v) => setForm({ ...form, bank_name_ar: v })} />
+          </FieldRow>
+          <div className="flex gap-2 pt-1">
+            <Button
+              size="sm"
+              onClick={() => createMut.mutate()}
+              disabled={!form.name_ar || createMut.isPending}
+            >
+              {ar.common.save}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setShowAdd(false)}>
+              {ar.common.cancel}
+            </Button>
+          </div>
+        </div>
       )}
-      <table className="w-full text-sm border-collapse">
-        <thead>
-          <tr className="border-b border-border text-muted-foreground">
-            <th className="py-2 text-right font-medium">{ar.settings.banks.nameAr}</th>
-            <th className="py-2 text-right font-medium">{ar.settings.banks.bankNameAr}</th>
-            <th className="py-2 text-right font-medium">{ar.settings.banks.isActive}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {banks.map((b) => (
-            <tr key={b.id} className="border-b border-border hover:bg-muted/40">
-              <td className="py-2">{b.name_ar}</td>
-              <td className="py-2">{b.bank_name_ar ?? '—'}</td>
-              <td className="py-2">
-                <Toggle
-                  checked={b.is_active}
-                  onChange={(v) => toggleMut.mutate({ id: b.id, is_active: v })}
-                />
-              </td>
+      <div className="rounded-lg border border-border-subtle overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-surface-row-alt text-foreground-muted">
+            <tr>
+              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.banks.nameAr}</th>
+              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.banks.bankNameAr}</th>
+              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.banks.isActive}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-border-subtle bg-surface-elevated">
+            {banks.map((b, i) => (
+              <tr key={b.id} className={cn('hover:bg-surface-hover transition-colors duration-150', i % 2 === 1 && 'bg-surface-row-alt/40')}>
+                <td className="py-2.5 px-3 text-foreground">{b.name_ar}</td>
+                <td className="py-2.5 px-3 text-foreground-muted">{b.bank_name_ar ?? '—'}</td>
+                <td className="py-2.5 px-3">
+                  <Toggle
+                    checked={b.is_active}
+                    onChange={(v) => toggleMut.mutate({ id: b.id, is_active: v })}
+                  />
+                </td>
+              </tr>
+            ))}
+            {banks.length === 0 && (
+              <tr>
+                <td colSpan={3} className="py-8 px-3 text-center text-foreground-tertiary">
+                  {ar.codes.noResults}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
 
-// ── Section: Users & Permissions ──────────────────────────────────────────────
+// ─── Section: Users & Permissions ───────────────────────────────────────────
 
 const RESOURCES = [
   'customers', 'invoices', 'inventory', 'shipments', 'cash_drawer', 'returns',
@@ -329,7 +506,7 @@ const RESOURCES = [
   'settings', 'users',
 ];
 
-function UsersPermissionsSection() {
+function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
   const qc = useQueryClient();
   const { data: users = [] } = useQuery({ queryKey: ['settings-users'], queryFn: usersApi.list });
   const { data: matrix = [] } = useQuery({ queryKey: ['settings-permissions'], queryFn: permissionsApi.getMatrix });
@@ -337,16 +514,26 @@ function UsersPermissionsSection() {
   const [showAddUser, setShowAddUser] = useState(false);
   const [userForm, setUserForm] = useState({ username: '', full_name_ar: '', role: 'shop_seller', password: '' });
   const [matrixDirty, setMatrixDirty] = useState<Map<string, boolean>>(new Map());
-  const [permSaved, setPermSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const createUser = useMutation({
     mutationFn: () => usersApi.create(userForm),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['settings-users'] }); setShowAddUser(false); setUserForm({ username: '', full_name_ar: '', role: 'shop_seller', password: '' }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['settings-users'] });
+      setShowAddUser(false);
+      setUserForm({ username: '', full_name_ar: '', role: 'shop_seller', password: '' });
+      notifySaved();
+    },
+    onError: (e) => setError(extractApiError(e)),
   });
 
   const toggleUser = useMutation({
     mutationFn: ({ id, is_active }: { id: number; is_active: boolean }) => usersApi.update(id, { is_active }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['settings-users'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['settings-users'] });
+      notifySaved();
+    },
+    onError: (e) => setError(extractApiError(e)),
   });
 
   const savePermsMut = useMutation({
@@ -355,9 +542,9 @@ function UsersPermissionsSection() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['settings-permissions'] });
       setMatrixDirty(new Map());
-      setPermSaved(true);
-      setTimeout(() => setPermSaved(false), 2000);
+      notifySaved();
     },
+    onError: (e) => setError(extractApiError(e)),
   });
 
   function matrixKey(role: string, resource: string, action: string) {
@@ -387,126 +574,152 @@ function UsersPermissionsSection() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Users */}
-      <div className="space-y-3">
-        <h3 className="font-semibold">{ar.settings.users.title}</h3>
-        <Button size="sm" variant="outline" onClick={() => setShowAddUser(!showAddUser)}>
-          {ar.settings.users.addUser}
-        </Button>
-        {showAddUser && (
-          <Card>
-            <CardContent className="pt-4 space-y-3">
-              <Field label={ar.settings.users.username}>
-                <TextInput value={userForm.username} onChange={(v) => setUserForm({ ...userForm, username: v })} />
-              </Field>
-              <Field label={ar.settings.users.fullNameAr}>
-                <TextInput value={userForm.full_name_ar} onChange={(v) => setUserForm({ ...userForm, full_name_ar: v })} />
-              </Field>
-              <Field label={ar.settings.users.role}>
-                <select
-                  className="border border-border rounded px-3 py-1.5 text-sm bg-canvas"
-                  value={userForm.role}
-                  onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
-                >
-                  <option value="owner">{ar.settings.users.roles.owner}</option>
-                  <option value="shop_seller">{ar.settings.users.roles.shop_seller}</option>
-                  <option value="factory_sender">{ar.settings.users.roles.factory_sender}</option>
-                </select>
-              </Field>
-              <Field label={ar.settings.users.password}>
-                <TextInput value={userForm.password} onChange={(v) => setUserForm({ ...userForm, password: v })} />
-              </Field>
-              <div className="flex gap-2">
-                <Button size="sm" onClick={() => createUser.mutate()} disabled={!userForm.username || !userForm.password || createUser.isPending}>{ar.common.save}</Button>
-                <Button size="sm" variant="outline" onClick={() => setShowAddUser(false)}>{ar.common.cancel}</Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-        <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr className="border-b border-border text-muted-foreground">
-              <th className="py-2 text-right font-medium">{ar.settings.users.username}</th>
-              <th className="py-2 text-right font-medium">{ar.settings.users.fullNameAr}</th>
-              <th className="py-2 text-right font-medium">{ar.settings.users.role}</th>
-              <th className="py-2 text-right font-medium">{ar.settings.users.isActive}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.id} className="border-b border-border hover:bg-muted/40">
-                <td className="py-2">{u.username}</td>
-                <td className="py-2">{u.full_name_ar}</td>
-                <td className="py-2">{ar.settings.users.roles[u.role as keyof typeof ar.settings.users.roles] ?? u.role}</td>
-                <td className="py-2">
-                  <Toggle checked={u.is_active} onChange={(v) => toggleUser.mutate({ id: u.id, is_active: v })} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <div className="space-y-8">
+      {error && <SaveErrorBanner message={error} onDismiss={() => setError(null)} />}
 
-      {/* Permissions matrix */}
-      <div className="space-y-3">
-        <h3 className="font-semibold">{ar.settings.permissions.title}</h3>
-        <div className="overflow-x-auto rounded border border-border">
-          <table className="text-xs border-collapse min-w-max">
-            <thead>
-              <tr className="border-b border-border text-muted-foreground bg-muted/30">
-                <th className="py-2 px-3 text-right font-medium min-w-48 sticky right-0 bg-muted/30 z-10">{ar.settings.permissions.resource}</th>
-                {(['read', 'write', 'approve'] as const).map((action) => (
-                  <>
-                    <th key={`seller-${action}`} className="py-2 px-2 text-center font-medium whitespace-nowrap">
-                      {ar.settings.permissions.shopSeller} / {ar.settings.permissions[action]}
-                    </th>
-                    <th key={`factory-${action}`} className="py-2 px-2 text-center font-medium whitespace-nowrap">
-                      {ar.settings.permissions.factorySender} / {ar.settings.permissions[action]}
-                    </th>
-                  </>
-                ))}
+      {/* Users block */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <h3 className="text-base font-semibold text-foreground">{ar.settings.users.title}</h3>
+          <Button size="sm" variant="outline" onClick={() => setShowAddUser(!showAddUser)}>
+            {ar.settings.users.addUser}
+          </Button>
+        </div>
+        {showAddUser && (
+          <div className="rounded-lg border border-border-subtle bg-surface p-4 space-y-3">
+            <FieldRow label={ar.settings.users.username}>
+              <TextInput value={userForm.username} onChange={(v) => setUserForm({ ...userForm, username: v })} />
+            </FieldRow>
+            <FieldRow label={ar.settings.users.fullNameAr}>
+              <TextInput value={userForm.full_name_ar} onChange={(v) => setUserForm({ ...userForm, full_name_ar: v })} />
+            </FieldRow>
+            <FieldRow label={ar.settings.users.role}>
+              <SelectInput
+                value={userForm.role}
+                onChange={(v) => setUserForm({ ...userForm, role: v })}
+                className="w-44"
+              >
+                <option value="owner">{ar.settings.users.roles.owner}</option>
+                <option value="shop_seller">{ar.settings.users.roles.shop_seller}</option>
+                <option value="factory_sender">{ar.settings.users.roles.factory_sender}</option>
+              </SelectInput>
+            </FieldRow>
+            <FieldRow label={ar.settings.users.password}>
+              <TextInput value={userForm.password} onChange={(v) => setUserForm({ ...userForm, password: v })} />
+            </FieldRow>
+            <div className="flex gap-2 pt-1">
+              <Button
+                size="sm"
+                onClick={() => createUser.mutate()}
+                disabled={!userForm.username || !userForm.password || createUser.isPending}
+              >
+                {ar.common.save}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setShowAddUser(false)}>
+                {ar.common.cancel}
+              </Button>
+            </div>
+          </div>
+        )}
+        <div className="rounded-lg border border-border-subtle overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-surface-row-alt text-foreground-muted">
+              <tr>
+                <th className="py-2.5 px-3 text-right font-medium">{ar.settings.users.username}</th>
+                <th className="py-2.5 px-3 text-right font-medium">{ar.settings.users.fullNameAr}</th>
+                <th className="py-2.5 px-3 text-right font-medium">{ar.settings.users.role}</th>
+                <th className="py-2.5 px-3 text-right font-medium">{ar.settings.users.isActive}</th>
               </tr>
             </thead>
-            <tbody>
-              {RESOURCES.map((resource) => (
-                <tr key={resource} className="border-b border-border hover:bg-muted/40 bg-canvas">
-                  <td className="py-1.5 px-3 font-mono text-muted-foreground sticky right-0 bg-canvas z-10">{resource}</td>
-                  {(['read', 'write', 'approve'] as const).map((action) => (
-                    <>
-                      <td key={`seller-${action}`} className="py-1.5 px-2 text-center">
-                        <input
-                          type="checkbox"
-                          checked={isAllowed('shop_seller', resource, action)}
-                          onChange={() => togglePerm('shop_seller', resource, action)}
-                        />
-                      </td>
-                      <td key={`factory-${action}`} className="py-1.5 px-2 text-center">
-                        <input
-                          type="checkbox"
-                          checked={isAllowed('factory_sender', resource, action)}
-                          onChange={() => togglePerm('factory_sender', resource, action)}
-                        />
-                      </td>
-                    </>
-                  ))}
+            <tbody className="divide-y divide-border-subtle bg-surface-elevated">
+              {users.map((u, i) => (
+                <tr key={u.id} className={cn('hover:bg-surface-hover transition-colors duration-150', i % 2 === 1 && 'bg-surface-row-alt/40')}>
+                  <td className="py-2.5 px-3 text-foreground">{u.username}</td>
+                  <td className="py-2.5 px-3 text-foreground">{u.full_name_ar}</td>
+                  <td className="py-2.5 px-3 text-foreground-muted">
+                    {ar.settings.users.roles[u.role as keyof typeof ar.settings.users.roles] ?? u.role}
+                  </td>
+                  <td className="py-2.5 px-3">
+                    <Toggle checked={u.is_active} onChange={(v) => toggleUser.mutate({ id: u.id, is_active: v })} />
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <div className="flex items-center gap-2">
-          <Button size="sm" onClick={savePerms} disabled={matrixDirty.size === 0 || savePermsMut.isPending}>
-            {savePermsMut.isPending ? ar.loading : ar.common.save}
-          </Button>
-          {permSaved && <span className="text-sm text-green-600">{ar.settings.permissions.saved}</span>}
+      </section>
+
+      {/* Permissions matrix block */}
+      <section className="space-y-3">
+        <h3 className="text-base font-semibold text-foreground">{ar.settings.permissions.title}</h3>
+        <div className="rounded-lg border border-border-subtle bg-surface-elevated overflow-x-auto">
+          <table className="text-xs min-w-max">
+            <thead>
+              <tr className="bg-surface-row-alt text-foreground-muted">
+                <th className="py-2.5 px-3 text-right font-medium min-w-48 sticky right-0 bg-surface-row-alt z-10 border-l border-border-subtle">
+                  {ar.settings.permissions.resource}
+                </th>
+                {(['read', 'write', 'approve'] as const).flatMap((action) => [
+                  <th key={`seller-${action}`} className="py-2.5 px-3 text-center font-medium whitespace-nowrap">
+                    {ar.settings.permissions.shopSeller} / {ar.settings.permissions[action]}
+                  </th>,
+                  <th key={`factory-${action}`} className="py-2.5 px-3 text-center font-medium whitespace-nowrap">
+                    {ar.settings.permissions.factorySender} / {ar.settings.permissions[action]}
+                  </th>,
+                ])}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-subtle">
+              {RESOURCES.map((resource, ri) => (
+                <tr
+                  key={resource}
+                  className={cn(
+                    'hover:bg-surface-hover transition-colors duration-150',
+                    ri % 2 === 1 ? 'bg-surface-row-alt/40' : 'bg-surface-elevated',
+                  )}
+                >
+                  <td
+                    className={cn(
+                      'py-2 px-3 font-mono text-foreground-muted sticky right-0 z-10 border-l border-border-subtle',
+                      ri % 2 === 1 ? 'bg-surface-row-alt' : 'bg-surface-elevated',
+                    )}
+                  >
+                    {resource}
+                  </td>
+                  {(['read', 'write', 'approve'] as const).flatMap((action) => [
+                    <td key={`seller-${action}`} className="py-2 px-3 text-center">
+                      <input
+                        type="checkbox"
+                        className="size-4 accent-accent rounded cursor-pointer"
+                        checked={isAllowed('shop_seller', resource, action)}
+                        onChange={() => togglePerm('shop_seller', resource, action)}
+                      />
+                    </td>,
+                    <td key={`factory-${action}`} className="py-2 px-3 text-center">
+                      <input
+                        type="checkbox"
+                        className="size-4 accent-accent rounded cursor-pointer"
+                        checked={isAllowed('factory_sender', resource, action)}
+                        onChange={() => togglePerm('factory_sender', resource, action)}
+                      />
+                    </td>,
+                  ])}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      </div>
+        <StickySaveBar
+          onSave={savePerms}
+          saving={savePermsMut.isPending}
+          disabled={matrixDirty.size === 0}
+        />
+      </section>
     </div>
   );
 }
 
-// ── Section: Reason codes ─────────────────────────────────────────────────────
+// ─── Section: Reason codes ──────────────────────────────────────────────────
 
 type ReasonCode = { code: string; name_ar: string; default_disposition?: string };
 
@@ -517,72 +730,88 @@ function ReasonCodeList({ items, onChange }: { items: ReasonCode[]; onChange: (v
   function addCode() {
     if (!newCode || !newName) return;
     onChange([...items, { code: newCode, name_ar: newName }]);
-    setNewCode(''); setNewName('');
+    setNewCode('');
+    setNewName('');
   }
 
   return (
-    <div className="space-y-2">
-      <table className="w-full text-sm border-collapse">
-        <thead>
-          <tr className="border-b border-border text-muted-foreground">
-            <th className="py-1.5 text-right font-medium">{ar.settings.reasonCodes.code}</th>
-            <th className="py-1.5 text-right font-medium">{ar.settings.reasonCodes.nameAr}</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item, idx) => (
-            <tr key={item.code} className="border-b border-border">
-              <td className="py-1.5 font-mono text-muted-foreground">{item.code}</td>
-              <td className="py-1.5">
-                <input
-                  className="border border-border rounded px-2 py-0.5 text-sm w-full"
-                  dir="rtl"
-                  value={item.name_ar}
-                  onChange={(e) => {
-                    const next = [...items];
-                    next[idx] = { ...item, name_ar: e.target.value };
-                    onChange(next);
-                  }}
-                />
-              </td>
-              <td className="py-1.5 text-center">
-                <button
-                  type="button"
-                  className="text-red-500 text-xs hover:underline"
-                  onClick={() => onChange(items.filter((_, i) => i !== idx))}
-                >
-                  {ar.settings.reasonCodes.remove}
-                </button>
-              </td>
+    <div className="space-y-3">
+      <div className="rounded-lg border border-border-subtle overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-surface-row-alt text-foreground-muted">
+            <tr>
+              <th className="py-2 px-3 text-right font-medium w-40">{ar.settings.reasonCodes.code}</th>
+              <th className="py-2 px-3 text-right font-medium">{ar.settings.reasonCodes.nameAr}</th>
+              <th className="py-2 px-3 w-20" />
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="flex gap-2 items-end">
-        <Field label={ar.settings.reasonCodes.code}>
+          </thead>
+          <tbody className="divide-y divide-border-subtle bg-surface-elevated">
+            {items.map((item, idx) => (
+              <tr key={item.code} className="hover:bg-surface-hover transition-colors duration-150">
+                <td className="py-2 px-3 font-mono text-foreground-muted">{item.code}</td>
+                <td className="py-2 px-3">
+                  <input
+                    className={cn(
+                      'h-9 w-full rounded-md border border-border-default bg-surface-elevated px-2 text-sm text-foreground',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:border-accent transition-colors duration-75',
+                    )}
+                    dir="rtl"
+                    value={item.name_ar}
+                    onChange={(e) => {
+                      const next = [...items];
+                      next[idx] = { ...item, name_ar: e.target.value };
+                      onChange(next);
+                    }}
+                  />
+                </td>
+                <td className="py-2 px-3 text-center">
+                  <button
+                    type="button"
+                    className="text-xs text-danger hover:text-danger-foreground transition-colors duration-150 underline-offset-2 hover:underline"
+                    onClick={() => onChange(items.filter((_, i) => i !== idx))}
+                  >
+                    {ar.settings.reasonCodes.remove}
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {items.length === 0 && (
+              <tr>
+                <td colSpan={3} className="py-6 px-3 text-center text-foreground-tertiary">
+                  {ar.codes.noResults}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex gap-3 flex-wrap items-end">
+        <FieldRow label={ar.settings.reasonCodes.code}>
           <TextInput value={newCode} onChange={setNewCode} placeholder="code_key" />
-        </Field>
-        <Field label={ar.settings.reasonCodes.nameAr}>
+        </FieldRow>
+        <FieldRow label={ar.settings.reasonCodes.nameAr}>
           <TextInput value={newName} onChange={setNewName} placeholder="الاسم" />
-        </Field>
-        <Button size="sm" variant="outline" onClick={addCode}>{ar.settings.reasonCodes.addCode}</Button>
+        </FieldRow>
+        <Button size="sm" variant="outline" onClick={addCode}>
+          {ar.settings.reasonCodes.addCode}
+        </Button>
       </div>
     </div>
   );
 }
 
-function ReasonCodesSection({ settings, onSave }: { settings: Record<string, unknown>; onSave: (key: string, value: unknown) => Promise<void> }) {
+function ReasonCodesSection({ settings, onSave, notifySaved }: SectionProps) {
   const raw = (key: string, def: ReasonCode[]) =>
-    Array.isArray(settings[key]) ? settings[key] as ReasonCode[] : def;
+    Array.isArray(settings[key]) ? (settings[key] as ReasonCode[]) : def;
 
   const [damage, setDamage] = useState<ReasonCode[]>(raw('reason_codes.damage', []));
   const [expense, setExpense] = useState<ReasonCode[]>(raw('reason_codes.expense', []));
   const [cancel, setCancel] = useState<ReasonCode[]>(raw('reason_codes.cancellation', []));
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function save() {
+    setError(null);
     setSaving(true);
     try {
       await Promise.all([
@@ -590,83 +819,120 @@ function ReasonCodesSection({ settings, onSave }: { settings: Record<string, unk
         onSave('reason_codes.expense', expense),
         onSave('reason_codes.cancellation', cancel),
       ]);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      notifySaved();
+    } catch (e) {
+      setError(extractApiError(e));
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h4 className="font-medium mb-2">{ar.settings.reasonCodes.damage}</h4>
+    <div className={cn('space-y-8', saving && 'opacity-70 pointer-events-none')}>
+      {error && <SaveErrorBanner message={error} onDismiss={() => setError(null)} />}
+      <section className="space-y-3">
+        <h3 className="text-base font-semibold text-foreground">{ar.settings.reasonCodes.damage}</h3>
         <ReasonCodeList items={damage} onChange={setDamage} />
-      </div>
-      <div>
-        <h4 className="font-medium mb-2">{ar.settings.reasonCodes.expense}</h4>
+      </section>
+      <section className="space-y-3">
+        <h3 className="text-base font-semibold text-foreground">{ar.settings.reasonCodes.expense}</h3>
         <ReasonCodeList items={expense} onChange={setExpense} />
-      </div>
-      <div>
-        <h4 className="font-medium mb-2">{ar.settings.reasonCodes.cancellation}</h4>
+      </section>
+      <section className="space-y-3">
+        <h3 className="text-base font-semibold text-foreground">{ar.settings.reasonCodes.cancellation}</h3>
         <ReasonCodeList items={cancel} onChange={setCancel} />
-      </div>
-      <div className="flex items-center gap-2">
-        <SaveButton onClick={save} saving={saving} />
-        {saved && <span className="text-sm text-green-600">{ar.settings.saved}</span>}
-      </div>
+      </section>
+      <StickySaveBar onSave={save} saving={saving} />
     </div>
   );
 }
 
-// ── Section: Day rollover ─────────────────────────────────────────────────────
+// ─── Section: Day rollover ──────────────────────────────────────────────────
 
-function DayRolloverSection({ settings, onSave }: { settings: Record<string, unknown>; onSave: (key: string, value: unknown) => Promise<void> }) {
+function DayRolloverSection({ settings, onSave, notifySaved }: SectionProps) {
   const [time, setTime] = useState(String(settings['day_rollover.time'] ?? '00:00'));
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function save() {
+    setError(null);
     setSaving(true);
     try {
       await onSave('day_rollover.time', time);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      notifySaved();
+    } catch (e) {
+      setError(extractApiError(e));
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div className="space-y-4">
-      <Field label={ar.settings.dayRollover.time}>
+    <div className={cn('space-y-5', saving && 'opacity-70 pointer-events-none')}>
+      {error && <SaveErrorBanner message={error} onDismiss={() => setError(null)} />}
+      <FieldRow label={ar.settings.dayRollover.time}>
         <input
           type="time"
-          className="border border-border rounded px-3 py-1.5 text-sm bg-canvas w-32"
+          className={cn(
+            'h-10 w-40 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground tabular-num',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:border-accent transition-colors duration-75',
+          )}
           value={time}
           onChange={(e) => setTime(e.target.value)}
         />
-      </Field>
-      <div className="flex items-center gap-2">
-        <SaveButton onClick={save} saving={saving} />
-        {saved && <span className="text-sm text-green-600">{ar.settings.saved}</span>}
-      </div>
+      </FieldRow>
+      <StickySaveBar onSave={save} saving={saving} />
     </div>
   );
 }
 
-// ── Section: Fabric Codes ─────────────────────────────────────────────────────
+// ─── Section: Fabric Codes ──────────────────────────────────────────────────
 
 type CodeTab = 'grades' | 'compositions' | 'brands' | 'suppliers';
 
-function extractApiError(e: unknown): string {
-  const msg =
-    (e as { response?: { data?: { message?: string; error?: string } } })?.response?.data?.message ??
-    (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
-  return msg ?? ar.common.error;
+function TabsBar({ tab, onChange }: { tab: CodeTab; onChange: (v: CodeTab) => void }) {
+  const tabs: CodeTab[] = ['grades', 'compositions', 'brands', 'suppliers'];
+  return (
+    <div className="relative flex gap-1 border-b border-border-subtle">
+      {tabs.map((t) => (
+        <button
+          key={t}
+          type="button"
+          onClick={() => onChange(t)}
+          className={cn(
+            'relative px-4 py-2 text-sm transition-colors duration-150 ease-standard',
+            tab === t ? 'text-foreground font-semibold' : 'text-foreground-muted hover:text-foreground',
+          )}
+        >
+          {tab === t && (
+            <motion.span
+              layoutId="fabric-codes-tab"
+              className="absolute -bottom-px inset-x-2 h-0.5 bg-accent rounded-full"
+              transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+            />
+          )}
+          <span className="relative">{ar.settings.fabricCodes.tabs[t]}</span>
+        </button>
+      ))}
+    </div>
+  );
 }
 
-function GradesTab() {
+function CodesTableSkeleton() {
+  return (
+    <div className="rounded-lg border border-border-subtle overflow-hidden" aria-hidden>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="px-3 py-3 border-b border-border-subtle last:border-b-0 flex gap-3">
+          <div className="h-3 bg-surface-hover rounded animate-pulse flex-1" />
+          <div className="h-3 bg-surface-hover rounded animate-pulse flex-1" />
+          <div className="h-3 bg-surface-hover rounded animate-pulse w-12" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function GradesTab({ notifySaved }: { notifySaved: () => void }) {
   const qc = useQueryClient();
   const { data: items = [], isLoading } = useQuery({
     queryKey: ['codes-grades-all'],
@@ -677,53 +943,75 @@ function GradesTab() {
   const [err, setErr] = useState<string | null>(null);
 
   const createMut = useMutation({
-    mutationFn: () => codesApi.create('grades', { arabic_name: form.arabic_name.trim(), english_name: form.english_name.trim() || null }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['codes-grades-all'] }); qc.invalidateQueries({ queryKey: ['codes-grades'] }); setForm({ arabic_name: '', english_name: '' }); setAddOpen(false); setErr(null); },
+    mutationFn: () =>
+      codesApi.create('grades', {
+        arabic_name: form.arabic_name.trim(),
+        english_name: form.english_name.trim() || null,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['codes-grades-all'] });
+      qc.invalidateQueries({ queryKey: ['codes-grades'] });
+      setForm({ arabic_name: '', english_name: '' });
+      setAddOpen(false);
+      setErr(null);
+      notifySaved();
+    },
     onError: (e) => setErr(extractApiError(e)),
   });
 
   const toggleMut = useMutation({
     mutationFn: (item: CodeGrade) =>
       item.is_active ? codesApi.deactivate('grades', item.id) : codesApi.restore('grades', item.id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['codes-grades-all'] }); qc.invalidateQueries({ queryKey: ['codes-grades'] }); setErr(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['codes-grades-all'] });
+      qc.invalidateQueries({ queryKey: ['codes-grades'] });
+      setErr(null);
+      notifySaved();
+    },
     onError: (e) => setErr(extractApiError(e)),
   });
 
-  if (isLoading) return <p>{ar.loading}</p>;
+  if (isLoading) return <CodesTableSkeleton />;
   return (
-    <div className="space-y-3">
-      <table className="w-full text-sm border-collapse">
-        <thead>
-          <tr className="border-b border-border text-muted-foreground">
-            <th className="py-2 text-right font-medium">{ar.settings.fabricCodes.arabicName}</th>
-            <th className="py-2 text-right font-medium">{ar.settings.fabricCodes.englishName}</th>
-            <th className="py-2 text-center font-medium">{ar.settings.fabricCodes.isActive}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.id} className="border-b border-border hover:bg-muted/40">
-              <td className="py-1.5">{item.arabic_name}</td>
-              <td className="py-1.5 text-muted-foreground">{item.english_name ?? '—'}</td>
-              <td className="py-1.5 text-center">
-                <Toggle checked={item.is_active} onChange={() => toggleMut.mutate(item)} />
-              </td>
+    <div className="space-y-4">
+      {err && <SaveErrorBanner message={err} onDismiss={() => setErr(null)} />}
+      <div className="rounded-lg border border-border-subtle overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-surface-row-alt text-foreground-muted">
+            <tr>
+              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.fabricCodes.arabicName}</th>
+              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.fabricCodes.englishName}</th>
+              <th className="py-2.5 px-3 text-center font-medium w-20">{ar.settings.fabricCodes.isActive}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      {err && <p className="text-sm text-red-600">{err}</p>}
+          </thead>
+          <tbody className="divide-y divide-border-subtle bg-surface-elevated">
+            {items.map((item, i) => (
+              <tr key={item.id} className={cn('hover:bg-surface-hover transition-colors duration-150', i % 2 === 1 && 'bg-surface-row-alt/40')}>
+                <td className="py-2 px-3 text-foreground">{item.arabic_name}</td>
+                <td className="py-2 px-3 text-foreground-muted">{item.english_name ?? '—'}</td>
+                <td className="py-2 px-3 text-center">
+                  <Toggle checked={item.is_active} onChange={() => toggleMut.mutate(item)} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {addOpen ? (
-        <div className="flex gap-2 flex-wrap items-end">
-          <Field label={ar.settings.fabricCodes.arabicName}>
+        <div className="rounded-lg border border-border-subtle bg-surface p-4 space-y-3">
+          <FieldRow label={ar.settings.fabricCodes.arabicName}>
             <TextInput value={form.arabic_name} onChange={(v) => setForm({ ...form, arabic_name: v })} />
-          </Field>
-          <Field label={ar.settings.fabricCodes.englishName}>
+          </FieldRow>
+          <FieldRow label={ar.settings.fabricCodes.englishName}>
             <TextInput value={form.english_name} onChange={(v) => setForm({ ...form, english_name: v })} />
-          </Field>
-          <div className="flex gap-2">
-            <Button size="sm" onClick={() => createMut.mutate()} disabled={!form.arabic_name || createMut.isPending}>{ar.common.save}</Button>
-            <Button size="sm" variant="outline" onClick={() => { setAddOpen(false); setErr(null); }}>{ar.common.cancel}</Button>
+          </FieldRow>
+          <div className="flex gap-2 pt-1">
+            <Button size="sm" onClick={() => createMut.mutate()} disabled={!form.arabic_name || createMut.isPending}>
+              {ar.common.save}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => { setAddOpen(false); setErr(null); }}>
+              {ar.common.cancel}
+            </Button>
           </div>
         </div>
       ) : (
@@ -733,7 +1021,7 @@ function GradesTab() {
   );
 }
 
-function CompositionsTab() {
+function CompositionsTab({ notifySaved }: { notifySaved: () => void }) {
   const qc = useQueryClient();
   const { data: items = [], isLoading } = useQuery({
     queryKey: ['codes-compositions-all'],
@@ -744,53 +1032,77 @@ function CompositionsTab() {
   const [err, setErr] = useState<string | null>(null);
 
   const createMut = useMutation({
-    mutationFn: () => codesApi.create('compositions', { arabic_name: form.arabic_name.trim(), description: form.description.trim() || null }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['codes-compositions-all'] }); qc.invalidateQueries({ queryKey: ['codes-compositions'] }); setForm({ arabic_name: '', description: '' }); setAddOpen(false); setErr(null); },
+    mutationFn: () =>
+      codesApi.create('compositions', {
+        arabic_name: form.arabic_name.trim(),
+        description: form.description.trim() || null,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['codes-compositions-all'] });
+      qc.invalidateQueries({ queryKey: ['codes-compositions'] });
+      setForm({ arabic_name: '', description: '' });
+      setAddOpen(false);
+      setErr(null);
+      notifySaved();
+    },
     onError: (e) => setErr(extractApiError(e)),
   });
 
   const toggleMut = useMutation({
     mutationFn: (item: CodeComposition) =>
-      item.is_active ? codesApi.deactivate('compositions', item.id) : codesApi.restore('compositions', item.id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['codes-compositions-all'] }); qc.invalidateQueries({ queryKey: ['codes-compositions'] }); setErr(null); },
+      item.is_active
+        ? codesApi.deactivate('compositions', item.id)
+        : codesApi.restore('compositions', item.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['codes-compositions-all'] });
+      qc.invalidateQueries({ queryKey: ['codes-compositions'] });
+      setErr(null);
+      notifySaved();
+    },
     onError: (e) => setErr(extractApiError(e)),
   });
 
-  if (isLoading) return <p>{ar.loading}</p>;
+  if (isLoading) return <CodesTableSkeleton />;
   return (
-    <div className="space-y-3">
-      <table className="w-full text-sm border-collapse">
-        <thead>
-          <tr className="border-b border-border text-muted-foreground">
-            <th className="py-2 text-right font-medium">{ar.settings.fabricCodes.arabicName}</th>
-            <th className="py-2 text-right font-medium">{ar.settings.fabricCodes.description}</th>
-            <th className="py-2 text-center font-medium">{ar.settings.fabricCodes.isActive}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.id} className="border-b border-border hover:bg-muted/40">
-              <td className="py-1.5">{item.arabic_name}</td>
-              <td className="py-1.5 text-muted-foreground text-xs max-w-48 truncate">{item.description ?? '—'}</td>
-              <td className="py-1.5 text-center">
-                <Toggle checked={item.is_active} onChange={() => toggleMut.mutate(item)} />
-              </td>
+    <div className="space-y-4">
+      {err && <SaveErrorBanner message={err} onDismiss={() => setErr(null)} />}
+      <div className="rounded-lg border border-border-subtle overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-surface-row-alt text-foreground-muted">
+            <tr>
+              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.fabricCodes.arabicName}</th>
+              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.fabricCodes.description}</th>
+              <th className="py-2.5 px-3 text-center font-medium w-20">{ar.settings.fabricCodes.isActive}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      {err && <p className="text-sm text-red-600">{err}</p>}
+          </thead>
+          <tbody className="divide-y divide-border-subtle bg-surface-elevated">
+            {items.map((item, i) => (
+              <tr key={item.id} className={cn('hover:bg-surface-hover transition-colors duration-150', i % 2 === 1 && 'bg-surface-row-alt/40')}>
+                <td className="py-2 px-3 text-foreground">{item.arabic_name}</td>
+                <td className="py-2 px-3 text-foreground-muted text-xs max-w-64 truncate">{item.description ?? '—'}</td>
+                <td className="py-2 px-3 text-center">
+                  <Toggle checked={item.is_active} onChange={() => toggleMut.mutate(item)} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {addOpen ? (
-        <div className="flex gap-2 flex-wrap items-end">
-          <Field label={ar.settings.fabricCodes.arabicName}>
+        <div className="rounded-lg border border-border-subtle bg-surface p-4 space-y-3">
+          <FieldRow label={ar.settings.fabricCodes.arabicName}>
             <TextInput value={form.arabic_name} onChange={(v) => setForm({ ...form, arabic_name: v })} />
-          </Field>
-          <Field label={ar.settings.fabricCodes.description}>
+          </FieldRow>
+          <FieldRow label={ar.settings.fabricCodes.description}>
             <TextInput value={form.description} onChange={(v) => setForm({ ...form, description: v })} />
-          </Field>
-          <div className="flex gap-2">
-            <Button size="sm" onClick={() => createMut.mutate()} disabled={!form.arabic_name || createMut.isPending}>{ar.common.save}</Button>
-            <Button size="sm" variant="outline" onClick={() => { setAddOpen(false); setErr(null); }}>{ar.common.cancel}</Button>
+          </FieldRow>
+          <div className="flex gap-2 pt-1">
+            <Button size="sm" onClick={() => createMut.mutate()} disabled={!form.arabic_name || createMut.isPending}>
+              {ar.common.save}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => { setAddOpen(false); setErr(null); }}>
+              {ar.common.cancel}
+            </Button>
           </div>
         </div>
       ) : (
@@ -800,7 +1112,7 @@ function CompositionsTab() {
   );
 }
 
-function SuppliersTab() {
+function SuppliersTab({ notifySaved }: { notifySaved: () => void }) {
   const qc = useQueryClient();
   const { data: items = [], isLoading } = useQuery({
     queryKey: ['codes-suppliers-all'],
@@ -811,53 +1123,75 @@ function SuppliersTab() {
   const [err, setErr] = useState<string | null>(null);
 
   const createMut = useMutation({
-    mutationFn: () => codesApi.create('suppliers', { arabic_name: form.arabic_name.trim(), arabic_warning_text: form.arabic_warning_text.trim() || null }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['codes-suppliers-all'] }); qc.invalidateQueries({ queryKey: ['codes-suppliers'] }); setForm({ arabic_name: '', arabic_warning_text: '' }); setAddOpen(false); setErr(null); },
+    mutationFn: () =>
+      codesApi.create('suppliers', {
+        arabic_name: form.arabic_name.trim(),
+        arabic_warning_text: form.arabic_warning_text.trim() || null,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['codes-suppliers-all'] });
+      qc.invalidateQueries({ queryKey: ['codes-suppliers'] });
+      setForm({ arabic_name: '', arabic_warning_text: '' });
+      setAddOpen(false);
+      setErr(null);
+      notifySaved();
+    },
     onError: (e) => setErr(extractApiError(e)),
   });
 
   const toggleMut = useMutation({
     mutationFn: (item: CodeSupplier) =>
       item.is_active ? codesApi.deactivate('suppliers', item.id) : codesApi.restore('suppliers', item.id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['codes-suppliers-all'] }); qc.invalidateQueries({ queryKey: ['codes-suppliers'] }); setErr(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['codes-suppliers-all'] });
+      qc.invalidateQueries({ queryKey: ['codes-suppliers'] });
+      setErr(null);
+      notifySaved();
+    },
     onError: (e) => setErr(extractApiError(e)),
   });
 
-  if (isLoading) return <p>{ar.loading}</p>;
+  if (isLoading) return <CodesTableSkeleton />;
   return (
-    <div className="space-y-3">
-      <table className="w-full text-sm border-collapse">
-        <thead>
-          <tr className="border-b border-border text-muted-foreground">
-            <th className="py-2 text-right font-medium">{ar.settings.fabricCodes.arabicName}</th>
-            <th className="py-2 text-right font-medium">{ar.settings.fabricCodes.warningText}</th>
-            <th className="py-2 text-center font-medium">{ar.settings.fabricCodes.isActive}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.id} className="border-b border-border hover:bg-muted/40">
-              <td className="py-1.5">{item.arabic_name}</td>
-              <td className="py-1.5 text-muted-foreground text-xs max-w-48 truncate">{item.arabic_warning_text ?? '—'}</td>
-              <td className="py-1.5 text-center">
-                <Toggle checked={item.is_active} onChange={() => toggleMut.mutate(item)} />
-              </td>
+    <div className="space-y-4">
+      {err && <SaveErrorBanner message={err} onDismiss={() => setErr(null)} />}
+      <div className="rounded-lg border border-border-subtle overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-surface-row-alt text-foreground-muted">
+            <tr>
+              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.fabricCodes.arabicName}</th>
+              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.fabricCodes.warningText}</th>
+              <th className="py-2.5 px-3 text-center font-medium w-20">{ar.settings.fabricCodes.isActive}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      {err && <p className="text-sm text-red-600">{err}</p>}
+          </thead>
+          <tbody className="divide-y divide-border-subtle bg-surface-elevated">
+            {items.map((item, i) => (
+              <tr key={item.id} className={cn('hover:bg-surface-hover transition-colors duration-150', i % 2 === 1 && 'bg-surface-row-alt/40')}>
+                <td className="py-2 px-3 text-foreground">{item.arabic_name}</td>
+                <td className="py-2 px-3 text-foreground-muted text-xs max-w-64 truncate">{item.arabic_warning_text ?? '—'}</td>
+                <td className="py-2 px-3 text-center">
+                  <Toggle checked={item.is_active} onChange={() => toggleMut.mutate(item)} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {addOpen ? (
-        <div className="flex gap-2 flex-wrap items-end">
-          <Field label={ar.settings.fabricCodes.arabicName}>
+        <div className="rounded-lg border border-border-subtle bg-surface p-4 space-y-3">
+          <FieldRow label={ar.settings.fabricCodes.arabicName}>
             <TextInput value={form.arabic_name} onChange={(v) => setForm({ ...form, arabic_name: v })} />
-          </Field>
-          <Field label={ar.settings.fabricCodes.warningText}>
+          </FieldRow>
+          <FieldRow label={ar.settings.fabricCodes.warningText}>
             <TextInput value={form.arabic_warning_text} onChange={(v) => setForm({ ...form, arabic_warning_text: v })} />
-          </Field>
-          <div className="flex gap-2">
-            <Button size="sm" onClick={() => createMut.mutate()} disabled={!form.arabic_name || createMut.isPending}>{ar.common.save}</Button>
-            <Button size="sm" variant="outline" onClick={() => { setAddOpen(false); setErr(null); }}>{ar.common.cancel}</Button>
+          </FieldRow>
+          <div className="flex gap-2 pt-1">
+            <Button size="sm" onClick={() => createMut.mutate()} disabled={!form.arabic_name || createMut.isPending}>
+              {ar.common.save}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => { setAddOpen(false); setErr(null); }}>
+              {ar.common.cancel}
+            </Button>
           </div>
         </div>
       ) : (
@@ -867,7 +1201,7 @@ function SuppliersTab() {
   );
 }
 
-function BrandsTab() {
+function BrandsTab({ notifySaved }: { notifySaved: () => void }) {
   const qc = useQueryClient();
   const { data: items = [], isLoading } = useQuery({
     queryKey: ['codes-brands-all'],
@@ -882,74 +1216,95 @@ function BrandsTab() {
   const [err, setErr] = useState<string | null>(null);
 
   const createMut = useMutation({
-    mutationFn: () => codesApi.create('brands', {
-      arabic_name: form.arabic_name.trim(),
-      product_line: form.product_line.trim() || null,
-      supplier_id: form.supplier_id ? Number(form.supplier_id) : null,
-    }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['codes-brands-all'] }); qc.invalidateQueries({ queryKey: ['codes-brands'] }); setForm({ arabic_name: '', product_line: '', supplier_id: '' }); setAddOpen(false); setErr(null); },
+    mutationFn: () =>
+      codesApi.create('brands', {
+        arabic_name: form.arabic_name.trim(),
+        product_line: form.product_line.trim() || null,
+        supplier_id: form.supplier_id ? Number(form.supplier_id) : null,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['codes-brands-all'] });
+      qc.invalidateQueries({ queryKey: ['codes-brands'] });
+      setForm({ arabic_name: '', product_line: '', supplier_id: '' });
+      setAddOpen(false);
+      setErr(null);
+      notifySaved();
+    },
     onError: (e) => setErr(extractApiError(e)),
   });
 
   const toggleMut = useMutation({
     mutationFn: (item: CodeBrand) =>
       item.is_active ? codesApi.deactivate('brands', item.id) : codesApi.restore('brands', item.id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['codes-brands-all'] }); qc.invalidateQueries({ queryKey: ['codes-brands'] }); setErr(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['codes-brands-all'] });
+      qc.invalidateQueries({ queryKey: ['codes-brands'] });
+      setErr(null);
+      notifySaved();
+    },
     onError: (e) => setErr(extractApiError(e)),
   });
 
   const supplierName = (id: number | null) =>
     suppliers.find((s) => s.id === id)?.arabic_name ?? '—';
 
-  if (isLoading) return <p>{ar.loading}</p>;
+  if (isLoading) return <CodesTableSkeleton />;
   return (
-    <div className="space-y-3">
-      <table className="w-full text-sm border-collapse">
-        <thead>
-          <tr className="border-b border-border text-muted-foreground">
-            <th className="py-2 text-right font-medium">{ar.settings.fabricCodes.arabicName}</th>
-            <th className="py-2 text-right font-medium">{ar.settings.fabricCodes.productLine}</th>
-            <th className="py-2 text-right font-medium">{ar.settings.fabricCodes.supplierRef}</th>
-            <th className="py-2 text-center font-medium">{ar.settings.fabricCodes.isActive}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.id} className="border-b border-border hover:bg-muted/40">
-              <td className="py-1.5">{item.arabic_name}</td>
-              <td className="py-1.5 text-muted-foreground">{item.product_line ?? '—'}</td>
-              <td className="py-1.5 text-muted-foreground">{supplierName(item.supplier_id)}</td>
-              <td className="py-1.5 text-center">
-                <Toggle checked={item.is_active} onChange={() => toggleMut.mutate(item)} />
-              </td>
+    <div className="space-y-4">
+      {err && <SaveErrorBanner message={err} onDismiss={() => setErr(null)} />}
+      <div className="rounded-lg border border-border-subtle overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-surface-row-alt text-foreground-muted">
+            <tr>
+              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.fabricCodes.arabicName}</th>
+              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.fabricCodes.productLine}</th>
+              <th className="py-2.5 px-3 text-right font-medium">{ar.settings.fabricCodes.supplierRef}</th>
+              <th className="py-2.5 px-3 text-center font-medium w-20">{ar.settings.fabricCodes.isActive}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      {err && <p className="text-sm text-red-600">{err}</p>}
+          </thead>
+          <tbody className="divide-y divide-border-subtle bg-surface-elevated">
+            {items.map((item, i) => (
+              <tr key={item.id} className={cn('hover:bg-surface-hover transition-colors duration-150', i % 2 === 1 && 'bg-surface-row-alt/40')}>
+                <td className="py-2 px-3 text-foreground">{item.arabic_name}</td>
+                <td className="py-2 px-3 text-foreground-muted">{item.product_line ?? '—'}</td>
+                <td className="py-2 px-3 text-foreground-muted">{supplierName(item.supplier_id)}</td>
+                <td className="py-2 px-3 text-center">
+                  <Toggle checked={item.is_active} onChange={() => toggleMut.mutate(item)} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {addOpen ? (
-        <div className="flex gap-2 flex-wrap items-end">
-          <Field label={ar.settings.fabricCodes.arabicName}>
+        <div className="rounded-lg border border-border-subtle bg-surface p-4 space-y-3">
+          <FieldRow label={ar.settings.fabricCodes.arabicName}>
             <TextInput value={form.arabic_name} onChange={(v) => setForm({ ...form, arabic_name: v })} />
-          </Field>
-          <Field label={ar.settings.fabricCodes.productLine}>
+          </FieldRow>
+          <FieldRow label={ar.settings.fabricCodes.productLine}>
             <TextInput value={form.product_line} onChange={(v) => setForm({ ...form, product_line: v })} />
-          </Field>
-          <Field label={ar.settings.fabricCodes.supplierRef}>
-            <select
-              className="border border-border rounded px-3 py-1.5 text-sm bg-canvas"
+          </FieldRow>
+          <FieldRow label={ar.settings.fabricCodes.supplierRef}>
+            <SelectInput
               value={form.supplier_id}
-              onChange={(e) => setForm({ ...form, supplier_id: e.target.value })}
+              onChange={(v) => setForm({ ...form, supplier_id: v })}
+              className="w-56"
             >
               <option value="">—</option>
               {suppliers.map((s) => (
-                <option key={s.id} value={s.id}>{s.arabic_name}</option>
+                <option key={s.id} value={s.id}>
+                  {s.arabic_name}
+                </option>
               ))}
-            </select>
-          </Field>
-          <div className="flex gap-2">
-            <Button size="sm" onClick={() => createMut.mutate()} disabled={!form.arabic_name || createMut.isPending}>{ar.common.save}</Button>
-            <Button size="sm" variant="outline" onClick={() => { setAddOpen(false); setErr(null); }}>{ar.common.cancel}</Button>
+            </SelectInput>
+          </FieldRow>
+          <div className="flex gap-2 pt-1">
+            <Button size="sm" onClick={() => createMut.mutate()} disabled={!form.arabic_name || createMut.isPending}>
+              {ar.common.save}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => { setAddOpen(false); setErr(null); }}>
+              {ar.common.cancel}
+            </Button>
           </div>
         </div>
       ) : (
@@ -959,55 +1314,198 @@ function BrandsTab() {
   );
 }
 
-function FabricCodesSection() {
+function FabricCodesSection({ notifySaved }: { notifySaved: () => void }) {
   const [tab, setTab] = useState<CodeTab>('grades');
-  const tabs: CodeTab[] = ['grades', 'compositions', 'brands', 'suppliers'];
-
   return (
-    <div className="space-y-4">
-      <div className="flex gap-2 flex-wrap">
-        {tabs.map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={`px-3 py-1.5 rounded text-sm transition-colors cursor-pointer ${
-              tab === t ? 'bg-primary text-primary-foreground font-medium' : 'border border-border hover:bg-muted/60'
-            }`}
-          >
-            {ar.settings.fabricCodes.tabs[t]}
-          </button>
-        ))}
-      </div>
-      {tab === 'grades'       && <GradesTab />}
-      {tab === 'compositions' && <CompositionsTab />}
-      {tab === 'brands'       && <BrandsTab />}
-      {tab === 'suppliers'    && <SuppliersTab />}
+    <div className="space-y-5">
+      <TabsBar tab={tab} onChange={setTab} />
+      {tab === 'grades' && <GradesTab notifySaved={notifySaved} />}
+      {tab === 'compositions' && <CompositionsTab notifySaved={notifySaved} />}
+      {tab === 'brands' && <BrandsTab notifySaved={notifySaved} />}
+      {tab === 'suppliers' && <SuppliersTab notifySaved={notifySaved} />}
     </div>
   );
 }
 
-// ── Section: System (read-only) ────────────────────────────────────────────────
+// ─── Section: System (read-only) ────────────────────────────────────────────
 
 function SystemSection() {
   return (
-    <div className="space-y-2">
-      <div className="flex justify-between text-sm border-b border-border py-2">
-        <span className="text-muted-foreground">{ar.settings.system.auditRetention}</span>
-        <span className="font-medium">{ar.settings.system.auditRetentionValue}</span>
+    <div className="rounded-lg border border-border-subtle bg-surface-elevated overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle last:border-b-0">
+        <span className="text-sm text-foreground-muted">{ar.settings.system.auditRetention}</span>
+        <span className="text-sm font-medium text-foreground">{ar.settings.system.auditRetentionValue}</span>
       </div>
     </div>
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
+// ─── Sub-nav (desktop) ──────────────────────────────────────────────────────
+
+function DesktopSubNav({
+  active,
+  onChange,
+}: {
+  active: Section;
+  onChange: (s: Section) => void;
+}) {
+  return (
+    <aside
+      className="hidden md:block w-60 shrink-0 self-start sticky top-20"
+      aria-label="Settings sections"
+    >
+      <nav className="rounded-lg border border-border-subtle bg-surface-elevated p-2 space-y-0.5 shadow-sm">
+        {SETTINGS_SECTIONS.map((s) => {
+          const Icon = s.icon;
+          const isActive = active === s.id;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => onChange(s.id)}
+              aria-current={isActive ? 'page' : undefined}
+              className={cn(
+                'relative w-full text-right px-3 py-2.5 rounded-md text-sm transition-colors duration-150 ease-standard',
+                'flex items-center gap-3',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-elevated',
+                isActive ? 'text-foreground' : 'text-foreground-muted hover:text-foreground hover:bg-surface-hover',
+              )}
+            >
+              {isActive && (
+                <>
+                  <motion.span
+                    layoutId="settings-active-bg"
+                    className="absolute inset-0 bg-surface-active rounded-md"
+                    transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+                    aria-hidden
+                  />
+                  <motion.span
+                    layoutId="settings-active-indicator"
+                    className="absolute inset-y-1.5 right-0 w-0.5 bg-accent rounded-full"
+                    transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+                    aria-hidden
+                  />
+                </>
+              )}
+              <Icon className={cn('size-4 relative shrink-0', isActive ? 'text-accent' : 'text-foreground-tertiary')} aria-hidden />
+              <span className={cn('relative truncate', isActive && 'font-medium')}>{s.labelAr}</span>
+            </button>
+          );
+        })}
+      </nav>
+    </aside>
+  );
+}
+
+// ─── Sub-nav (mobile chip row) ──────────────────────────────────────────────
+
+function MobileChipRow({
+  active,
+  onChange,
+}: {
+  active: Section;
+  onChange: (s: Section) => void;
+}) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll active chip into view when section changes.
+  useEffect(() => {
+    const root = scrollerRef.current;
+    if (!root) return;
+    const el = root.querySelector<HTMLButtonElement>(`[data-chip="${active}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  }, [active]);
+
+  return (
+    <div className="md:hidden sticky top-[52px] z-sticky -mx-3 px-3 py-2 bg-surface/95 backdrop-blur border-b border-border-subtle">
+      <div ref={scrollerRef} className="overflow-x-auto -mx-1 px-1 no-scrollbar">
+        <div className="flex gap-2 w-max">
+          {SETTINGS_SECTIONS.map((s) => {
+            const isActive = active === s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                data-chip={s.id}
+                onClick={() => onChange(s.id)}
+                aria-current={isActive ? 'page' : undefined}
+                className={cn(
+                  'whitespace-nowrap rounded-pill border px-3 py-1.5 text-xs transition-colors duration-150 ease-standard',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+                  isActive
+                    ? 'bg-accent text-foreground-on-accent border-accent font-medium'
+                    : 'bg-surface-elevated text-foreground-muted border-border-subtle hover:text-foreground hover:bg-surface-hover',
+                )}
+              >
+                {s.labelAr}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Form skeleton (initial settings load) ──────────────────────────────────
+
+function FormSkeleton() {
+  return (
+    <div className="space-y-5" aria-hidden>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="space-y-2">
+          <div className="h-4 w-32 bg-surface-hover rounded animate-pulse" />
+          <div className="h-10 w-full bg-surface-hover rounded-md animate-pulse" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Success toast (3s auto-dismiss, bottom of viewport) ────────────────────
+
+function SavedToast({ open, onDone }: { open: boolean; onDone: () => void }) {
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(onDone, 3000);
+    return () => clearTimeout(t);
+  }, [open, onDone]);
+
+  return (
+    <div className="fixed inset-x-0 bottom-6 z-toast flex justify-center pointer-events-none px-4">
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            role="status"
+            aria-live="polite"
+            initial={{ y: 16, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 16, opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0, 0, 0.2, 1] }}
+            className={cn(
+              'pointer-events-auto flex items-center gap-2 rounded-pill bg-surface-elevated border border-success/40 shadow-lg px-4 py-2.5',
+            )}
+          >
+            <CheckCircle2 className="size-4 text-success" aria-hidden />
+            <span className="text-sm font-medium text-foreground">تم الحفظ بنجاح</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Main page ──────────────────────────────────────────────────────────────
 
 export function SettingsPage() {
   const { user } = useAuth();
   const isDesktop = useIsDesktop();
-  const [activeSection, setActiveSection] = useState<Section | null>(null);
+  const [activeSection, setActiveSection] = useState<Section>('general');
+  const [toastOpen, setToastOpen] = useState(false);
 
-  const { data: settings, isLoading, error } = useQuery({
+  const { data: settings, isLoading, error, refetch } = useQuery({
     queryKey: ['settings-all'],
     queryFn: settingsApi.getAll,
   });
@@ -1019,110 +1517,84 @@ export function SettingsPage() {
     qc.invalidateQueries({ queryKey: ['settings-all'] });
   }
 
-  if (user?.role !== 'owner') {
-    return <p className="text-muted-foreground p-6">{ar.common.error}</p>;
+  function notifySaved() {
+    setToastOpen(false);
+    // Re-mount the toast on the next tick so animation replays on rapid saves.
+    requestAnimationFrame(() => setToastOpen(true));
   }
 
-  if (isLoading) return <p className="p-6">{ar.loading}</p>;
-  if (error || !settings) return <p className="text-red-500 p-6">{ar.common.error}</p>;
-
-  // On desktop the rail + content layout is always visible. activeSection is
-  // forced to a default. On mobile, null means "show the section index"; a
-  // tap selects a section and a back button restores null.
-  const desktopActive: Section = (activeSection ?? 'general') as Section;
-
-  const safeSettings = settings;
-  function renderSection(s: Section) {
+  if (user?.role !== 'owner') {
     return (
-      <>
-        {s === 'general'          && <GeneralSection settings={safeSettings} onSave={handleSave} />}
-        {s === 'tax'              && <TaxSection settings={safeSettings} onSave={handleSave} />}
-        {s === 'pos'              && <PosSection settings={safeSettings} onSave={handleSave} />}
-        {s === 'cashDrawer'       && <CashDrawerSection />}
-        {s === 'banks'            && <BanksSection />}
-        {s === 'usersPermissions' && <UsersPermissionsSection />}
-        {s === 'reasonCodes'      && <ReasonCodesSection settings={safeSettings} onSave={handleSave} />}
-        {s === 'dayRollover'      && <DayRolloverSection settings={safeSettings} onSave={handleSave} />}
-        {s === 'system'           && <SystemSection />}
-        {s === 'fabricCodes'      && <FabricCodesSection />}
-      </>
+      <div dir="rtl" className="max-w-2xl mx-auto py-12">
+        <ErrorBanner title={ar.common.error} description={ar.common.error} />
+      </div>
     );
   }
 
-  // Mobile: index ↔ single-section view
-  if (!isDesktop) {
-    if (activeSection === null) {
+  const sectionMeta = settingsSectionById(activeSection);
+
+  function renderSection() {
+    if (isLoading) return <FormSkeleton />;
+    if (error || !settings) {
       return (
-        <div dir="rtl" className="space-y-1">
-          <h1 className="text-xl font-bold mb-3">{ar.topbar.settings}</h1>
-          <div className="rounded border border-border bg-canvas overflow-hidden">
-            {SECTIONS.map((s, i) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setActiveSection(s)}
-                className={`w-full flex items-center justify-between px-4 py-3 text-right hover:bg-muted/40 ${
-                  i > 0 ? 'border-t border-border' : ''
-                }`}
-              >
-                <span className="font-medium">{ar.settings.sections[s]}</span>
-                <ChevronLeft className="size-4 text-muted-foreground" />
-              </button>
-            ))}
-          </div>
-        </div>
+        <ErrorBanner
+          title={ar.common.error}
+          description={ar.common.error}
+          onRetry={() => refetch()}
+        />
       );
     }
-    return (
-      <div dir="rtl" className="space-y-3">
-        <button
-          type="button"
-          onClick={() => setActiveSection(null)}
-          className="inline-flex items-center gap-1 text-sm text-primary py-2 -mr-2 px-2"
-        >
-          <ChevronRight className="size-4" />
-          {ar.mobile.back}
-        </button>
-        <Card>
-          <CardHeader>
-            <CardTitle>{ar.settings.sections[activeSection]}</CardTitle>
-          </CardHeader>
-          <CardContent>{renderSection(activeSection)}</CardContent>
-        </Card>
-      </div>
-    );
+    switch (activeSection) {
+      case 'general':
+        return <GeneralSection settings={settings} onSave={handleSave} notifySaved={notifySaved} />;
+      case 'tax':
+        return <TaxSection settings={settings} onSave={handleSave} notifySaved={notifySaved} />;
+      case 'pos':
+        return <PosSection settings={settings} onSave={handleSave} notifySaved={notifySaved} />;
+      case 'cashDrawer':
+        return <CashDrawerSection />;
+      case 'banks':
+        return <BanksSection notifySaved={notifySaved} />;
+      case 'usersPermissions':
+        return <UsersPermissionsSection notifySaved={notifySaved} />;
+      case 'reasonCodes':
+        return <ReasonCodesSection settings={settings} onSave={handleSave} notifySaved={notifySaved} />;
+      case 'dayRollover':
+        return <DayRolloverSection settings={settings} onSave={handleSave} notifySaved={notifySaved} />;
+      case 'system':
+        return <SystemSection />;
+      case 'fabricCodes':
+        return <FabricCodesSection notifySaved={notifySaved} />;
+    }
   }
 
-  // Desktop: existing rail + content
+  // Ensure mobile chip row's active state stays in sync if SECTION_IDS shrinks.
+  if (!SETTINGS_SECTION_IDS.includes(activeSection)) {
+    return null;
+  }
+
   return (
-    <div className="flex gap-6 min-h-[70vh]" dir="rtl">
-      {/* Left nav */}
-      <div className="w-48 shrink-0 border-l border-border pl-4 space-y-1">
-        {SECTIONS.map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => setActiveSection(s)}
-            className={`w-full text-right px-3 py-2 rounded text-sm transition-colors ${
-              desktopActive === s
-                ? 'bg-primary text-primary-foreground font-medium'
-                : 'hover:bg-muted/60 text-muted-foreground'
-            }`}
-          >
-            {ar.settings.sections[s]}
-          </button>
-        ))}
+    <div dir="rtl" className="space-y-4">
+      <PageHeader title={ar.settings.title} description={sectionMeta.descAr} />
+
+      {/* Mobile sub-nav: horizontal scroll chip row sticky under the TopBar. */}
+      <MobileChipRow active={activeSection} onChange={setActiveSection} />
+
+      <div className="flex gap-6 items-start">
+        {isDesktop && <DesktopSubNav active={activeSection} onChange={setActiveSection} />}
+
+        <main className="flex-1 min-w-0">
+          <div className="rounded-lg border border-border-subtle bg-surface-elevated shadow-sm">
+            <header className="px-6 pt-5 pb-3 border-b border-border-subtle">
+              <h2 className="text-xl font-semibold text-foreground">{sectionMeta.labelAr}</h2>
+              <p className="text-sm text-foreground-muted mt-1">{sectionMeta.descAr}</p>
+            </header>
+            <div className="p-6">{renderSection()}</div>
+          </div>
+        </main>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        <Card>
-          <CardHeader>
-            <CardTitle>{ar.settings.sections[desktopActive]}</CardTitle>
-          </CardHeader>
-          <CardContent>{renderSection(desktopActive)}</CardContent>
-        </Card>
-      </div>
+      <SavedToast open={toastOpen} onDone={() => setToastOpen(false)} />
     </div>
   );
 }

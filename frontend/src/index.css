@@ -108,6 +108,17 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ---------- Scrollbar-hidden utility -------------------------- */
+/* Hide scrollbar chrome while preserving scroll. Used by horizontal chip rows
+ * (Settings mobile sub-nav) where the scrollbar adds visual noise. */
+.no-scrollbar {
+  scrollbar-width: none;          /* Firefox */
+  -ms-overflow-style: none;       /* Legacy Edge */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;                  /* Chromium + Safari */
+}
+
 /* ---------- Motion: reduced-motion scope ---------------------- *
  * Two triggers, same effect:
  *  1. [data-motion="reduced"] — explicit opt-in on a subtree (POS wraps its root in this).
