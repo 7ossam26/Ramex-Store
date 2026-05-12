@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { LoginPage } from './pages/Login';
 import { HomePage } from './pages/Home';
@@ -32,11 +33,28 @@ import { RollsPage } from './pages/items/Rolls';
 import { AddTopPage } from './pages/items/AddTop';
 import { ItemsHubPage } from './pages/items/ItemsHub';
 import { NotificationsPage } from './pages/notifications/NotificationsPage';
-import { DailyReportPage } from './pages/reports/DailyReport';
-import { SecondaryReportPage } from './pages/reports/SecondaryReport';
 import { ReportsHubPage } from './pages/reports/ReportsHub';
 import { SettingsPage } from './pages/settings/SettingsPage';
 import { ApprovalsPage } from './pages/approvals/ApprovalsPage';
+
+/* Chart-heavy report routes are lazy-loaded so Recharts is only fetched
+ * when the user navigates into Reports. Saves ~250kb gzipped from the
+ * initial bundle for everyone who never opens a sub-report. */
+const DailyReportPage = lazy(() =>
+  import('./pages/reports/DailyReport').then((m) => ({ default: m.DailyReportPage })),
+);
+const SecondaryReportPage = lazy(() =>
+  import('./pages/reports/SecondaryReport').then((m) => ({ default: m.SecondaryReportPage })),
+);
+
+function RouteFallback() {
+  return (
+    <div className="flex items-center justify-center py-24" aria-live="polite">
+      <div className="size-8 rounded-full border-2 border-border-default border-t-accent animate-spin" aria-hidden />
+      <span className="sr-only">جاري التحميل</span>
+    </div>
+  );
+}
 
 export function App() {
   return (
@@ -47,6 +65,7 @@ export function App() {
         element={
           <ProtectedRoute>
             <AppShell>
+              <Suspense fallback={<RouteFallback />}>
               <Routes>
                 <Route path="/" element={<HomePage />} />
 
@@ -98,6 +117,7 @@ export function App() {
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/approvals" element={<ApprovalsPage />} />
               </Routes>
+              </Suspense>
             </AppShell>
           </ProtectedRoute>
         }
