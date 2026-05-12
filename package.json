@@ -2,7 +2,10 @@
   "name": "ramex-store",
   "version": "0.1.0",
   "private": true,
-  "workspaces": ["backend", "frontend"],
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
   "scripts": {
     "dev": "concurrently -n backend,frontend -c blue,magenta \"npm run dev -w backend\" \"npm run dev -w frontend\"",
     "build": "npm run build -w frontend && node scripts/copy-frontend-to-backend.mjs && npm run build -w backend && node scripts/copy-pdf-fonts.mjs",
@@ -16,5 +19,7 @@
   "devDependencies": {
     "concurrently": "^9.1.0"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }
