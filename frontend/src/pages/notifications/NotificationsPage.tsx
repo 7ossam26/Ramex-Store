@@ -6,6 +6,11 @@ import { notificationsApi, type NotificationRow } from '@/lib/notifications-api'
 import { getEventTypeLabel, getSeverityLabel, eventTypeLabels, severityLabels } from '@/i18n/notifications';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/Skeleton';
+import { EmptyState } from '@/components/EmptyState';
+import { ErrorBanner } from '@/components/ErrorBanner';
+import { Toast } from '@/components/Toast';
+import { Bell } from 'lucide-react';
 
 type Tab = 'unread' | 'read' | 'archived';
 
@@ -52,6 +57,7 @@ export function NotificationsPage() {
   const [filterFrom, setFilterFrom] = useState('');
   const [filterTo, setFilterTo] = useState('');
   const [page, setPage] = useState(1);
+  const [toast, setToast] = useState<{ tone: 'success' | 'danger'; message: string } | null>(null);
 
   const PAGE_SIZE = 30;
 
@@ -76,10 +82,11 @@ export function NotificationsPage() {
     ...(tab === 'archived' ? { include_read: true, include_archived: true } : {}),
   };
 
-  const { data, isLoading } = useQuery({
+  const notificationsQ = useQuery({
     queryKey: ['notifications', 'page', tab, filterSeverity, filterEventType, filterFrom, filterTo, page],
     queryFn: () => notificationsApi.list(finalParams).then((r) => r.data),
   });
+  const { data, isLoading, isError } = notificationsQ;
 
   const markRead = useMutation({
     mutationFn: (id: number) => notificationsApi.markRead(id),
@@ -88,13 +95,22 @@ export function NotificationsPage() {
 
   const markAll = useMutation({
     mutationFn: () => notificationsApi.markAllRead(),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['notifications'] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['notifications'] });
+      setToast({ tone: 'success', message: 'تم تحديد كل الإشعارات كمقروءة' });
+    },
   });
 
   const resolve = useMutation({
     mutationFn: ({ id, resolution }: { id: number; resolution: 'approved' | 'rejected' | 'acknowledged' }) =>
       notificationsApi.resolve(id, resolution),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['notifications'] }),
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: ['notifications'] });
+      setToast({
+        tone: vars.resolution === 'approved' ? 'success' : 'danger',
+        message: vars.resolution === 'approved' ? 'تمت الموافقة' : 'تم الرفض',
+      });
+    },
   });
 
   const rows = data?.rows ?? [];
@@ -120,14 +136,14 @@ export function NotificationsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-4 border-b border-border overflow-x-auto whitespace-nowrap -mx-3 md:mx-0 px-3 md:px-0">
+      <div className="flex gap-2 mb-4 border-b border-border-subtle overflow-x-auto whitespace-nowrap -mx-3 md:mx-0 px-3 md:px-0">
         {(['unread', 'read', 'archived'] as Tab[]).map((t) => (
           <button
             key={t}
             className={`pb-2 px-3 text-sm font-medium border-b-2 transition-colors ${
               tab === t
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+                ? 'border-accent text-accent'
+                : 'border-transparent text-foreground-muted hover:text-foreground'
             }`}
             onClick={() => { setTab(t); setPage(1); }}
           >
@@ -139,7 +155,7 @@ export function NotificationsPage() {
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-4">
         <select
-          className="border border-border rounded-md px-3 py-1.5 text-sm bg-canvas"
+          className="border border-border-default rounded-md px-3 py-1.5 text-sm bg-surface-elevated"
           value={filterSeverity}
           onChange={(e) => { setFilterSeverity(e.target.value); setPage(1); }}
         >
@@ -150,7 +166,7 @@ export function NotificationsPage() {
         </select>
 
         <select
-          className="border border-border rounded-md px-3 py-1.5 text-sm bg-canvas"
+          className="border border-border-default rounded-md px-3 py-1.5 text-sm bg-surface-elevated"
           value={filterEventType}
           onChange={(e) => { setFilterEventType(e.target.value); setPage(1); }}
         >
@@ -162,14 +178,14 @@ export function NotificationsPage() {
 
         <input
           type="date"
-          className="border border-border rounded-md px-3 py-1.5 text-sm bg-canvas"
+          className="border border-border-default rounded-md px-3 py-1.5 text-sm bg-surface-elevated"
           value={filterFrom}
           onChange={(e) => { setFilterFrom(e.target.value); setPage(1); }}
           placeholder="من"
         />
         <input
           type="date"
-          className="border border-border rounded-md px-3 py-1.5 text-sm bg-canvas"
+          className="border border-border-default rounded-md px-3 py-1.5 text-sm bg-surface-elevated"
           value={filterTo}
           onChange={(e) => { setFilterTo(e.target.value); setPage(1); }}
           placeholder="إلى"
@@ -178,11 +194,27 @@ export function NotificationsPage() {
 
       {/* List */}
       {isLoading ? (
-        <div className="text-center py-12 text-muted-foreground">جاري التحميل...</div>
+        <div className="border border-border-subtle rounded-lg overflow-hidden divide-y divide-border-subtle" aria-hidden>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="p-4 space-y-2">
+              <Skeleton className="h-3 w-1/3" />
+              <Skeleton className="h-3 w-2/3" />
+              <Skeleton className="h-3 w-1/4" />
+            </div>
+          ))}
+        </div>
+      ) : isError ? (
+        <ErrorBanner
+          title="تعذر تحميل الإشعارات"
+          onRetry={() => notificationsQ.refetch()}
+        />
       ) : displayRows.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">لا توجد إشعارات</div>
+        <EmptyState
+          title="لا توجد إشعارات"
+          icon={Bell}
+        />
       ) : (
-        <div className="divide-y divide-border border border-border rounded-lg overflow-hidden">
+        <div className="divide-y divide-border-subtle border border-border-subtle rounded-lg overflow-hidden">
           {displayRows.map((n) => (
             <NotificationRow
               key={n.id}
@@ -201,7 +233,7 @@ export function NotificationsPage() {
           <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
             السابق
           </Button>
-          <span className="text-sm text-muted-foreground">
+          <span className="text-sm text-foreground-muted">
             {page} / {totalPages}
           </span>
           <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
@@ -209,6 +241,14 @@ export function NotificationsPage() {
           </Button>
         </div>
       )}
+
+      <Toast
+        open={!!toast}
+        tone={toast?.tone ?? 'success'}
+        message={toast?.message ?? ''}
+        onClose={() => setToast(null)}
+        autoDismissMs={3000}
+      />
     </div>
   );
 }
@@ -229,7 +269,7 @@ function NotificationRow({
 
   return (
     <div
-      className={`p-4 ${isUnread ? 'bg-muted/20' : ''} ${severityStripe[n.severity] ?? ''}`}
+      className={`p-4 ${isUnread ? 'bg-surface-hover/40' : ''} ${severityStripe[n.severity] ?? ''}`}
     >
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
@@ -240,7 +280,7 @@ function NotificationRow({
             <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${severityBadge[n.severity] ?? ''}`}>
               {getSeverityLabel(n.severity)}
             </span>
-            <span className="text-xs text-muted-foreground">{getEventTypeLabel(n.event_type)}</span>
+            <span className="text-xs text-foreground-muted">{getEventTypeLabel(n.event_type)}</span>
             {n.is_blocking && !n.resolved_at && (
               <span className="text-xs bg-warning-subtle text-warning-foreground px-2 py-0.5 rounded-pill">يستلزم موافقة</span>
             )}
@@ -254,8 +294,8 @@ function NotificationRow({
           <div className={`text-sm ${isUnread ? 'font-semibold' : ''} ${isTheft ? 'text-danger-foreground' : ''}`}>
             {n.title_ar}
           </div>
-          <div className="text-sm text-muted-foreground mt-0.5">{n.body_ar}</div>
-          <div className="text-xs text-muted-foreground mt-1">
+          <div className="text-sm text-foreground-muted mt-0.5">{n.body_ar}</div>
+          <div className="text-xs text-foreground-muted mt-1">
             {fmtDate(n.created_at)} &nbsp;·&nbsp; {timeAgo(n.created_at)}
           </div>
         </div>
@@ -263,7 +303,7 @@ function NotificationRow({
         <div className="flex flex-col gap-2 flex-shrink-0">
           {isUnread && (
             <button
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="text-xs text-foreground-muted hover:text-foreground"
               onClick={() => onRead(n.id)}
             >
               تحديد كمقروء

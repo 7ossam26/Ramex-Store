@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { StatusPill, type StatusTone } from '@/components/StatusPill';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { EmptyState } from '@/components/EmptyState';
+import { Toast } from '@/components/Toast';
 import {
   Dialog,
   DialogContent,
@@ -66,6 +67,7 @@ export function ApprovalsPage() {
   // Row flash: id -> tone. Cleared after 200ms.
   const [flash, setFlash] = useState<Record<number, 'success' | 'danger'>>({});
   const [comment, setComment] = useState('');
+  const [toast, setToast] = useState<{ tone: 'success' | 'danger'; message: string } | null>(null);
 
   const pendingQ = useQuery({
     queryKey: ['approvals-pending'],
@@ -87,6 +89,7 @@ export function ApprovalsPage() {
       flashRow(id, 'success');
       setReviewing(null);
       setComment('');
+      setToast({ tone: 'success', message: 'تمت الموافقة' });
     },
   });
 
@@ -98,6 +101,7 @@ export function ApprovalsPage() {
       flashRow(id, 'danger');
       setReviewing(null);
       setComment('');
+      setToast({ tone: 'danger', message: 'تم الرفض' });
     },
   });
 
@@ -259,42 +263,34 @@ export function ApprovalsPage() {
 
       {/* Pending queue */}
       {tab === 'pending' && (
-        <>
-          {pendingQ.isLoading ? (
-            <ResponsiveTable
-              columns={pendingColumns}
-              rows={[]}
-              rowKey={() => ''}
-              isLoading
-            />
-          ) : pending.length === 0 ? (
-            <EmptyState title={ar.approvals.empty} icon={ShieldCheck} />
-          ) : (
-            <ResponsiveTable
-              columns={pendingColumns}
-              rows={pending}
-              rowKey={(n) => String(n.id)}
-              onRowClick={(n) => setReviewing(n)}
-              rowClassName={(n) => {
-                const t = flash[n.id];
-                if (!t) return '';
-                return t === 'success' ? 'bg-success-subtle' : 'bg-danger-subtle';
+        <ResponsiveTable
+          columns={pendingColumns}
+          rows={pending}
+          rowKey={(n) => String(n.id)}
+          isLoading={pendingQ.isLoading}
+          isError={pendingQ.isError}
+          onRetry={() => pendingQ.refetch()}
+          errorTitle="تعذر تحميل طلبات الموافقة"
+          onRowClick={(n) => setReviewing(n)}
+          rowClassName={(n) => {
+            const t = flash[n.id];
+            if (!t) return '';
+            return t === 'success' ? 'bg-success-subtle' : 'bg-danger-subtle';
+          }}
+          empty={<EmptyState title={ar.approvals.empty} icon={ShieldCheck} bordered={false} />}
+          actions={(n) => (
+            <Button
+              size="sm"
+              variant="accent"
+              onClick={(e) => {
+                e.stopPropagation();
+                setReviewing(n);
               }}
-              actions={(n) => (
-                <Button
-                  size="sm"
-                  variant="accent"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setReviewing(n);
-                  }}
-                >
-                  {ar.approvals.review}
-                </Button>
-              )}
-            />
+            >
+              {ar.approvals.review}
+            </Button>
           )}
-        </>
+        />
       )}
 
       {/* Resolved history */}
@@ -303,18 +299,17 @@ export function ApprovalsPage() {
           <h2 className="text-xs font-medium uppercase tracking-wide text-foreground-muted">
             {ar.approvals.historyTitle}
           </h2>
-          {resolvedQ.isLoading ? (
-            <ResponsiveTable columns={resolvedColumns} rows={[]} rowKey={() => ''} isLoading />
-          ) : resolved.length === 0 ? (
-            <EmptyState title={ar.approvals.emptyResolved} icon={ShieldCheck} />
-          ) : (
-            <ResponsiveTable
-              columns={resolvedColumns}
-              rows={resolved}
-              rowKey={(n) => String(n.id)}
-              onRowClick={(n) => setReviewing(n)}
-            />
-          )}
+          <ResponsiveTable
+            columns={resolvedColumns}
+            rows={resolved}
+            rowKey={(n) => String(n.id)}
+            isLoading={resolvedQ.isLoading}
+            isError={resolvedQ.isError}
+            onRetry={() => resolvedQ.refetch()}
+            errorTitle="تعذر تحميل سجل الموافقات"
+            onRowClick={(n) => setReviewing(n)}
+            empty={<EmptyState title={ar.approvals.emptyResolved} icon={ShieldCheck} bordered={false} />}
+          />
 
           {totalPages > 1 && (
             <div className="flex justify-center items-center gap-3">
@@ -451,6 +446,14 @@ export function ApprovalsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Toast
+        open={!!toast}
+        tone={toast?.tone ?? 'success'}
+        message={toast?.message ?? ''}
+        onClose={() => setToast(null)}
+        autoDismissMs={3000}
+      />
     </div>
   );
 }

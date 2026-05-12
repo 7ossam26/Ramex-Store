@@ -30,6 +30,8 @@ import {
 } from '@/components/ResponsiveDialog';
 import { PageHeader } from '@/components/PageHeader';
 import { InvoiceStatusPill } from '@/components/invoices/InvoiceStatusPill';
+import { ErrorBanner } from '@/components/ErrorBanner';
+import { Skeleton } from '@/components/Skeleton';
 
 function fmtMoney(s: string | number): string {
   return Number(s).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -65,10 +67,11 @@ export function InvoiceDetailPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
 
-  const { data, isLoading } = useQuery<InvoiceDetail>({
+  const invoiceQ = useQuery<InvoiceDetail>({
     queryKey: ['invoice', idNum],
     queryFn: () => salesApi.get(idNum),
   });
+  const { data, isLoading, isError } = invoiceQ;
 
   const history = useQuery<InvoiceStatusHistoryEntry[]>({
     queryKey: ['invoice', idNum, 'history'],
@@ -102,8 +105,23 @@ export function InvoiceDetailPage() {
     },
   });
 
-  if (isLoading || !data) {
-    return <p className="text-center text-foreground-muted p-8">{ar.loading}</p>;
+  if (isLoading) {
+    return (
+      <div className="max-w-6xl mx-auto space-y-4" aria-hidden>
+        <Skeleton className="h-7 w-48" />
+        <Skeleton className="h-4 w-64" />
+        <Skeleton className="h-40 w-full rounded-lg" />
+        <Skeleton className="h-64 w-full rounded-lg" />
+      </div>
+    );
+  }
+  if (isError || !data) {
+    return (
+      <ErrorBanner
+        title="تعذر تحميل تفاصيل الفاتورة"
+        onRetry={() => invoiceQ.refetch()}
+      />
+    );
   }
   const inv = data;
   const variant: 'original' | 'reprint' | 'open' =

@@ -10,6 +10,10 @@ import { Label } from '@/components/ui/label';
 import { ScannerInput } from '@/components/ScannerInput';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusPill } from '@/components/StatusPill';
+import { ErrorBanner } from '@/components/ErrorBanner';
+import { EmptyState } from '@/components/EmptyState';
+import { TableSkeleton } from '@/components/TableSkeleton';
+import { ClipboardList } from 'lucide-react';
 
 export function StocktakePage() {
   const [active, setActive] = useState<Stocktake | null>(null);
@@ -98,8 +102,26 @@ function RunStocktake({ stocktake, onComplete }: { stocktake: Stocktake; onCompl
   });
 
 
+  if (detailsQ.isLoading) {
+    return <TableSkeleton rows={6} columns={4} />;
+  }
+  if (detailsQ.isError) {
+    return (
+      <ErrorBanner
+        title="تعذر تحميل تفاصيل الجرد"
+        onRetry={() => detailsQ.refetch()}
+      />
+    );
+  }
   const data = detailsQ.data;
-  if (!data) return <div>{ar.loading}</div>;
+  if (!data) {
+    return (
+      <EmptyState
+        title="لا توجد تفاصيل لهذا الجرد"
+        icon={ClipboardList}
+      />
+    );
+  }
 
   function handleScan(barcode: string) {
     scanM.mutate(barcode, {
@@ -241,6 +263,20 @@ function PastStocktakes() {
     <Card>
       <CardHeader><CardTitle>{ar.stocktake.title}</CardTitle></CardHeader>
       <CardContent>
+        {q.isLoading ? (
+          <TableSkeleton rows={5} columns={5} />
+        ) : q.isError ? (
+          <ErrorBanner
+            title="تعذر تحميل سجل الجرد"
+            onRetry={() => q.refetch()}
+          />
+        ) : (q.data ?? []).length === 0 ? (
+          <EmptyState
+            title="لا توجد عمليات جرد سابقة"
+            icon={ClipboardList}
+            bordered={false}
+          />
+        ) : (
         <table className="w-full text-sm">
           <thead className="text-right text-xs text-foreground-muted uppercase tracking-wide">
             <tr className="border-b border-border-subtle">
@@ -275,6 +311,7 @@ function PastStocktakes() {
             ))}
           </tbody>
         </table>
+        )}
       </CardContent>
     </Card>
   );
