@@ -85,7 +85,7 @@ function Toolbar({
           placeholder={ar.codes.search}
           value={search}
           onChange={(e) => onSearch(e.target.value)}
-          className="border border-border-default rounded-md px-3 py-1.5 text-sm bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75 w-44"
+          className="border border-border-default rounded-md px-3 py-1.5 text-sm bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75 w-44"
         />
         <div className="flex rounded-md border border-border-default overflow-hidden text-sm">
           {(['active', 'inactive', 'all'] as StatusFilter[]).map((f) => (

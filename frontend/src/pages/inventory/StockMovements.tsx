@@ -99,7 +99,7 @@ export function StockMovementsPage() {
           <select
             value={event}
             onChange={(e) => { setEvent(e.target.value as StockEventType | ''); setOffset(0); }}
-            className="h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
+            className="h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
           >
             <option value="">{ar.common.none}</option>
             {ALL_EVENTS.map((ev) => (

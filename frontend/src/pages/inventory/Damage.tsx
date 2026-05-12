@@ -75,7 +75,7 @@ export function DamagePage() {
             </div>
             <div className="space-y-1">
               <Label className="text-sm font-medium text-foreground">{ar.damage.reasonCode}</Label>
-              <select {...form.register('reason_code')} className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75">
+              <select {...form.register('reason_code')} className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75">
                 {REASONS.map((r) => (
                   <option key={r} value={r}>{ar.damage.reasons[r]}</option>
                 ))}
@@ -84,7 +84,7 @@ export function DamagePage() {
             {!isLoss && (
               <div className="space-y-1">
                 <Label className="text-sm font-medium text-foreground">{ar.damage.disposition}</Label>
-                <select {...form.register('disposition', { required: !isLoss })} className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75">
+                <select {...form.register('disposition', { required: !isLoss })} className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75">
                   <option value="">—</option>
                   <option value="damaged_stock">{ar.damage.dispositions.damaged_stock}</option>
                   <option value="return_to_factory">{ar.damage.dispositions.return_to_factory}</option>

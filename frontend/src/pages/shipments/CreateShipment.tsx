@@ -117,7 +117,7 @@ export function CreateShipmentPage() {
               <Label className="text-sm font-medium text-foreground">{ar.shipments.rollFabric}</Label>
               <select
                 {...form.register('fabric_id', { valueAsNumber: true, required: true })}
-                className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
+                className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
               >
                 <option value="">—</option>
                 {fabricsQ.data?.map((f) => (
@@ -129,7 +129,7 @@ export function CreateShipmentPage() {
               <Label className="text-sm font-medium text-foreground">{ar.shipments.rollColor}</Label>
               <select
                 {...form.register('color_id', { valueAsNumber: true, required: true })}
-                className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
+                className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
               >
                 <option value="">—</option>
                 {colorsQ.data?.map((c) => (

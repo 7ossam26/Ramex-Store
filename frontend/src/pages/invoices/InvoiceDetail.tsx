@@ -488,7 +488,7 @@ function FinalPaymentDialog({
           <div className="space-y-1">
             <Label>{ar.pos.paymentMethod}</Label>
             <select
-              className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
+              className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
               value={method}
               onChange={(e) => setMethod(e.target.value as PaymentMethod | 'both')}
             >
@@ -518,7 +518,7 @@ function FinalPaymentDialog({
             <div className="space-y-1">
               <Label>{ar.pos.bankAccount}</Label>
               <select
-                className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
+                className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
                 value={bankAccountId === '' ? '' : String(bankAccountId)}
                 onChange={(e) => setBankAccountId(e.target.value === '' ? '' : Number(e.target.value))}
               >
@@ -613,7 +613,7 @@ function CancelOpenDialog({
           <div className="space-y-1">
             <Label>{ar.invoices.depositHandling}</Label>
             <select
-              className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
+              className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
               value={handling}
               onChange={(e) => setHandling(e.target.value as DepositHandling)}
             >
@@ -637,7 +637,7 @@ function CancelOpenDialog({
             <div className="space-y-1">
               <Label>{ar.invoices.refundMethod}</Label>
               <select
-                className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
+                className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
                 value={refundMethod}
                 onChange={(e) => setRefundMethod(e.target.value as PaymentMethod)}
               >
@@ -650,7 +650,7 @@ function CancelOpenDialog({
             <div className="space-y-1">
               <Label>{ar.pos.bankAccount}</Label>
               <select
-                className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
+                className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
                 value={bankAccountId === '' ? '' : String(bankAccountId)}
                 onChange={(e) => setBankAccountId(e.target.value === '' ? '' : Number(e.target.value))}
               >
@@ -828,7 +828,7 @@ function ReturnModal({
                         <td className="px-2 py-2">
                           <input
                             type="number" inputMode="decimal"
-                            className="h-8 w-24 border border-border-default rounded-md px-2 text-sm bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75 disabled:opacity-50"
+                            className="h-8 w-24 border border-border-default rounded-md px-2 text-sm bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75 disabled:opacity-50"
                             value={s.refundAmount}
                             disabled={!s.checked}
                             onChange={(e) => updateLine(l.id, { refundAmount: e.target.value })}
@@ -839,7 +839,7 @@ function ReturnModal({
                         </td>
                         <td className="px-2 py-2">
                           <select
-                            className="h-8 border border-border-default rounded-md px-2 text-sm bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75 disabled:opacity-50"
+                            className="h-8 border border-border-default rounded-md px-2 text-sm bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75 disabled:opacity-50"
                             value={s.disposition}
                             disabled={!s.checked}
                             onChange={(e) => updateLine(l.id, { disposition: e.target.value as RollDisposition })}
@@ -860,7 +860,7 @@ function ReturnModal({
           <div className="space-y-1">
             <Label>{ar.returns.refundMethod}</Label>
             <select
-              className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
+              className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
               value={refundMethod}
               onChange={(e) => setRefundMethod(e.target.value as RefundMethod)}
             >
@@ -874,7 +874,7 @@ function ReturnModal({
             <div className="space-y-1">
               <Label>{ar.pos.bankAccount}</Label>
               <select
-                className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
+                className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
                 value={bankAccountId === '' ? '' : String(bankAccountId)}
                 onChange={(e) => setBankAccountId(e.target.value === '' ? '' : Number(e.target.value))}
               >
@@ -890,7 +890,7 @@ function ReturnModal({
           <div className="space-y-1">
             <Label>{ar.returns.notes}</Label>
             <input
-              className="h-10 w-full border border-border-default rounded-md px-3 text-sm bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
+              className="h-10 w-full border border-border-default rounded-md px-3 text-sm bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
               value={notesAr}
               onChange={(e) => setNotesAr(e.target.value)}
               dir="rtl"

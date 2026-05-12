@@ -60,7 +60,7 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as ShipmentStatus | '')}
-            className="h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent transition-colors duration-75"
+            className="h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
           >
             {STATUSES.map((s) => (
               <option key={s} value={s}>
