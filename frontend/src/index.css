@@ -114,9 +114,12 @@
  *  2. @media (prefers-reduced-motion: reduce) — honors the OS-level user preference.
  *
  * Behavior: collapse durations to 1ms and neutralize transform-based motion. CSS keyframe
- * animations are paused at their resting state. Functional micro-motions written directly
- * with `transition-colors` (e.g. POS input focus tween, POS success-flash, POS error-shake)
- * remain because they are NOT transforms. */
+ * animations are paused at their resting state.
+ *
+ * Functional motion escape — elements tagged with `data-functional-motion` are
+ * exempt from the data-motion="reduced" scope (POS feedback: focus tween, success
+ * flash, item added/removed, error shake). They STILL yield to the OS-level
+ * prefers-reduced-motion preference. */
 [data-motion='reduced'] *,
 [data-motion='reduced'] *::before,
 [data-motion='reduced'] *::after {
@@ -128,6 +131,16 @@
 [data-motion='reduced'] [data-motion-transform],
 [data-motion='reduced'] *[style*='transform'] {
   transform: none !important;
+}
+
+[data-motion='reduced'] [data-functional-motion],
+[data-motion='reduced'] [data-functional-motion] * {
+  animation-duration: revert !important;
+  animation-iteration-count: revert !important;
+  transition-duration: revert !important;
+}
+[data-motion='reduced'] [data-functional-motion='shake'] {
+  transform: revert !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -142,4 +155,28 @@
   [data-motion-transform] {
     transform: none !important;
   }
+}
+
+/* ---------- POS functional micro-motions ---------------------- *
+ * Keyframe-driven shake for failed barcode scan. 2 cycles in 150ms = 75ms
+ * per cycle, ±4px translateX. The .rmx-shake class is applied with
+ * data-functional-motion="shake" so it survives data-motion="reduced". */
+@keyframes rmx-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  50% { transform: translateX(4px); }
+  75% { transform: translateX(-4px); }
+}
+.rmx-shake {
+  animation: rmx-shake 150ms linear 1;
+}
+
+/* Progress-bar drain used by the POS error toast (4s auto-dismiss). */
+@keyframes rmx-toast-progress {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+.rmx-toast-progress {
+  transform-origin: right; /* RTL: drains from right to left */
+  animation: rmx-toast-progress 4000ms linear 1 forwards;
 }
