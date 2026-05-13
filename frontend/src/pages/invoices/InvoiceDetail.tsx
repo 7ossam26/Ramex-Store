@@ -32,6 +32,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { InvoiceStatusPill } from '@/components/invoices/InvoiceStatusPill';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { Skeleton } from '@/components/Skeleton';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 function fmtMoney(s: string | number): string {
   return Number(s).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -66,6 +67,7 @@ export function InvoiceDetailPage() {
   const [finalPayOpen, setFinalPayOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
+  const [deliverConfirmOpen, setDeliverConfirmOpen] = useState(false);
 
   const invoiceQ = useQuery<InvoiceDetail>({
     queryKey: ['invoice', idNum],
@@ -159,11 +161,7 @@ export function InvoiceDetailPage() {
             {canDeliver && (
               <Button
                 size="sm"
-                onClick={() => {
-                  if (window.confirm(ar.invoices.markDeliveredConfirm)) {
-                    deliverMut.mutate();
-                  }
-                }}
+                onClick={() => setDeliverConfirmOpen(true)}
                 disabled={deliverMut.isPending}
               >
                 {ar.invoices.markDelivered}
@@ -399,6 +397,13 @@ export function InvoiceDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deliverConfirmOpen}
+        message={ar.invoices.markDeliveredConfirm}
+        onConfirm={() => { setDeliverConfirmOpen(false); deliverMut.mutate(); }}
+        onCancel={() => setDeliverConfirmOpen(false)}
+      />
     </div>
   );
 }

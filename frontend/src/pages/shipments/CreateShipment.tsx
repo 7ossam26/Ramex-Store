@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/PageHeader';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 type AddRollForm = {
   fabric_id: number;
@@ -23,6 +24,7 @@ export function CreateShipmentPage() {
   const qc = useQueryClient();
   const [shipment, setShipment] = useState<Shipment | null>(null);
   const [submittedNo, setSubmittedNo] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const fabricsQ = useQuery({ queryKey: ['fabrics'], queryFn: inventoryApi.listFabrics });
   const colorsQ = useQuery({ queryKey: ['colors'], queryFn: inventoryApi.listColors });
@@ -98,10 +100,7 @@ export function CreateShipmentPage() {
     );
   };
 
-  const onSubmit = () => {
-    if (!confirm(ar.shipments.confirmSubmit)) return;
-    submit.mutate();
-  };
+  const onSubmit = () => setConfirmOpen(true);
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
@@ -215,6 +214,13 @@ export function CreateShipmentPage() {
           {ar.shipments.submit}
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        message={ar.shipments.confirmSubmit}
+        onConfirm={() => { setConfirmOpen(false); submit.mutate(); }}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   );
 }

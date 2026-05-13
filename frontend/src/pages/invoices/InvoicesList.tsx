@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
 import { PageHeader } from '@/components/PageHeader';
 import { FilterChip } from '@/components/FilterChip';
@@ -263,6 +264,8 @@ function PendingPickupTab() {
   });
   const rows: PendingPickupRow[] = q.data ?? [];
 
+  const [pendingDeliverId, setPendingDeliverId] = useState<number | null>(null);
+
   const deliverMut = useMutation({
     mutationFn: (id: number) => salesApi.markDelivered(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['invoices'] }); },
@@ -286,27 +289,31 @@ function PendingPickupTab() {
   ];
 
   return (
-    <ResponsiveTable
-      columns={columns}
-      rows={rows}
-      rowKey={(r) => String(r.id)}
-      empty={ar.invoices.empty}
-      isLoading={q.isLoading}
-      isError={q.isError}
-      onRetry={() => q.refetch()}
-      actions={(r) => (
-        <Button
-          size="sm"
-          onClick={() => {
-            if (window.confirm(ar.invoices.markDeliveredConfirm)) {
-              deliverMut.mutate(r.id);
-            }
-          }}
-          disabled={deliverMut.isPending}
-        >
-          {ar.invoices.markDelivered}
-        </Button>
-      )}
-    />
+    <>
+      <ResponsiveTable
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => String(r.id)}
+        empty={ar.invoices.empty}
+        isLoading={q.isLoading}
+        isError={q.isError}
+        onRetry={() => q.refetch()}
+        actions={(r) => (
+          <Button
+            size="sm"
+            onClick={() => setPendingDeliverId(r.id)}
+            disabled={deliverMut.isPending}
+          >
+            {ar.invoices.markDelivered}
+          </Button>
+        )}
+      />
+      <ConfirmDialog
+        open={pendingDeliverId !== null}
+        message={ar.invoices.markDeliveredConfirm}
+        onConfirm={() => { deliverMut.mutate(pendingDeliverId!); setPendingDeliverId(null); }}
+        onCancel={() => setPendingDeliverId(null)}
+      />
+    </>
   );
 }
