@@ -54,13 +54,14 @@ export async function addRoll(
     const shipment = await trx('shipments').where({ id: shipmentId }).first();
     if (!shipment) throw new Error('SHIPMENT_NOT_FOUND');
     if (shipment.status !== 'draft') throw new Error('SHIPMENT_NOT_DRAFT');
-    if (shipment.created_by_user_id !== actorUserId) throw new Error('SHIPMENT_FORBIDDEN');
+    if (Number(shipment.created_by_user_id) !== actorUserId) throw new Error('SHIPMENT_FORBIDDEN');
 
     const priceRow = await trx('fabric_color_prices')
       .where({ fabric_id: input.fabric_id, color_id: input.color_id })
       .first();
-    if (!priceRow) throw new Error('NO_DEFAULT_PRICE');
-    const sellingPrice = Number(priceRow.default_price_per_kg);
+    const sellingPrice = priceRow
+      ? Number(priceRow.default_price_per_kg)
+      : (input.factory_purchase_price_egp ?? 0);
 
     const internal_barcode = await generateRollBarcode(trx);
     const [{ id: rollId }] = await trx('rolls').insert({
@@ -116,7 +117,7 @@ export async function removeLine(shipmentId: number, lineId: number, actorUserId
     const shipment = await trx('shipments').where({ id: shipmentId }).first();
     if (!shipment) throw new Error('SHIPMENT_NOT_FOUND');
     if (shipment.status !== 'draft') throw new Error('SHIPMENT_NOT_DRAFT');
-    if (shipment.created_by_user_id !== actorUserId) throw new Error('SHIPMENT_FORBIDDEN');
+    if (Number(shipment.created_by_user_id) !== actorUserId) throw new Error('SHIPMENT_FORBIDDEN');
 
     const line = await trx('shipment_lines').where({ id: lineId, shipment_id: shipmentId }).first();
     if (!line) throw new Error('LINE_NOT_FOUND');
@@ -143,7 +144,7 @@ export async function submit(shipmentId: number, actorUserId: number): Promise<S
     const shipment = await trx('shipments').where({ id: shipmentId }).first();
     if (!shipment) throw new Error('SHIPMENT_NOT_FOUND');
     if (shipment.status !== 'draft') throw new Error('SHIPMENT_NOT_DRAFT');
-    if (shipment.created_by_user_id !== actorUserId) throw new Error('SHIPMENT_FORBIDDEN');
+    if (Number(shipment.created_by_user_id) !== actorUserId) throw new Error('SHIPMENT_FORBIDDEN');
 
     const lines = await trx('shipment_lines').where({ shipment_id: shipmentId });
     if (lines.length === 0) throw new Error('SHIPMENT_EMPTY');

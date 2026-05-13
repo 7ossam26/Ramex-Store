@@ -64,7 +64,7 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
           >
             {STATUSES.map((s) => (
               <option key={s} value={s}>
-                {s ? ar.shipments.status[s as ShipmentStatus] : ar.common.none}
+                {s ? ar.shipments.status[s as ShipmentStatus] : ar.shipments.allStatuses}
               </option>
             ))}
           </select>

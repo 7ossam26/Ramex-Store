@@ -151,6 +151,7 @@ export const ar = {
       accepted: 'مقبول',
       rejected: 'مرفوض',
     },
+    allStatuses: 'كل الحالات',
     empty: 'لا توجد طلبيات',
     notDraftCannotEdit: 'لا يمكن تعديل طلبية بعد إرسالها',
   },

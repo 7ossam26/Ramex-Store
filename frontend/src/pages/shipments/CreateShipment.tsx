@@ -116,7 +116,7 @@ export function CreateShipmentPage() {
             <div className="space-y-1">
               <Label className="text-sm font-medium text-foreground">{ar.shipments.rollFabric}</Label>
               <select
-                {...form.register('fabric_id', { valueAsNumber: true, required: true })}
+                {...form.register('fabric_id', { valueAsNumber: true, required: true, validate: (v) => !isNaN(v) || 'مطلوب' })}
                 className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
               >
                 <option value="">—</option>
@@ -124,11 +124,12 @@ export function CreateShipmentPage() {
                   <option key={f.id} value={f.id}>{f.name_ar}</option>
                 ))}
               </select>
+              {form.formState.errors.fabric_id && <p className="text-xs text-danger mt-0.5">مطلوب</p>}
             </div>
             <div className="space-y-1">
               <Label className="text-sm font-medium text-foreground">{ar.shipments.rollColor}</Label>
               <select
-                {...form.register('color_id', { valueAsNumber: true, required: true })}
+                {...form.register('color_id', { valueAsNumber: true, required: true, validate: (v) => !isNaN(v) || 'مطلوب' })}
                 className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
               >
                 <option value="">—</option>
@@ -136,10 +137,12 @@ export function CreateShipmentPage() {
                   <option key={c.id} value={c.id}>{c.name_ar} ({c.code})</option>
                 ))}
               </select>
+              {form.formState.errors.color_id && <p className="text-xs text-danger mt-0.5">مطلوب</p>}
             </div>
             <div className="space-y-1">
               <Label>{ar.shipments.rollWeight}</Label>
-              <Input type="number" inputMode="decimal" step="0.001" {...form.register('weight_kg', { valueAsNumber: true, required: true })} />
+              <Input type="number" inputMode="decimal" step="0.001" {...form.register('weight_kg', { valueAsNumber: true, required: true, validate: (v) => (v > 0) || 'مطلوب' })} />
+              {form.formState.errors.weight_kg && <p className="text-xs text-danger mt-0.5">مطلوب</p>}
             </div>
             <div className="space-y-1">
               <Label>{ar.shipments.rollSrNo}</Label>
