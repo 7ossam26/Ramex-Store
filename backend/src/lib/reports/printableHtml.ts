@@ -49,10 +49,10 @@ export function buildPrintableHtml(opts: ReportPdfOptions): string {
 <meta charset="UTF-8">
 <title>${escHtml(opts.titleAr)}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;700&display=swap');
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: 'Cairo', 'Amiri', Arial, sans-serif;
+    font-family: 'IBM Plex Sans Arabic', system-ui, Arial, sans-serif;
     font-size: 11pt;
     direction: rtl;
     text-align: right;

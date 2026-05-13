@@ -6,7 +6,6 @@
  * ============================================================= */
 
 /* ---------- Fonts: self-hosted IBM Plex Sans Arabic + Latin ---- */
-@import '@fontsource/ibm-plex-sans-arabic/300.css';
 @import '@fontsource/ibm-plex-sans-arabic/400.css';
 @import '@fontsource/ibm-plex-sans-arabic/500.css';
 @import '@fontsource/ibm-plex-sans-arabic/600.css';
@@ -91,10 +90,18 @@
 
     /* Focus */
     --rmx-focus-ring: 12 51% 53%;           /* #C4624A */
+
+    /* Cool Techy palette — login page; ready for system-wide adoption */
+    --rmx-techy-bg: 220 20% 97%;            /* #F5F7FA cool off-white */
+    --rmx-techy-ink: 210 25% 8%;            /* #0F1419 charcoal chrome */
+    --rmx-techy-accent: 243 75% 59%;        /* #4F46E5 electric indigo */
+    --rmx-techy-accent-hover: 243 72% 49%;  /* indigo –10% lightness */
+    --rmx-techy-border: 220 18% 82%;        /* neutral hairline border */
+    --rmx-techy-surface: 0 0% 100%;         /* #FFFFFF card surface */
   }
 
   html {
-    font-family: 'IBM Plex Sans Arabic', 'IBM Plex Sans', system-ui, sans-serif;
+    font-family: 'IBM Plex Sans Arabic', 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   }
 
   body {

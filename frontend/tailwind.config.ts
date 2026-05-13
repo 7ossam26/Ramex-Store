@@ -10,7 +10,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"IBM Plex Sans Arabic"', '"IBM Plex Sans"', 'system-ui', 'sans-serif'],
+        sans: ['"IBM Plex Sans Arabic"', '"IBM Plex Sans"', 'system-ui', '-apple-system', '"Segoe UI"', 'Roboto', 'sans-serif'],
       },
 
       fontSize: {
@@ -101,6 +101,16 @@ export default {
           DEFAULT: 'hsl(var(--rmx-info) / <alpha-value>)',
           subtle: 'hsl(var(--rmx-info-subtle) / <alpha-value>)',
           foreground: 'hsl(var(--rmx-info-foreground) / <alpha-value>)',
+        },
+
+        /* Cool Techy palette — consumed by Login; available system-wide */
+        techy: {
+          bg: 'hsl(var(--rmx-techy-bg) / <alpha-value>)',
+          ink: 'hsl(var(--rmx-techy-ink) / <alpha-value>)',
+          accent: 'hsl(var(--rmx-techy-accent) / <alpha-value>)',
+          'accent-hover': 'hsl(var(--rmx-techy-accent-hover) / <alpha-value>)',
+          border: 'hsl(var(--rmx-techy-border) / <alpha-value>)',
+          surface: 'hsl(var(--rmx-techy-surface) / <alpha-value>)',
         },
       },
 
