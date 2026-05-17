@@ -35,7 +35,7 @@ export const inventoryApi = {
     api.patch<FabricFull>(`/fabrics/${id}`, body).then((r) => r.data),
 
   // Color catalog (Owner only)
-  createColor: (body: { name_ar: string; code: string }) =>
+  createColor: (body: { name_ar: string }) =>
     api.post<Color>('/colors', body).then((r) => r.data),
 
   // One-shot Add-Top wizard

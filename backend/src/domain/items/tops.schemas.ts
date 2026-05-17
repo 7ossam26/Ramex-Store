@@ -9,7 +9,6 @@ const CompositionItemSchema = z.object({
 const FabricRefSchema = z.union([
   z.object({ id: z.number().int().positive() }),
   z.object({
-    code: z.string().min(1).max(32),
     name_ar: z.string().min(1).max(128),
     composition: z.array(CompositionItemSchema).min(1),
     width_cm: z.number().positive(),
@@ -22,7 +21,6 @@ const ColorRefSchema = z.union([
   z.object({ id: z.number().int().positive() }),
   z.object({
     name_ar: z.string().min(1).max(64),
-    code: z.string().min(1).max(16),
   }),
 ]);
 

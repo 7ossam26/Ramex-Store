@@ -140,7 +140,6 @@ export type FabricFull = {
 };
 
 export type CreateFabricInput = {
-  code: string;
   name_ar: string;
   composition: Array<{ material: string; percent: number }>;
   width_cm: number;
@@ -160,7 +159,6 @@ export type UpdateFabricInput = Partial<CreateFabricInput> & {
 export type FabricRef =
   | { id: number }
   | {
-      code: string;
       name_ar: string;
       composition: Array<{ material: string; percent: number }>;
       width_cm: number;
@@ -170,7 +168,7 @@ export type FabricRef =
 
 export type ColorRef =
   | { id: number }
-  | { name_ar: string; code: string };
+  | { name_ar: string };
 
 export type TopRollEntry = {
   color: ColorRef;

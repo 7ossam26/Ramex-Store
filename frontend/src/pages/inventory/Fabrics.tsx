@@ -26,7 +26,6 @@ import { useAuth } from '@/lib/auth';
 type CompositionRow = { material: string; percent: string };
 
 type FormState = {
-  code: string;
   name_ar: string;
   width_cm: string;
   grade: string;
@@ -39,7 +38,6 @@ type FormState = {
 };
 
 const blank = (): FormState => ({
-  code: '',
   name_ar: '',
   width_cm: '',
   grade: 'A',
@@ -53,7 +51,6 @@ const blank = (): FormState => ({
 
 function fromFabric(f: FabricFull & { default_grade_id?: number | null; default_composition_id?: number | null; default_brand_id?: number | null }): FormState {
   return {
-    code: f.code,
     name_ar: f.name_ar,
     width_cm: String(f.width_cm),
     grade: f.grade,
@@ -154,12 +151,11 @@ export function FabricsPage() {
       setErrorMsg(ar.addTop.errors.widthRequired);
       return null;
     }
-    if (!form.code.trim() || !form.name_ar.trim() || !form.grade.trim()) {
+    if (!form.name_ar.trim() || !form.grade.trim()) {
       setErrorMsg(ar.addTop.errors.fabricFieldsRequired);
       return null;
     }
     return {
-      code: form.code.trim(),
       name_ar: form.name_ar.trim(),
       width_cm: widthCm,
       grade: form.grade.trim(),
@@ -290,11 +286,10 @@ export function FabricsPage() {
               <div className="space-y-1">
                 <Label>{ar.addTop.fabricCode}</Label>
                 <Input
-                  value={form.code}
-                  onChange={(e) => setForm({ ...form, code: e.target.value })}
+                  value={editing ? editing.code : 'سيتم توليده تلقائياً'}
+                  readOnly
                   dir="ltr"
-                  placeholder="COT-150"
-                  className="h-11 md:h-10"
+                  className="h-11 md:h-10 bg-surface-muted text-foreground-muted cursor-default select-all"
                 />
               </div>
               <div className="space-y-1">

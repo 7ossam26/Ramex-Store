@@ -171,10 +171,11 @@ export function Flyout({ section, anchor, onClose }: Props) {
             // and would put the flyout on the wrong side.
             right: `${RAIL_WIDTH_PX}px`,
             width: `min(${WIDTH_PX}px, calc(100vw - ${RAIL_WIDTH_PX}px))`,
+            maxHeight: `calc(100vh - ${position.top}px - 1rem)`,
           }}
-          className="fixed z-[1099] bg-surface-elevated text-foreground rounded-lg shadow-xl border border-border-subtle overflow-hidden"
+          className="fixed z-[1099] flex flex-col bg-surface-elevated text-foreground rounded-lg shadow-xl border border-border-subtle overflow-hidden"
         >
-          <header className="px-4 py-3 border-b border-border-subtle">
+          <header className="px-4 py-3 border-b border-border-subtle shrink-0">
             <h2 className="text-base font-semibold text-foreground">
               {section.labelAr}
             </h2>
@@ -185,7 +186,7 @@ export function Flyout({ section, anchor, onClose }: Props) {
             )}
           </header>
 
-          <div className="max-h-[calc(100vh-8rem)] overflow-y-auto py-1">
+          <div className="flex-1 overflow-y-auto py-1 min-h-0">
             {section.children?.map((group, groupIdx) => (
               <div key={groupIdx} className="py-1">
                 {group.groupLabelAr && (

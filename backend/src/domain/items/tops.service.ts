@@ -3,6 +3,8 @@ import type { Knex } from 'knex';
 import type { Fabric, RollWithDetails } from './items.types.js';
 import type { CreateTopBatchInput } from './tops.schemas.js';
 import { auditFromService } from '../inventory/audit.helper.js';
+import { generateFabricCode } from './fabrics.service.js';
+import { generateColorCode } from './colors.service.js';
 
 async function generateBarcode(trx: Knex.Transaction): Promise<string> {
   const result = await trx.raw<{ rows: Array<{ n: number | string }> }>(
@@ -22,9 +24,8 @@ async function resolveFabric(
     if (!f) throw new Error('FABRIC_NOT_FOUND');
     return f as Fabric;
   }
-  const existingByCode = await trx('fabrics').where({ code: ref.code }).first();
-  if (existingByCode) throw new Error('FABRIC_CODE_EXISTS');
-  const [{ id }] = await trx('fabrics').insert({ ...ref, composition: JSON.stringify(ref.composition) }).returning('id');
+  const code = await generateFabricCode(trx);
+  const [{ id }] = await trx('fabrics').insert({ ...ref, code, composition: JSON.stringify(ref.composition) }).returning('id');
   const created = await trx('fabrics').where({ id }).first();
   await auditFromService(trx, {
     actorUserId,
@@ -47,11 +48,10 @@ async function resolveColor(
     if (!c) throw new Error('COLOR_NOT_FOUND');
     return { id: c.id as number };
   }
-  const existing = await trx('colors')
-    .where({ name_ar: ref.name_ar, code: ref.code })
-    .first();
+  const existing = await trx('colors').where({ name_ar: ref.name_ar }).first();
   if (existing) return { id: existing.id as number };
-  const [{ id }] = await trx('colors').insert(ref).returning('id');
+  const code = await generateColorCode(trx);
+  const [{ id }] = await trx('colors').insert({ ...ref, code }).returning('id');
   const created = await trx('colors').where({ id }).first();
   await auditFromService(trx, {
     actorUserId,

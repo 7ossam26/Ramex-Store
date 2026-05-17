@@ -14,7 +14,6 @@ const defaultLabelFields = {
 };
 
 export const CreateFabricSchema = z.object({
-  code: z.string().min(1).max(32),
   name_ar: z.string().min(1).max(128),
   composition: z.array(CompositionItemSchema).min(1),
   width_cm: z.number().positive(),
@@ -31,7 +30,6 @@ export type UpdateFabricInput = z.infer<typeof UpdateFabricSchema>;
 
 export const CreateColorSchema = z.object({
   name_ar: z.string().min(1).max(64),
-  code: z.string().min(1).max(16),
 });
 export type CreateColorInput = z.infer<typeof CreateColorSchema>;
 

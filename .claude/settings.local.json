@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(grep -E \"\\\\.\\(jsx|js\\)$\")",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
+      "Bash(npx tsc *)",
+      "Bash(npx knex *)"
     ]
   }
 }

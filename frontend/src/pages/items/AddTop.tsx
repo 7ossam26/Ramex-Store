@@ -49,7 +49,6 @@ type RollRowState = {
 type CompositionRow = { material: string; percent: string };
 type FabricDraftState = {
   name_ar: string;
-  code: string;
   width_cm: string;
   grade: string;
   composition: CompositionRow[];
@@ -58,7 +57,6 @@ type FabricDraftState = {
 
 const blankFabricDraft = (): FabricDraftState => ({
   name_ar: '',
-  code: '',
   width_cm: '',
   grade: 'A',
   composition: [{ material: '', percent: '100' }],
@@ -100,7 +98,7 @@ function FabricCreateDialog({
     const composition = draft.composition
       .filter((c) => c.material.trim() && c.percent.trim())
       .map((c) => ({ material: c.material.trim(), percent: Number(c.percent) }));
-    if (!draft.name_ar.trim() || !draft.code.trim()) {
+    if (!draft.name_ar.trim()) {
       setErr(ar.addTop.errors.fabricFieldsRequired);
       return;
     }
@@ -120,7 +118,6 @@ function FabricCreateDialog({
     }
     mut.mutate({
       name_ar: draft.name_ar.trim(),
-      code: draft.code.trim(),
       width_cm,
       grade: draft.grade,
       composition,
@@ -136,21 +133,12 @@ function FabricCreateDialog({
         </DialogHeader>
         <div className="space-y-3 pt-1">
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
+            <div className="space-y-1 col-span-2">
               <Label>{ar.addTop.fabricNameAr}</Label>
               <Input
                 value={draft.name_ar}
                 onChange={(e) => setDraft({ ...draft, name_ar: e.target.value })}
                 placeholder="قطن مصري سادة 150سم"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>{ar.addTop.fabricCode}</Label>
-              <Input
-                value={draft.code}
-                onChange={(e) => setDraft({ ...draft, code: e.target.value })}
-                dir="ltr"
-                placeholder="COT-150"
               />
             </div>
             <div className="space-y-1">
@@ -263,17 +251,15 @@ function ColorCreateDialog({
 }) {
   const qc = useQueryClient();
   const [nameAr, setNameAr] = useState('');
-  const [code, setCode] = useState('');
   const [err, setErr] = useState<string | null>(null);
 
   const mut = useMutation({
-    mutationFn: (body: { name_ar: string; code: string }) => inventoryApi.createColor(body),
+    mutationFn: (body: { name_ar: string }) => inventoryApi.createColor(body),
     onSuccess: (color) => {
       qc.invalidateQueries({ queryKey: ['colors'] });
       onCreated(color);
       onOpenChange(false);
       setNameAr('');
-      setCode('');
       setErr(null);
     },
     onError: (e: unknown) => {
@@ -286,11 +272,11 @@ function ColorCreateDialog({
 
   function handleSubmit() {
     setErr(null);
-    if (!nameAr.trim() || !code.trim()) {
+    if (!nameAr.trim()) {
       setErr(ar.addTop.errors.colorFieldsRequired);
       return;
     }
-    mut.mutate({ name_ar: nameAr.trim(), code: code.trim() });
+    mut.mutate({ name_ar: nameAr.trim() });
   }
 
   return (
@@ -307,15 +293,6 @@ function ColorCreateDialog({
               onChange={(e) => setNameAr(e.target.value)}
               placeholder="أحمر"
               autoFocus
-            />
-          </div>
-          <div className="space-y-1">
-            <Label>{ar.addTop.newColorCode}</Label>
-            <Input
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              dir="ltr"
-              placeholder="RED-01"
             />
           </div>
           {err && <p className="text-sm text-danger-foreground">{err}</p>}

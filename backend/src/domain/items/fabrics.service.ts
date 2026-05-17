@@ -1,6 +1,18 @@
 import { db } from '../../db/connection.js';
+import type { Knex } from 'knex';
 import type { Fabric } from './items.types.js';
 import type { CreateFabricInput, UpdateFabricInput } from './items.schemas.js';
+
+async function generateFabricCode(trx?: Knex.Transaction): Promise<string> {
+  const runner = trx ?? db;
+  const result = await (runner as Knex).raw<{ rows: Array<{ n: number | string }> }>(
+    'UPDATE db_sequences SET last_value = last_value + 1 WHERE name = ? RETURNING last_value AS n',
+    ['fabric_code_seq'],
+  );
+  return `M-${String(Number(result.rows[0].n)).padStart(6, '0')}`;
+}
+
+export { generateFabricCode };
 
 export async function listFabrics(): Promise<Fabric[]> {
   return db('fabrics').orderBy('code');
@@ -11,7 +23,10 @@ export async function getFabric(id: number): Promise<Fabric | undefined> {
 }
 
 export async function createFabric(data: CreateFabricInput): Promise<Fabric> {
-  const [{ id }] = await db('fabrics').insert({ ...data, composition: JSON.stringify(data.composition) }).returning('id');
+  const code = await generateFabricCode();
+  const [{ id }] = await db('fabrics')
+    .insert({ ...data, code, composition: JSON.stringify(data.composition) })
+    .returning('id');
   return db('fabrics').where({ id }).first() as Promise<Fabric>;
 }
 
