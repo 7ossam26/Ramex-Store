@@ -14,6 +14,7 @@ import type {
   ShipmentStatus,
   ShipmentWithLines,
   StockMovement,
+  StockSummaryRow,
   Stocktake,
   StocktakeWithLines,
   StocktakeMode,
@@ -32,6 +33,10 @@ export const inventoryApi = {
     api.post<FabricFull>('/fabrics', body).then((r) => r.data),
   updateFabric: (id: number, body: UpdateFabricInput) =>
     api.patch<FabricFull>(`/fabrics/${id}`, body).then((r) => r.data),
+
+  // Color catalog (Owner only)
+  createColor: (body: { name_ar: string; code: string }) =>
+    api.post<Color>('/colors', body).then((r) => r.data),
 
   // One-shot Add-Top wizard
   createTopBatch: (body: CreateTopBatchInput) =>
@@ -109,4 +114,10 @@ export const inventoryApi = {
     api
       .get<{ rows: StockMovement[]; total: number }>('/stock-movements', { params })
       .then((r) => r.data),
+
+  // Stock Summary (inventory landing)
+  getStockSummary: () =>
+    api
+      .get<{ rows: StockSummaryRow[] }>('/inventory/stock-summary')
+      .then((r) => r.data.rows),
 };

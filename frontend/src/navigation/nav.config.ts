@@ -138,8 +138,15 @@ export const NAV: NavTop[] = [
             route: '/items/rolls',
           },
           {
+            id: 'items.fabrics',
+            labelAr: 'الخامات',
+            descAr: 'كتالوج الخامات (الاسم، الجودة، التركيب، العرض)',
+            icon: Layers,
+            route: '/items/fabrics',
+          },
+          {
             id: 'items.labels',
-            labelAr: 'إدارة الملصقات',
+            labelAr: 'الملصقات',
             descAr: 'إعادة طباعة ملصقات التوبات',
             icon: Tag,
             route: '/items/labels',
@@ -157,13 +164,6 @@ export const NAV: NavTop[] = [
     children: [
       {
         items: [
-          {
-            id: 'inventory.fabrics',
-            labelAr: 'الخامات',
-            descAr: 'كتالوج الخامات الرئيسية',
-            icon: Layers,
-            route: '/inventory/fabrics',
-          },
           {
             id: 'inventory.movements',
             labelAr: 'حركات المخزون',

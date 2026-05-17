@@ -6,6 +6,7 @@ import * as damageCtl from './damage.controller.js';
 import * as stocktakeCtl from './stocktake.controller.js';
 import * as adjustmentsCtl from './adjustments.controller.js';
 import * as stockMovementsCtl from './stockMovements.controller.js';
+import * as stockSummaryCtl from './stockSummary.controller.js';
 
 export const inventoryRouter = Router();
 
@@ -98,3 +99,6 @@ inventoryRouter.get('/adjustments', adjustmentsCtl.listAdjustments);
 
 // --- Stock Movements (read-only ledger) ---
 inventoryRouter.get('/stock-movements', stockMovementsCtl.listStockMovements);
+
+// --- Stock Summary (inventory landing) ---
+inventoryRouter.get('/inventory/stock-summary', stockSummaryCtl.stockSummary);

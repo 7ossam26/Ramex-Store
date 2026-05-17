@@ -71,12 +71,12 @@ export function App() {
 
                 <Route path="/items" element={<ItemsHubPage />} />
                 <Route path="/items/rolls" element={<RollsPage />} />
+                <Route path="/items/fabrics" element={<FabricsPage />} />
                 <Route path="/items/labels" element={<LabelsPage />} />
                 <Route path="/items/tops/add" element={<AddTopPage />} />
 
                 <Route path="/inventory" element={<InventoryHubPage />} />
                 <Route path="/inventory/codes" element={<CodesPage />} />
-                <Route path="/inventory/fabrics" element={<FabricsPage />} />
                 <Route path="/inventory/stock-movements" element={<StockMovementsPage />} />
                 <Route path="/inventory/stocktake" element={<StocktakePage />} />
                 <Route path="/inventory/adjustments" element={<AdjustmentsPage />} />

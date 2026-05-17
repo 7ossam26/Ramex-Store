@@ -1,3 +1,16 @@
+export type StockSummaryRow = {
+  fabric_id: number;
+  fabric_name_ar: string;
+  fabric_code: string;
+  color_id: number;
+  color_name_ar: string;
+  color_code: string;
+  count_in_stock: number;
+  count_reserved: number;
+  count_sold: number;
+  count_total: number;
+};
+
 export type Warehouse = 'shop' | 'factory' | 'damaged_shop';
 export type RollStatus =
   | 'in_stock' | 'reserved' | 'sold' | 'damaged'

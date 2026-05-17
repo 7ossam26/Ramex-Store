@@ -5,37 +5,31 @@ import { inventoryApi } from '@/lib/inventory-api';
 import { itemsApi } from '@/lib/items-api';
 import { codesApi } from '@/lib/codes-api';
 import type {
+  Color,
+  CreateFabricInput,
   CreateTopBatchInput,
   CreateTopBatchResult,
-  ColorRef,
-  FabricRef,
+  FabricFull,
 } from '@/lib/inventory-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Code128 } from '@/components/Code128';
 import { PageHeader } from '@/components/PageHeader';
+import { Plus } from 'lucide-react';
 
-const NEW = '__new__';
 const DEFAULT_WEIGHT_KG = 25;
-
-type CompositionRow = { material: string; percent: string };
-type FabricFormState = {
-  pickedId: number | null;
-  code: string;
-  name_ar: string;
-  width_cm: string;
-  grade: string;
-  composition: CompositionRow[];
-  notes: string;
-};
 
 type RollRowState = {
   uid: string;
   pickedColorId: number | null;
-  newColorNameAr: string;
-  newColorCode: string;
   weight_kg: string;
   selling_price_egp: string;
   set_default_price: boolean;
@@ -51,23 +45,299 @@ type RollRowState = {
   composition_id: number | null;
 };
 
-type LabelPrintState = { open: boolean; format: 'thermal' | 'a4'; perPage: string };
+// --- Fabric create dialog ---
+type CompositionRow = { material: string; percent: string };
+type FabricDraftState = {
+  name_ar: string;
+  code: string;
+  width_cm: string;
+  grade: string;
+  composition: CompositionRow[];
+  notes: string;
+};
 
-const blankFabric = (): FabricFormState => ({
-  pickedId: null,
-  code: '',
+const blankFabricDraft = (): FabricDraftState => ({
   name_ar: '',
+  code: '',
   width_cm: '',
   grade: 'A',
   composition: [{ material: '', percent: '100' }],
   notes: '',
 });
 
-const blankRow = (color?: { pickedColorId: number | null; newColorNameAr: string; newColorCode: string }): RollRowState => ({
+function FabricCreateDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onCreated: (fabric: FabricFull) => void;
+}) {
+  const qc = useQueryClient();
+  const [draft, setDraft] = useState<FabricDraftState>(blankFabricDraft);
+  const [err, setErr] = useState<string | null>(null);
+
+  const mut = useMutation({
+    mutationFn: (body: CreateFabricInput) => inventoryApi.createFabric(body),
+    onSuccess: (fabric) => {
+      qc.invalidateQueries({ queryKey: ['fabrics'] });
+      onCreated(fabric);
+      onOpenChange(false);
+      setDraft(blankFabricDraft());
+      setErr(null);
+    },
+    onError: (e: unknown) => {
+      const msg =
+        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        ar.common.error;
+      setErr(msg);
+    },
+  });
+
+  function handleSubmit() {
+    setErr(null);
+    const composition = draft.composition
+      .filter((c) => c.material.trim() && c.percent.trim())
+      .map((c) => ({ material: c.material.trim(), percent: Number(c.percent) }));
+    if (!draft.name_ar.trim() || !draft.code.trim()) {
+      setErr(ar.addTop.errors.fabricFieldsRequired);
+      return;
+    }
+    const width_cm = Number(draft.width_cm);
+    if (!width_cm || width_cm <= 0) {
+      setErr(ar.addTop.errors.widthRequired);
+      return;
+    }
+    if (composition.length === 0) {
+      setErr(ar.addTop.errors.compositionRequired);
+      return;
+    }
+    const sum = composition.reduce((s, c) => s + c.percent, 0);
+    if (Math.abs(sum - 100) > 0.01) {
+      setErr(ar.addTop.errors.compositionMustSum100);
+      return;
+    }
+    mut.mutate({
+      name_ar: draft.name_ar.trim(),
+      code: draft.code.trim(),
+      width_cm,
+      grade: draft.grade,
+      composition,
+      notes: draft.notes.trim() || null,
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{ar.fabrics.createTitle}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 pt-1">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>{ar.addTop.fabricNameAr}</Label>
+              <Input
+                value={draft.name_ar}
+                onChange={(e) => setDraft({ ...draft, name_ar: e.target.value })}
+                placeholder="قطن مصري سادة 150سم"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>{ar.addTop.fabricCode}</Label>
+              <Input
+                value={draft.code}
+                onChange={(e) => setDraft({ ...draft, code: e.target.value })}
+                dir="ltr"
+                placeholder="COT-150"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>{ar.addTop.widthCm}</Label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="0.5"
+                value={draft.width_cm}
+                onChange={(e) => setDraft({ ...draft, width_cm: e.target.value })}
+                dir="ltr"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>{ar.addTop.grade}</Label>
+              <select
+                className="w-full h-10 rounded border border-border bg-canvas px-3 text-sm"
+                value={draft.grade}
+                onChange={(e) => setDraft({ ...draft, grade: e.target.value })}
+              >
+                <option value="A">A</option>
+                <option value="B">B</option>
+                <option value="C">C</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label>{ar.addTop.composition}</Label>
+            <div className="space-y-2">
+              {draft.composition.map((c, idx) => (
+                <div key={idx} className="grid grid-cols-[1fr_100px_auto] gap-2">
+                  <Input
+                    value={c.material}
+                    onChange={(e) => {
+                      const next = [...draft.composition];
+                      next[idx] = { ...c, material: e.target.value };
+                      setDraft({ ...draft, composition: next });
+                    }}
+                    placeholder={ar.addTop.material}
+                  />
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.1"
+                      value={c.percent}
+                      onChange={(e) => {
+                        const next = [...draft.composition];
+                        next[idx] = { ...c, percent: e.target.value };
+                        setDraft({ ...draft, composition: next });
+                      }}
+                      dir="ltr"
+                    />
+                    <span className="text-sm text-muted-foreground">%</span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setDraft({ ...draft, composition: draft.composition.filter((_, i) => i !== idx) })
+                    }
+                    disabled={draft.composition.length === 1}
+                  >
+                    ×
+                  </Button>
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setDraft({ ...draft, composition: [...draft.composition, { material: '', percent: '' }] })
+                }
+              >
+                + {ar.addTop.addMaterial}
+              </Button>
+            </div>
+          </div>
+
+          {err && (
+            <p className="text-sm text-danger-foreground">{err}</p>
+          )}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              {ar.common.cancel}
+            </Button>
+            <Button type="button" onClick={handleSubmit} disabled={mut.isPending}>
+              {mut.isPending ? ar.loading : ar.common.save}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// --- Color create dialog ---
+function ColorCreateDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onCreated: (color: Color) => void;
+}) {
+  const qc = useQueryClient();
+  const [nameAr, setNameAr] = useState('');
+  const [code, setCode] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+
+  const mut = useMutation({
+    mutationFn: (body: { name_ar: string; code: string }) => inventoryApi.createColor(body),
+    onSuccess: (color) => {
+      qc.invalidateQueries({ queryKey: ['colors'] });
+      onCreated(color);
+      onOpenChange(false);
+      setNameAr('');
+      setCode('');
+      setErr(null);
+    },
+    onError: (e: unknown) => {
+      const msg =
+        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        ar.common.error;
+      setErr(msg);
+    },
+  });
+
+  function handleSubmit() {
+    setErr(null);
+    if (!nameAr.trim() || !code.trim()) {
+      setErr(ar.addTop.errors.colorFieldsRequired);
+      return;
+    }
+    mut.mutate({ name_ar: nameAr.trim(), code: code.trim() });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>إضافة لون جديد</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 pt-1">
+          <div className="space-y-1">
+            <Label>{ar.addTop.newColorNameAr}</Label>
+            <Input
+              value={nameAr}
+              onChange={(e) => setNameAr(e.target.value)}
+              placeholder="أحمر"
+              autoFocus
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>{ar.addTop.newColorCode}</Label>
+            <Input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              dir="ltr"
+              placeholder="RED-01"
+            />
+          </div>
+          {err && <p className="text-sm text-danger-foreground">{err}</p>}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              {ar.common.cancel}
+            </Button>
+            <Button type="button" onClick={handleSubmit} disabled={mut.isPending}>
+              {mut.isPending ? ar.loading : ar.common.save}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type LabelPrintState = { open: boolean; format: 'thermal' | 'a4'; perPage: string };
+
+const blankRow = (color?: { pickedColorId: number | null }): RollRowState => ({
   uid: Math.random().toString(36).slice(2),
   pickedColorId: color?.pickedColorId ?? null,
-  newColorNameAr: color?.newColorNameAr ?? '',
-  newColorCode: color?.newColorCode ?? '',
   weight_kg: String(DEFAULT_WEIGHT_KG),
   selling_price_egp: '',
   set_default_price: false,
@@ -90,7 +360,6 @@ function copyLabelFields(src: RollRowState, dst: RollRowState): RollRowState {
     grade_id: src.grade_id,
     width_cm_roll: src.width_cm_roll,
     composition_id: src.composition_id,
-    // top_number intentionally not copied — each roll has a distinct top number
   };
 }
 
@@ -114,7 +383,10 @@ export function AddTopPage() {
   const brandsQ = useQuery({ queryKey: ['codes-brands'], queryFn: codesApi.listBrands });
   const compositionsQ = useQuery({ queryKey: ['codes-compositions'], queryFn: codesApi.listCompositions });
 
-  const [fabric, setFabric] = useState<FabricFormState>(blankFabric());
+  const [pickedFabricId, setPickedFabricId] = useState<number | null>(null);
+  const [fabricDialogOpen, setFabricDialogOpen] = useState(false);
+  const [colorDialogForIdx, setColorDialogForIdx] = useState<number | null>(null);
+
   const [rows, setRows] = useState<RollRowState[]>([blankRow()]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [lastBatch, setLastBatch] = useState<CreateTopBatchResult | null>(null);
@@ -165,52 +437,16 @@ export function AddTopPage() {
   );
 
   function buildPayload(): CreateTopBatchInput | null {
-    let fabricRef: FabricRef;
-    if (fabric.pickedId !== null) {
-      fabricRef = { id: fabric.pickedId };
-    } else {
-      const composition = fabric.composition
-        .filter((c) => c.material.trim() !== '' && c.percent.trim() !== '')
-        .map((c) => ({ material: c.material.trim(), percent: Number(c.percent) }));
-      if (composition.length === 0) {
-        setErrorMsg(ar.addTop.errors.compositionRequired);
-        return null;
-      }
-      const sum = composition.reduce((s, c) => s + (c.percent || 0), 0);
-      if (Math.abs(sum - 100) > 0.01) {
-        setErrorMsg(ar.addTop.errors.compositionMustSum100);
-        return null;
-      }
-      const width_cm = num(fabric.width_cm);
-      if (!width_cm || width_cm <= 0) {
-        setErrorMsg(ar.addTop.errors.widthRequired);
-        return null;
-      }
-      if (!fabric.code.trim() || !fabric.name_ar.trim() || !fabric.grade.trim()) {
-        setErrorMsg(ar.addTop.errors.fabricFieldsRequired);
-        return null;
-      }
-      fabricRef = {
-        code: fabric.code.trim(),
-        name_ar: fabric.name_ar.trim(),
-        width_cm,
-        grade: fabric.grade.trim(),
-        composition,
-        notes: fabric.notes.trim() || null,
-      };
+    if (!pickedFabricId) {
+      setErrorMsg('اختر خامة أولاً، أو أنشئ خامة جديدة بالضغط على +');
+      return null;
     }
 
     const rollEntries = [];
     for (const r of rows) {
-      let colorRef: ColorRef;
-      if (r.pickedColorId !== null) {
-        colorRef = { id: r.pickedColorId };
-      } else {
-        if (!r.newColorNameAr.trim() || !r.newColorCode.trim()) {
-          setErrorMsg(ar.addTop.errors.colorFieldsRequired);
-          return null;
-        }
-        colorRef = { name_ar: r.newColorNameAr.trim(), code: r.newColorCode.trim() };
+      if (!r.pickedColorId) {
+        setErrorMsg('اختر لوناً لكل توب، أو أنشئ لوناً جديداً بالضغط على +');
+        return null;
       }
       const weight_kg = num(r.weight_kg);
       if (!weight_kg || weight_kg <= 0) {
@@ -218,12 +454,11 @@ export function AddTopPage() {
         return null;
       }
       const selling = num(r.selling_price_egp);
-      const setDefault = num(r.selling_price_egp);
       rollEntries.push({
-        color: colorRef,
+        color: { id: r.pickedColorId },
         weight_kg,
         selling_price_egp: selling,
-        set_default_price_per_kg: r.set_default_price ? setDefault : undefined,
+        set_default_price_per_kg: r.set_default_price ? selling : undefined,
         roll_sr_no: r.roll_sr_no.trim() || null,
         order_no: r.order_no.trim() || null,
         purchase_price_egp: num(r.purchase_price_egp) ?? null,
@@ -235,7 +470,7 @@ export function AddTopPage() {
         brand_id: r.brand_id ?? null,
       });
     }
-    return { fabric: fabricRef, rolls: rollEntries, warehouse: 'shop' };
+    return { fabric: { id: pickedFabricId }, rolls: rollEntries, warehouse: 'shop' };
   }
 
   function onSubmit() {
@@ -246,7 +481,7 @@ export function AddTopPage() {
   }
 
   function startFresh() {
-    setFabric(blankFabric());
+    setPickedFabricId(null);
     setRows([blankRow()]);
     setLastBatch(null);
     setErrorMsg(null);
@@ -257,8 +492,6 @@ export function AddTopPage() {
     if (rows.length < 2) return;
     setRows((rs) => rs.map((r, i) => (i === 0 ? r : copyLabelFields(rs[0], r))));
   }
-
-  const fabricIsNew = fabric.pickedId === null;
 
   return (
     <div className="max-w-4xl mx-auto space-y-4" dir="rtl">
@@ -369,6 +602,25 @@ export function AddTopPage() {
         </Card>
       )}
 
+      <FabricCreateDialog
+        open={fabricDialogOpen}
+        onOpenChange={setFabricDialogOpen}
+        onCreated={(fabric) => setPickedFabricId(fabric.id)}
+      />
+
+      <ColorCreateDialog
+        open={colorDialogForIdx !== null}
+        onOpenChange={(v) => { if (!v) setColorDialogForIdx(null); }}
+        onCreated={(color) => {
+          if (colorDialogForIdx !== null) {
+            setRows((rs) =>
+              rs.map((r, i) => (i === colorDialogForIdx ? { ...r, pickedColorId: color.id } : r)),
+            );
+            setColorDialogForIdx(null);
+          }
+        }}
+      />
+
       {/* Section 1 — Fabric */}
       <Card>
         <CardHeader>
@@ -377,135 +629,31 @@ export function AddTopPage() {
         <CardContent className="space-y-3">
           <div className="space-y-1">
             <Label>{ar.addTop.fabricPick}</Label>
-            <select
-              className="w-full h-11 md:h-10 rounded border border-border bg-canvas px-3 text-sm"
-              value={fabric.pickedId === null ? NEW : String(fabric.pickedId)}
-              onChange={(e) => {
-                const v = e.target.value;
-                setFabric((f) => ({ ...f, pickedId: v === NEW ? null : Number(v) }));
-              }}
-            >
-              <option value={NEW}>{ar.addTop.createNewFabric}</option>
-              {fabricsQ.data?.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name_ar} ({f.code})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {fabricIsNew && (
-            <div className="space-y-3 border-t border-border pt-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label>{ar.addTop.fabricNameAr}</Label>
-                  <Input
-                    value={fabric.name_ar}
-                    onChange={(e) => setFabric({ ...fabric, name_ar: e.target.value })}
-                    placeholder="قطن مصري سادة 150سم"
-                    className="h-11 md:h-10"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>{ar.addTop.fabricCode}</Label>
-                  <Input
-                    value={fabric.code}
-                    onChange={(e) => setFabric({ ...fabric, code: e.target.value })}
-                    dir="ltr"
-                    placeholder="COT-150"
-                    className="h-11 md:h-10"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>{ar.addTop.widthCm}</Label>
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.5"
-                    value={fabric.width_cm}
-                    onChange={(e) => setFabric({ ...fabric, width_cm: e.target.value })}
-                    dir="ltr"
-                    className="h-11 md:h-10"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>{ar.addTop.grade}</Label>
-                  <select
-                    className="w-full h-11 md:h-10 rounded border border-border bg-canvas px-3 text-sm"
-                    value={fabric.grade}
-                    onChange={(e) => setFabric({ ...fabric, grade: e.target.value })}
-                  >
-                    <option value="A">A</option>
-                    <option value="B">B</option>
-                    <option value="C">C</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label>{ar.addTop.composition}</Label>
-                <div className="space-y-2">
-                  {fabric.composition.map((c, idx) => (
-                    <div key={idx} className="grid grid-cols-[1fr_120px_auto] gap-2">
-                      <Input
-                        value={c.material}
-                        onChange={(e) => {
-                          const next = [...fabric.composition];
-                          next[idx] = { ...c, material: e.target.value };
-                          setFabric({ ...fabric, composition: next });
-                        }}
-                        placeholder={ar.addTop.material}
-                        className="h-11 md:h-10"
-                      />
-                      <div className="flex items-center gap-1">
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          step="0.1"
-                          value={c.percent}
-                          onChange={(e) => {
-                            const next = [...fabric.composition];
-                            next[idx] = { ...c, percent: e.target.value };
-                            setFabric({ ...fabric, composition: next });
-                          }}
-                          dir="ltr"
-                          className="h-11 md:h-10"
-                        />
-                        <span className="text-sm text-muted-foreground">%</span>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setFabric({
-                            ...fabric,
-                            composition: fabric.composition.filter((_, i) => i !== idx),
-                          })
-                        }
-                        disabled={fabric.composition.length === 1}
-                      >
-                        {ar.common.cancel}
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      setFabric({
-                        ...fabric,
-                        composition: [...fabric.composition, { material: '', percent: '' }],
-                      })
-                    }
-                  >
-                    + {ar.addTop.addMaterial}
-                  </Button>
-                </div>
-              </div>
+            <div className="flex gap-2">
+              <select
+                className="flex-1 h-11 md:h-10 rounded border border-border bg-canvas px-3 text-sm"
+                value={pickedFabricId === null ? '' : String(pickedFabricId)}
+                onChange={(e) => setPickedFabricId(e.target.value ? Number(e.target.value) : null)}
+              >
+                <option value="">— اختر خامة —</option>
+                {fabricsQ.data?.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name_ar} ({f.code})
+                  </option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-11 md:h-10 w-10 shrink-0"
+                onClick={() => setFabricDialogOpen(true)}
+                title="إضافة خامة جديدة"
+              >
+                <Plus className="size-4" />
+              </Button>
             </div>
-          )}
+          </div>
         </CardContent>
       </Card>
 
@@ -527,7 +675,6 @@ export function AddTopPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           {rows.map((row, idx) => {
-            const colorIsNew = row.pickedColorId === null;
             return (
               <div
                 key={row.uid}
@@ -545,11 +692,7 @@ export function AddTopPage() {
                       onClick={() =>
                         setRows((rs) => [
                           ...rs.slice(0, idx + 1),
-                          blankRow({
-                            pickedColorId: row.pickedColorId,
-                            newColorNameAr: row.newColorNameAr,
-                            newColorCode: row.newColorCode,
-                          }),
+                          blankRow({ pickedColorId: row.pickedColorId }),
                           ...rs.slice(idx + 1),
                         ])
                       }
@@ -571,27 +714,38 @@ export function AddTopPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label>{ar.addTop.color}</Label>
-                    <select
-                      className="w-full h-11 md:h-10 rounded border border-border bg-canvas px-3 text-sm"
-                      value={row.pickedColorId === null ? NEW : String(row.pickedColorId)}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setRows((rs) =>
-                          rs.map((r, i) =>
-                            i === idx
-                              ? { ...r, pickedColorId: v === NEW ? null : Number(v) }
-                              : r,
-                          ),
-                        );
-                      }}
-                    >
-                      <option value={NEW}>{ar.addTop.createNewColor}</option>
-                      {colorsQ.data?.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name_ar} ({c.code})
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex gap-2">
+                      <select
+                        className="flex-1 h-11 md:h-10 rounded border border-border bg-canvas px-3 text-sm"
+                        value={row.pickedColorId === null ? '' : String(row.pickedColorId)}
+                        onChange={(e) =>
+                          setRows((rs) =>
+                            rs.map((r, i) =>
+                              i === idx
+                                ? { ...r, pickedColorId: e.target.value ? Number(e.target.value) : null }
+                                : r,
+                            ),
+                          )
+                        }
+                      >
+                        <option value="">— اختر لوناً —</option>
+                        {colorsQ.data?.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name_ar} ({c.code})
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-11 md:h-10 w-10 shrink-0"
+                        onClick={() => setColorDialogForIdx(idx)}
+                        title="إضافة لون جديد"
+                      >
+                        <Plus className="size-4" />
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="space-y-1">
@@ -615,42 +769,6 @@ export function AddTopPage() {
                       className="h-11 md:h-10"
                     />
                   </div>
-
-                  {colorIsNew && (
-                    <>
-                      <div className="space-y-1">
-                        <Label>{ar.addTop.newColorNameAr}</Label>
-                        <Input
-                          value={row.newColorNameAr}
-                          onChange={(e) =>
-                            setRows((rs) =>
-                              rs.map((r, i) =>
-                                i === idx ? { ...r, newColorNameAr: e.target.value } : r,
-                              ),
-                            )
-                          }
-                          placeholder="أحمر"
-                          className="h-11 md:h-10"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label>{ar.addTop.newColorCode}</Label>
-                        <Input
-                          value={row.newColorCode}
-                          onChange={(e) =>
-                            setRows((rs) =>
-                              rs.map((r, i) =>
-                                i === idx ? { ...r, newColorCode: e.target.value } : r,
-                              ),
-                            )
-                          }
-                          dir="ltr"
-                          placeholder="RED-01"
-                          className="h-11 md:h-10"
-                        />
-                      </div>
-                    </>
-                  )}
 
                   <div className="space-y-1">
                     <Label>{ar.addTop.sellingPricePerKg}</Label>
