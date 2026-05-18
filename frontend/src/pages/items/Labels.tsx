@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { itemsApi } from '@/lib/items-api';
+import { openPdfBlob } from '@/lib/pdf';
 import type { RollWithDetails } from '@/lib/items-types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,12 +17,6 @@ import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
 import { PageHeader } from '@/components/PageHeader';
 import { RollStatusPill } from '@/components/items/RollStatusPill';
-
-function openBlobPdf(blob: Blob) {
-  const url = URL.createObjectURL(blob);
-  window.open(url, '_blank');
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
-}
 
 export function LabelsPage() {
   const [filters, setFilters] = useState({ fabric: '', color: '', rollSrNo: '', barcodePartial: '' });
@@ -46,14 +41,19 @@ export function LabelsPage() {
 
   const batchMut = useMutation({
     mutationFn: (ids: number[]) => itemsApi.batchLabelsPdf(ids),
-    onSuccess: (blob) => openBlobPdf(blob),
+    onSuccess: (blob) => openPdfBlob(blob),
+  });
+
+  const labelPdfMut = useMutation({
+    mutationFn: (rollId: number) => itemsApi.labelPdfBlob(rollId),
+    onSuccess: (blob) => openPdfBlob(blob),
   });
 
   const reprintMut = useMutation({
     mutationFn: ({ id, reason }: { id: number; reason: string }) =>
       itemsApi.reprintLabel(id, reason),
     onSuccess: (blob) => {
-      openBlobPdf(blob);
+      openPdfBlob(blob);
       setReprintTarget(null);
       setReprintReason('');
     },
@@ -247,10 +247,13 @@ export function LabelsPage() {
             resetKey={resetKey}
             actions={(r) => (
               <div className="flex gap-1">
-                <Button size="sm" variant="outline" asChild>
-                  <a href={itemsApi.labelPdfUrl(r.id)} target="_blank" rel="noreferrer">
-                    {ar.labels.print}
-                  </a>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={labelPdfMut.isPending && labelPdfMut.variables === r.id}
+                  onClick={() => labelPdfMut.mutate(r.id)}
+                >
+                  {ar.labels.print}
                 </Button>
                 <Button
                   size="sm"

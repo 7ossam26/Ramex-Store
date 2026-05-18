@@ -351,13 +351,14 @@ export function POSPage() {
 
       {/* Main two-column grid (lg+): scan area | cart */}
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(380px,2fr)] gap-4">
-        {/* LEFT: scan + manual search + flash */}
+        {/* LEFT: scan + product grid + flash */}
         <ScanColumn
           onScan={handleScanEnter}
           error={scanError}
           flash={scanFlash}
           feedback={scannerFeedback}
           shakeNonce={shakeNonce}
+          cart={cart}
           onPickManual={(roll) => {
             if (!cart.find((l) => l.roll.id === roll.id)) {
               setCart((c) => [...c, { roll, priceOverride: '', lineDiscount: '' }]);
@@ -707,6 +708,7 @@ function ScanColumn({
   flash,
   feedback,
   shakeNonce,
+  cart,
   onPickManual,
   onShowLabel,
 }: {
@@ -715,6 +717,7 @@ function ScanColumn({
   flash: RollLookup | null;
   feedback: ScannerFeedback;
   shakeNonce: number;
+  cart: CartLine[];
   onPickManual: (r: RollLookup) => void;
   onShowLabel: (r: RollLookup) => void;
 }) {
@@ -771,7 +774,11 @@ function ScanColumn({
           </p>
         )}
 
-        <ManualSearchBlock onPick={onPickManual} />
+        <ProductsGrid
+          cart={cart}
+          onPick={onPickManual}
+          onShowLabel={onShowLabel}
+        />
       </CardContent>
     </Card>
   );
@@ -1268,84 +1275,161 @@ function PaymentForm({
 }
 
 /* ────────────────────────────────────────────────────────────────────────── *
- * MANUAL SEARCH BLOCK
+ * PRODUCTS GRID — all available rolls displayed as inline cards
  * ────────────────────────────────────────────────────────────────────────── */
-function ManualSearchBlock({ onPick }: { onPick: (r: RollLookup) => void }) {
-  const [open, setOpen] = useState(false);
+function ProductsGrid({
+  cart,
+  onPick,
+  onShowLabel,
+}: {
+  cart: CartLine[];
+  onPick: (r: RollLookup) => void;
+  onShowLabel: (r: RollLookup) => void;
+}) {
   const [search, setSearch] = useState('');
 
-  const { data: rolls = [] } = useQuery<RollLookup[]>({
-    queryKey: ['pos-rolls', search],
+  const { data: rolls = [], isLoading } = useQuery<RollLookup[]>({
+    queryKey: ['pos-rolls'],
     queryFn: () =>
       salesApi.searchRolls({ status: 'in_stock', is_visible_at_pos: true }),
-    enabled: open,
   });
 
-  const filtered = rolls.filter((r) =>
-    `${r.fabric_name_ar} ${r.color_name_ar} ${r.roll_sr_no ?? ''} ${r.internal_barcode}`
-      .toLowerCase()
-      .includes(search.toLowerCase()),
-  );
+  const cartIds = useMemo(() => new Set(cart.map((l) => l.roll.id)), [cart]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rolls;
+    return rolls.filter((r) =>
+      `${r.fabric_name_ar} ${r.color_name_ar} ${r.color_code ?? ''} ${r.roll_sr_no ?? ''} ${r.internal_barcode} ${r.brand_arabic_name ?? ''}`
+        .toLowerCase()
+        .includes(q),
+    );
+  }, [rolls, search]);
 
   return (
-    <>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setOpen(true)}
-        className="h-10 cursor-pointer gap-2"
-      >
-        <Search className="size-4" />
-        {ar.pos.manualSearch}
-      </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{ar.pos.manualSearch}</DialogTitle>
-          </DialogHeader>
+    <div className="space-y-3 border-t border-border-subtle pt-3">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <h3 className="text-base font-semibold text-foreground">
+            {ar.pos.allProducts}
+          </h3>
+          {!isLoading && (
+            <span className="inline-flex items-center justify-center rounded-pill bg-surface-row-alt px-2 py-0.5 text-xs text-foreground-muted tabular-num">
+              {filtered.length}
+            </span>
+          )}
+        </div>
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 size-4 text-foreground-tertiary pointer-events-none" />
           <Input
-            placeholder={ar.pos.manualSearch}
+            placeholder={ar.pos.searchProducts}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             dir="rtl"
-            className="h-11 md:h-10"
+            className="h-10 ps-8"
           />
-          <div className="max-h-96 overflow-auto border border-border-subtle rounded-md">
-            {filtered.map((r) => (
-              <button
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="rounded-md border border-border-subtle bg-surface-elevated p-3 h-32 animate-pulse"
+            />
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-8 text-sm text-foreground-tertiary">
+          {ar.common.none}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2 max-h-[60vh] overflow-y-auto pe-1 -me-1">
+          {filtered.map((r) => {
+            const inCart = cartIds.has(r.id);
+            const fabric = isFabricRoll(r);
+            return (
+              <div
                 key={r.id}
-                onClick={() => {
-                  onPick(r);
-                  setOpen(false);
-                  setSearch('');
-                }}
-                className="w-full text-start p-3 hover:bg-surface-hover border-b border-border-subtle last:border-0 text-sm min-h-12 cursor-pointer transition-colors duration-150"
+                className={`group relative rounded-md border bg-surface-elevated p-3 flex flex-col gap-2 transition-colors duration-150 ${
+                  inCart
+                    ? 'border-success/40 bg-success-subtle'
+                    : 'border-border-subtle hover:border-accent hover:bg-surface-hover'
+                }`}
               >
-                <div className="flex justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="font-medium truncate text-foreground">
-                      {r.fabric_name_ar} / {r.color_name_ar}
-                    </div>
-                    <div className="text-xs text-foreground-tertiary tabular-num" dir="ltr">
-                      {r.roll_sr_no ?? r.internal_barcode} ·{' '}
-                      {Number(r.weight_kg).toFixed(3)} كجم
-                    </div>
+                {inCart && (
+                  <span className="absolute top-2 start-2 inline-flex items-center gap-1 rounded-pill bg-success text-white px-2 py-0.5 text-[10px] font-medium">
+                    <CheckCircle2 className="size-3" />
+                    {ar.pos.inCart}
+                  </span>
+                )}
+
+                <div className="min-w-0 space-y-1">
+                  <div className="font-medium text-sm truncate text-foreground">
+                    {r.fabric_name_ar}
                   </div>
-                  <div className="text-end shrink-0 tabular-num text-foreground">
-                    <div dir="ltr">{fmtMoney(r.selling_price_egp)}</div>
+                  {r.color_name_ar && (
+                    <div className="text-xs text-foreground-muted truncate">
+                      {r.color_code ? `${r.color_name_ar} · ${r.color_code}` : r.color_name_ar}
+                    </div>
+                  )}
+                  <div
+                    className="text-[11px] text-foreground-tertiary font-mono tabular-num truncate"
+                    dir="ltr"
+                  >
+                    {r.roll_sr_no ?? r.internal_barcode}
                   </div>
                 </div>
-              </button>
-            ))}
-            {filtered.length === 0 && (
-              <p className="p-4 text-center text-foreground-tertiary text-sm">
-                {ar.common.none}
-              </p>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-foreground-muted tabular-num" dir="ltr">
+                    {Number(r.weight_kg).toFixed(3)} كجم
+                  </span>
+                  <span className="font-semibold text-foreground tabular-num" dir="ltr">
+                    {fmtMoney(r.selling_price_egp)}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1 mt-auto">
+                  <Button
+                    size="sm"
+                    variant={inCart ? 'outline' : 'default'}
+                    disabled={inCart}
+                    onClick={() => onPick(r)}
+                    className="h-9 flex-1 cursor-pointer gap-1 disabled:cursor-not-allowed"
+                  >
+                    {inCart ? (
+                      <>
+                        <CheckCircle2 className="size-4" />
+                        {ar.pos.inCart}
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingCart className="size-4" />
+                        {ar.pos.addToCart}
+                      </>
+                    )}
+                  </Button>
+                  {fabric && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onShowLabel(r)}
+                      className="h-9 size-9 p-0 cursor-pointer text-foreground-tertiary hover:text-accent"
+                      aria-label={ar.pos.label}
+                      title={ar.pos.label}
+                    >
+                      <Tag className="size-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1361,11 +1445,26 @@ function LabelPreviewModal({
 }) {
   const open = !!roll;
   const [format, setFormat] = useState<'thermal' | 'a4'>('thermal');
-  const url = roll ? itemsApi.fabricLabelUrl(roll.id, format) : '';
+  const [blobUrl, setBlobUrl] = useState<string>('');
 
   useEffect(() => {
     if (!open) setFormat('thermal');
   }, [open]);
+
+  useEffect(() => {
+    if (!roll) { setBlobUrl(''); return; }
+    let created: string | null = null;
+    let cancelled = false;
+    itemsApi.fabricLabelBlob(roll.id, format).then((blob) => {
+      if (cancelled) return;
+      created = URL.createObjectURL(blob);
+      setBlobUrl(created);
+    });
+    return () => {
+      cancelled = true;
+      if (created) URL.revokeObjectURL(created);
+    };
+  }, [roll, format]);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -1402,22 +1501,30 @@ function LabelPreviewModal({
                 A4
               </Button>
             </div>
-            <iframe
-              src={url}
-              title={ar.pos.labelPreview}
-              className="w-full h-[60vh] border border-border-subtle rounded-md"
-            />
+            {blobUrl ? (
+              <iframe
+                src={blobUrl}
+                title={ar.pos.labelPreview}
+                className="w-full h-[60vh] border border-border-subtle rounded-md"
+              />
+            ) : (
+              <div className="w-full h-[60vh] border border-border-subtle rounded-md grid place-items-center text-sm text-foreground-tertiary">
+                {ar.loading}
+              </div>
+            )}
             <div className="flex justify-end gap-2">
               <DialogClose asChild>
                 <Button variant="outline" className="cursor-pointer">
                   {ar.common.cancel}
                 </Button>
               </DialogClose>
-              <Button asChild className="cursor-pointer gap-2">
-                <a href={url} target="_blank" rel="noreferrer">
-                  <Tag className="size-4" />
-                  {ar.pos.print}
-                </a>
+              <Button
+                disabled={!blobUrl}
+                className="cursor-pointer gap-2"
+                onClick={() => { if (blobUrl) window.open(blobUrl, '_blank'); }}
+              >
+                <Tag className="size-4" />
+                {ar.pos.print}
               </Button>
             </div>
           </div>

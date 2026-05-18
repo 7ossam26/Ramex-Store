@@ -376,6 +376,11 @@ export const ar = {
     keyboardHint: 'Tab للتنقل · Enter للتأكيد',
     addingToCart: 'جارٍ الإضافة...',
     alreadyInCart: 'هذا التوب موجود بالفعل في السلة',
+    allProducts: 'كل التوبات',
+    searchProducts: 'ابحث عن توب أو خامة أو لون',
+    inCart: 'في السلة',
+    addToCart: 'إضافة',
+    available: 'متاح',
   },
   invoices: {
     title: 'الفواتير',
