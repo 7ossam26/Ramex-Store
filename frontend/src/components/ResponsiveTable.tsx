@@ -15,7 +15,7 @@ export type Column<T> = {
   secondary?: boolean;
   /** Hide entirely on mobile. */
   hideOnMobile?: boolean;
-  align?: 'start' | 'end';
+  align?: 'start' | 'center' | 'end';
   className?: string;
   /** Fixed width / min width on desktop. */
   width?: string;
@@ -128,6 +128,7 @@ export function ResponsiveTable<T>({
                   className={cn(
                     'px-3 py-3 font-medium uppercase tracking-wide',
                     c.align === 'end' && 'text-end',
+                    c.align === 'center' && 'text-center',
                     c.className,
                   )}
                   style={c.width ? { width: c.width } : undefined}
@@ -177,6 +178,7 @@ export function ResponsiveTable<T>({
                           className={cn(
                             'px-3 py-2.5 align-middle text-foreground',
                             c.align === 'end' && 'text-end',
+                            c.align === 'center' && 'text-center',
                             c.className,
                           )}
                         >

@@ -140,6 +140,7 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
         </Link>
       ),
       primary: true,
+      align: 'center',
       width: '110px',
     },
     {
@@ -147,6 +148,7 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
       header: ar.invoices.date,
       cell: (r) => <span className="text-foreground-muted whitespace-nowrap" dir="ltr">{fmtDate(r.created_at)}</span>,
       secondary: true,
+      align: 'center',
       width: '150px',
     },
     {
@@ -154,39 +156,41 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
       header: ar.invoices.customer,
       cell: (r) => <span className="block truncate">{r.customer_name_ar}</span>,
       secondary: true,
+      align: 'center',
     },
     {
       key: 'total',
       header: ar.invoices.total,
       cell: (r) => <span className="font-medium tabular-num" dir="ltr">{fmtMoney(r.total_egp)}</span>,
-      align: 'end',
+      align: 'center',
       width: '110px',
     },
     {
       key: 'paid',
       header: ar.invoices.paid,
       cell: (r) => <span className="tabular-num" dir="ltr">{fmtMoney(r.paid_egp)}</span>,
-      align: 'end',
+      align: 'center',
       width: '110px',
     },
     {
       key: 'balance',
       header: ar.invoices.balance,
       cell: (r) => <span className="tabular-num" dir="ltr">{fmtMoney(r.balance_egp)}</span>,
-      align: 'end',
+      align: 'center',
       width: '110px',
     },
     {
       key: 'status',
       header: ar.invoices.status,
       cell: (r) => <InvoiceStatusPill status={r.status} />,
+      align: 'center',
       width: '130px',
     },
     {
       key: 'actions',
       header: ar.invoices.actions,
       cell: (r) => (
-        <div className="flex gap-3 justify-end whitespace-nowrap">
+        <div className="flex gap-3 justify-center whitespace-nowrap">
           <Link to={`/invoices/${r.id}`} className="text-xs text-accent hover:text-accent-hover hover:underline underline-offset-2">
             {ar.invoices.view}
           </Link>
@@ -201,7 +205,7 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
         </div>
       ),
       hideOnMobile: true,
-      align: 'end',
+      align: 'center',
       width: '140px',
     },
   ];
@@ -252,6 +256,7 @@ function OpenInvoicesTab() {
         </Link>
       ),
       primary: true,
+      align: 'center',
       width: '110px',
     },
     {
@@ -259,6 +264,7 @@ function OpenInvoicesTab() {
       header: ar.invoices.date,
       cell: (r) => <span className="text-foreground-muted whitespace-nowrap" dir="ltr">{fmtDate(r.created_at)}</span>,
       secondary: true,
+      align: 'center',
       width: '150px',
     },
     {
@@ -266,19 +272,20 @@ function OpenInvoicesTab() {
       header: ar.invoices.customer,
       cell: (r) => <span className="block truncate">{r.customer_name_ar}</span>,
       secondary: true,
+      align: 'center',
     },
     {
       key: 'total',
       header: ar.invoices.total,
       cell: (r) => <span className="font-medium tabular-num" dir="ltr">{fmtMoney(r.total_egp)}</span>,
-      align: 'end',
+      align: 'center',
       width: '120px',
     },
     {
       key: 'balance',
       header: ar.invoices.balance,
       cell: (r) => <span className="tabular-num" dir="ltr">{fmtMoney(r.balance_egp)}</span>,
-      align: 'end',
+      align: 'center',
       width: '120px',
     },
     {
@@ -291,7 +298,7 @@ function OpenInvoicesTab() {
           {r.is_stale && <StatusPill tone="warning">{ar.invoices.staleBadge}</StatusPill>}
         </span>
       ),
-      align: 'end',
+      align: 'center',
       width: '160px',
     },
     {
@@ -303,7 +310,7 @@ function OpenInvoicesTab() {
         </Link>
       ),
       hideOnMobile: true,
-      align: 'end',
+      align: 'center',
       width: '80px',
     },
   ];
@@ -348,6 +355,7 @@ function PendingPickupTab() {
         </Link>
       ),
       primary: true,
+      align: 'center',
       width: '110px',
     },
     {
@@ -355,6 +363,7 @@ function PendingPickupTab() {
       header: ar.invoices.date,
       cell: (r) => <span className="text-foreground-muted whitespace-nowrap" dir="ltr">{fmtDate(r.created_at)}</span>,
       secondary: true,
+      align: 'center',
       width: '150px',
     },
     {
@@ -362,19 +371,20 @@ function PendingPickupTab() {
       header: ar.invoices.customer,
       cell: (r) => <span className="block truncate">{r.customer_name_ar}</span>,
       secondary: true,
+      align: 'center',
     },
     {
       key: 'phone',
       header: ar.customers.phone,
       cell: (r) => <span className="font-mono tabular-num whitespace-nowrap" dir="ltr">{r.customer_phone}</span>,
-      align: 'end',
+      align: 'center',
       width: '140px',
     },
     {
       key: 'total',
       header: ar.invoices.total,
       cell: (r) => <span className="font-medium tabular-num" dir="ltr">{fmtMoney(r.total_egp)}</span>,
-      align: 'end',
+      align: 'center',
       width: '120px',
     },
   ];
