@@ -88,6 +88,7 @@ export function App() {
                   path="/shipments/pending"
                   element={<ShipmentsListPage defaultStatus="pending_approval" />}
                 />
+                <Route path="/shipments/:id/continue" element={<CreateShipmentPage />} />
                 <Route path="/shipments/:id" element={<ReviewShipmentPage />} />
 
                 <Route path="/customers" element={<CustomersListPage />} />

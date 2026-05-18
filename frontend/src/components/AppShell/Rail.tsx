@@ -33,7 +33,7 @@ export function Rail() {
   };
   const scheduleClose = () => {
     cancelClose();
-    closeTimer.current = window.setTimeout(() => setOpenId(null), 120);
+    closeTimer.current = window.setTimeout(() => setOpenId(null), 250);
   };
   const open = (id: string) => {
     cancelClose();
@@ -110,12 +110,10 @@ export function Rail() {
                     <motion.div
                       role="menu"
                       aria-label={section.labelAr}
-                      initial={{ opacity: 0, x: 6 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 6 }}
-                      transition={{ duration: 0.15, ease: [0.2, 0, 0, 1] }}
-                      onMouseEnter={cancelClose}
-                      onMouseLeave={scheduleClose}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.12, ease: [0.2, 0, 0, 1] }}
                       className="absolute right-full top-0 w-60 bg-surface-elevated text-foreground rounded-md border border-border-default shadow-lg z-[1095] py-1"
                     >
                       <div className="px-3 py-2 text-xs font-semibold text-foreground-muted border-b border-border-subtle flex items-center justify-between gap-2">

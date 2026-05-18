@@ -165,6 +165,10 @@ export const ar = {
     allStatuses: 'كل الحالات',
     empty: 'لا توجد طلبيات',
     notDraftCannotEdit: 'لا يمكن تعديل طلبية بعد إرسالها',
+    view: 'عرض',
+    continueDraft: 'متابعة',
+    deleteDraft: 'حذف',
+    confirmDelete: 'تأكيد حذف هذه المسودة؟ لا يمكن التراجع.',
   },
   stocktake: {
     title: 'الجرد',

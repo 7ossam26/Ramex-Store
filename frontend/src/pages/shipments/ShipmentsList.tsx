@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, useNavigate } from 'react-router-dom';
+import { Eye, Pencil, Trash2 } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
 import type { ShipmentStatus } from '@/lib/inventory-types';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { PageHeader } from '@/components/PageHeader';
 import { ShipmentStatusPill } from '@/components/shipments/ShipmentStatusPill';
+import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 const STATUSES: Array<ShipmentStatus | ''> = [
   '', 'draft', 'pending_approval', 'partial_approved', 'approved', 'rejected', 'cancelled',
@@ -21,9 +24,20 @@ type ShipmentRow = {
 
 export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentStatus } = {}) {
   const [status, setStatus] = useState<ShipmentStatus | ''>(defaultStatus ?? '');
+  const [pendingDelete, setPendingDelete] = useState<ShipmentRow | null>(null);
+  const navigate = useNavigate();
+  const qc = useQueryClient();
   const q = useQuery({
     queryKey: ['shipments', status],
     queryFn: () => inventoryApi.listShipments(status ? { status } : undefined),
+  });
+
+  const deleteDraft = useMutation({
+    mutationFn: (id: number) => inventoryApi.deleteShipmentDraft(id),
+    onSuccess: () => {
+      setPendingDelete(null);
+      qc.invalidateQueries({ queryKey: ['shipments'] });
+    },
   });
 
   const rows = (q.data ?? []) as ShipmentRow[];
@@ -80,6 +94,53 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
         isError={q.isError}
         onRetry={() => q.refetch()}
         resetKey={status}
+        actions={(s) => (
+          <div className="flex gap-1 justify-end">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(`/shipments/${s.id}`)}
+              title={ar.shipments.view}
+              aria-label={ar.shipments.view}
+            >
+              <Eye className="size-4" />
+            </Button>
+            {s.status === 'draft' && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate(`/shipments/${s.id}/continue`)}
+                  title={ar.shipments.continueDraft}
+                  aria-label={ar.shipments.continueDraft}
+                >
+                  <Pencil className="size-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setPendingDelete(s)}
+                  title={ar.shipments.deleteDraft}
+                  aria-label={ar.shipments.deleteDraft}
+                  className="text-danger hover:text-danger"
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </>
+            )}
+          </div>
+        )}
+      />
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        message={
+          pendingDelete
+            ? `${ar.shipments.confirmDelete}\n${pendingDelete.shipment_no}`
+            : ''
+        }
+        onConfirm={() => pendingDelete && deleteDraft.mutate(pendingDelete.id)}
+        onCancel={() => setPendingDelete(null)}
       />
     </div>
   );
