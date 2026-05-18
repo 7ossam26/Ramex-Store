@@ -98,6 +98,11 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const activeFilters = (dateFrom ? 1 : 0) + (dateTo ? 1 : 0);
 
+  const reprintMut = useMutation({
+    mutationFn: (invoiceId: number) => salesApi.pdfBlob(invoiceId, 'reprint'),
+    onSuccess: (blob) => openPdfBlob(blob),
+  });
+
   const filterControls = (
     <div className="rounded-lg border border-border-subtle bg-surface-elevated p-3 space-y-3">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -135,36 +140,69 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
         </Link>
       ),
       primary: true,
+      width: '110px',
     },
-    { key: 'date', header: ar.invoices.date, cell: (r) => <span className="text-foreground-muted" dir="ltr">{fmtDate(r.created_at)}</span>, secondary: true },
-    { key: 'customer', header: ar.invoices.customer, cell: (r) => r.customer_name_ar, secondary: true },
+    {
+      key: 'date',
+      header: ar.invoices.date,
+      cell: (r) => <span className="text-foreground-muted whitespace-nowrap" dir="ltr">{fmtDate(r.created_at)}</span>,
+      secondary: true,
+      width: '150px',
+    },
+    {
+      key: 'customer',
+      header: ar.invoices.customer,
+      cell: (r) => <span className="block truncate">{r.customer_name_ar}</span>,
+      secondary: true,
+    },
     {
       key: 'total',
       header: ar.invoices.total,
       cell: (r) => <span className="font-medium tabular-num" dir="ltr">{fmtMoney(r.total_egp)}</span>,
+      align: 'end',
+      width: '110px',
     },
-    { key: 'paid', header: ar.invoices.paid, cell: (r) => <span className="tabular-num" dir="ltr">{fmtMoney(r.paid_egp)}</span> },
-    { key: 'balance', header: ar.invoices.balance, cell: (r) => <span className="tabular-num" dir="ltr">{fmtMoney(r.balance_egp)}</span> },
-    { key: 'status', header: ar.invoices.status, cell: (r) => <InvoiceStatusPill status={r.status} /> },
+    {
+      key: 'paid',
+      header: ar.invoices.paid,
+      cell: (r) => <span className="tabular-num" dir="ltr">{fmtMoney(r.paid_egp)}</span>,
+      align: 'end',
+      width: '110px',
+    },
+    {
+      key: 'balance',
+      header: ar.invoices.balance,
+      cell: (r) => <span className="tabular-num" dir="ltr">{fmtMoney(r.balance_egp)}</span>,
+      align: 'end',
+      width: '110px',
+    },
+    {
+      key: 'status',
+      header: ar.invoices.status,
+      cell: (r) => <InvoiceStatusPill status={r.status} />,
+      width: '130px',
+    },
     {
       key: 'actions',
       header: ar.invoices.actions,
       cell: (r) => (
-        <div className="flex gap-3">
+        <div className="flex gap-3 justify-end whitespace-nowrap">
           <Link to={`/invoices/${r.id}`} className="text-xs text-accent hover:text-accent-hover hover:underline underline-offset-2">
             {ar.invoices.view}
           </Link>
-          <a
-            className="text-xs text-accent hover:text-accent-hover hover:underline underline-offset-2"
-            href={salesApi.pdfUrl(r.id, 'reprint')}
-            target="_blank"
-            rel="noreferrer"
+          <button
+            type="button"
+            className="text-xs text-accent hover:text-accent-hover hover:underline underline-offset-2 cursor-pointer disabled:opacity-50"
+            disabled={reprintMut.isPending && reprintMut.variables === r.id}
+            onClick={(e) => { e.stopPropagation(); reprintMut.mutate(r.id); }}
           >
             {ar.invoices.reprint}
-          </a>
+          </button>
         </div>
       ),
       hideOnMobile: true,
+      align: 'end',
+      width: '140px',
     },
   ];
 
@@ -214,21 +252,47 @@ function OpenInvoicesTab() {
         </Link>
       ),
       primary: true,
+      width: '110px',
     },
-    { key: 'date', header: ar.invoices.date, cell: (r) => <span className="text-foreground-muted" dir="ltr">{fmtDate(r.created_at)}</span>, secondary: true },
-    { key: 'customer', header: ar.invoices.customer, cell: (r) => r.customer_name_ar, secondary: true },
-    { key: 'total', header: ar.invoices.total, cell: (r) => <span className="font-medium tabular-num" dir="ltr">{fmtMoney(r.total_egp)}</span> },
-    { key: 'balance', header: ar.invoices.balance, cell: (r) => <span className="tabular-num" dir="ltr">{fmtMoney(r.balance_egp)}</span> },
+    {
+      key: 'date',
+      header: ar.invoices.date,
+      cell: (r) => <span className="text-foreground-muted whitespace-nowrap" dir="ltr">{fmtDate(r.created_at)}</span>,
+      secondary: true,
+      width: '150px',
+    },
+    {
+      key: 'customer',
+      header: ar.invoices.customer,
+      cell: (r) => <span className="block truncate">{r.customer_name_ar}</span>,
+      secondary: true,
+    },
+    {
+      key: 'total',
+      header: ar.invoices.total,
+      cell: (r) => <span className="font-medium tabular-num" dir="ltr">{fmtMoney(r.total_egp)}</span>,
+      align: 'end',
+      width: '120px',
+    },
+    {
+      key: 'balance',
+      header: ar.invoices.balance,
+      cell: (r) => <span className="tabular-num" dir="ltr">{fmtMoney(r.balance_egp)}</span>,
+      align: 'end',
+      width: '120px',
+    },
     {
       key: 'age',
       header: ar.invoices.age,
       cell: (r) => (
-        <span className="inline-flex items-center gap-2">
+        <span className="inline-flex items-center gap-2 whitespace-nowrap">
           <span className="tabular-num" dir="ltr">{r.age_days}</span>
           <span className="text-foreground-muted text-xs">{ar.invoices.days}</span>
           {r.is_stale && <StatusPill tone="warning">{ar.invoices.staleBadge}</StatusPill>}
         </span>
       ),
+      align: 'end',
+      width: '160px',
     },
     {
       key: 'actions',
@@ -239,6 +303,8 @@ function OpenInvoicesTab() {
         </Link>
       ),
       hideOnMobile: true,
+      align: 'end',
+      width: '80px',
     },
   ];
 
@@ -282,11 +348,35 @@ function PendingPickupTab() {
         </Link>
       ),
       primary: true,
+      width: '110px',
     },
-    { key: 'date', header: ar.invoices.date, cell: (r) => <span className="text-foreground-muted" dir="ltr">{fmtDate(r.created_at)}</span>, secondary: true },
-    { key: 'customer', header: ar.invoices.customer, cell: (r) => r.customer_name_ar, secondary: true },
-    { key: 'phone', header: ar.customers.phone, cell: (r) => <span className="font-mono tabular-num" dir="ltr">{r.customer_phone}</span> },
-    { key: 'total', header: ar.invoices.total, cell: (r) => <span className="font-medium tabular-num" dir="ltr">{fmtMoney(r.total_egp)}</span> },
+    {
+      key: 'date',
+      header: ar.invoices.date,
+      cell: (r) => <span className="text-foreground-muted whitespace-nowrap" dir="ltr">{fmtDate(r.created_at)}</span>,
+      secondary: true,
+      width: '150px',
+    },
+    {
+      key: 'customer',
+      header: ar.invoices.customer,
+      cell: (r) => <span className="block truncate">{r.customer_name_ar}</span>,
+      secondary: true,
+    },
+    {
+      key: 'phone',
+      header: ar.customers.phone,
+      cell: (r) => <span className="font-mono tabular-num whitespace-nowrap" dir="ltr">{r.customer_phone}</span>,
+      align: 'end',
+      width: '140px',
+    },
+    {
+      key: 'total',
+      header: ar.invoices.total,
+      cell: (r) => <span className="font-medium tabular-num" dir="ltr">{fmtMoney(r.total_egp)}</span>,
+      align: 'end',
+      width: '120px',
+    },
   ];
 
   return (
