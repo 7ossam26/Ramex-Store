@@ -467,12 +467,6 @@ export function visibleNav(role: Role | undefined): NavTop[] {
   });
 }
 
-/** Whether clicking this section in the rail should open a flyout (vs navigate). */
-export function hasFlyout(section: NavTop): boolean {
-  if (section.id === 'settings') return false; // explicit settings exception
-  return Boolean(section.children && section.children.some((g) => g.items.length > 0));
-}
-
 /** Flat list of all reachable leaves (for the command palette). */
 export function allLeaves(role: Role | undefined): NavLeaf[] {
   const out: NavLeaf[] = [];

@@ -9,6 +9,11 @@ export type StockSummaryRow = {
   count_reserved: number;
   count_sold: number;
   count_total: number;
+  weight_kg_in_stock: number;
+  avg_purchase_price_egp: number;
+  last_purchase_price_egp: number;
+  selling_price_egp: number;
+  min_quantity_rolls: number;
 };
 
 export type Warehouse = 'shop' | 'factory' | 'damaged_shop';

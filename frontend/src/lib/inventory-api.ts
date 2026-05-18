@@ -116,8 +116,8 @@ export const inventoryApi = {
       .then((r) => r.data),
 
   // Stock Summary (inventory landing)
-  getStockSummary: () =>
+  getStockSummary: (params?: { warehouse?: Warehouse }) =>
     api
-      .get<{ rows: StockSummaryRow[] }>('/inventory/stock-summary')
+      .get<{ rows: StockSummaryRow[] }>('/inventory/stock-summary', { params })
       .then((r) => r.data.rows),
 };

@@ -1,5 +1,7 @@
 import { db } from '../../db/connection.js';
 
+export type WarehouseFilter = 'shop' | 'factory' | 'damaged_shop';
+
 export type StockSummaryRow = {
   fabric_id: number;
   fabric_name_ar: string;
@@ -11,9 +13,20 @@ export type StockSummaryRow = {
   count_reserved: number;
   count_sold: number;
   count_total: number;
+  weight_kg_in_stock: number;
+  avg_purchase_price_egp: number;
+  last_purchase_price_egp: number;
+  selling_price_egp: number;
+  min_quantity_rolls: number;
 };
 
-export async function getStockSummary(): Promise<StockSummaryRow[]> {
+const ALLOWED_WAREHOUSES: WarehouseFilter[] = ['shop', 'factory', 'damaged_shop'];
+
+export async function getStockSummary(warehouse?: WarehouseFilter): Promise<StockSummaryRow[]> {
+  const wh: WarehouseFilter | null =
+    warehouse && ALLOWED_WAREHOUSES.includes(warehouse) ? warehouse : null;
+  const whBoundClause = wh ? `AND r.warehouse = '${wh}'` : '';
+
   const rows = await db('rolls as r')
     .join('fabrics as f', 'f.id', 'r.fabric_id')
     .join('colors as c', 'c.id', 'r.color_id')
@@ -21,15 +34,26 @@ export async function getStockSummary(): Promise<StockSummaryRow[]> {
       'f.id as fabric_id',
       'f.name_ar as fabric_name_ar',
       'f.code as fabric_code',
+      'f.min_quantity_rolls as min_quantity_rolls',
       'c.id as color_id',
       'c.name_ar as color_name_ar',
       'c.code as color_code',
-      db.raw(`COUNT(*) FILTER (WHERE r.status = 'in_stock' AND r.warehouse = 'shop') AS count_in_stock`),
+      db.raw(`COUNT(*) FILTER (WHERE r.status = 'in_stock' ${whBoundClause}) AS count_in_stock`),
       db.raw(`COUNT(*) FILTER (WHERE r.status = 'reserved') AS count_reserved`),
       db.raw(`COUNT(*) FILTER (WHERE r.status = 'sold') AS count_sold`),
       db.raw(`COUNT(*) AS count_total`),
+      db.raw(`COALESCE(SUM(r.weight_kg) FILTER (WHERE r.status = 'in_stock' ${whBoundClause}), 0) AS weight_kg_in_stock`),
+      db.raw(`COALESCE(AVG(r.purchase_price_egp) FILTER (WHERE r.status = 'in_stock' ${whBoundClause}), 0) AS avg_purchase_price_egp`),
+      db.raw(`COALESCE(AVG(r.selling_price_egp) FILTER (WHERE r.status = 'in_stock' ${whBoundClause}), 0) AS selling_price_egp`),
+      db.raw(`(
+        SELECT r2.purchase_price_egp
+        FROM rolls r2
+        WHERE r2.fabric_id = f.id AND r2.color_id = c.id AND r2.purchase_price_egp IS NOT NULL
+        ORDER BY r2.received_at DESC NULLS LAST, r2.id DESC
+        LIMIT 1
+      ) AS last_purchase_price_egp`),
     )
-    .groupBy('f.id', 'f.name_ar', 'f.code', 'c.id', 'c.name_ar', 'c.code')
+    .groupBy('f.id', 'f.name_ar', 'f.code', 'f.min_quantity_rolls', 'c.id', 'c.name_ar', 'c.code')
     .orderBy('f.name_ar')
     .orderBy('c.name_ar');
 
@@ -44,5 +68,10 @@ export async function getStockSummary(): Promise<StockSummaryRow[]> {
     count_reserved: Number(r.count_reserved),
     count_sold: Number(r.count_sold),
     count_total: Number(r.count_total),
+    weight_kg_in_stock: Number(r.weight_kg_in_stock),
+    avg_purchase_price_egp: Number(r.avg_purchase_price_egp),
+    last_purchase_price_egp: Number(r.last_purchase_price_egp ?? 0),
+    selling_price_egp: Number(r.selling_price_egp),
+    min_quantity_rolls: Number(r.min_quantity_rolls),
   }));
 }

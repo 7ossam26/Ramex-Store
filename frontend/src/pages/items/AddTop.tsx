@@ -622,7 +622,7 @@ export function AddTopPage() {
               <Button
                 type="button"
                 variant="outline"
-                size="icon"
+                size="sm"
                 className="h-11 md:h-10 w-10 shrink-0"
                 onClick={() => setFabricDialogOpen(true)}
                 title="إضافة خامة جديدة"
@@ -715,7 +715,7 @@ export function AddTopPage() {
                       <Button
                         type="button"
                         variant="outline"
-                        size="icon"
+                        size="sm"
                         className="h-11 md:h-10 w-10 shrink-0"
                         onClick={() => setColorDialogForIdx(idx)}
                         title="إضافة لون جديد"
