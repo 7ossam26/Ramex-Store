@@ -117,9 +117,10 @@ export function CreateShipmentPage() {
         }
       }
       const drafts = await inventoryApi.listShipments({ status: 'draft' });
+      const userId = Number(user.id);
       const mine = drafts
-        .filter((d) => Number(d.created_by_user_id) === user.id)
-        .sort((a, b) => b.id - a.id);
+        .filter((d) => Number(d.created_by_user_id) === userId)
+        .sort((a, b) => Number(b.id) - Number(a.id));
       if (mine.length > 0) {
         setShipment(mine[0]!);
       } else {
@@ -306,7 +307,7 @@ export function CreateShipmentPage() {
                         <Button
                           size="sm"
                           disabled={added || addById.isPending}
-                          onClick={() => addById.mutate(r.id)}
+                          onClick={() => addById.mutate(Number(r.id))}
                         >
                           {added ? ar.common.success : ar.shipments.addRoll}
                         </Button>

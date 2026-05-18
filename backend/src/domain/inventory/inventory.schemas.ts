@@ -10,7 +10,7 @@ export type CreateShipmentDraftInput = z.infer<typeof CreateShipmentDraftSchema>
 
 export const AddShipmentRollSchema = z
   .object({
-    roll_id: z.number().int().positive().optional(),
+    roll_id: z.coerce.number().int().positive().optional(),
     internal_barcode: z.string().min(1).max(64).optional(),
   })
   .refine((v) => v.roll_id !== undefined || v.internal_barcode !== undefined, {

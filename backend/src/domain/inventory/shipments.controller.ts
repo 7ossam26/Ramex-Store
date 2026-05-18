@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { ZodError } from 'zod';
 import {
   AddShipmentRollSchema,
   CreateShipmentDraftSchema,
@@ -28,6 +29,14 @@ const ERR_MAP: Record<string, { status: number; message: string }> = {
 };
 
 function handleDomainError(e: unknown, res: Response): boolean {
+  if (e instanceof ZodError) {
+    res.status(400).json({
+      error: 'validation_error',
+      message: e.issues.map((i) => `${i.path.join('.') || 'body'}: ${i.message}`).join('; '),
+      issues: e.issues,
+    });
+    return true;
+  }
   if (e instanceof Error && ERR_MAP[e.message]) {
     const { status, message } = ERR_MAP[e.message]!;
     res.status(status).json({ error: e.message, message });
@@ -41,15 +50,20 @@ function actorId(req: Request): number {
 }
 
 export async function createDraft(req: Request, res: Response): Promise<void> {
-  const data = CreateShipmentDraftSchema.parse(req.body);
-  const shipment = await svc.createDraft(actorId(req), data);
-  res.status(201).json(shipment);
+  try {
+    const data = CreateShipmentDraftSchema.parse(req.body);
+    const shipment = await svc.createDraft(actorId(req), data);
+    res.status(201).json(shipment);
+  } catch (e) {
+    if (handleDomainError(e, res)) return;
+    throw e;
+  }
 }
 
 export async function addRoll(req: Request, res: Response): Promise<void> {
   const id = Number(req.params.id);
-  const data = AddShipmentRollSchema.parse(req.body);
   try {
+    const data = AddShipmentRollSchema.parse(req.body);
     const result = await svc.addRoll(id, actorId(req), data);
     res.status(201).json(result);
   } catch (e) {
@@ -95,8 +109,8 @@ export async function submit(req: Request, res: Response): Promise<void> {
 export async function reviewLine(req: Request, res: Response): Promise<void> {
   const id = Number(req.params.id);
   const lineId = Number(req.params.lineId);
-  const data = ReviewShipmentLineSchema.parse(req.body);
   try {
+    const data = ReviewShipmentLineSchema.parse(req.body);
     const updated = await svc.reviewLine(
       id,
       lineId,
@@ -124,8 +138,13 @@ export async function finalize(req: Request, res: Response): Promise<void> {
 }
 
 export async function listShipments(req: Request, res: Response): Promise<void> {
-  const filters = ListShipmentsQuerySchema.parse(req.query);
-  res.json(await svc.listShipments(filters));
+  try {
+    const filters = ListShipmentsQuerySchema.parse(req.query);
+    res.json(await svc.listShipments(filters));
+  } catch (e) {
+    if (handleDomainError(e, res)) return;
+    throw e;
+  }
 }
 
 export async function getShipment(req: Request, res: Response): Promise<void> {
@@ -139,7 +158,12 @@ export async function getShipment(req: Request, res: Response): Promise<void> {
 }
 
 export async function listFactoryRolls(req: Request, res: Response): Promise<void> {
-  const filters = ListFactoryRollsQuerySchema.parse(req.query);
-  const rolls = await svc.listFactoryRolls(filters);
-  res.json(rolls);
+  try {
+    const filters = ListFactoryRollsQuerySchema.parse(req.query);
+    const rolls = await svc.listFactoryRolls(filters);
+    res.json(rolls);
+  } catch (e) {
+    if (handleDomainError(e, res)) return;
+    throw e;
+  }
 }
