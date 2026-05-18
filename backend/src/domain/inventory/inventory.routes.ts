@@ -47,6 +47,13 @@ inventoryRouter.post(
   shipmentsCtl.finalize,
 );
 
+// Picker for Ahmed: list رولات currently in factory + not in any active shipment line.
+inventoryRouter.get(
+  '/shipments/factory-rolls',
+  requireRole('factory_sender', 'owner'),
+  shipmentsCtl.listFactoryRolls,
+);
+
 // All roles can list/view shipments (filters narrow visibility).
 inventoryRouter.get('/shipments', shipmentsCtl.listShipments);
 inventoryRouter.get('/shipments/:id', shipmentsCtl.getShipment);

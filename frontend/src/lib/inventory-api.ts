@@ -9,6 +9,7 @@ import type {
   DamageDisposition,
   Fabric,
   FabricFull,
+  FactoryRollPick,
   RollStatus,
   Shipment,
   ShipmentStatus,
@@ -49,21 +50,28 @@ export const inventoryApi = {
     api.get<ShipmentWithLines>(`/shipments/${id}`).then((r) => r.data),
   createShipmentDraft: (notes_ar?: string) =>
     api.post<Shipment>('/shipments', { notes_ar: notes_ar ?? null }).then((r) => r.data),
-  addShipmentRoll: (shipmentId: number, body: {
-    fabric_id: number;
-    color_id: number;
-    weight_kg: number;
-    roll_sr_no?: string;
-    order_no?: string;
-    factory_purchase_price_egp?: number;
-  }) =>
-    api.post(`/shipments/${shipmentId}/rolls`, body).then((r) => r.data),
+  // Ahmed picks an existing factory روول by id or scans its barcode.
+  addShipmentRollById: (shipmentId: number, rollId: number) =>
+    api.post(`/shipments/${shipmentId}/rolls`, { roll_id: rollId }).then((r) => r.data),
+  addShipmentRollByBarcode: (shipmentId: number, barcode: string) =>
+    api
+      .post(`/shipments/${shipmentId}/rolls`, { internal_barcode: barcode })
+      .then((r) => r.data),
+  listFactoryRolls: (params?: { fabric_id?: number; color_id?: number; q?: string; limit?: number }) =>
+    api.get<FactoryRollPick[]>('/shipments/factory-rolls', { params }).then((r) => r.data),
   removeShipmentLine: (shipmentId: number, lineId: number) =>
     api.delete(`/shipments/${shipmentId}/lines/${lineId}`).then((r) => r.data),
   submitShipment: (shipmentId: number) =>
     api.post<Shipment>(`/shipments/${shipmentId}/submit`).then((r) => r.data),
-  reviewShipmentLine: (shipmentId: number, lineId: number, body: { action: 'accept' | 'reject'; reject_reason_ar?: string | null }) =>
-    api.post(`/shipments/${shipmentId}/lines/${lineId}/review`, body).then((r) => r.data),
+  reviewShipmentLine: (
+    shipmentId: number,
+    lineId: number,
+    body: {
+      action: 'accept' | 'reject';
+      reject_reason_ar?: string | null;
+      selling_price_egp?: number;
+    },
+  ) => api.post(`/shipments/${shipmentId}/lines/${lineId}/review`, body).then((r) => r.data),
   finalizeShipment: (shipmentId: number) =>
     api.post<Shipment>(`/shipments/${shipmentId}/finalize`).then((r) => r.data),
 

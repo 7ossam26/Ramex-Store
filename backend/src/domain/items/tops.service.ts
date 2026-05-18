@@ -64,39 +64,6 @@ async function resolveColor(
   return { id: created.id as number };
 }
 
-async function ensureDefaultPrice(
-  trx: Knex.Transaction,
-  fabricId: number,
-  colorId: number,
-  pricePerKg: number,
-  actorUserId: number,
-): Promise<void> {
-  const before = await trx('fabric_color_prices')
-    .where({ fabric_id: fabricId, color_id: colorId })
-    .first();
-  await trx('fabric_color_prices')
-    .insert({
-      fabric_id: fabricId,
-      color_id: colorId,
-      default_price_per_kg: pricePerKg,
-      updated_at: trx.fn.now(),
-    })
-    .onConflict(['fabric_id', 'color_id'])
-    .merge(['default_price_per_kg', 'updated_at']);
-  const row = await trx('fabric_color_prices')
-    .where({ fabric_id: fabricId, color_id: colorId })
-    .first();
-  await auditFromService(trx, {
-    actorUserId,
-    action: before ? 'update_price' : 'create_price',
-    entity: 'fabric_color_price',
-    entityId: row.id,
-    before: before ?? null,
-    after: row,
-    severity: 'medium',
-  });
-}
-
 export async function createTopBatch(
   input: CreateTopBatchInput,
   actorUserId: number,
@@ -108,33 +75,14 @@ export async function createTopBatch(
     for (const entry of input.rolls) {
       const color = await resolveColor(trx, entry.color, actorUserId);
 
-      if (entry.set_default_price_per_kg !== undefined) {
-        await ensureDefaultPrice(
-          trx,
-          fabric.id,
-          color.id,
-          entry.set_default_price_per_kg,
-          actorUserId,
-        );
-      }
-
-      let sellingPrice = entry.selling_price_egp;
-      if (sellingPrice === undefined) {
-        const priceRow = await trx('fabric_color_prices')
-          .where({ fabric_id: fabric.id, color_id: color.id })
-          .first();
-        if (!priceRow) throw new Error('NO_DEFAULT_PRICE');
-        sellingPrice = Number(priceRow.default_price_per_kg);
-      }
-
       const internal_barcode = await generateBarcode(trx);
       const [{ id: rollId }] = await trx('rolls').insert({
         fabric_id: fabric.id,
         color_id: color.id,
         weight_kg: entry.weight_kg,
-        warehouse: input.warehouse,
+        warehouse: 'factory',
         status: 'in_stock',
-        selling_price_egp: sellingPrice,
+        selling_price_egp: null,
         purchase_price_egp: entry.purchase_price_egp ?? null,
         roll_sr_no: entry.roll_sr_no ?? null,
         order_no: entry.order_no ?? null,
@@ -145,19 +93,19 @@ export async function createTopBatch(
         composition_id: entry.composition_id ?? null,
         brand_id: entry.brand_id ?? null,
         internal_barcode,
-        received_at: trx.fn.now(),
+        received_at: null,
       }).returning('id');
       const roll = await trx('rolls').where({ id: rollId }).first();
 
       await trx('stock_movements').insert({
         roll_id: roll.id,
         from_warehouse: null,
-        to_warehouse: input.warehouse,
+        to_warehouse: 'factory',
         event_type: 'factory_in',
-        reference_type: 'direct_seed',
+        reference_type: 'add_top_wizard',
         reference_id: null,
         actor_user_id: actorUserId,
-        notes_ar: 'إضافة توب مباشرة',
+        notes_ar: 'إضافة توب إلى مخزن المصنع',
       });
 
       await auditFromService(trx, {

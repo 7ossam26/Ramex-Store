@@ -1,14 +1,6 @@
 import { db } from '../../db/connection.js';
 import type { Roll, RollWithDetails, RollWithLabelDetails } from './items.types.js';
-import type { CreateRollInput, UpdateRollInput } from './items.schemas.js';
-
-async function generateBarcode(): Promise<string> {
-  const result = await db.raw<{ rows: Array<{ n: number | string }> }>(
-    'UPDATE db_sequences SET last_value = last_value + 1 WHERE name = ? RETURNING last_value AS n',
-    ['roll_barcode_seq'],
-  );
-  return `RMX-R-${String(Number(result.rows[0].n)).padStart(6, '0')}`;
-}
+import type { UpdateRollInput } from './items.schemas.js';
 
 const ROLL_DETAIL_COLS = [
   'r.*',
@@ -76,22 +68,6 @@ export async function getRollWithLabel(id: number): Promise<RollWithLabelDetails
 
 export async function getRollsWithLabel(ids: number[]): Promise<RollWithLabelDetails[]> {
   return rollLabelQuery().whereIn('r.id', ids);
-}
-
-export async function createRoll(data: CreateRollInput): Promise<Roll> {
-  let sellingPrice = data.selling_price_egp;
-
-  if (sellingPrice === undefined) {
-    const priceRow = await db('fabric_color_prices')
-      .where({ fabric_id: data.fabric_id, color_id: data.color_id })
-      .first();
-    if (!priceRow) throw new Error('NO_DEFAULT_PRICE');
-    sellingPrice = Number(priceRow.default_price_per_kg);
-  }
-
-  const internal_barcode = await generateBarcode();
-  const [{ id }] = await db('rolls').insert({ ...data, selling_price_egp: sellingPrice, internal_barcode }).returning('id');
-  return db('rolls').where({ id }).first() as Promise<Roll>;
 }
 
 export async function updateRoll(

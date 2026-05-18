@@ -31,8 +31,6 @@ type RollRowState = {
   uid: string;
   pickedColorId: number | null;
   weight_kg: string;
-  selling_price_egp: string;
-  set_default_price: boolean;
   roll_sr_no: string;
   order_no: string;
   purchase_price_egp: string;
@@ -316,8 +314,6 @@ const blankRow = (color?: { pickedColorId: number | null }): RollRowState => ({
   uid: Math.random().toString(36).slice(2),
   pickedColorId: color?.pickedColorId ?? null,
   weight_kg: String(DEFAULT_WEIGHT_KG),
-  selling_price_egp: '',
-  set_default_price: false,
   roll_sr_no: '',
   order_no: '',
   purchase_price_egp: '',
@@ -430,12 +426,9 @@ export function AddTopPage() {
         setErrorMsg(ar.addTop.errors.weightRequired);
         return null;
       }
-      const selling = num(r.selling_price_egp);
       rollEntries.push({
         color: { id: r.pickedColorId },
         weight_kg,
-        selling_price_egp: selling,
-        set_default_price_per_kg: r.set_default_price ? selling : undefined,
         roll_sr_no: r.roll_sr_no.trim() || null,
         order_no: r.order_no.trim() || null,
         purchase_price_egp: num(r.purchase_price_egp) ?? null,
@@ -447,7 +440,7 @@ export function AddTopPage() {
         brand_id: r.brand_id ?? null,
       });
     }
-    return { fabric: { id: pickedFabricId }, rolls: rollEntries, warehouse: 'shop' };
+    return { fabric: { id: pickedFabricId }, rolls: rollEntries };
   }
 
   function onSubmit() {
@@ -747,43 +740,6 @@ export function AddTopPage() {
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <Label>{ar.addTop.sellingPricePerKg}</Label>
-                    <Input
-                      type="number"
-                      inputMode="decimal"
-                      step="0.01"
-                      value={row.selling_price_egp}
-                      onChange={(e) =>
-                        setRows((rs) =>
-                          rs.map((r, i) =>
-                            i === idx ? { ...r, selling_price_egp: e.target.value } : r,
-                          ),
-                        )
-                      }
-                      dir="ltr"
-                      placeholder={ar.addTop.priceFallbackHint}
-                      className="h-11 md:h-10"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-6">
-                    <input
-                      type="checkbox"
-                      id={`set-default-${row.uid}`}
-                      checked={row.set_default_price}
-                      onChange={(e) =>
-                        setRows((rs) =>
-                          rs.map((r, i) =>
-                            i === idx ? { ...r, set_default_price: e.target.checked } : r,
-                          ),
-                        )
-                      }
-                    />
-                    <label htmlFor={`set-default-${row.uid}`} className="text-sm">
-                      {ar.addTop.setAsDefaultPrice}
-                    </label>
-                  </div>
                 </div>
 
                 <details className="text-sm">

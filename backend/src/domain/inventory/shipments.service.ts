@@ -1,4 +1,3 @@
-import type { Knex } from 'knex';
 import { db } from '../../db/connection.js';
 import { nextShipmentNo } from './shipmentNumber.service.js';
 import { auditFromService } from './audit.helper.js';
@@ -11,16 +10,9 @@ import type {
 import type {
   AddShipmentRollInput,
   CreateShipmentDraftInput,
+  ListFactoryRollsQueryInput,
   ListShipmentsQueryInput,
 } from './inventory.schemas.js';
-
-async function generateRollBarcode(trx: Knex.Transaction): Promise<string> {
-  const result = await trx.raw<{ rows: Array<{ n: number | string }> }>(
-    'UPDATE db_sequences SET last_value = last_value + 1 WHERE name = ? RETURNING last_value AS n',
-    ['roll_barcode_seq'],
-  );
-  return `RMX-R-${String(Number(result.rows[0].n)).padStart(6, '0')}`;
-}
 
 export async function createDraft(actorUserId: number, input: CreateShipmentDraftInput): Promise<Shipment> {
   return db.transaction(async (trx) => {
@@ -56,46 +48,34 @@ export async function addRoll(
     if (shipment.status !== 'draft') throw new Error('SHIPMENT_NOT_DRAFT');
     if (Number(shipment.created_by_user_id) !== actorUserId) throw new Error('SHIPMENT_FORBIDDEN');
 
-    const priceRow = await trx('fabric_color_prices')
-      .where({ fabric_id: input.fabric_id, color_id: input.color_id })
-      .first();
-    const sellingPrice = priceRow
-      ? Number(priceRow.default_price_per_kg)
-      : (input.factory_purchase_price_egp ?? 0);
+    const rollQuery = trx('rolls').forUpdate();
+    if (input.roll_id !== undefined) {
+      rollQuery.where({ id: input.roll_id });
+    } else {
+      rollQuery.where((b) =>
+        b.where('internal_barcode', input.internal_barcode!)
+          .orWhere('external_barcode', input.internal_barcode!),
+      );
+    }
+    const roll = await rollQuery.first();
+    if (!roll) throw new Error('ROLL_NOT_FOUND');
+    if (roll.warehouse !== 'factory') throw new Error('ROLL_NOT_IN_FACTORY');
+    if (roll.status !== 'in_stock') throw new Error('ROLL_NOT_AVAILABLE');
 
-    const internal_barcode = await generateRollBarcode(trx);
-    const [{ id: rollId }] = await trx('rolls').insert({
-      internal_barcode,
-      external_barcode: input.external_barcode ?? null,
-      fabric_id: input.fabric_id,
-      color_id: input.color_id,
-      roll_sr_no: input.roll_sr_no ?? null,
-      order_no: input.order_no ?? null,
-      weight_kg: input.weight_kg,
-      purchase_price_egp: input.factory_purchase_price_egp ?? null,
-      selling_price_egp: sellingPrice,
-      warehouse: 'factory',
-      status: 'in_stock',
-    }).returning('id');
-    const roll = await trx('rolls').where({ id: rollId }).first();
+    // Block if روول is already attached to any active shipment line (draft or pending or partial_approved).
+    const conflicting = await trx('shipment_lines as sl')
+      .join('shipments as s', 'sl.shipment_id', 's.id')
+      .where('sl.roll_id', roll.id)
+      .whereIn('s.status', ['draft', 'pending_approval', 'partial_approved'])
+      .first();
+    if (conflicting) throw new Error('ROLL_ALREADY_IN_SHIPMENT');
 
     const [{ id: lineId }] = await trx('shipment_lines').insert({
       shipment_id: shipmentId,
       roll_id: roll.id,
-      factory_purchase_price_egp: input.factory_purchase_price_egp ?? null,
       status: 'pending',
     }).returning('id');
     const line = await trx('shipment_lines').where({ id: lineId }).first();
-
-    await trx('stock_movements').insert({
-      roll_id: roll.id,
-      from_warehouse: null,
-      to_warehouse: 'factory',
-      event_type: 'factory_in',
-      reference_type: 'shipment',
-      reference_id: shipmentId,
-      actor_user_id: actorUserId,
-    });
 
     await auditFromService(trx, {
       actorUserId,
@@ -123,10 +103,6 @@ export async function removeLine(shipmentId: number, lineId: number, actorUserId
     if (!line) throw new Error('LINE_NOT_FOUND');
 
     await trx('shipment_lines').where({ id: lineId }).delete();
-    await trx('stock_movements')
-      .where({ roll_id: line.roll_id, reference_type: 'shipment', reference_id: shipmentId })
-      .delete();
-    await trx('rolls').where({ id: line.roll_id }).delete();
 
     await auditFromService(trx, {
       actorUserId,
@@ -194,6 +170,7 @@ export async function reviewLine(
   actorUserId: number,
   action: 'accept' | 'reject',
   rejectReason?: string | null,
+  sellingPriceEgp?: number,
 ): Promise<ShipmentLine> {
   return db.transaction(async (trx) => {
     const shipment = await trx('shipments').where({ id: shipmentId }).first();
@@ -206,10 +183,15 @@ export async function reviewLine(
     if (!line) throw new Error('LINE_NOT_FOUND');
     if (line.status !== 'pending') throw new Error('LINE_ALREADY_REVIEWED');
 
+    if (action === 'accept' && (sellingPriceEgp === undefined || sellingPriceEgp <= 0)) {
+      throw new Error('PRICE_REQUIRED_FOR_ACCEPTED_LINES');
+    }
+
     const newStatus: 'accepted' | 'rejected' = action === 'accept' ? 'accepted' : 'rejected';
     await trx('shipment_lines').where({ id: lineId }).update({
       status: newStatus,
       reject_reason_ar: action === 'reject' ? (rejectReason ?? null) : null,
+      selling_price_egp: action === 'accept' ? sellingPriceEgp : null,
       updated_at: trx.fn.now(),
     });
     const updated = await trx('shipment_lines').where({ id: lineId }).first();
@@ -220,7 +202,11 @@ export async function reviewLine(
       entity: 'shipment_line',
       entityId: lineId,
       before: { status: 'pending' },
-      after: { status: newStatus, reject_reason_ar: updated.reject_reason_ar },
+      after: {
+        status: newStatus,
+        reject_reason_ar: updated.reject_reason_ar,
+        selling_price_egp: updated.selling_price_egp,
+      },
       severity: 'medium',
     });
 
@@ -243,13 +229,22 @@ export async function finalizeReview(shipmentId: number, actorUserId: number): P
     const accepted = lines.filter((l) => l.status === 'accepted');
     const rejected = lines.filter((l) => l.status === 'rejected');
 
+    if (accepted.some((l) => l.selling_price_egp === null || l.selling_price_egp === undefined)) {
+      throw new Error('PRICE_REQUIRED_FOR_ACCEPTED_LINES');
+    }
+
     let finalStatus: 'approved' | 'rejected' | 'partial_approved';
     if (rejected.length === 0) finalStatus = 'approved';
     else if (accepted.length === 0) finalStatus = 'rejected';
     else finalStatus = 'partial_approved';
 
     for (const line of accepted) {
-      await trx('rolls').where({ id: line.roll_id }).update({ warehouse: 'shop', received_at: trx.fn.now(), updated_at: trx.fn.now() });
+      await trx('rolls').where({ id: line.roll_id }).update({
+        warehouse: 'shop',
+        selling_price_egp: line.selling_price_egp,
+        received_at: trx.fn.now(),
+        updated_at: trx.fn.now(),
+      });
       await trx('stock_movements').insert({
         roll_id: line.roll_id,
         from_warehouse: null,
@@ -258,6 +253,14 @@ export async function finalizeReview(shipmentId: number, actorUserId: number): P
         reference_type: 'shipment',
         reference_id: shipmentId,
         actor_user_id: actorUserId,
+      });
+      await auditFromService(trx, {
+        actorUserId,
+        action: 'set_selling_price_at_receive',
+        entity: 'shipment_line',
+        entityId: line.id,
+        after: { roll_id: line.roll_id, selling_price_egp: line.selling_price_egp },
+        severity: 'medium',
       });
     }
     for (const line of rejected) {
@@ -331,4 +334,57 @@ export async function getShipment(id: number): Promise<ShipmentWithLines | undef
     )
     .orderBy('sl.id', 'asc');
   return { ...(shipment as Shipment), lines };
+}
+
+export async function listFactoryRolls(filters: ListFactoryRollsQueryInput): Promise<Array<{
+  id: number;
+  internal_barcode: string;
+  weight_kg: string;
+  fabric_id: number;
+  color_id: number;
+  fabric_name_ar: string;
+  color_name_ar: string;
+  color_code: string;
+  fabric_code: string;
+}>> {
+  // Active draft/pending/partial shipment_lines that already claim a روول.
+  const q = db('rolls as r')
+    .join('fabrics as f', 'r.fabric_id', 'f.id')
+    .join('colors as c', 'r.color_id', 'c.id')
+    .leftJoin('shipment_lines as sl', function () {
+      this.on('sl.roll_id', '=', 'r.id').andOn(
+        db.raw(
+          `sl.shipment_id IN (SELECT id FROM shipments WHERE status IN ('draft','pending_approval','partial_approved'))`,
+        ),
+      );
+    })
+    .whereNull('sl.id')
+    .where('r.warehouse', 'factory')
+    .where('r.status', 'in_stock')
+    .select(
+      'r.id',
+      'r.internal_barcode',
+      'r.weight_kg',
+      'r.fabric_id',
+      'r.color_id',
+      'f.name_ar as fabric_name_ar',
+      'c.name_ar as color_name_ar',
+      'c.code as color_code',
+      'f.code as fabric_code',
+    )
+    .orderBy('r.id', 'desc')
+    .limit(filters.limit);
+
+  if (filters.fabric_id !== undefined) q.where('r.fabric_id', filters.fabric_id);
+  if (filters.color_id !== undefined) q.where('r.color_id', filters.color_id);
+  if (filters.q !== undefined && filters.q.length > 0) {
+    q.where((b) =>
+      b
+        .whereILike('r.internal_barcode', `%${filters.q}%`)
+        .orWhereILike('r.external_barcode', `%${filters.q}%`)
+        .orWhereILike('f.name_ar', `%${filters.q}%`)
+        .orWhereILike('c.name_ar', `%${filters.q}%`),
+    );
+  }
+  return q;
 }

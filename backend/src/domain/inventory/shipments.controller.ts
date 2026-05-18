@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import {
   AddShipmentRollSchema,
   CreateShipmentDraftSchema,
+  ListFactoryRollsQuerySchema,
   ListShipmentsQuerySchema,
   ReviewShipmentLineSchema,
 } from './inventory.schemas.js';
@@ -16,7 +17,14 @@ const ERR_MAP: Record<string, { status: number; message: string }> = {
   SHIPMENT_EMPTY: { status: 422, message: 'الطلبية فارغة' },
   REVIEW_INCOMPLETE: { status: 409, message: 'هناك سطور لم تتم مراجعتها بعد' },
   LINE_ALREADY_REVIEWED: { status: 409, message: 'تمت مراجعة هذا السطر بالفعل' },
-  NO_DEFAULT_PRICE: { status: 422, message: 'لا يوجد سعر افتراضي لهذا الصنف واللون' },
+  ROLL_NOT_FOUND: { status: 404, message: 'هذا التوب غير موجود' },
+  ROLL_NOT_IN_FACTORY: { status: 409, message: 'هذا التوب ليس في مخزن المصنع' },
+  ROLL_NOT_AVAILABLE: { status: 409, message: 'هذا التوب غير متاح' },
+  ROLL_ALREADY_IN_SHIPMENT: { status: 409, message: 'هذا التوب مضاف بالفعل إلى طلبية أخرى' },
+  PRICE_REQUIRED_FOR_ACCEPTED_LINES: {
+    status: 409,
+    message: 'يجب إدخال سعر البيع لكل توب مقبول قبل الإنهاء',
+  },
 };
 
 function handleDomainError(e: unknown, res: Response): boolean {
@@ -84,6 +92,7 @@ export async function reviewLine(req: Request, res: Response): Promise<void> {
       actorId(req),
       data.action,
       data.reject_reason_ar,
+      data.selling_price_egp,
     );
     res.json(updated);
   } catch (e) {
@@ -116,4 +125,10 @@ export async function getShipment(req: Request, res: Response): Promise<void> {
     return;
   }
   res.json(shipment);
+}
+
+export async function listFactoryRolls(req: Request, res: Response): Promise<void> {
+  const filters = ListFactoryRollsQuerySchema.parse(req.query);
+  const rolls = await svc.listFactoryRolls(filters);
+  res.json(rolls);
 }

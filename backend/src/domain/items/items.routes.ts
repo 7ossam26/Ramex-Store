@@ -35,7 +35,8 @@ itemsRouter.post('/rolls/labels-batch', rollsCtl.getBatchLabelsPdf);
 // Fabric label batch (full 12-field sticker)
 itemsRouter.post('/rolls/fabric-labels/batch', requireRole('owner', 'shop_seller'), rollsCtl.getBatchFabricLabels);
 itemsRouter.get('/rolls', rollsCtl.listRolls);
-itemsRouter.post('/rolls', requireRole('owner'), rollsCtl.createRoll);
+// NOTE: POST /rolls was removed — رولات may only be created through the
+// /tops/batch wizard (factory entry) or the factory shipment flow.
 // Fabric label for a single roll
 itemsRouter.get('/rolls/:id', rollsCtl.getRollDetail);
 itemsRouter.get('/rolls/:id/fabric-label', requireRole('owner', 'shop_seller'), rollsCtl.getFabricLabel);

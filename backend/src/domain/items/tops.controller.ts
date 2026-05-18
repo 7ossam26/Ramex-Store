@@ -27,13 +27,6 @@ export async function createTopBatch(req: Request, res: Response): Promise<void>
         });
         return;
       }
-      if (e.message === 'NO_DEFAULT_PRICE') {
-        res.status(422).json({
-          error: 'no_default_price',
-          message: 'لا يوجد سعر افتراضي لهذا اللون، يجب تحديد السعر يدوياً',
-        });
-        return;
-      }
     }
     throw e;
   }

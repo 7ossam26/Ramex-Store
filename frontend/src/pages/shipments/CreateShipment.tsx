@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
 import type { Shipment } from '@/lib/inventory-types';
@@ -10,24 +9,33 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/PageHeader';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-
-type AddRollForm = {
-  fabric_id: number;
-  color_id: number;
-  weight_kg: number;
-  roll_sr_no?: string;
-  order_no?: string;
-  factory_purchase_price_egp?: number;
-};
+import { ScannerInput } from '@/components/ScannerInput';
 
 export function CreateShipmentPage() {
   const qc = useQueryClient();
   const [shipment, setShipment] = useState<Shipment | null>(null);
   const [submittedNo, setSubmittedNo] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [scanFlash, setScanFlash] = useState<string | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
+
+  const [fabricFilter, setFabricFilter] = useState<number | null>(null);
+  const [colorFilter, setColorFilter] = useState<number | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const fabricsQ = useQuery({ queryKey: ['fabrics'], queryFn: inventoryApi.listFabrics });
   const colorsQ = useQuery({ queryKey: ['colors'], queryFn: inventoryApi.listColors });
+
+  const factoryRollsQ = useQuery({
+    queryKey: ['factory-rolls', fabricFilter, colorFilter, searchTerm],
+    queryFn: () =>
+      inventoryApi.listFactoryRolls({
+        fabric_id: fabricFilter ?? undefined,
+        color_id: colorFilter ?? undefined,
+        q: searchTerm.trim() || undefined,
+      }),
+    enabled: !!shipment && !submittedNo,
+  });
 
   const detailsQ = useQuery({
     queryKey: ['shipment', shipment?.id],
@@ -41,14 +49,39 @@ export function CreateShipmentPage() {
     onSuccess: (s) => setShipment(s),
   });
 
-  const addRoll = useMutation({
-    mutationFn: (body: AddRollForm) => inventoryApi.addShipmentRoll(shipment!.id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['shipment', shipment?.id] }),
+  const addById = useMutation({
+    mutationFn: (rollId: number) => inventoryApi.addShipmentRollById(shipment!.id, rollId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['shipment', shipment?.id] });
+      qc.invalidateQueries({ queryKey: ['factory-rolls'] });
+    },
+  });
+
+  const addByBarcode = useMutation({
+    mutationFn: (barcode: string) =>
+      inventoryApi.addShipmentRollByBarcode(shipment!.id, barcode),
+    onSuccess: (_data, barcode) => {
+      qc.invalidateQueries({ queryKey: ['shipment', shipment?.id] });
+      qc.invalidateQueries({ queryKey: ['factory-rolls'] });
+      setScanFlash(`✓ ${barcode}`);
+      setScanError(null);
+      setTimeout(() => setScanFlash(null), 1000);
+    },
+    onError: (e: unknown, barcode) => {
+      const msg =
+        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        `${ar.shipments.barcodeNotFound}: ${barcode}`;
+      setScanError(msg);
+      setScanFlash(null);
+    },
   });
 
   const removeLine = useMutation({
     mutationFn: (lineId: number) => inventoryApi.removeShipmentLine(shipment!.id, lineId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['shipment', shipment?.id] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['shipment', shipment?.id] });
+      qc.invalidateQueries({ queryKey: ['factory-rolls'] });
+    },
   });
 
   const submit = useMutation({
@@ -61,19 +94,30 @@ export function CreateShipmentPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const form = useForm<AddRollForm>();
+  const lines = useMemo(() => detailsQ.data?.lines ?? [], [detailsQ.data]);
+  const alreadyAddedIds = useMemo(() => new Set(lines.map((l) => l.roll_id)), [lines]);
 
   if (submittedNo) {
     return (
       <div className="max-w-2xl mx-auto">
         <Card className="border-success/40 bg-success-subtle">
           <CardHeader>
-            <CardTitle className="text-success-foreground">{ar.shipments.submittedSuccess}</CardTitle>
+            <CardTitle className="text-success-foreground">
+              {ar.shipments.submittedSuccess}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="text-sm text-success-foreground/80">{ar.shipments.shipmentNo}</div>
-            <div className="text-3xl font-semibold text-success-foreground tabular-num" dir="ltr">{submittedNo}</div>
-            <Button onClick={() => { setShipment(null); setSubmittedNo(null); createDraft.mutate(); }}>
+            <div className="text-3xl font-semibold text-success-foreground tabular-num" dir="ltr">
+              {submittedNo}
+            </div>
+            <Button
+              onClick={() => {
+                setShipment(null);
+                setSubmittedNo(null);
+                createDraft.mutate();
+              }}
+            >
               {ar.shipments.new}
             </Button>
           </CardContent>
@@ -83,22 +127,6 @@ export function CreateShipmentPage() {
   }
 
   if (!shipment) return <div>{ar.loading}</div>;
-
-  const lines = detailsQ.data?.lines ?? [];
-
-  const onAdd = (v: AddRollForm) => {
-    addRoll.mutate(
-      {
-        fabric_id: Number(v.fabric_id),
-        color_id: Number(v.color_id),
-        weight_kg: Number(v.weight_kg),
-        roll_sr_no: v.roll_sr_no || undefined,
-        order_no: v.order_no || undefined,
-        factory_purchase_price_egp: v.factory_purchase_price_egp ? Number(v.factory_purchase_price_egp) : undefined,
-      },
-      { onSuccess: () => form.reset({ fabric_id: v.fabric_id, color_id: v.color_id }) },
-    );
-  };
 
   const onSubmit = () => setConfirmOpen(true);
 
@@ -110,67 +138,153 @@ export function CreateShipmentPage() {
         <CardHeader>
           <CardTitle>{ar.shipments.addRoll}</CardTitle>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={form.handleSubmit(onAdd)} className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <Label className="text-sm font-medium text-foreground">{ar.shipments.rollFabric}</Label>
-              <select
-                {...form.register('fabric_id', { valueAsNumber: true, required: true, validate: (v) => !isNaN(v) || 'مطلوب' })}
-                className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
-              >
-                <option value="">—</option>
-                {fabricsQ.data?.map((f) => (
-                  <option key={f.id} value={f.id}>{f.name_ar}</option>
-                ))}
-              </select>
-              {form.formState.errors.fabric_id && <p className="text-xs text-danger mt-0.5">مطلوب</p>}
-            </div>
-            <div className="space-y-1">
-              <Label className="text-sm font-medium text-foreground">{ar.shipments.rollColor}</Label>
-              <select
-                {...form.register('color_id', { valueAsNumber: true, required: true, validate: (v) => !isNaN(v) || 'مطلوب' })}
-                className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
-              >
-                <option value="">—</option>
-                {colorsQ.data?.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name_ar} ({c.code})</option>
-                ))}
-              </select>
-              {form.formState.errors.color_id && <p className="text-xs text-danger mt-0.5">مطلوب</p>}
-            </div>
-            <div className="space-y-1">
-              <Label>{ar.shipments.rollWeight}</Label>
-              <Input type="number" inputMode="decimal" step="0.001" {...form.register('weight_kg', { valueAsNumber: true, required: true, validate: (v) => (v > 0) || 'مطلوب' })} />
-              {form.formState.errors.weight_kg && <p className="text-xs text-danger mt-0.5">مطلوب</p>}
-            </div>
-            <div className="space-y-1">
-              <Label>{ar.shipments.rollSrNo}</Label>
-              <Input {...form.register('roll_sr_no')} />
-            </div>
-            <div className="space-y-1">
-              <Label>{ar.shipments.orderNo}</Label>
-              <Input {...form.register('order_no')} />
-            </div>
-            <div className="space-y-1">
-              <Label>{ar.shipments.factoryPrice}</Label>
-              <Input type="number" inputMode="decimal" step="0.01" {...form.register('factory_purchase_price_egp', { valueAsNumber: true })} />
-            </div>
-            <div className="col-span-full flex items-center gap-3 flex-wrap">
-              <Button type="submit" disabled={addRoll.isPending}>{ar.shipments.addRoll}</Button>
-              {addRoll.error && (
-                <span className="text-sm text-danger transition-opacity duration-75 ease-standard" role="alert">
-                  {(addRoll.error as { response?: { data?: { message?: string } } })?.response?.data?.message ?? ar.common.error}
+        <CardContent className="space-y-3">
+          <div className="space-y-1">
+            <Label className="text-sm font-medium text-foreground">
+              {ar.shipments.addRollHint}
+            </Label>
+            <div className="flex gap-2 items-center">
+              <div className="flex-1 max-w-sm">
+                <ScannerInput
+                  onScan={(barcode) => {
+                    setScanError(null);
+                    addByBarcode.mutate(barcode);
+                  }}
+                  placeholder={ar.shipments.addRollHint}
+                />
+              </div>
+              {scanFlash && (
+                <span
+                  className="text-xs font-mono tabular-num text-success-foreground"
+                  dir="ltr"
+                >
+                  {scanFlash}
                 </span>
               )}
             </div>
-          </form>
+            {scanError && (
+              <p className="text-sm text-danger transition-opacity duration-75 ease-standard">
+                {scanError}
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{ar.shipments.factoryRollsTitle}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label className="text-sm font-medium text-foreground">
+                {ar.shipments.filterByFabric}
+              </Label>
+              <select
+                value={fabricFilter === null ? '' : String(fabricFilter)}
+                onChange={(e) =>
+                  setFabricFilter(e.target.value ? Number(e.target.value) : null)
+                }
+                className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground"
+              >
+                <option value="">—</option>
+                {fabricsQ.data?.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name_ar}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-sm font-medium text-foreground">
+                {ar.shipments.filterByColor}
+              </Label>
+              <select
+                value={colorFilter === null ? '' : String(colorFilter)}
+                onChange={(e) =>
+                  setColorFilter(e.target.value ? Number(e.target.value) : null)
+                }
+                className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground"
+              >
+                <option value="">—</option>
+                {colorsQ.data?.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name_ar} ({c.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-sm font-medium text-foreground">
+                {ar.shipments.searchPlaceholder}
+              </Label>
+              <Input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={ar.shipments.searchPlaceholder}
+              />
+            </div>
+          </div>
+
+          {factoryRollsQ.data && factoryRollsQ.data.length === 0 ? (
+            <p className="text-sm text-foreground-muted py-2">
+              {ar.shipments.noFactoryRolls}
+            </p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="text-start text-xs text-foreground-muted uppercase tracking-wide">
+                <tr className="border-b border-border-subtle">
+                  <th className="py-2.5 font-medium">{ar.stockMovements.rollBarcode}</th>
+                  <th className="font-medium">{ar.shipments.rollFabric}</th>
+                  <th className="font-medium">{ar.shipments.rollColor}</th>
+                  <th className="font-medium">{ar.shipments.rollWeight}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {factoryRollsQ.data?.map((r) => {
+                  const added = alreadyAddedIds.has(r.id);
+                  return (
+                    <tr
+                      key={r.id}
+                      className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150"
+                    >
+                      <td className="py-2.5 font-mono tabular-num text-foreground">
+                        {r.internal_barcode}
+                      </td>
+                      <td>{r.fabric_name_ar}</td>
+                      <td>
+                        {r.color_name_ar} ({r.color_code})
+                      </td>
+                      <td className="tabular-num" dir="ltr">
+                        {r.weight_kg}
+                      </td>
+                      <td>
+                        <Button
+                          size="sm"
+                          disabled={added || addById.isPending}
+                          onClick={() => addById.mutate(r.id)}
+                        >
+                          {added ? ar.common.success : ar.shipments.addRoll}
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
           <CardTitle>
-            {ar.shipments.rollsCount}: <span className="tabular-num" dir="ltr">{lines.length}</span>
+            {ar.shipments.rollsCount}:{' '}
+            <span className="tabular-num" dir="ltr">
+              {lines.length}
+            </span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -184,20 +298,31 @@ export function CreateShipmentPage() {
                   <th className="font-medium">{ar.shipments.rollFabric}</th>
                   <th className="font-medium">{ar.shipments.rollColor}</th>
                   <th className="font-medium">{ar.shipments.rollWeight}</th>
-                  <th className="font-medium">{ar.shipments.factoryPrice}</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {lines.map((l) => (
-                  <tr key={l.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
-                    <td className="py-2.5 font-mono tabular-num text-foreground">{l.internal_barcode}</td>
+                  <tr
+                    key={l.id}
+                    className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150"
+                  >
+                    <td className="py-2.5 font-mono tabular-num text-foreground">
+                      {l.internal_barcode}
+                    </td>
                     <td>{l.fabric_name_ar}</td>
-                    <td>{l.color_name_ar} ({l.color_code})</td>
-                    <td className="tabular-num" dir="ltr">{l.weight_kg}</td>
-                    <td className="tabular-num" dir="ltr">{l.factory_purchase_price_egp ?? '—'}</td>
                     <td>
-                      <Button variant="ghost" size="sm" onClick={() => removeLine.mutate(l.id)}>
+                      {l.color_name_ar} ({l.color_code})
+                    </td>
+                    <td className="tabular-num" dir="ltr">
+                      {l.weight_kg}
+                    </td>
+                    <td>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeLine.mutate(l.id)}
+                      >
                         {ar.common.cancel}
                       </Button>
                     </td>
@@ -210,7 +335,11 @@ export function CreateShipmentPage() {
       </Card>
 
       <div className="flex justify-end">
-        <Button onClick={onSubmit} disabled={lines.length === 0 || submit.isPending} size="lg">
+        <Button
+          onClick={onSubmit}
+          disabled={lines.length === 0 || submit.isPending}
+          size="lg"
+        >
           {ar.shipments.submit}
         </Button>
       </div>
@@ -218,7 +347,10 @@ export function CreateShipmentPage() {
       <ConfirmDialog
         open={confirmOpen}
         message={ar.shipments.confirmSubmit}
-        onConfirm={() => { setConfirmOpen(false); submit.mutate(); }}
+        onConfirm={() => {
+          setConfirmOpen(false);
+          submit.mutate();
+        }}
         onCancel={() => setConfirmOpen(false)}
       />
     </div>

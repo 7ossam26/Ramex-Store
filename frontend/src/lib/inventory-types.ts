@@ -43,7 +43,7 @@ export type ShipmentLineDetail = {
   id: number;
   shipment_id: number;
   roll_id: number;
-  factory_purchase_price_egp: string | null;
+  selling_price_egp: string | null;
   status: ShipmentLineStatus;
   reject_reason_ar: string | null;
   fabric_name_ar: string;
@@ -51,6 +51,18 @@ export type ShipmentLineDetail = {
   color_code: string;
   weight_kg: string;
   internal_barcode: string;
+};
+
+export type FactoryRollPick = {
+  id: number;
+  internal_barcode: string;
+  weight_kg: string;
+  fabric_id: number;
+  color_id: number;
+  fabric_name_ar: string;
+  color_name_ar: string;
+  color_code: string;
+  fabric_code: string;
 };
 
 export type ShipmentWithLines = Shipment & { lines: ShipmentLineDetail[] };
@@ -178,8 +190,6 @@ export type ColorRef =
 export type TopRollEntry = {
   color: ColorRef;
   weight_kg: number;
-  selling_price_egp?: number;
-  set_default_price_per_kg?: number;
   roll_sr_no?: string | null;
   order_no?: string | null;
   purchase_price_egp?: number | null;
@@ -195,7 +205,6 @@ export type TopRollEntry = {
 export type CreateTopBatchInput = {
   fabric: FabricRef;
   rolls: TopRollEntry[];
-  warehouse?: Warehouse;
 };
 
 export type CreatedTopRoll = {
@@ -204,7 +213,7 @@ export type CreatedTopRoll = {
   fabric_id: number;
   color_id: number;
   weight_kg: string;
-  selling_price_egp: string;
+  selling_price_egp: string | null;
   status: string;
   warehouse: string;
   fabric_code: string;

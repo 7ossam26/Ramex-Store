@@ -60,21 +60,9 @@ const labelRollFields = {
   brand_id: z.number().int().positive().nullable().optional(),
 };
 
-export const CreateRollSchema = z.object({
-  fabric_id: z.number().int().positive(),
-  color_id: z.number().int().positive(),
-  weight_kg: z.number().positive(),
-  warehouse: RollWarehouseEnum,
-  roll_sr_no: z.string().max(32).nullable().optional(),
-  order_no: z.string().max(32).nullable().optional(),
-  external_barcode: z.string().max(64).nullable().optional(),
-  purchase_price_egp: z.number().positive().nullable().optional(),
-  selling_price_egp: z.number().positive().optional(),
-  is_visible_at_pos: z.boolean().optional().default(true),
-  ...labelRollFields,
-});
-export type CreateRollInput = z.infer<typeof CreateRollSchema>;
-
+// PATCH /rolls/:id — `warehouse` is intentionally NOT editable here.
+// Warehouse changes flow through factory shipments (factory → shop) and the
+// adjustments endpoint (shop ↔ damaged_shop).
 export const UpdateRollSchema = z.object({
   roll_sr_no: z.string().max(32).nullable().optional(),
   order_no: z.string().max(32).nullable().optional(),
@@ -82,7 +70,6 @@ export const UpdateRollSchema = z.object({
   purchase_price_egp: z.number().positive().nullable().optional(),
   selling_price_egp: z.number().positive().optional(),
   weight_kg: z.number().positive().optional(),
-  warehouse: RollWarehouseEnum.optional(),
   status: RollStatusEnum.optional(),
   is_visible_at_pos: z.boolean().optional(),
   ...labelRollFields,

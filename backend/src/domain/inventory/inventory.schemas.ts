@@ -8,22 +8,35 @@ export const CreateShipmentDraftSchema = z.object({
 });
 export type CreateShipmentDraftInput = z.infer<typeof CreateShipmentDraftSchema>;
 
-export const AddShipmentRollSchema = z.object({
-  fabric_id: z.number().int().positive(),
-  color_id: z.number().int().positive(),
-  weight_kg: z.number().positive(),
-  roll_sr_no: z.string().max(32).nullable().optional(),
-  order_no: z.string().max(32).nullable().optional(),
-  external_barcode: z.string().max(64).nullable().optional(),
-  factory_purchase_price_egp: z.number().positive().nullable().optional(),
-});
+export const AddShipmentRollSchema = z
+  .object({
+    roll_id: z.number().int().positive().optional(),
+    internal_barcode: z.string().min(1).max(64).optional(),
+  })
+  .refine((v) => v.roll_id !== undefined || v.internal_barcode !== undefined, {
+    message: 'يجب تحديد roll_id أو internal_barcode',
+  });
 export type AddShipmentRollInput = z.infer<typeof AddShipmentRollSchema>;
 
-export const ReviewShipmentLineSchema = z.object({
-  action: z.enum(['accept', 'reject']),
-  reject_reason_ar: z.string().max(500).nullable().optional(),
-});
+export const ReviewShipmentLineSchema = z
+  .object({
+    action: z.enum(['accept', 'reject']),
+    reject_reason_ar: z.string().max(500).nullable().optional(),
+    selling_price_egp: z.number().positive().optional(),
+  })
+  .refine(
+    (v) => v.action !== 'accept' || v.selling_price_egp !== undefined,
+    { message: 'يجب إدخال سعر البيع عند القبول', path: ['selling_price_egp'] },
+  );
 export type ReviewShipmentLineInput = z.infer<typeof ReviewShipmentLineSchema>;
+
+export const ListFactoryRollsQuerySchema = z.object({
+  fabric_id: z.coerce.number().int().positive().optional(),
+  color_id: z.coerce.number().int().positive().optional(),
+  q: z.string().max(64).optional(),
+  limit: z.coerce.number().int().min(1).max(500).default(100),
+});
+export type ListFactoryRollsQueryInput = z.infer<typeof ListFactoryRollsQuerySchema>;
 
 export const ListShipmentsQuerySchema = z.object({
   status: z.enum(['draft', 'pending_approval', 'partial_approved', 'approved', 'rejected', 'cancelled']).optional(),

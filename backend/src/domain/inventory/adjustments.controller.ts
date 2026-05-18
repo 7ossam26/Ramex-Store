@@ -4,6 +4,10 @@ import * as svc from './adjustments.service.js';
 
 const ERR_MAP: Record<string, { status: number; message: string }> = {
   ROLL_NOT_FOUND: { status: 404, message: 'التوب غير موجود' },
+  FACTORY_EXIT_REQUIRES_SHIPMENT: {
+    status: 409,
+    message: 'لا يمكن نقل توب من مخزن المصنع عن طريق التعديل، يجب إنشاء طلبية',
+  },
 };
 
 function handleDomainError(e: unknown, res: Response): boolean {
