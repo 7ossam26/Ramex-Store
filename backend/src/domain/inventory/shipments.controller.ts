@@ -70,6 +70,17 @@ export async function removeLine(req: Request, res: Response): Promise<void> {
   }
 }
 
+export async function deleteDraft(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  try {
+    await svc.deleteDraft(id, actorId(req));
+    res.status(204).send();
+  } catch (e) {
+    if (handleDomainError(e, res)) return;
+    throw e;
+  }
+}
+
 export async function submit(req: Request, res: Response): Promise<void> {
   const id = Number(req.params.id);
   try {

@@ -50,6 +50,8 @@ export const inventoryApi = {
     api.get<ShipmentWithLines>(`/shipments/${id}`).then((r) => r.data),
   createShipmentDraft: (notes_ar?: string) =>
     api.post<Shipment>('/shipments', { notes_ar: notes_ar ?? null }).then((r) => r.data),
+  deleteShipmentDraft: (shipmentId: number) =>
+    api.delete(`/shipments/${shipmentId}`).then((r) => r.data),
   // Ahmed picks an existing factory روول by id or scans its barcode.
   addShipmentRollById: (shipmentId: number, rollId: number) =>
     api.post(`/shipments/${shipmentId}/rolls`, { roll_id: rollId }).then((r) => r.data),

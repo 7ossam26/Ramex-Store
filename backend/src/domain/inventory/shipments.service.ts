@@ -115,6 +115,32 @@ export async function removeLine(shipmentId: number, lineId: number, actorUserId
   });
 }
 
+export async function deleteDraft(shipmentId: number, actorUserId: number): Promise<void> {
+  await db.transaction(async (trx) => {
+    const shipment = await trx('shipments').where({ id: shipmentId }).first();
+    if (!shipment) throw new Error('SHIPMENT_NOT_FOUND');
+    if (shipment.status !== 'draft') throw new Error('SHIPMENT_NOT_DRAFT');
+    if (Number(shipment.created_by_user_id) !== actorUserId) throw new Error('SHIPMENT_FORBIDDEN');
+
+    const lines = await trx('shipment_lines').where({ shipment_id: shipmentId });
+    await trx('shipment_lines').where({ shipment_id: shipmentId }).delete();
+    await trx('shipments').where({ id: shipmentId }).delete();
+
+    await auditFromService(trx, {
+      actorUserId,
+      action: 'delete_shipment_draft',
+      entity: 'shipment',
+      entityId: shipmentId,
+      before: {
+        shipment_no: shipment.shipment_no,
+        status: shipment.status,
+        line_count: lines.length,
+      },
+      severity: 'medium',
+    });
+  });
+}
+
 export async function submit(shipmentId: number, actorUserId: number): Promise<Shipment> {
   return db.transaction(async (trx) => {
     const shipment = await trx('shipments').where({ id: shipmentId }).first();

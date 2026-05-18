@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
+import { useAuth } from '@/lib/auth';
 import type { Shipment } from '@/lib/inventory-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,11 +15,16 @@ import { ScannerInput } from '@/components/ScannerInput';
 
 export function CreateShipmentPage() {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const params = useParams<{ id?: string }>();
+  const continueId = params.id ? Number(params.id) : null;
   const [shipment, setShipment] = useState<Shipment | null>(null);
   const [submittedNo, setSubmittedNo] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [scanFlash, setScanFlash] = useState<string | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
+  const initRef = useRef(false);
 
   const [fabricFilter, setFabricFilter] = useState<number | null>(null);
   const [colorFilter, setColorFilter] = useState<number | null>(null);
@@ -52,8 +59,15 @@ export function CreateShipmentPage() {
   const addById = useMutation({
     mutationFn: (rollId: number) => inventoryApi.addShipmentRollById(shipment!.id, rollId),
     onSuccess: () => {
+      setAddError(null);
       qc.invalidateQueries({ queryKey: ['shipment', shipment?.id] });
       qc.invalidateQueries({ queryKey: ['factory-rolls'] });
+    },
+    onError: (e: unknown) => {
+      const msg =
+        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        ar.common.error;
+      setAddError(msg);
     },
   });
 
@@ -90,9 +104,30 @@ export function CreateShipmentPage() {
   });
 
   useEffect(() => {
-    if (!shipment && !submittedNo) createDraft.mutate();
+    if (initRef.current) return;
+    if (!user) return;
+    if (shipment || submittedNo) return;
+    initRef.current = true;
+    (async () => {
+      if (continueId !== null) {
+        const target = await inventoryApi.getShipment(continueId);
+        if (target && target.status === 'draft') {
+          setShipment(target);
+          return;
+        }
+      }
+      const drafts = await inventoryApi.listShipments({ status: 'draft' });
+      const mine = drafts
+        .filter((d) => Number(d.created_by_user_id) === user.id)
+        .sort((a, b) => b.id - a.id);
+      if (mine.length > 0) {
+        setShipment(mine[0]!);
+      } else {
+        createDraft.mutate();
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user, continueId]);
 
   const lines = useMemo(() => detailsQ.data?.lines ?? [], [detailsQ.data]);
   const alreadyAddedIds = useMemo(() => new Set(lines.map((l) => l.roll_id)), [lines]);
@@ -115,6 +150,7 @@ export function CreateShipmentPage() {
               onClick={() => {
                 setShipment(null);
                 setSubmittedNo(null);
+                setAddError(null);
                 createDraft.mutate();
               }}
             >
@@ -226,6 +262,12 @@ export function CreateShipmentPage() {
               />
             </div>
           </div>
+
+          {addError && (
+            <p className="text-sm text-danger transition-opacity duration-75 ease-standard">
+              {addError}
+            </p>
+          )}
 
           {factoryRollsQ.data && factoryRollsQ.data.length === 0 ? (
             <p className="text-sm text-foreground-muted py-2">

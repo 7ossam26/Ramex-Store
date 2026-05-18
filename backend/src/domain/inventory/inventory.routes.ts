@@ -29,6 +29,11 @@ inventoryRouter.delete(
   requireRole('factory_sender', 'owner'),
   shipmentsCtl.removeLine,
 );
+inventoryRouter.delete(
+  '/shipments/:id',
+  requireRole('factory_sender', 'owner'),
+  shipmentsCtl.deleteDraft,
+);
 inventoryRouter.post(
   '/shipments/:id/submit',
   requireRole('factory_sender', 'owner'),
