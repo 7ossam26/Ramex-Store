@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { salesApi } from '@/lib/sales-api';
+import { openPdfBlob } from '@/lib/pdf';
 import type {
   InvoiceListRow,
   InvoiceStatus,

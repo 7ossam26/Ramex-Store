@@ -65,8 +65,10 @@ export const salesApi = {
   cancelOpenInvoice: (id: number, body: CancelOpenInvoiceBody) =>
     api.post<{ invoice: Invoice }>(`/invoices/${id}/cancel`, body).then((r) => r.data),
 
-  pdfUrl: (id: number, variant: 'original' | 'reprint' | 'open' = 'original') =>
-    `/api/invoices/${id}/pdf?variant=${variant}`,
+  pdfBlob: (id: number, variant: 'original' | 'reprint' | 'open' = 'original') =>
+    api
+      .get<Blob>(`/invoices/${id}/pdf`, { params: { variant }, responseType: 'blob' })
+      .then((r) => r.data),
 
   bankAccounts: () =>
     api.get<BankAccount[]>('/bank-accounts').then((r) => r.data),

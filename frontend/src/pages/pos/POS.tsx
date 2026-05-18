@@ -24,6 +24,7 @@ import { ar } from '@/i18n/ar';
 import { salesApi } from '@/lib/sales-api';
 import { customersApi } from '@/lib/customers-api';
 import { itemsApi } from '@/lib/items-api';
+import { openPdfBlob } from '@/lib/pdf';
 import type { Customer } from '@/lib/customers-types';
 import type { BankAccount, Invoice, RollLookup, SalePreview } from '@/lib/sales-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -251,6 +252,12 @@ export function POSPage() {
       : paymentMode === 'instapay'
         ? instaNum
         : cashNum + instaNum;
+
+  const invoicePdfMut = useMutation({
+    mutationFn: ({ id, variant }: { id: number; variant: 'original' | 'reprint' | 'open' }) =>
+      salesApi.pdfBlob(id, variant),
+    onSuccess: (blob) => openPdfBlob(blob),
+  });
 
   const submit = useMutation({
     mutationFn: () => {
@@ -542,14 +549,13 @@ export function POSPage() {
                 ج.م
               </p>
               <div className="flex flex-col sm:flex-row gap-2 pt-2">
-                <Button asChild variant="outline" className="flex-1 h-12 cursor-pointer">
-                  <a
-                    href={salesApi.pdfUrl(completed.id, 'original')}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {ar.pos.print}
-                  </a>
+                <Button
+                  variant="outline"
+                  className="flex-1 h-12 cursor-pointer"
+                  disabled={invoicePdfMut.isPending}
+                  onClick={() => invoicePdfMut.mutate({ id: completed.id, variant: 'original' })}
+                >
+                  {ar.pos.print}
                 </Button>
                 <Button onClick={resetSale} className="flex-1 h-12 cursor-pointer">
                   {ar.pos.newSale}
