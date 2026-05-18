@@ -25,8 +25,9 @@ itemsRouter.patch('/colors/:id', requireRole('owner'), colorsCtl.updateColor);
 itemsRouter.get('/fabric-color-prices', pricesCtl.listPrices);
 itemsRouter.post('/fabric-color-prices', requireRole('owner'), pricesCtl.upsertPrice);
 
-// Tops batch — one-shot wizard: create fabric (or reuse) + colors + prices + rolls in a single transaction
-itemsRouter.post('/tops/batch', requireRole('owner', 'shop_seller'), topsCtl.createTopBatch);
+// Tops batch — one-shot wizard: create fabric (or reuse) + colors + رولات in factory warehouse.
+// Ahmed (factory_sender) is the primary user; Owner allowed for setup/seeding.
+itemsRouter.post('/tops/batch', requireRole('owner', 'factory_sender'), topsCtl.createTopBatch);
 
 // Rolls — static paths must come before /:id to avoid conflicts
 itemsRouter.get('/rolls/by-barcode/:barcode', rollsCtl.findByBarcode);
