@@ -7,6 +7,7 @@ import { codesApi } from '@/lib/codes-api';
 import type {
   CreateFabricInput,
   FabricFull,
+  FabricUnit,
   UpdateFabricInput,
 } from '@/lib/inventory-types';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,8 @@ type FormState = {
   name_ar: string;
   width_cm: string;
   grade: string;
+  unit: FabricUnit;
+  supplier_code: string;
   notes: string;
   composition: CompositionRow[];
   is_active: boolean;
@@ -41,6 +44,8 @@ const blank = (): FormState => ({
   name_ar: '',
   width_cm: '',
   grade: 'A',
+  unit: 'kg',
+  supplier_code: '',
   notes: '',
   composition: [{ material: '', percent: '100' }],
   is_active: true,
@@ -54,6 +59,8 @@ function fromFabric(f: FabricFull & { default_grade_id?: number | null; default_
     name_ar: f.name_ar,
     width_cm: String(f.width_cm),
     grade: f.grade,
+    unit: f.unit,
+    supplier_code: f.supplier_code ?? '',
     notes: f.notes ?? '',
     composition:
       f.composition.length > 0
@@ -161,6 +168,8 @@ export function FabricsPage() {
       grade: form.grade.trim(),
       composition,
       notes: form.notes.trim() || null,
+      unit: form.unit,
+      supplier_code: form.supplier_code.trim() || null,
     };
   }
 
@@ -204,6 +213,19 @@ export function FabricsPage() {
         key: 'grade',
         header: ar.fabrics.grade,
         cell: (f) => f.grade,
+      },
+      {
+        key: 'unit',
+        header: ar.fabrics.unit,
+        cell: (f) => (f.unit === 'meter' ? ar.fabrics.unitMeter : ar.fabrics.unitKg),
+      },
+      {
+        key: 'supplier_code',
+        header: ar.fabrics.supplierCode,
+        cell: (f) =>
+          f.supplier_code
+            ? <span className="font-mono text-xs" dir="ltr">{f.supplier_code}</span>
+            : <span className="text-foreground-muted">—</span>,
       },
       {
         key: 'composition',
@@ -316,6 +338,43 @@ export function FabricsPage() {
                   <option value="C">C</option>
                 </select>
               </div>
+              <div className="space-y-1 md:col-span-2">
+                <Label>{ar.fabrics.unit}</Label>
+                <div
+                  className="inline-flex rounded border border-border bg-canvas p-0.5 h-11 md:h-10"
+                  role="radiogroup"
+                  aria-label={ar.fabrics.unit}
+                >
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={form.unit === 'kg'}
+                    onClick={() => setForm({ ...form, unit: 'kg' })}
+                    className={
+                      'cursor-pointer px-4 rounded-sm text-sm transition-colors ' +
+                      (form.unit === 'kg'
+                        ? 'bg-accent text-accent-foreground'
+                        : 'text-foreground-muted hover:text-foreground')
+                    }
+                  >
+                    {ar.fabrics.unitKg}
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={form.unit === 'meter'}
+                    onClick={() => setForm({ ...form, unit: 'meter' })}
+                    className={
+                      'cursor-pointer px-4 rounded-sm text-sm transition-colors ' +
+                      (form.unit === 'meter'
+                        ? 'bg-accent text-accent-foreground'
+                        : 'text-foreground-muted hover:text-foreground')
+                    }
+                  >
+                    {ar.fabrics.unitMeter}
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-1">
@@ -389,6 +448,20 @@ export function FabricsPage() {
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
               />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="fabric-supplier-code">{ar.fabrics.supplierCode}</Label>
+              <Input
+                id="fabric-supplier-code"
+                value={form.supplier_code}
+                onChange={(e) => setForm({ ...form, supplier_code: e.target.value })}
+                dir="ltr"
+                className="h-11 md:h-10"
+              />
+              <p className="text-xs text-foreground-muted">
+                {ar.fabrics.supplierCodeHint}
+              </p>
             </div>
 
             {/* Default label fields — shown only when editing */}

@@ -10,6 +10,7 @@ import type {
   CreateTopBatchInput,
   CreateTopBatchResult,
   FabricFull,
+  FabricUnit,
 } from '@/lib/inventory-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,7 +34,6 @@ type RollRowState = {
   weight_kg: string;
   roll_sr_no: string;
   order_no: string;
-  purchase_price_egp: string;
   // Label fields (Phase 5)
   supplier_order_no: string;
   top_number: string;
@@ -51,6 +51,8 @@ type FabricDraftState = {
   grade: string;
   composition: CompositionRow[];
   notes: string;
+  unit: FabricUnit;
+  supplier_code: string;
 };
 
 const blankFabricDraft = (): FabricDraftState => ({
@@ -59,6 +61,8 @@ const blankFabricDraft = (): FabricDraftState => ({
   grade: 'A',
   composition: [{ material: '', percent: '100' }],
   notes: '',
+  unit: 'kg',
+  supplier_code: '',
 });
 
 function FabricCreateDialog({
@@ -120,6 +124,8 @@ function FabricCreateDialog({
       grade: draft.grade,
       composition,
       notes: draft.notes.trim() || null,
+      unit: draft.unit,
+      supplier_code: draft.supplier_code.trim() || null,
     });
   }
 
@@ -161,6 +167,43 @@ function FabricCreateDialog({
                 <option value="B">B</option>
                 <option value="C">C</option>
               </select>
+            </div>
+            <div className="space-y-1 col-span-2">
+              <Label>{ar.fabrics.unit}</Label>
+              <div
+                className="inline-flex rounded border border-border bg-canvas p-0.5 h-10"
+                role="radiogroup"
+                aria-label={ar.fabrics.unit}
+              >
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={draft.unit === 'kg'}
+                  onClick={() => setDraft({ ...draft, unit: 'kg' })}
+                  className={
+                    'cursor-pointer px-4 rounded-sm text-sm transition-colors ' +
+                    (draft.unit === 'kg'
+                      ? 'bg-accent text-accent-foreground'
+                      : 'text-foreground-muted hover:text-foreground')
+                  }
+                >
+                  {ar.fabrics.unitKg}
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={draft.unit === 'meter'}
+                  onClick={() => setDraft({ ...draft, unit: 'meter' })}
+                  className={
+                    'cursor-pointer px-4 rounded-sm text-sm transition-colors ' +
+                    (draft.unit === 'meter'
+                      ? 'bg-accent text-accent-foreground'
+                      : 'text-foreground-muted hover:text-foreground')
+                  }
+                >
+                  {ar.fabrics.unitMeter}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -217,6 +260,20 @@ function FabricCreateDialog({
                 + {ar.addTop.addMaterial}
               </Button>
             </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="addtop-fabric-supplier-code">{ar.fabrics.supplierCode}</Label>
+            <Input
+              id="addtop-fabric-supplier-code"
+              value={draft.supplier_code}
+              onChange={(e) => setDraft({ ...draft, supplier_code: e.target.value })}
+              dir="ltr"
+              className="h-10"
+            />
+            <p className="text-xs text-foreground-muted">
+              {ar.fabrics.supplierCodeHint}
+            </p>
           </div>
 
           {err && (
@@ -316,7 +373,6 @@ const blankRow = (color?: { pickedColorId: number | null }): RollRowState => ({
   weight_kg: String(DEFAULT_WEIGHT_KG),
   roll_sr_no: '',
   order_no: '',
-  purchase_price_egp: '',
   supplier_order_no: '',
   top_number: '',
   brand_id: null,
@@ -431,7 +487,6 @@ export function AddTopPage() {
         weight_kg,
         roll_sr_no: r.roll_sr_no.trim() || null,
         order_no: r.order_no.trim() || null,
-        purchase_price_egp: num(r.purchase_price_egp) ?? null,
         supplier_order_no: r.supplier_order_no.trim() || null,
         top_number: num(r.top_number) ?? null,
         width_cm: num(r.width_cm_roll) ?? null,
@@ -770,24 +825,6 @@ export function AddTopPage() {
                         onChange={(e) =>
                           setRows((rs) =>
                             rs.map((r, i) => (i === idx ? { ...r, order_no: e.target.value } : r)),
-                          )
-                        }
-                        dir="ltr"
-                        className="h-11 md:h-10"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>{ar.addTop.purchasePrice}</Label>
-                      <Input
-                        type="number"
-                        inputMode="decimal"
-                        step="0.01"
-                        value={row.purchase_price_egp}
-                        onChange={(e) =>
-                          setRows((rs) =>
-                            rs.map((r, i) =>
-                              i === idx ? { ...r, purchase_price_egp: e.target.value } : r,
-                            ),
                           )
                         }
                         dir="ltr"

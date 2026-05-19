@@ -75,15 +75,24 @@ export async function createTopBatch(
     for (const entry of input.rolls) {
       const color = await resolveColor(trx, entry.color, actorUserId);
 
+      if (entry.lot_id != null) {
+        const lot = await trx('lots').where({ id: entry.lot_id }).first();
+        if (!lot) throw new Error('LOT_NOT_FOUND');
+        if (lot.fabric_id !== fabric.id || lot.color_id !== color.id) {
+          throw new Error('LOT_FABRIC_COLOR_MISMATCH');
+        }
+      }
+
       const internal_barcode = await generateBarcode(trx);
       const [{ id: rollId }] = await trx('rolls').insert({
         fabric_id: fabric.id,
         color_id: color.id,
+        lot_id: entry.lot_id ?? null,
         weight_kg: entry.weight_kg,
+        length_m: entry.length_m ?? null,
         warehouse: 'factory',
         status: 'in_stock',
         selling_price_egp: null,
-        purchase_price_egp: entry.purchase_price_egp ?? null,
         roll_sr_no: entry.roll_sr_no ?? null,
         order_no: entry.order_no ?? null,
         supplier_order_no: entry.supplier_order_no ?? null,
@@ -123,12 +132,15 @@ export async function createTopBatch(
     const rolls = (await trx('rolls as r')
       .join('fabrics as f', 'r.fabric_id', 'f.id')
       .join('colors as c', 'r.color_id', 'c.id')
+      .leftJoin('lots as l', 'r.lot_id', 'l.id')
       .select(
         'r.*',
         'f.code as fabric_code',
         'f.name_ar as fabric_name_ar',
+        'f.unit as fabric_unit',
         'c.name_ar as color_name_ar',
         'c.code as color_code',
+        'l.lot_no as lot_no',
       )
       .whereIn('r.id', createdRollIds)
       .orderBy('r.id', 'asc')) as RollWithDetails[];

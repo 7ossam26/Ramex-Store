@@ -10,8 +10,8 @@ export type StockSummaryRow = {
   count_sold: number;
   count_total: number;
   weight_kg_in_stock: number;
-  avg_purchase_price_egp: number;
-  last_purchase_price_egp: number;
+  avg_reference_price_per_unit: number;
+  last_reference_price_per_unit: number;
   selling_price_egp: number;
   min_quantity_rolls: number;
 };
@@ -140,7 +140,9 @@ export type StockMovement = {
   color_name_ar: string;
 };
 
-export type Fabric = { id: number; code: string; name_ar: string };
+export type FabricUnit = 'kg' | 'meter';
+
+export type Fabric = { id: number; code: string; name_ar: string; unit: FabricUnit };
 export type Color = { id: number; name_ar: string; code: string };
 
 export type FabricFull = {
@@ -152,6 +154,8 @@ export type FabricFull = {
   grade: string;
   notes: string | null;
   is_active: boolean;
+  unit: FabricUnit;
+  supplier_code: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -162,6 +166,8 @@ export type CreateFabricInput = {
   width_cm: number;
   grade: string;
   notes?: string | null;
+  unit: FabricUnit;
+  supplier_code?: string | null;
 };
 
 export type UpdateFabricInput = Partial<CreateFabricInput> & {
@@ -181,6 +187,8 @@ export type FabricRef =
       width_cm: number;
       grade: string;
       notes?: string | null;
+      unit?: FabricUnit;
+      supplier_code?: string | null;
     };
 
 export type ColorRef =
@@ -190,9 +198,10 @@ export type ColorRef =
 export type TopRollEntry = {
   color: ColorRef;
   weight_kg: number;
+  length_m?: number | null;
+  lot_id?: number | null;
   roll_sr_no?: string | null;
   order_no?: string | null;
-  purchase_price_egp?: number | null;
   // Label fields (Phase 5)
   supplier_order_no?: string | null;
   top_number?: number | null;
@@ -212,14 +221,38 @@ export type CreatedTopRoll = {
   internal_barcode: string;
   fabric_id: number;
   color_id: number;
+  lot_id: number | null;
   weight_kg: string;
+  length_m: string | null;
   selling_price_egp: string | null;
   status: string;
   warehouse: string;
   fabric_code: string;
   fabric_name_ar: string;
+  fabric_unit: FabricUnit;
   color_name_ar: string;
   color_code: string;
+  lot_no: string | null;
+};
+
+export type Lot = {
+  id: number;
+  lot_no: string;
+  fabric_id: number;
+  color_id: number;
+  notes_ar: string | null;
+  fabric_code: string;
+  fabric_name_ar: string;
+  color_name_ar: string;
+  color_code: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreateLotInput = {
+  fabric_id: number;
+  color_id: number;
+  notes_ar?: string | null;
 };
 
 export type CreateTopBatchResult = {

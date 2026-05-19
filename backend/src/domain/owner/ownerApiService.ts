@@ -317,7 +317,7 @@ export async function dailyTotals(from: string, to: string) {
       DATE(created_at AT TIME ZONE 'Africa/Cairo') AS date,
       COALESCE(SUM(CASE WHEN status NOT IN ('cancelled') THEN total_egp END), 0) AS revenue_egp,
       COALESCE(SUM(CASE WHEN status NOT IN ('cancelled') THEN
-        (SELECT COALESCE(SUM(r.purchase_price_egp * il2.line_total_egp / NULLIF(il2.selling_price_egp, 0)), 0)
+        (SELECT COALESCE(SUM(r.reference_price_per_unit * il2.line_total_egp / NULLIF(il2.selling_price_egp, 0)), 0)
          FROM invoice_lines il2
          JOIN rolls r ON il2.roll_id = r.id
          WHERE il2.invoice_id = invoices.id) END), 0) AS cost_egp

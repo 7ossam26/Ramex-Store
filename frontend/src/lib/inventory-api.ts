@@ -2,6 +2,7 @@ import { api } from './api';
 import type {
   Color,
   CreateFabricInput,
+  CreateLotInput,
   CreateTopBatchInput,
   CreateTopBatchResult,
   DamageEvent,
@@ -10,6 +11,7 @@ import type {
   Fabric,
   FabricFull,
   FactoryRollPick,
+  Lot,
   RollStatus,
   Shipment,
   ShipmentStatus,
@@ -42,6 +44,16 @@ export const inventoryApi = {
   // One-shot Add-Top wizard
   createTopBatch: (body: CreateTopBatchInput) =>
     api.post<CreateTopBatchResult>('/tops/batch', body).then((r) => r.data),
+
+  // Lots
+  listLots: (params?: { fabric_id?: number; color_id?: number }) =>
+    api.get<Lot[]>('/lots', { params }).then((r) => r.data),
+  getLot: (id: number) =>
+    api.get<Lot>(`/lots/${id}`).then((r) => r.data),
+  createLot: (body: CreateLotInput) =>
+    api.post<Lot>('/lots', body).then((r) => r.data),
+  updateLot: (id: number, body: { notes_ar?: string | null }) =>
+    api.patch<Lot>(`/lots/${id}`, body).then((r) => r.data),
 
   // Shipments
   listShipments: (params?: { status?: ShipmentStatus }) =>

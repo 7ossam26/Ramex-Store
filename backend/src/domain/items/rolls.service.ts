@@ -6,14 +6,17 @@ const ROLL_DETAIL_COLS = [
   'r.*',
   'f.code as fabric_code',
   'f.name_ar as fabric_name_ar',
+  'f.unit as fabric_unit',
   'c.name_ar as color_name_ar',
   'c.code as color_code',
+  'l.lot_no as lot_no',
 ] as const;
 
 function rollDetailQuery() {
   return db('rolls as r')
     .join('fabrics as f', 'r.fabric_id', 'f.id')
     .join('colors as c', 'r.color_id', 'c.id')
+    .leftJoin('lots as l', 'r.lot_id', 'l.id')
     .select(...ROLL_DETAIL_COLS);
 }
 
@@ -21,6 +24,7 @@ function rollLabelQuery() {
   return db('rolls as r')
     .join('fabrics as f', 'r.fabric_id', 'f.id')
     .join('colors as c', 'r.color_id', 'c.id')
+    .leftJoin('lots as l', 'r.lot_id', 'l.id')
     .leftJoin('fabric_grades as g', 'r.grade_id', 'g.id')
     .leftJoin('compositions as comp', 'r.composition_id', 'comp.id')
     .leftJoin('brands as br', 'r.brand_id', 'br.id')
@@ -29,8 +33,10 @@ function rollLabelQuery() {
       'r.*',
       'f.code as fabric_code',
       'f.name_ar as fabric_name_ar',
+      'f.unit as fabric_unit',
       'c.name_ar as color_name_ar',
       'c.code as color_code',
+      'l.lot_no as lot_no',
       'g.arabic_name as grade_arabic_name',
       'comp.description as composition_description',
       'br.arabic_name as brand_arabic_name',
@@ -43,6 +49,7 @@ function rollLabelQuery() {
 export async function listRolls(filters: {
   fabric_id?: number;
   color_id?: number;
+  lot_id?: number;
   status?: string;
   warehouse?: string;
   is_visible_at_pos?: boolean;
@@ -50,6 +57,7 @@ export async function listRolls(filters: {
   const q = rollDetailQuery().orderBy('r.id', 'desc');
   if (filters.fabric_id !== undefined) q.where('r.fabric_id', filters.fabric_id);
   if (filters.color_id !== undefined) q.where('r.color_id', filters.color_id);
+  if (filters.lot_id !== undefined) q.where('r.lot_id', filters.lot_id);
   if (filters.status !== undefined) q.where('r.status', filters.status);
   if (filters.warehouse !== undefined) q.where('r.warehouse', filters.warehouse);
   if (filters.is_visible_at_pos !== undefined) {

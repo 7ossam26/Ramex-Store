@@ -150,7 +150,7 @@ export function StockViewPage() {
     for (const r of rows) {
       if (r.count_in_stock > 0) itemsInStock += 1;
       if (r.count_in_stock > 0 && r.count_in_stock <= r.min_quantity_rolls) lowStock += 1;
-      totalPurchase += r.weight_kg_in_stock * r.avg_purchase_price_egp;
+      totalPurchase += r.weight_kg_in_stock * r.avg_reference_price_per_unit;
       totalSale += r.weight_kg_in_stock * r.selling_price_egp;
     }
     return {
@@ -256,24 +256,24 @@ export function StockViewPage() {
       ),
     },
     {
-      key: 'avg_purchase',
-      header: 'متوسط سعر الشراء',
+      key: 'avg_reference',
+      header: 'متوسط السعر المرجعي',
       align: 'end',
       hideOnMobile: false,
       cell: (row) => (
         <span className="tabular-num" dir="ltr">
-          {fmtMoney(row.avg_purchase_price_egp)} <span className="text-foreground-muted text-xs">{EGP}</span>
+          {fmtMoney(row.avg_reference_price_per_unit)} <span className="text-foreground-muted text-xs">{EGP}</span>
         </span>
       ),
     },
     {
-      key: 'last_cost',
-      header: 'سعر التكلفة (الأخير)',
+      key: 'last_reference',
+      header: 'آخر سعر مرجعي',
       align: 'end',
       hideOnMobile: true,
       cell: (row) => (
         <span className="tabular-num" dir="ltr">
-          {fmtMoney(row.last_purchase_price_egp)} <span className="text-foreground-muted text-xs">{EGP}</span>
+          {fmtMoney(row.last_reference_price_per_unit)} <span className="text-foreground-muted text-xs">{EGP}</span>
         </span>
       ),
     },
@@ -336,7 +336,7 @@ export function StockViewPage() {
           }
         />
         <MetricCard
-          label="إجمالي سعر الشراء"
+          label="إجمالي السعر المرجعي"
           value={kpis.totalPurchase}
           format="money"
           tone="warning"

@@ -1,3 +1,5 @@
+export type FabricUnit = 'kg' | 'meter';
+
 export type Fabric = {
   id: number;
   code: string;
@@ -7,6 +9,8 @@ export type Fabric = {
   grade: string;
   notes: string | null;
   is_active: boolean;
+  unit: FabricUnit;
+  supplier_code: string | null;
   default_width_cm: number | null;
   default_grade_id: number | null;
   default_color_id: number | null;
@@ -57,7 +61,9 @@ export type Roll = {
   composition_id: number | null;
   brand_id: number | null;
   weight_kg: string;
-  purchase_price_egp: string | null;
+  length_m: string | null;
+  lot_id: number | null;
+  reference_price_per_unit: string | null;
   selling_price_egp: string;
   status: RollStatus;
   warehouse: RollWarehouse;
@@ -70,8 +76,10 @@ export type Roll = {
 export type RollWithDetails = Roll & {
   fabric_code: string;
   fabric_name_ar: string;
+  fabric_unit: FabricUnit;
   color_name_ar: string;
   color_code: string;
+  lot_no: string | null;
 };
 
 export type RollWithLabelDetails = RollWithDetails & {

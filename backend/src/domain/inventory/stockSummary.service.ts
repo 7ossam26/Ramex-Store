@@ -14,8 +14,8 @@ export type StockSummaryRow = {
   count_sold: number;
   count_total: number;
   weight_kg_in_stock: number;
-  avg_purchase_price_egp: number;
-  last_purchase_price_egp: number;
+  avg_reference_price_per_unit: number;
+  last_reference_price_per_unit: number;
   selling_price_egp: number;
   min_quantity_rolls: number;
 };
@@ -43,15 +43,15 @@ export async function getStockSummary(warehouse?: WarehouseFilter): Promise<Stoc
       db.raw(`COUNT(*) FILTER (WHERE r.status = 'sold') AS count_sold`),
       db.raw(`COUNT(*) AS count_total`),
       db.raw(`COALESCE(SUM(r.weight_kg) FILTER (WHERE r.status = 'in_stock' ${whBoundClause}), 0) AS weight_kg_in_stock`),
-      db.raw(`COALESCE(AVG(r.purchase_price_egp) FILTER (WHERE r.status = 'in_stock' ${whBoundClause}), 0) AS avg_purchase_price_egp`),
+      db.raw(`COALESCE(AVG(r.reference_price_per_unit) FILTER (WHERE r.status = 'in_stock' ${whBoundClause}), 0) AS avg_reference_price_per_unit`),
       db.raw(`COALESCE(AVG(r.selling_price_egp) FILTER (WHERE r.status = 'in_stock' ${whBoundClause}), 0) AS selling_price_egp`),
       db.raw(`(
-        SELECT r2.purchase_price_egp
+        SELECT r2.reference_price_per_unit
         FROM rolls r2
-        WHERE r2.fabric_id = f.id AND r2.color_id = c.id AND r2.purchase_price_egp IS NOT NULL
+        WHERE r2.fabric_id = f.id AND r2.color_id = c.id AND r2.reference_price_per_unit IS NOT NULL
         ORDER BY r2.received_at DESC NULLS LAST, r2.id DESC
         LIMIT 1
-      ) AS last_purchase_price_egp`),
+      ) AS last_reference_price_per_unit`),
     )
     .groupBy('f.id', 'f.name_ar', 'f.code', 'f.min_quantity_rolls', 'c.id', 'c.name_ar', 'c.code')
     .orderBy('f.name_ar')
@@ -69,8 +69,8 @@ export async function getStockSummary(warehouse?: WarehouseFilter): Promise<Stoc
     count_sold: Number(r.count_sold),
     count_total: Number(r.count_total),
     weight_kg_in_stock: Number(r.weight_kg_in_stock),
-    avg_purchase_price_egp: Number(r.avg_purchase_price_egp),
-    last_purchase_price_egp: Number(r.last_purchase_price_egp ?? 0),
+    avg_reference_price_per_unit: Number(r.avg_reference_price_per_unit),
+    last_reference_price_per_unit: Number(r.last_reference_price_per_unit ?? 0),
     selling_price_egp: Number(r.selling_price_egp),
     min_quantity_rolls: Number(r.min_quantity_rolls),
   }));
