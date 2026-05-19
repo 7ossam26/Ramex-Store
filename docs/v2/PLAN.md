@@ -12,7 +12,7 @@ Five business modules are affected: inventory data model, shipments, POS, financ
 > [!IMPORTANT]
 > System is **pre-production**. Migrations may be destructive — no backwards-compatibility shims required.
 
-This plan splits the work into **9 sequential phases**. Each has a standalone prompt file in this folder (`phase-N-*.md`) that gets pasted into a fresh Claude Code session to apply that phase end-to-end. The owner runs them one at a time.
+This plan splits the work into **9 build phases + 1 validation phase**. Each has a standalone prompt file in this folder (`phase-N-*.md`) that gets pasted into a fresh Claude Code session to apply that phase end-to-end. The owner runs them one at a time. Phase 10 is the final gate — it runs after all 9 build phases land and verifies every resolved Q&A item before `v2.0.0` is tagged.
 
 ## Phase sequencing
 
@@ -27,6 +27,7 @@ This plan splits the work into **9 sequential phases**. Each has a standalone pr
 | 7 | Payment methods — bank transfer + cheque | Req 3.4 extend `PaymentMethod`, new `cheques` table, allow negative `payments.amount_egp` for refunds | Phase 5 (negative payments used by deposit refund) | [phase-7-payment-methods.md](phase-7-payment-methods.md) |
 | 8 | Finance — InstaPay expense + cash drawer label | Req 4.1 InstaPay as expense source, 4.2 UI label only — **business-day math dropped entirely** | — | [phase-8-finance-day-window.md](phase-8-finance-day-window.md) |
 | 9 | HR module — payroll & adjustments (single table) | Req 5.x: employees (minimal fields), monthly disbursement, advances+deductions in one `hr_salary_adjustments` table | Phase 7 (uses `bank_transfer` for salary disbursement) | [phase-9-hr-module.md](phase-9-hr-module.md) |
+| 10 | **Validation** — every resolved Q&A verified | Schema checks + behavioral tests + regression sweep; produces `v2-validation-report.md`; gate before tagging `v2.0.0` | Phases 1–9 all merged | [phase-10-validation.md](phase-10-validation.md) |
 
 ## Universal constraints (apply to every phase)
 
