@@ -1,87 +1,102 @@
 # v2 · Phase 4 — Fulfillment Destination (Shop vs Factory Direct)
 
-> **Gate:** This prompt is incomplete until the `## Resolved flow` block is filled in. The exact stock movement for `factory_direct` is left open in `docs/requirements-v2.md` line 254. Owner + Claude Code must agree in chat first, then paste the resolution into this file. **Do not run this prompt while `## Resolved flow` still says `<<TO BE FILLED IN AFTER OWNER DECISION>>`.**
+> Self-contained prompt. Paste into a fresh Claude Code session. The earlier "gate" is gone — the flow is fully resolved.
 
 ## Read first (in order)
 
 1. `CORE_PLAN.md` — end to end
-2. `docs/requirements-v2.md` — section **2.2** + the warning callout at line 252
-3. `docs/v2/PLAN.md` — phase index
+2. `docs/requirements-v2.md` — **§2.2** (resolved version — every rule below comes from it)
+3. `docs/v2/PLAN.md` and `docs/v2/questions-resolved.md`
 4. The current code:
    - `backend/src/domain/sales/` — invoice creation, lifecycle, lines
-   - `backend/src/domain/shipments/` — accept-shipment flow (Phase 3 just touched this)
-   - `frontend/src/pages/shipments/ReviewShipment.tsx`
-   - The `invoices` and `rolls` tables — current statuses + warehouse field
+   - `frontend/src/pages/pos/POS.tsx` — roll picker / scanner / cart
+   - `backend/src/db/migrations/008_create_rolls.ts` — confirms `rolls.warehouse` enum is `'shop' | 'factory' | 'damaged_shop'`
+   - The `invoices` table — current statuses
 
 ## Stack invariants (restated)
 
 - Backend: Node.js + TypeScript, Knex migrations only, Postgres 16
 - Frontend: React + TypeScript, RTL only, Arabic labels only
 - Auth: `permissionsService.can()`
-- Audit log row on every state transition for an affected invoice or roll
+- Audit log row on every state transition
 - UI work MUST invoke the `ui-ux-pro-max` skill
 - No new npm dependencies without justification in the commit body
 
-## Pre-resolved facts (from requirements)
+## Resolved flow (from requirements-v2.md §2.2)
 
-- New column on `invoices` (or related order entity): `fulfillment_destination varchar(32) NULL`. Values: `'shop' | 'factory_direct'`. Default `NULL` for legacy invoices.
-- Set at the point Ziad accepts the shipment in `ReviewShipment` (this is the requirement's wording; if implementation reveals a better point — e.g., at invoice creation in POS — surface the choice).
-- `'shop'`: accepted rolls move to `warehouse: 'shop'` (current default behaviour).
-- `'factory_direct'`: customer collects from the factory — exact roll/invoice state machine **TBD** (see `## Resolved flow` below).
+- `fulfillment_destination` lives on `invoices`, set at **invoice creation in POS**.
+- Values: `'shop' | 'factory_direct'`. **Per invoice**, not per line. Mixed destinations on one invoice are impossible.
+- **No transit state** for rolls. Upon invoice payment, every roll on the invoice flips `status: in_stock` → `'sold'` immediately.
+- Roll `warehouse` field **stays as it was** after sale (so reports can split "sold from factory" vs "sold from shop").
+- Stock deduction follows the roll's `warehouse`.
+- **No handover tracking** — customer just walks out with the invoice paper.
 
-## Resolved flow
-
-<<TO BE FILLED IN AFTER OWNER DECISION>>
-
-Format expected when filled:
-- **Roll lifecycle for `factory_direct`:** (e.g., "rolls skip `warehouse: 'shop'` and go directly to `status: 'sold'` on invoice payment" OR "rolls take a transient `warehouse: 'factory_direct'` value and only become `status: 'sold'` after factory confirms handover")
-- **Invoice status:** does the invoice need a new state (e.g., `awaiting_factory_pickup`) between paid and delivered?
-- **Who confirms handover** and through which UI?
-- **What audit events fire** and with what payload?
-- **Reports impact:** how do reports distinguish shop-fulfilled vs factory-direct sales? (e.g., daily sales report split, cash drawer attribution)
-
-## Scope (only run once Resolved flow is filled in)
+## Scope
 
 ### Migration
 
-- Add `fulfillment_destination varchar(32) NULL` to `invoices` with a CHECK constraint accepting `'shop' | 'factory_direct'` (or NULL for legacy rows).
-- Any additional columns required by the resolved flow (e.g., `factory_picked_up_at timestamptz NULL`) come out of this migration too.
-- `up` + `down` both implemented.
+- `ALTER TABLE invoices ADD COLUMN fulfillment_destination VARCHAR(32) NOT NULL DEFAULT 'shop' CHECK (fulfillment_destination IN ('shop','factory_direct'))`
+- No other columns needed (no transit state, no handover timestamps).
+- `up` + `down` both implemented and round-trip clean.
 
 ### Backend
 
-- Extend the shipment-accept request body with `fulfillmentDestination`.
-- Implement the state machine described in `## Resolved flow`.
-- Backend rejects unknown values; falls back to `'shop'` for any callers that don't supply one (preserves v1.1 behaviour).
-- Audit row on every transition.
+- Extend the invoice-create request body in `backend/src/domain/sales/` with `fulfillmentDestination`.
+- On invoice create:
+  - Validate value ∈ `{shop, factory_direct}`. Default to `'shop'` if missing (backwards compat).
+  - If `'factory_direct'`: server rejects any cart line whose roll is NOT `warehouse: 'factory'`.
+  - If `'shop'`: server rejects any cart line whose roll is `warehouse: 'factory'` (those need a stock transfer first).
+- No state machine. The roll lifecycle on payment is unchanged from v1.1 (in_stock → sold). The destination field is recorded for filtering/reports.
+- Audit: include `fulfillment_destination` in the existing invoice-create audit payload.
 
-### Frontend
+### Frontend — POS
 
-- In `ReviewShipment.tsx`, add a clear selector (radio group, Arabic labels: «المحل» / «استلام مباشر من المصنع») above the per-fabric pricing section.
-- A confirmation step before submitting `factory_direct` shipments (Arabic: «هل أنت متأكد؟ الرولات لن تمر بمخزن المحل»).
-- Wherever invoices are listed (POS sidebar, owner reports), expose a filter by fulfillment destination.
+Add a clear destination toggle to the POS surface (radio group at the top of the cart panel):
+- «المحل» (shop) — default
+- «استلام مباشر من المصنع» (factory_direct)
+
+**Roll picker behaviour** changes based on the toggle:
+
+- `destination = 'factory_direct'`:
+  - Search results / scanner only return rolls with `warehouse: 'factory'`.
+  - Shop rolls are hidden entirely.
+- `destination = 'shop'`:
+  - Search results return both shop and factory rolls.
+  - Factory rolls are visible but **disabled** (grayed out, label «في المصنع» on the row, not selectable).
+  - Scanning a factory roll's barcode while destination is `'shop'` → toast «هذا الرول في المصنع. غيّر الوجهة أولاً» and the scan is rejected.
+
+**Switching destination after adding lines:**
+- If switching from `'shop'` → `'factory_direct'` while shop rolls are in the cart: confirm, then strip those lines.
+- If switching from `'factory_direct'` → `'shop'` while factory rolls are in the cart: confirm, then strip those lines.
+- Show an Arabic confirmation dialog before stripping.
+
+**Reports:**
+- Wherever invoices are listed (owner reports, sales history), add a filter chip for fulfillment destination.
 
 ## Acceptance
 
-- All bullets in `## Resolved flow` are implemented and verifiable through the UI
-- Existing shop-fulfilled flow is byte-for-byte identical for end users
-- Factory-direct flow produces the agreed state transitions and audit trail
+- POS surface has a destination toggle at the top of the cart
+- Toggling to factory_direct hides shop rolls in the picker
+- Toggling to shop shows factory rolls as disabled with «في المصنع»
+- Submitting a factory_direct invoice with a shop roll in cart is impossible (UI prevents; server also rejects)
+- After payment, every roll's `warehouse` is unchanged; every roll's `status` is `'sold'`
+- Reports/lists can filter by destination
 - `npm run typecheck && npm run build && npm run lint` is clean
 - Migration rollback round-trip is clean
 
 ## Smoke checklist
 
-- [ ] Accept a shipment with `fulfillment_destination = 'shop'` — behaves like before; rolls land in shop warehouse
-- [ ] Accept a shipment with `fulfillment_destination = 'factory_direct'` — rolls follow the resolved lifecycle
-- [ ] Owner reports show the split between shop-fulfilled and factory-direct sales
-- [ ] Audit log entries match the resolved flow for both paths
-- [ ] All v1.1 invoices (with `fulfillment_destination = NULL`) still display and process correctly
+- [ ] Default destination on a fresh POS load = `'shop'`
+- [ ] Switch to factory_direct, scan a factory roll → added to cart
+- [ ] Switch back to shop with a factory roll in cart → confirm dialog → cart cleared of factory lines
+- [ ] Scan a shop roll while in shop mode → added normally
+- [ ] Scan a factory roll while in shop mode → toast rejects
+- [ ] Complete a factory_direct sale → invoice has `fulfillment_destination = 'factory_direct'`; rolls are `status: 'sold'` with `warehouse` unchanged
+- [ ] Reports filter for fulfillment_destination returns the right set
 
 ## Commit
 
-`feat(v2-phase-4): fulfillment destination — shop vs factory direct pickup`
-
-Body: link to the chat decision that resolved the open question.
+`feat(v2-phase-4): fulfillment destination — invoice-level shop vs factory direct, POS roll filtering`
 
 ## Stop here
 

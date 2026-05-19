@@ -1,42 +1,40 @@
-# v2 · Phase 9 — HR Module: Payroll, Advances, Deductions
+# v2 · Phase 9 — HR Module: Employees, Monthly Disbursement, Advances + Deductions
 
 > Self-contained prompt. Paste into a fresh Claude Code session.
 
 ## Read first (in order)
 
-1. `CORE_PLAN.md` — end to end (especially the architecture/domain layout, permissions, audit conventions)
-2. `docs/requirements-v2.md` — section **5** (Module 5: HR)
-3. `docs/v2/PLAN.md` — phase index + universal constraints
+1. `CORE_PLAN.md` — end to end (domain layout, permissions, audit conventions)
+2. `docs/requirements-v2.md` — **§5.1–5.5** (resolved — single `hr_salary_adjustments` table for advances + deductions, minimal employee fields)
+3. `docs/v2/PLAN.md` and `docs/v2/questions-resolved.md`
 4. The current code:
-   - `backend/src/domain/` — domain folder layout convention (look at `items`, `sales`, `finance` for the shape new domains should follow)
-   - `backend/src/domain/finance/expensesService.ts` — payment-method handling is a useful template
+   - `backend/src/domain/` — domain folder layout convention (see `items`, `sales`, `finance` for shape)
+   - `backend/src/domain/finance/expensesService.ts` — useful template for payment-method handling
    - `frontend/src/pages/` — page folder convention
-   - `frontend/src/components/` — any list/table/form components reused across pages
    - The permissions matrix in `Settings`
 
-If Phase 7 hasn't landed (no `bank_transfer` payment method), **stop and surface that** — salary disbursement uses `bank_transfer` and assumes the routing guard from Phase 7.
+If Phase 7 hasn't landed (no `bank_transfer` payment method), **stop and surface that** — salary disbursement uses `bank_transfer`.
 
 ## Stack invariants (restated)
 
 - Backend: Node.js + TypeScript, Knex migrations only, Postgres 16, snake_case, Cairo TZ
 - Frontend: React + TypeScript, RTL only, Arabic labels only, Tailwind + shadcn/ui, Western digits, EGP 2-decimal precision
-- Auth: `permissionsService.can()` — define new permission keys for HR (`hr.view`, `hr.manage`, `hr.salary.disburse`, `hr.advance.create`, `hr.deduction.create`)
+- Auth: `permissionsService.can()` — define new permission keys (`hr.view`, `hr.manage`, `hr.salary.disburse`, `hr.advance.create`, `hr.deduction.create`)
 - Audit log row on every sensitive write
 - UI work MUST invoke the `ui-ux-pro-max` skill at the start and per major section
 - No new npm dependencies without justification in the commit body
 
 ## Scope
 
-A **new module** (no existing code). All four DB tables, full backend domain, full frontend pages.
+A **new module** (no existing code). Three new DB tables, full backend domain, full frontend pages.
 
-### Migration — 4 new tables
-
-Per requirements §5 (Suggested DB tables), with PG-correct types:
+### Migration — 3 new tables
 
 ```sql
 CREATE TABLE hr_employees (
   id              BIGSERIAL PRIMARY KEY,
   name_ar         VARCHAR(128) NOT NULL,
+  phone           VARCHAR(16) NULL,         -- Egyptian format 01[0125]XXXXXXXX, validated app-side
   role_ar         VARCHAR(64) NULL,
   base_salary_egp NUMERIC(12,2) NOT NULL DEFAULT 0,
   is_active       BOOLEAN NOT NULL DEFAULT TRUE,
@@ -45,131 +43,105 @@ CREATE TABLE hr_employees (
 );
 
 CREATE TABLE hr_salary_disbursements (
-  id               BIGSERIAL PRIMARY KEY,
-  employee_id      BIGINT NOT NULL REFERENCES hr_employees(id),
-  month            DATE NOT NULL,                       -- first day of the salary month
-  gross_egp        NUMERIC(12,2) NOT NULL,
-  deductions_egp   NUMERIC(12,2) NOT NULL DEFAULT 0,
-  net_egp          NUMERIC(12,2) NOT NULL,
-  paid_via         VARCHAR(32) NOT NULL
-                   CHECK (paid_via IN ('cash','instapay','bank_transfer')),
-  bank_account_id  BIGINT NULL REFERENCES bank_accounts(id),
-  notes_ar         TEXT NULL,
-  actor_user_id    BIGINT NOT NULL REFERENCES users(id),
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  id              BIGSERIAL PRIMARY KEY,
+  employee_id     BIGINT NOT NULL REFERENCES hr_employees(id),
+  month           DATE NOT NULL,                  -- first day of the salary month
+  gross_egp       NUMERIC(12,2) NOT NULL,
+  adjustments_egp NUMERIC(12,2) NOT NULL DEFAULT 0,
+  net_egp         NUMERIC(12,2) NOT NULL,
+  paid_via        VARCHAR(32) NOT NULL CHECK (paid_via IN ('cash','instapay','bank_transfer')),
+  bank_account_id BIGINT NULL REFERENCES bank_accounts(id),
+  notes_ar        TEXT NULL,
+  actor_user_id   BIGINT NOT NULL REFERENCES users(id),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (employee_id, month)
 );
 
-CREATE TABLE hr_advances (
+CREATE TABLE hr_salary_adjustments (
   id             BIGSERIAL PRIMARY KEY,
   employee_id    BIGINT NOT NULL REFERENCES hr_employees(id),
-  amount_egp     NUMERIC(12,2) NOT NULL,
-  given_at       DATE NOT NULL,
+  kind           VARCHAR(16) NOT NULL CHECK (kind IN ('advance','deduction')),
+  amount_egp     NUMERIC(12,2) NOT NULL CHECK (amount_egp > 0),
+  salary_month   DATE NOT NULL,                   -- which salary month this adjustment applies to
   reason_ar      TEXT NULL,
-  repaid_egp     NUMERIC(12,2) NOT NULL DEFAULT 0,
-  is_settled     BOOLEAN NOT NULL DEFAULT FALSE,
   actor_user_id  BIGINT NOT NULL REFERENCES users(id),
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
-CREATE TABLE hr_deductions (
-  id             BIGSERIAL PRIMARY KEY,
-  employee_id    BIGINT NOT NULL REFERENCES hr_employees(id),
-  amount_egp     NUMERIC(12,2) NOT NULL,
-  reason_ar      TEXT NULL,
-  salary_month   DATE NOT NULL,                          -- which salary month this deduction applies to
-  actor_user_id  BIGINT NOT NULL REFERENCES users(id),
-  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX hr_salary_disbursements_month_idx ON hr_salary_disbursements(month);
-CREATE INDEX hr_advances_employee_settled_idx ON hr_advances(employee_id, is_settled);
-CREATE INDEX hr_deductions_employee_month_idx ON hr_deductions(employee_id, salary_month);
+CREATE INDEX hr_salary_adjustments_employee_month_idx ON hr_salary_adjustments(employee_id, salary_month);
 ```
 
-Migration `up` + `down` both implemented and round-trip clean.
+Migration `up` + `down` round-trip clean.
 
 ### Backend — `backend/src/domain/hr/`
-
-Standard domain layout (match existing convention):
 
 ```
 backend/src/domain/hr/
   hr.types.ts
-  hr.schemas.ts          # zod for create/update inputs
+  hr.schemas.ts
   employees.repository.ts
   employees.service.ts
   salaries.repository.ts
   salaries.service.ts
-  advances.repository.ts
-  advances.service.ts
-  deductions.repository.ts
-  deductions.service.ts
+  adjustments.repository.ts
+  adjustments.service.ts
   hr.routes.ts
 ```
 
 #### Endpoints
 
-- `GET    /api/hr/employees`             — list (filter by `is_active`, search by name)
-- `POST   /api/hr/employees`             — create
-- `PATCH  /api/hr/employees/:id`         — update (name, role, base_salary, is_active toggle)
-- `GET    /api/hr/employees/:id`         — detail + summary (current open advances, last 12 salary rows)
+- `GET    /api/hr/employees`              — list (filter by `is_active`, search by name/phone)
+- `POST   /api/hr/employees`              — create
+- `PATCH  /api/hr/employees/:id`          — update (name, phone, role, base_salary, is_active toggle)
+- `GET    /api/hr/employees/:id`          — detail + summary (last 12 salary rows, open adjustments for current/next month)
 
-- `GET    /api/hr/salaries`              — list (filter by employee + month range)
-- `POST   /api/hr/salaries`              — disburse: server computes `net_egp = gross_egp - deductions_egp`; if `paid_via != 'cash'`, `bank_account_id` is required; debits cash drawer or bank account accordingly; writes audit row
-- `GET    /api/hr/salaries/:id`          — detail
+- `GET    /api/hr/salaries`               — list (filter by employee + month range)
+- `POST   /api/hr/salaries`               — disburse: server computes `gross = base_salary`, `adjustments_egp = sum(adjustments for employee + month)`, `net = gross − adjustments_egp`; if `paid_via != 'cash'`, `bank_account_id` is required; writes the ledger movement; audits
+- `GET    /api/hr/salaries/:id`           — detail
 
-- `GET    /api/hr/advances`              — list (filter by employee + `is_settled`)
-- `POST   /api/hr/advances`              — record a new advance; debits cash drawer (or bank if a future req allows); audit row
-- `PATCH  /api/hr/advances/:id/repay`    — partial repayment update (`repaid_egp` += amount; flips `is_settled` when `repaid_egp >= amount_egp`)
+- `GET    /api/hr/adjustments`            — list (filter by employee, kind, salary_month)
+- `POST   /api/hr/adjustments`            — create (advance or deduction); audits
 
-- `GET    /api/hr/deductions`            — list (filter by employee + salary_month)
-- `POST   /api/hr/deductions`            — record a deduction tied to a salary month; audit row
-
-All write endpoints require `hr.manage` permission (or finer-grained as listed above).
+All write endpoints require the appropriate `hr.*` permission.
 
 #### Money movement
 
-- Salary `cash` disbursement: cash drawer movement (debit).
-- Salary `instapay` or `bank_transfer`: bank account movement (debit, mirroring the InstaPay routing guard from Phase 7).
-- Advances: same routing rules.
-- Each movement carries `business_day_id` (Phase 8) so reports bucket correctly.
+- Salary `cash` disbursement: cash drawer outflow.
+- Salary `instapay` or `bank_transfer`: bank account debit (uses the routing guard from Phase 7).
+- Adjustments do NOT trigger immediate money movement — they just reduce the next disbursement's net. (Advances are tracked separately from any cash physically given today; if the owner wants cash-out-on-advance tracked, it goes through `expensesService.ts` separately. v2 keeps HR purely accounting.)
 
 ### Frontend — `frontend/src/pages/hr/`
 
 Pages:
 - `Employees.tsx` — list + create + edit; row click → detail drawer with summary
-- `Salaries.tsx` — month picker → grid of employees showing computed salary preview (base − deductions, − open advances if you want to surface them); "Disburse" button per row opens a payment dialog (cash | instapay | bank_transfer)
-- `Advances.tsx` — list of advances with filter chips (open / settled / by employee); create dialog; per-row "تسجيل سداد" action
-- `Deductions.tsx` — list + create dialog (select employee, amount, reason, salary month)
+- `Salaries.tsx` — month picker → grid of employees showing computed salary preview (base − sum(adjustments for this month)); per-row «صرف الراتب» button opens a payment dialog (cash | instapay | bank_transfer)
+- `Adjustments.tsx` — list of all adjustments with filter chips (all | advances | deductions | by employee | by month); create dialog (employee, kind, amount, reason, salary_month)
 
-Add an HR section to the side nav, gated on `hr.view`. Arabic labels only:
-- «الموظفون» / «الرواتب» / «السلف» / «الخصومات»
+Side nav: HR section gated on `hr.view`:
+- «الموظفون» / «الرواتب» / «التسويات» (advances + deductions combined under one label)
 
-Reuse existing form / table / drawer components (look at `frontend/src/components/`). Run `ui-ux-pro-max` skill for each page.
+Reuse existing form/table/drawer components. Run `ui-ux-pro-max` for each page.
 
 ### Permissions
 
-Add new permission keys to the permissions matrix in Settings:
-- `hr.view` — see all HR pages
+Add to permissions matrix in Settings:
+- `hr.view` — see HR pages
 - `hr.manage` — edit employees
 - `hr.salary.disburse` — create salary disbursements
-- `hr.advance.create` — record advances
-- `hr.deduction.create` — record deductions
+- `hr.advance.create` — create advance adjustments
+- `hr.deduction.create` — create deduction adjustments
 
 Default role assignments:
 - Owner: all
-- Manager: `hr.view`, `hr.manage`, `hr.salary.disburse`, `hr.advance.create`, `hr.deduction.create`
+- Manager: all five
 - Cashier: none
 
 ## Acceptance
 
-- Owner can create an employee with base salary
-- Owner can disburse a salary for a given month via cash, instapay, or bank_transfer; the money lands in the right ledger
-- A second disbursement for the same `(employee, month)` is rejected (UNIQUE constraint)
-- Owner can record an advance and later mark it (partially or fully) repaid
-- Owner can record a deduction tied to a salary month; the salary preview for that month reflects it
-- All HR writes write audit rows
+- Owner can create an employee with name + phone + role + base salary
+- Owner can record an advance of 200 EGP for employee A for month 2026-06; the salary preview for 2026-06 shows base − 200
+- Owner can record a deduction of 100 EGP for the same employee/month; preview now shows base − 300
+- Owner disburses June salary for employee A via `bank_transfer` → `net_egp = base − 300`; bank account debited
+- A second June disbursement for employee A is rejected (UNIQUE constraint)
 - HR pages are hidden for users without `hr.view`
 - `npm run typecheck && npm run build && npm run lint` is clean
 - Migration rollback round-trip is clean
@@ -177,16 +149,18 @@ Default role assignments:
 ## Smoke checklist
 
 - [ ] Create 2 employees with different base salaries
-- [ ] Add a 500 EGP deduction for employee A for month 2026-06
-- [ ] Disburse June salary for employee A via `bank_transfer` — net = base − 500; bank account debited
-- [ ] Try to disburse June again for employee A — rejected
-- [ ] Record a 1000 EGP advance for employee B; mark 600 repaid → row shows `repaid_egp = 600`, `is_settled = false`; mark remaining 400 repaid → `is_settled = true`
-- [ ] Login as a user without `hr.view` — HR nav item is absent
-- [ ] Rollback the migration → tables drop cleanly; re-applying restores them
+- [ ] Add a 200 EGP advance for employee A for month 2026-06
+- [ ] Add a 100 EGP deduction for employee A for month 2026-06
+- [ ] Salary preview for June shows `net = base − 300` for employee A
+- [ ] Disburse June salary for employee A via `bank_transfer` → success; bank account debited by `net_egp`
+- [ ] Try to disburse June again for employee A → rejected
+- [ ] Disburse June salary for employee B via cash → cash drawer drops by `net_egp`
+- [ ] User without `hr.view` → HR nav item absent
+- [ ] Rollback the migration → tables drop cleanly; re-apply restores them
 
 ## Commit
 
-`feat(v2-phase-9): hr module — employees, salaries, advances, deductions`
+`feat(v2-phase-9): hr module — employees, monthly disbursement, advances+deductions in one adjustments table`
 
 ## Stop here
 

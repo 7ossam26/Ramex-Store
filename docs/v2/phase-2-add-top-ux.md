@@ -5,90 +5,102 @@
 ## Read first (in order)
 
 1. `CORE_PLAN.md` — end to end
-2. `docs/requirements-v2.md` — section **1.4** + the lot picker note in **1.3** + the meter-fabric note in **1.1**
-3. `docs/v2/PLAN.md` — phase index + universal constraints
+2. `docs/requirements-v2.md` — **§1.4, 1.6**, plus the lot picker note in §1.3 and the meter-fabric note in §1.1
+3. `docs/v2/PLAN.md` and `docs/v2/questions-resolved.md`
 4. The current code:
-   - `frontend/src/pages/items/AddTop.tsx` (the page being redesigned)
+   - `frontend/src/pages/items/AddTop.tsx`
    - `backend/src/domain/items/tops.schemas.ts` (`TopRollEntrySchema`)
-   - `backend/src/domain/lots/` (created in Phase 1 — used for the lot picker)
-   - `backend/src/domain/items/items.types.ts` (`Fabric.unit` lives here after Phase 1)
-5. The git log for Phase 1 commits so the schema is fresh in your head
+   - `backend/src/domain/lots/` (created in Phase 1)
+   - `backend/src/domain/items/items.types.ts` (`Fabric.unit` after Phase 1)
+5. Phase 1 commits — confirm schema is fresh
 
-If Phase 1 hasn't landed (no `fabrics.unit`, no `rolls.length_m`, no `lots` table), **stop and surface that** — this phase depends on it.
+If Phase 1 hasn't landed (no `fabrics.unit`, no `rolls.length_m`, no `lots` table, no `rolls.lot_id`), **stop and surface that**.
 
 ## Stack invariants (restated)
 
 - Frontend: React + TypeScript + Vite, RTL only, Arabic labels only, Tailwind + shadcn/ui, Western digits
-- Forms: `react-hook-form` + zod, never raw `useState` chains for multi-field forms
+- Forms: `react-hook-form` + zod
 - Auth: `permissionsService.can()` — never inline role checks
-- Audit log row on every roll insert (already exists; do not duplicate)
-- **UI work MUST invoke the `ui-ux-pro-max` skill at the start and for each major UI section** — this phase is almost entirely UI
+- Audit log row on every roll insert (existing — do not duplicate)
+- **UI work MUST invoke the `ui-ux-pro-max` skill at the start and for each major UI section**
 - No new npm dependencies without justification in the commit body
 
 ## Scope
 
-This is a **pure UX redesign** of the Add Top batch form. The data model already supports it after Phase 1.
+Pure UX redesign — the data model already supports it after Phase 1.
 
-### Layout — compact table-row per roll
+### 1.6 · Multi-fabric, sub-grouped layout
 
-Replace the current card-per-roll layout with a **compact table-style row** so a user can rip through 20–40 rolls without scrolling each card. Required columns, left-to-right (RTL: right-to-left visually but think of these as the logical order):
+A single Add Top session can contain rolls of **multiple fabrics**. UX:
 
-1. **Color** — searchable select, default = the color from the previous row
-2. **Width cm** — number input, default = the fabric's `width_cm`, **editable per roll**
-3. **Weight kg** — number input, required for `unit = 'kg'` fabrics, required for `unit = 'meter'` fabrics that still carry weight; placeholder = previous row's value but **do not auto-fill**, the user must confirm each row's weight
-4. **Length m** — number input, **shown only when `fabric.unit = 'meter'`**, required in that case
-5. **Lot** — searchable select scoped to the current `(fabric_id, color_id)`; has a "+ جديد" affordance to create a new lot inline (modal with `lot_no` + `notes_ar`)
-6. **More** — chevron that expands a per-row drawer for the remaining optional fields (grade, brand, composition, sample-flag, etc.) — these stay collapsed by default
+- Top of the page: invoice-level meta (date, source, notes).
+- Below: a stack of **fabric sub-groups**. Each sub-group has:
+  - A small header row: fabric picker (searchable select) + an icon button to remove the entire sub-group
+  - A table of roll rows under that fabric (see 1.4 below)
+- A footer button «+ fabric جديد» adds a new empty sub-group below the current one.
 
-Both `width_cm` and `weight_kg` are now **first-class, required, visible columns** — not buried in the "optional fields" accordion (requirements §1.4).
+All rows within one sub-group share the picked fabric (and follow its kg/meter unit). Color, lot, width, weight, length are picked per row.
 
-### Bulk affordances
+### 1.4 · Compact table-row per roll
 
-- "Add 5 rows" / "Add 10 rows" quick buttons
-- A row-level duplicate button (clone previous row except `lot_no` if user is using auto-generated lot numbers)
-- Bulk-set color: select multiple rows → set color in one click
+Required columns inside each sub-group's table, in this logical order (RTL render reverses visually):
+
+1. **Color** — searchable select, default = the color from the previous row in this sub-group
+2. **Width cm** — number input, default = the fabric's `width_cm`, editable per row, **required**
+3. **Weight kg** — number input, **required**. Shows previous row's value as **placeholder only** — never auto-fills. Ahmed types each one.
+4. **Length m** — number input, **shown only when `fabric.unit = 'meter'`**, **required** in that case
+5. **Lot** — searchable select scoped to the current `(fabric, color)`. Has a «+ جديد» affordance that creates a new lot inline via `POST /api/lots` (no modal — quick action; `lot_no` is server-generated). The picker shows existing lots for the chosen color and updates as the color changes.
+6. **More** — chevron expanding a per-row drawer for remaining optional fields (grade, brand, composition, sample flag, etc.)
+
+Both width and weight are first-class visible cells — NOT in an accordion.
+
+### Bulk affordances (per sub-group)
+
+- "Add 5 rows" / "Add 10 rows" buttons
+- Duplicate-row button per row (clones color + width; weight starts empty since each weight must be confirmed)
+- Multi-select rows → bulk-set color in one click
 
 ### Footer
 
-- Live total: number of rolls, sum of `weight_kg`, sum of `length_m` (only when meter-fabric)
-- Submit button disabled until every required field on every row passes zod
-- Inline validation errors per cell (not a single toast at the top)
+- Live totals: number of rolls, total weight (sum), total length (only shown when at least one sub-group is a meter-fabric)
+- Submit button disabled until every required cell on every row passes zod
+- Inline validation per cell — not a single top-of-page toast
 
 ### Backend touch points
 
-- `TopRollEntrySchema` already has `width_cm` and `weight_kg`. Confirm they're `required`, not `optional`. Make `length_m` required when the parent fabric is `unit = 'meter'`.
-- No new endpoints. Lot create + lookup already exists from Phase 1.
-- Confirm `purchase_price_egp` is fully out of the schema (Phase 1 §1.5).
+- `TopRollEntrySchema`: keep `width_cm` and `weight_kg` required; add `length_m` as required when the parent fabric is `unit = 'meter'`; add `lot_id` optional.
+- Multi-fabric submission shape — confirm the existing endpoint accepts a request body that lists rolls with `fabric_id` per row, OR rework to accept a sub-grouped shape `[{ fabric_id, rolls: [...] }, ...]`. Pick whichever requires the smaller diff; document the choice in the commit body.
+- Lot create endpoint already exists from Phase 1 — no new endpoints needed.
 
 ## Visual reference
 
-- The `ui-ux-pro-max` skill must be consulted before writing JSX.
-- Density target: **dense** — table rows, not cards. Inspiration: shadcn `<Table>` + inline editable cells.
-- Maintain existing brand colors and typography. **No theme changes.**
+- Consult `ui-ux-pro-max` before writing JSX.
+- Density: **dense** — table rows, not cards. Inspiration: shadcn `<Table>` with inline-editable cells.
+- Keep existing brand colors and typography. No theme changes.
 
 ## Acceptance
 
-- Adding 20 rolls in one batch takes <2 minutes of clicking for a familiar user
-- Both `width_cm` and `weight_kg` are visible by default — no accordion expansion needed
-- For a meter-fabric, a `length_m` column appears and is required
-- Lot picker offers existing lots for the current `(fabric, color)`, and inline-creates a new lot without leaving the page
-- Submitting the form succeeds with all rolls landing in `rolls` with correct `lot_id`, `length_m`, `width_cm`, `weight_kg`
-- No regression in the underlying API (existing v1.1 endpoints unchanged)
+- Adding 20 rolls across 2 fabrics in one session takes <2 minutes of clicking for a familiar user
+- Width and weight visible per row by default
+- For a meter-fabric sub-group, a `length_m` column appears and is required
+- Lot picker shows existing lots for the row's `(fabric, color)`, and «+ جديد» creates one inline (server assigns `lot_no`)
+- Picking a lot whose `(fabric, color)` doesn't match the row → server rejects (UI guard makes this unreachable)
+- Submitting writes all rolls with `warehouse: 'factory'` (Phase 1 invariant) and the chosen `lot_id` / `length_m` / `width_cm` / `weight_kg`
 - `npm run typecheck && npm run build && npm run lint` is clean
 
 ## Smoke checklist
 
-- [ ] Create kg-fabric, add 5 rolls in one batch via the new table layout — all persist
-- [ ] Create meter-fabric, add 3 rolls with `length_m` — all persist with `length_m` populated
-- [ ] Try to submit a row with missing `width_cm` — inline error appears, submit stays disabled
-- [ ] Create a new lot inline from the row — appears in the lot dropdown without page refresh
-- [ ] Pick an existing lot for a row whose color does NOT match the lot's color — UI prevents selection (lot list is scoped)
+- [ ] Create kg-fabric, add 5 rolls in one sub-group → all persist with correct fields
+- [ ] Add a second sub-group with a meter-fabric, 3 rolls with `length_m` → all persist
+- [ ] Try submitting a row with empty `width_cm` → inline error, submit disabled
+- [ ] Create a new lot inline from a row → appears in the lot dropdown without page refresh
+- [ ] In the same session, give two rows of the same `(fabric, color)` different lots — both persist with their respective `lot_id`
 - [ ] Footer totals update live as rows are added/edited
 
 ## Commit
 
-`feat(v2-phase-2): add-top ux — compact table, per-roll width/weight/length, lot picker`
+`feat(v2-phase-2): add-top ux — compact table, per-roll width/weight/length, multi-fabric sub-groups, lot picker`
 
 ## Stop here
 
-Do not start Phase 3. Print a one-line "Phase 2 done — ready for Phase 3" and exit.
+Print "Phase 2 done — ready for Phase 3" and exit.

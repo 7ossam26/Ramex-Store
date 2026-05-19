@@ -1,100 +1,80 @@
-# v2 · Phase 8 — Finance: InstaPay Expense + Business Day Window
+# v2 · Phase 8 — Finance: InstaPay Expense + Cash Drawer UI Label
 
-> Self-contained prompt. Paste into a fresh Claude Code session.
+> Self-contained prompt. Paste into a fresh Claude Code session. **The business-day window math from the original v2 draft was dropped — this phase is now small.**
 
 ## Read first (in order)
 
-1. `CORE_PLAN.md` — end to end (§6.7 Cash & Bank, §6.x reports)
-2. `docs/requirements-v2.md` — sections **4.1** and **4.2**
-3. `docs/v2/PLAN.md` — phase index + universal constraints
+1. `CORE_PLAN.md` — end to end (§6.7 Cash & Bank)
+2. `docs/requirements-v2.md` — **§4.1, 4.2** (resolved — `business_day_id` is dropped, stale invoices stay 7 calendar days)
+3. `docs/v2/PLAN.md` and `docs/v2/questions-resolved.md`
 4. The current code:
    - `backend/src/domain/finance/finance.schemas.ts` — `CreateExpenseSchema`
-   - `backend/src/domain/finance/expensesService.ts` (or equivalent) — expense creation
-   - `backend/src/domain/finance/cashDrawerService.ts` — daily reconciliation
-   - `backend/src/domain/sales/staleInvoices.job.ts` — stale-invoice detection
-   - Any reporting service that groups by "today" / day-of-week
-   - Anywhere `startOfDay` / `endOfDay` / Cairo-day helpers exist (grep first)
+   - `backend/src/domain/finance/expensesService.ts` (or equivalent)
+   - `backend/src/domain/finance/cashDrawerService.ts`
+   - `frontend/src/pages/finance/` — expense form, cash drawer screen
+   - `backend/src/domain/sales/staleInvoices.job.ts` — verify it stays on 7 calendar days
 
 ## Stack invariants (restated)
 
 - Backend: Node.js + TypeScript, Knex migrations only, Postgres 16
 - Frontend: React + TypeScript, RTL only, Arabic labels only
-- Auth: `permissionsService.can()` — never inline role checks
+- Auth: `permissionsService.can()`
 - Audit log on every expense
-- UI work MUST invoke the `ui-ux-pro-max` skill (only the expense form is touched here)
+- UI work MUST invoke the `ui-ux-pro-max` skill (expense form + cash drawer header label)
 - No new npm dependencies without justification in the commit body
 
 ## Scope
 
 ### 4.1 · Expenses: InstaPay as a payment source
 
-- `CreateExpenseSchema.paid_from` extends from `z.enum(['cash', 'bank'])` to `z.enum(['cash', 'bank', 'instapay'])`.
-- When `paid_from = 'instapay'`, `bank_account_id` is **required** (same pattern as existing `paid_from = 'bank'`).
+- `CreateExpenseSchema.paid_from`: extend from `z.enum(['cash', 'bank'])` to `z.enum(['cash', 'bank', 'instapay'])`.
+- When `paid_from = 'instapay'`, `bank_account_id` is **required** (same pattern as `'bank'`).
 - Expense form UI adds an InstaPay tile/radio; selecting it surfaces the bank-account picker.
-- Funds debit the selected bank account, NOT the cash drawer (mirror the InstaPay routing guard from sales).
+- Funds debit the selected bank account, NOT the cash drawer.
 - Audit log row reflects the new method.
-- No schema migration needed if `bank_account_id` already exists on the expenses table — verify before assuming. If not, add it with a separate migration.
+- No schema migration needed if `bank_account_id` already exists on the expenses table — verify first.
 
-### 4.2 · Business day window: 10:30 AM → 12:00 AM (midnight) Cairo time
+### 4.2 · Cash drawer — UI label only
 
-Today's app likely treats a day as `[00:00, 24:00)` Cairo. Change it to `[10:30 same day, 24:00 same day)` for *all* day-boundary logic. A "day" `D` is now:
+**No business-day math.** No `business_day_id` column. Stale invoices keep 7 calendar days.
 
-```
-start = D 10:30 Cairo
-end   = D + 1 day, 00:00 Cairo (exclusive)
-```
+Only two UI changes:
 
-Times falling between 00:00 and 10:30 belong to the **previous day**.
+1. **Cash drawer screen header** — add an Arabic label «اليوم يبدأ من 10:30 ص — إغلاق يدوي» so the cashier sees the intended opening time.
+2. **Manual close button** — the cashier closes the drawer manually whenever. If this already exists in v1.1, just confirm it's wired and visible. If not, add the affordance (button + confirmation + audit row when pressed).
 
-- Define a single helper, e.g. `cairoBusinessDay.ts`:
-  - `getBusinessDayStart(date: Date): Date`
-  - `getBusinessDayEnd(date: Date): Date`
-  - `getBusinessDayForInstant(date: Date): { dayId: 'YYYY-MM-DD'; start: Date; end: Date }`
-- Replace all current "start of day" / "end of day" usages in:
-  - `cashDrawerService.ts` (daily reconciliation)
-  - `staleInvoices.job.ts` (stale invoice cutoff)
-  - Reports that group by day (sales report, expenses report, payments report)
-  - Any "today's …" filter in API queries (grep for `startOfDay`, `Cairo`, `today`)
-- Stale invoice detection: a 7-day stale window is now 7 business days as defined above. Verify the cron schedule itself runs at a sensible time (probably right after the 00:00 boundary).
-- Cash drawer reconciliation: a reconciliation entry for "day D" represents activity in `[D 10:30, D+1 00:00)`. Update the UI labels so the date a cashier sees matches that window. Show the window explicitly in the Cash Reconcile screen header (Arabic: «اليوم: D — 10:30 ص حتى 12:00 ص»).
+There is NO automatic midnight close. There is NO business-day window math.
 
-### Backward-compatible reads
+### What this phase does NOT do (explicit non-goals)
 
-- Historical reconciliations and reports computed on the old window must continue to render. Do not retroactively re-bucket old rows.
-- Add a column `business_day_id DATE NULL` to the relevant ledger tables (cash drawer movements, payments, expenses) and backfill it for new rows from now on. Old rows stay NULL; readers fall back to the legacy logic when `business_day_id` is NULL.
-
-### Migration
-
-- Add `business_day_id DATE NULL` to the ledger tables identified above. Index it.
-- Backfill on insert (trigger or service-layer); no migration backfill of historical rows.
-- `up` + `down` clean.
+- Does NOT add `business_day_id` to any table.
+- Does NOT change how reports group by day.
+- Does NOT change `staleInvoices.job.ts` logic — verify it still uses 7 calendar days and leave it.
+- Does NOT change the time math anywhere.
 
 ## Acceptance
 
 - An expense paid via InstaPay debits the selected bank account, not the cash drawer
-- A sale completed at 02:00 Cairo on 2026-06-05 is attributed to business day 2026-06-04 in the cash drawer screen and reports
-- A sale completed at 11:00 Cairo on 2026-06-05 is attributed to 2026-06-05
-- The Cash Reconcile screen shows the active window in its header
-- The stale-invoice cron still produces correct notifications
-- Old historical rows still render in reports
+- Trying to create an InstaPay expense without `bank_account_id` is rejected
+- Cash drawer screen header shows «اليوم يبدأ من 10:30 ص — إغلاق يدوي»
+- Manual close button exists, audited, works
+- Stale invoices still flag at 7 calendar days
+- No regression in any other finance flow
 - `npm run typecheck && npm run build && npm run lint` is clean
-- Migration rollback is clean
 
 ## Smoke checklist
 
-- [ ] Create expense `paid_from = 'instapay'` with a bank account — debits bank, not cash drawer
-- [ ] Create expense `paid_from = 'instapay'` without a bank account — server rejects
-- [ ] Insert a `payments` row at 23:30 Cairo today — `business_day_id` = today
-- [ ] Insert a `payments` row at 01:00 Cairo tomorrow — `business_day_id` = today (yesterday calendar-wise)
-- [ ] Insert a `payments` row at 11:00 Cairo tomorrow — `business_day_id` = tomorrow
-- [ ] Cash Reconcile for today shows the 10:30→00:00 window in its header and includes only rows within it
-- [ ] Reports' "today" filter matches the same window
-- [ ] Stale invoices job continues to flag invoices older than 7 business days
+- [ ] Create expense `paid_from = 'instapay'` with a bank account → debits bank, not cash drawer
+- [ ] Create expense `paid_from = 'instapay'` without a bank account → server rejects
+- [ ] Cash drawer header shows the new Arabic label
+- [ ] Manual close button → confirms → drawer state recorded as closed; audit row exists
+- [ ] Stale invoice cron continues to flag invoices older than 7 calendar days
+- [ ] No new columns appear in any table that I didn't intend
 
 ## Commit
 
-`feat(v2-phase-8): finance — instapay expense source + business-day window 10:30→00:00 Cairo`
+`feat(v2-phase-8): finance — instapay expense source + cash drawer ui label`
 
 ## Stop here
 
-Do not start Phase 9. Print "Phase 8 done — ready for Phase 9" and exit.
+Print "Phase 8 done — ready for Phase 9" and exit.
