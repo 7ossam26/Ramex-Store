@@ -37,6 +37,9 @@ import { NotificationsPage } from './pages/notifications/NotificationsPage';
 import { ReportsHubPage } from './pages/reports/ReportsHub';
 import { SettingsPage } from './pages/settings/SettingsPage';
 import { ApprovalsPage } from './pages/approvals/ApprovalsPage';
+import { EmployeesPage } from './pages/hr/Employees';
+import { SalariesPage } from './pages/hr/Salaries';
+import { AdjustmentsPage as HrAdjustmentsPage } from './pages/hr/Adjustments';
 
 /* Chart-heavy report routes are lazy-loaded so Recharts is only fetched
  * when the user navigates into Reports. Saves ~250kb gzipped from the
@@ -116,6 +119,10 @@ export function App() {
                 <Route path="/reports" element={<ReportsHubPage />} />
                 <Route path="/reports/daily" element={<DailyReportPage />} />
                 <Route path="/reports/secondary/:reportKey" element={<SecondaryReportPage />} />
+
+                <Route path="/hr/employees" element={<EmployeesPage />} />
+                <Route path="/hr/salaries" element={<SalariesPage />} />
+                <Route path="/hr/adjustments" element={<HrAdjustmentsPage />} />
 
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/approvals" element={<ApprovalsPage />} />

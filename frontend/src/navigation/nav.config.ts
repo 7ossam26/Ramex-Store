@@ -54,6 +54,9 @@ import {
   Wallet,
   Warehouse,
   ClipboardCheck as ApprovalsIcon,
+  UserCheck,
+  DollarSign,
+  ArrowDownUp,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Role } from '@/lib/auth';
@@ -69,6 +72,7 @@ export type SectionId =
   | 'treasury'
   | 'reports'
   | 'approvals'
+  | 'hr'
   | 'settings';
 
 export type NavLeaf = {
@@ -417,6 +421,41 @@ export const NAV: NavTop[] = [
     visibleTo: ['owner', 'shop_seller'],
   },
   {
+    id: 'hr',
+    labelAr: 'الموارد البشرية',
+    descAr: 'الموظفون، الرواتب، والتسويات',
+    icon: UserCheck,
+    route: '/hr',
+    visibleTo: ['owner'],
+    children: [
+      {
+        items: [
+          {
+            id: 'hr.employees',
+            labelAr: 'الموظفون',
+            descAr: 'إدارة بيانات الموظفين',
+            icon: Users,
+            route: '/hr/employees',
+          },
+          {
+            id: 'hr.salaries',
+            labelAr: 'الرواتب',
+            descAr: 'صرف الرواتب الشهرية',
+            icon: DollarSign,
+            route: '/hr/salaries',
+          },
+          {
+            id: 'hr.adjustments',
+            labelAr: 'التسويات',
+            descAr: 'السُّلف والخصومات',
+            icon: ArrowDownUp,
+            route: '/hr/adjustments',
+          },
+        ],
+      },
+    ],
+  },
+  {
     id: 'settings',
     labelAr: 'الإعدادات',
     descAr: 'إعدادات النظام والمستخدمين',
@@ -439,6 +478,7 @@ const SECTION_ROUTE_PREFIXES: Record<SectionId, string[]> = {
   treasury: ['/treasury', '/cash', '/banks', '/expenses', '/reconcile'],
   reports: ['/reports'],
   approvals: ['/approvals'],
+  hr: ['/hr'],
   settings: ['/settings'],
 };
 

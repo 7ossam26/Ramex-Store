@@ -1,0 +1,347 @@
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ar } from '@/i18n/ar';
+import { hrApi, type HrSalaryAdjustment } from '@/lib/hr-api';
+import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/PageHeader';
+import { ErrorBanner } from '@/components/ErrorBanner';
+import { Skeleton } from '@/components/Skeleton';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmt(v: string | number) {
+  return Number(v).toLocaleString('en-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function extractError(e: unknown): string {
+  const msg =
+    (e as { response?: { data?: { message?: string; error?: string } } })?.response?.data?.message ??
+    (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+    (e as { message?: string })?.message;
+  return msg ?? ar.common.error;
+}
+
+function toMonthDate(ym: string) {
+  return `${ym}-01`;
+}
+
+// ─── Create Dialog ────────────────────────────────────────────────────────────
+
+type CreateForm = {
+  employee_id: string;
+  kind: 'advance' | 'deduction';
+  amount_egp: string;
+  salary_month: string;
+  reason_ar: string;
+};
+
+function CreateAdjustmentDialog({
+  onClose,
+  onDone,
+}: {
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const today = new Date();
+  const [form, setForm] = useState<CreateForm>({
+    employee_id: '',
+    kind: 'advance',
+    amount_egp: '',
+    salary_month: format(today, 'yyyy-MM'),
+    reason_ar: '',
+  });
+  const [error, setError] = useState<string | null>(null);
+
+  const { data: empData } = useQuery({
+    queryKey: ['hr-employees-active'],
+    queryFn: () => hrApi.listEmployees({ is_active: true, limit: 200 }),
+  });
+  const employees = empData?.rows ?? [];
+
+  const qc = useQueryClient();
+  const mut = useMutation({
+    mutationFn: () =>
+      hrApi.createAdjustment({
+        employee_id: Number(form.employee_id),
+        kind: form.kind,
+        amount_egp: Number(form.amount_egp),
+        salary_month: toMonthDate(form.salary_month),
+        reason_ar: form.reason_ar.trim() || null,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['hr-adjustments'] });
+      qc.invalidateQueries({ queryKey: ['hr-salaries-preview'] });
+      onDone();
+    },
+    onError: (e) => setError(extractError(e)),
+  });
+
+  const canSubmit =
+    !!form.employee_id &&
+    Number(form.amount_egp) > 0 &&
+    !!form.salary_month;
+
+  const inputCls =
+    'h-10 w-full rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground ' +
+    'placeholder:text-foreground-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden
+      />
+      <div
+        dir="rtl"
+        role="dialog"
+        aria-modal="true"
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      >
+        <div className="w-full max-w-md rounded-xl border border-border-subtle bg-surface-elevated shadow-xl">
+          <header className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
+            <h2 className="text-base font-semibold text-foreground">{ar.hr.adjustment.createTitle}</h2>
+            <button
+              type="button"
+              aria-label={ar.mobile.close}
+              onClick={onClose}
+              className="size-8 flex items-center justify-center rounded-md text-foreground-muted hover:text-foreground hover:bg-surface-hover transition-colors cursor-pointer"
+            >
+              ✕
+            </button>
+          </header>
+
+          <div className="p-5 space-y-4">
+            {error && <ErrorBanner title={ar.common.error} description={error} />}
+
+            {/* Employee */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">{ar.hr.employee.nameAr}</label>
+              <select
+                className={inputCls}
+                value={form.employee_id}
+                onChange={(e) => setForm((f) => ({ ...f, employee_id: e.target.value }))}
+              >
+                <option value="">— اختر موظفاً —</option>
+                {employees.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name_ar}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Kind */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">{ar.hr.adjustment.kind}</label>
+              <div className="flex gap-2">
+                {(['advance', 'deduction'] as const).map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, kind: k }))}
+                    className={cn(
+                      'h-8 px-3 rounded-md border text-xs transition-colors duration-150 cursor-pointer',
+                      form.kind === k
+                        ? 'bg-accent text-foreground-on-accent border-accent font-medium'
+                        : 'bg-surface text-foreground-muted border-border-subtle hover:bg-surface-hover hover:text-foreground',
+                    )}
+                  >
+                    {k === 'advance' ? ar.hr.adjustment.advance : ar.hr.adjustment.deduction}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Amount */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">{ar.hr.adjustment.amount}</label>
+              <input
+                type="number"
+                min={0.01}
+                step={0.01}
+                className={cn(inputCls, 'w-44')}
+                style={{ unicodeBidi: 'plaintext' }}
+                value={form.amount_egp}
+                onChange={(e) => setForm((f) => ({ ...f, amount_egp: e.target.value }))}
+              />
+            </div>
+
+            {/* Salary month */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">{ar.hr.adjustment.salaryMonth}</label>
+              <input
+                type="month"
+                className={cn(inputCls, 'w-44')}
+                value={form.salary_month}
+                onChange={(e) => setForm((f) => ({ ...f, salary_month: e.target.value }))}
+              />
+            </div>
+
+            {/* Reason */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">{ar.hr.adjustment.reason}</label>
+              <input
+                className={inputCls}
+                dir="rtl"
+                value={form.reason_ar}
+                onChange={(e) => setForm((f) => ({ ...f, reason_ar: e.target.value }))}
+              />
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <Button
+                size="sm"
+                onClick={() => mut.mutate()}
+                disabled={mut.isPending || !canSubmit}
+                className="min-w-24"
+              >
+                {mut.isPending ? ar.loading : ar.common.save}
+              </Button>
+              <Button size="sm" variant="outline" onClick={onClose}>
+                {ar.common.cancel}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
+type KindFilter = 'all' | 'advance' | 'deduction';
+
+export function AdjustmentsPage() {
+  const [kindFilter, setKindFilter] = useState<KindFilter>('all');
+  const [showCreate, setShowCreate] = useState(false);
+
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['hr-adjustments', kindFilter],
+    queryFn: () =>
+      hrApi.listAdjustments({
+        kind: kindFilter === 'all' ? undefined : kindFilter,
+        limit: 100,
+      }),
+  });
+
+  const rows: HrSalaryAdjustment[] = data?.rows ?? [];
+
+  return (
+    <div dir="rtl" className="space-y-4">
+      <PageHeader title={ar.hr.adjustments} description={ar.hr.title} />
+
+      {/* Toolbar */}
+      <div className="flex flex-wrap gap-3 items-center justify-between">
+        <div className="flex gap-2 flex-wrap">
+          {([
+            ['all', ar.hr.adjustment.filterAll],
+            ['advance', ar.hr.adjustment.filterAdvance],
+            ['deduction', ar.hr.adjustment.filterDeduction],
+          ] as [KindFilter, string][]).map(([f, label]) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setKindFilter(f)}
+              className={cn(
+                'h-8 px-3 rounded-pill text-xs border transition-colors duration-150 cursor-pointer',
+                kindFilter === f
+                  ? 'bg-accent text-foreground-on-accent border-accent font-medium'
+                  : 'bg-surface-elevated text-foreground-muted border-border-subtle hover:text-foreground hover:bg-surface-hover',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <Button size="sm" onClick={() => setShowCreate(true)}>
+          {ar.hr.adjustment.addAdjustment}
+        </Button>
+      </div>
+
+      {isLoading && (
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full rounded-md" />
+          ))}
+        </div>
+      )}
+      {error && (
+        <ErrorBanner
+          title={ar.common.error}
+          description={extractError(error)}
+          onRetry={() => refetch()}
+        />
+      )}
+
+      {!isLoading && (
+        <div className="rounded-lg border border-border-subtle overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-surface-row-alt text-foreground-muted">
+              <tr>
+                <th className="py-2.5 px-3 text-start font-medium">{ar.hr.employee.nameAr}</th>
+                <th className="py-2.5 px-3 text-start font-medium">{ar.hr.adjustment.kind}</th>
+                <th className="py-2.5 px-3 text-end font-medium">{ar.hr.adjustment.amount}</th>
+                <th className="py-2.5 px-3 text-start font-medium">{ar.hr.adjustment.salaryMonth}</th>
+                <th className="py-2.5 px-3 text-start font-medium hidden md:table-cell">{ar.hr.adjustment.reason}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-subtle bg-surface-elevated">
+              {rows.map((row, i) => (
+                <tr
+                  key={row.id}
+                  className={cn(
+                    'hover:bg-surface-hover transition-colors duration-150',
+                    i % 2 === 1 && 'bg-surface-row-alt/40',
+                  )}
+                >
+                  <td className="py-2.5 px-3 font-medium text-foreground">
+                    {row.employee_name_ar ?? `#${row.employee_id}`}
+                  </td>
+                  <td className="py-2.5 px-3">
+                    <span
+                      className={cn(
+                        'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+                        row.kind === 'advance'
+                          ? 'bg-warning/15 text-warning'
+                          : 'bg-danger/15 text-danger',
+                      )}
+                    >
+                      {row.kind === 'advance' ? ar.hr.adjustment.advance : ar.hr.adjustment.deduction}
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-3 text-end tabular-num font-medium text-foreground">
+                    {fmt(row.amount_egp)} ج.م
+                  </td>
+                  <td className="py-2.5 px-3 text-foreground-muted tabular-num">
+                    {row.salary_month.slice(0, 7)}
+                  </td>
+                  <td className="py-2.5 px-3 text-foreground-muted text-xs hidden md:table-cell max-w-48 truncate">
+                    {row.reason_ar ?? '—'}
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-10 px-3 text-center text-foreground-tertiary">
+                    {ar.hr.adjustment.empty}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showCreate && (
+        <CreateAdjustmentDialog
+          onClose={() => setShowCreate(false)}
+          onDone={() => setShowCreate(false)}
+        />
+      )}
+    </div>
+  );
+}

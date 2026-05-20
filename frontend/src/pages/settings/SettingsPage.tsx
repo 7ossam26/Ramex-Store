@@ -650,6 +650,65 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
         </div>
       </section>
 
+      {/* HR Permissions block */}
+      <section className="space-y-3">
+        <h3 className="text-base font-semibold text-foreground">{ar.hr.permissions.title}</h3>
+        <div className="rounded-lg border border-border-subtle bg-surface-elevated overflow-x-auto">
+          <table className="text-xs min-w-max">
+            <thead>
+              <tr className="bg-surface-row-alt text-foreground-muted">
+                <th className="py-2.5 px-3 text-start font-medium min-w-48 sticky start-0 bg-surface-row-alt z-10 border-e border-border-subtle">
+                  {ar.settings.permissions.resource}
+                </th>
+                {(['shop_seller', 'factory_sender'] as const).map((role) => (
+                  <th key={role} className="py-2.5 px-3 text-center font-medium whitespace-nowrap">
+                    {role === 'shop_seller' ? ar.settings.permissions.shopSeller : ar.settings.permissions.factorySender}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-subtle">
+              {(
+                [
+                  ['hr', 'view', ar.hr.permissions.view],
+                  ['hr', 'manage', ar.hr.permissions.manage],
+                  ['hr', 'salary.disburse', ar.hr.permissions.salaryDisburse],
+                  ['hr', 'advance.create', ar.hr.permissions.advanceCreate],
+                  ['hr', 'deduction.create', ar.hr.permissions.deductionCreate],
+                ] as [string, string, string][]
+              ).map(([resource, action, label], ri) => (
+                <tr
+                  key={`${resource}:${action}`}
+                  className={cn(
+                    'hover:bg-surface-hover transition-colors duration-150',
+                    ri % 2 === 1 ? 'bg-surface-row-alt/40' : 'bg-surface-elevated',
+                  )}
+                >
+                  <td
+                    className={cn(
+                      'py-2 px-3 text-foreground-muted sticky start-0 z-10 border-e border-border-subtle',
+                      ri % 2 === 1 ? 'bg-surface-row-alt' : 'bg-surface-elevated',
+                    )}
+                  >
+                    {label}
+                  </td>
+                  {(['shop_seller', 'factory_sender'] as const).map((role) => (
+                    <td key={role} className="py-2 px-3 text-center">
+                      <input
+                        type="checkbox"
+                        className="size-4 accent-accent rounded cursor-pointer"
+                        checked={isAllowed(role, resource, action)}
+                        onChange={() => togglePerm(role, resource, action)}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       {/* Permissions matrix block */}
       <section className="space-y-3">
         <h3 className="text-base font-semibold text-foreground">{ar.settings.permissions.title}</h3>
