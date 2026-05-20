@@ -18,17 +18,21 @@ export const AddShipmentRollSchema = z
   });
 export type AddShipmentRollInput = z.infer<typeof AddShipmentRollSchema>;
 
-export const ReviewShipmentLineSchema = z
-  .object({
-    action: z.enum(['accept', 'reject']),
-    reject_reason_ar: z.string().max(500).nullable().optional(),
-    selling_price_egp: z.number().positive().optional(),
-  })
-  .refine(
-    (v) => v.action !== 'accept' || v.selling_price_egp !== undefined,
-    { message: 'يجب إدخال سعر البيع عند القبول', path: ['selling_price_egp'] },
-  );
+export const ReviewShipmentLineSchema = z.object({
+  action: z.enum(['accept', 'reject']),
+  reject_reason_ar: z.string().max(500).nullable().optional(),
+});
 export type ReviewShipmentLineInput = z.infer<typeof ReviewShipmentLineSchema>;
+
+export const FabricReferencePriceSchema = z.object({
+  fabricId: z.number().int().positive(),
+  pricePerUnit: z.number().nonnegative(),
+});
+
+export const AcceptShipmentSchema = z.object({
+  fabricReferencePrices: z.array(FabricReferencePriceSchema).min(1),
+});
+export type AcceptShipmentInput = z.infer<typeof AcceptShipmentSchema>;
 
 export const ListFactoryRollsQuerySchema = z.object({
   fabric_id: z.coerce.number().int().positive().optional(),

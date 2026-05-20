@@ -83,11 +83,15 @@ export const inventoryApi = {
     body: {
       action: 'accept' | 'reject';
       reject_reason_ar?: string | null;
-      selling_price_egp?: number;
     },
   ) => api.post(`/shipments/${shipmentId}/lines/${lineId}/review`, body).then((r) => r.data),
-  finalizeShipment: (shipmentId: number) =>
-    api.post<Shipment>(`/shipments/${shipmentId}/finalize`).then((r) => r.data),
+  acceptShipment: (
+    shipmentId: number,
+    fabricReferencePrices: Array<{ fabricId: number; pricePerUnit: number }>,
+  ) =>
+    api
+      .post<Shipment>(`/shipments/${shipmentId}/accept`, { fabricReferencePrices })
+      .then((r) => r.data),
 
   // Damage
   listDamageEvents: (params?: { roll_id?: number; reason_code?: DamageReasonCode; requires_approval?: boolean }) =>

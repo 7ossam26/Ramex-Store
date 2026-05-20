@@ -43,13 +43,16 @@ export type ShipmentLineDetail = {
   id: number;
   shipment_id: number;
   roll_id: number;
-  selling_price_egp: string | null;
   status: ShipmentLineStatus;
   reject_reason_ar: string | null;
+  fabric_id: number;
   fabric_name_ar: string;
+  fabric_unit: FabricUnit;
   color_name_ar: string;
   color_code: string;
   weight_kg: string;
+  length_m: string | null;
+  reference_price_per_unit: string | null;
   internal_barcode: string;
 };
 

@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { ZodError } from 'zod';
 import {
+  AcceptShipmentSchema,
   AddShipmentRollSchema,
   CreateShipmentDraftSchema,
   ListFactoryRollsQuerySchema,
@@ -22,10 +23,7 @@ const ERR_MAP: Record<string, { status: number; message: string }> = {
   ROLL_NOT_IN_FACTORY: { status: 409, message: 'هذا التوب ليس في مخزن المصنع' },
   ROLL_NOT_AVAILABLE: { status: 409, message: 'هذا التوب غير متاح' },
   ROLL_ALREADY_IN_SHIPMENT: { status: 409, message: 'هذا التوب مضاف بالفعل إلى طلبية أخرى' },
-  PRICE_REQUIRED_FOR_ACCEPTED_LINES: {
-    status: 409,
-    message: 'يجب إدخال سعر البيع لكل توب مقبول قبل الإنهاء',
-  },
+  MISSING_FABRIC_PRICE: { status: 422, message: 'يجب إدخال سعر مرجعي لكل خامة مقبولة' },
 };
 
 function handleDomainError(e: unknown, res: Response): boolean {
@@ -111,14 +109,7 @@ export async function reviewLine(req: Request, res: Response): Promise<void> {
   const lineId = Number(req.params.lineId);
   try {
     const data = ReviewShipmentLineSchema.parse(req.body);
-    const updated = await svc.reviewLine(
-      id,
-      lineId,
-      actorId(req),
-      data.action,
-      data.reject_reason_ar,
-      data.selling_price_egp,
-    );
+    const updated = await svc.reviewLine(id, lineId, actorId(req), data.action, data.reject_reason_ar);
     res.json(updated);
   } catch (e) {
     if (handleDomainError(e, res)) return;
@@ -126,12 +117,22 @@ export async function reviewLine(req: Request, res: Response): Promise<void> {
   }
 }
 
-export async function finalize(req: Request, res: Response): Promise<void> {
+export async function acceptShipment(req: Request, res: Response): Promise<void> {
   const id = Number(req.params.id);
   try {
-    const updated = await svc.finalizeReview(id, actorId(req));
+    const data = AcceptShipmentSchema.parse(req.body);
+    const updated = await svc.acceptShipment(id, actorId(req), data);
     res.json(updated);
   } catch (e) {
+    if (e instanceof Error && e.message === 'METER_ROLL_MISSING_LENGTH') {
+      const barcodes = (e as Error & { barcodes?: string[] }).barcodes ?? [];
+      res.status(422).json({
+        error: 'METER_ROLL_MISSING_LENGTH',
+        message: `توبات بخامة (متر) بدون طول محدد — يرجى تحديث الطول أولاً: ${barcodes.join('، ')}`,
+        barcodes,
+      });
+      return;
+    }
     if (handleDomainError(e, res)) return;
     throw e;
   }

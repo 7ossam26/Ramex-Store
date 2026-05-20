@@ -40,16 +40,16 @@ inventoryRouter.post(
   shipmentsCtl.submit,
 );
 
-// Ziad (shop_seller) reviews + finalizes; Owner can also.
+// Ziad (shop_seller) reviews + accepts; Owner can also.
 inventoryRouter.post(
   '/shipments/:id/lines/:lineId/review',
   requireRole('shop_seller', 'owner'),
   shipmentsCtl.reviewLine,
 );
 inventoryRouter.post(
-  '/shipments/:id/finalize',
+  '/shipments/:id/accept',
   requireRole('shop_seller', 'owner'),
-  shipmentsCtl.finalize,
+  shipmentsCtl.acceptShipment,
 );
 
 // Picker for Ahmed: list رولات currently in factory + not in any active shipment line.

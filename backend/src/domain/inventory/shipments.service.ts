@@ -8,6 +8,7 @@ import type {
   ShipmentWithLines,
 } from './inventory.types.js';
 import type {
+  AcceptShipmentInput,
   AddShipmentRollInput,
   CreateShipmentDraftInput,
   ListFactoryRollsQueryInput,
@@ -196,7 +197,6 @@ export async function reviewLine(
   actorUserId: number,
   action: 'accept' | 'reject',
   rejectReason?: string | null,
-  sellingPriceEgp?: number,
 ): Promise<ShipmentLine> {
   return db.transaction(async (trx) => {
     const shipment = await trx('shipments').where({ id: shipmentId }).first();
@@ -209,15 +209,10 @@ export async function reviewLine(
     if (!line) throw new Error('LINE_NOT_FOUND');
     if (line.status !== 'pending') throw new Error('LINE_ALREADY_REVIEWED');
 
-    if (action === 'accept' && (sellingPriceEgp === undefined || sellingPriceEgp <= 0)) {
-      throw new Error('PRICE_REQUIRED_FOR_ACCEPTED_LINES');
-    }
-
     const newStatus: 'accepted' | 'rejected' = action === 'accept' ? 'accepted' : 'rejected';
     await trx('shipment_lines').where({ id: lineId }).update({
       status: newStatus,
       reject_reason_ar: action === 'reject' ? (rejectReason ?? null) : null,
-      selling_price_egp: action === 'accept' ? sellingPriceEgp : null,
       updated_at: trx.fn.now(),
     });
     const updated = await trx('shipment_lines').where({ id: lineId }).first();
@@ -228,11 +223,7 @@ export async function reviewLine(
       entity: 'shipment_line',
       entityId: lineId,
       before: { status: 'pending' },
-      after: {
-        status: newStatus,
-        reject_reason_ar: updated.reject_reason_ar,
-        selling_price_egp: updated.selling_price_egp,
-      },
+      after: { status: newStatus, reject_reason_ar: updated.reject_reason_ar },
       severity: 'medium',
     });
 
@@ -240,7 +231,11 @@ export async function reviewLine(
   });
 }
 
-export async function finalizeReview(shipmentId: number, actorUserId: number): Promise<Shipment> {
+export async function acceptShipment(
+  shipmentId: number,
+  actorUserId: number,
+  input: AcceptShipmentInput,
+): Promise<Shipment> {
   return db.transaction(async (trx) => {
     const shipment = await trx('shipments').where({ id: shipmentId }).first();
     if (!shipment) throw new Error('SHIPMENT_NOT_FOUND');
@@ -248,26 +243,42 @@ export async function finalizeReview(shipmentId: number, actorUserId: number): P
       throw new Error('SHIPMENT_NOT_REVIEWABLE');
     }
 
-    const lines = await trx('shipment_lines').where({ shipment_id: shipmentId });
+    const lines = await trx('shipment_lines as sl')
+      .join('rolls as r', 'sl.roll_id', 'r.id')
+      .join('fabrics as f', 'r.fabric_id', 'f.id')
+      .where('sl.shipment_id', shipmentId)
+      .select('sl.*', 'r.fabric_id', 'r.length_m', 'f.unit as fabric_unit');
+
     if (lines.length === 0) throw new Error('SHIPMENT_EMPTY');
-    if (lines.some((l) => l.status === 'pending')) throw new Error('REVIEW_INCOMPLETE');
+    if (lines.some((l: Record<string, unknown>) => l.status === 'pending')) throw new Error('REVIEW_INCOMPLETE');
 
-    const accepted = lines.filter((l) => l.status === 'accepted');
-    const rejected = lines.filter((l) => l.status === 'rejected');
+    const accepted = lines.filter((l: Record<string, unknown>) => l.status === 'accepted');
+    const rejected = lines.filter((l: Record<string, unknown>) => l.status === 'rejected');
 
-    if (accepted.some((l) => l.selling_price_egp === null || l.selling_price_egp === undefined)) {
-      throw new Error('PRICE_REQUIRED_FOR_ACCEPTED_LINES');
+    const priceMap = new Map(
+      input.fabricReferencePrices.map((p) => [p.fabricId, p.pricePerUnit]),
+    );
+
+    const acceptedFabricIds = new Set(accepted.map((l: Record<string, unknown>) => l.fabric_id as number));
+    for (const fabricId of acceptedFabricIds) {
+      if (!priceMap.has(fabricId)) throw new Error('MISSING_FABRIC_PRICE');
     }
 
-    let finalStatus: 'approved' | 'rejected' | 'partial_approved';
-    if (rejected.length === 0) finalStatus = 'approved';
-    else if (accepted.length === 0) finalStatus = 'rejected';
-    else finalStatus = 'partial_approved';
+    const meterRollsWithNullLength = accepted.filter(
+      (l: Record<string, unknown>) => l.fabric_unit === 'meter' && (l.length_m === null || l.length_m === undefined),
+    );
+    if (meterRollsWithNullLength.length > 0) {
+      const barcodes = await trx('rolls')
+        .whereIn('id', meterRollsWithNullLength.map((l: Record<string, unknown>) => l.roll_id as number))
+        .pluck('internal_barcode');
+      throw Object.assign(new Error('METER_ROLL_MISSING_LENGTH'), { barcodes });
+    }
 
     for (const line of accepted) {
+      const pricePerUnit = priceMap.get(line.fabric_id as number)!;
       await trx('rolls').where({ id: line.roll_id }).update({
         warehouse: 'shop',
-        selling_price_egp: line.selling_price_egp,
+        reference_price_per_unit: pricePerUnit,
         received_at: trx.fn.now(),
         updated_at: trx.fn.now(),
       });
@@ -280,15 +291,8 @@ export async function finalizeReview(shipmentId: number, actorUserId: number): P
         reference_id: shipmentId,
         actor_user_id: actorUserId,
       });
-      await auditFromService(trx, {
-        actorUserId,
-        action: 'set_selling_price_at_receive',
-        entity: 'shipment_line',
-        entityId: line.id,
-        after: { roll_id: line.roll_id, selling_price_egp: line.selling_price_egp },
-        severity: 'medium',
-      });
     }
+
     for (const line of rejected) {
       await trx('stock_movements').insert({
         roll_id: line.roll_id,
@@ -302,6 +306,11 @@ export async function finalizeReview(shipmentId: number, actorUserId: number): P
       });
     }
 
+    let finalStatus: 'approved' | 'rejected' | 'partial_approved';
+    if (rejected.length === 0) finalStatus = 'approved';
+    else if (accepted.length === 0) finalStatus = 'rejected';
+    else finalStatus = 'partial_approved';
+
     await trx('shipments').where({ id: shipmentId }).update({
       status: finalStatus,
       reviewed_by_user_id: actorUserId,
@@ -309,6 +318,19 @@ export async function finalizeReview(shipmentId: number, actorUserId: number): P
       updated_at: trx.fn.now(),
     });
     const updated = await trx('shipments').where({ id: shipmentId }).first();
+
+    for (const [fabricId, pricePerUnit] of priceMap) {
+      if (!acceptedFabricIds.has(fabricId)) continue;
+      const rollCount = accepted.filter((l: Record<string, unknown>) => l.fabric_id === fabricId).length;
+      await auditFromService(trx, {
+        actorUserId,
+        action: 'shipment_reference_priced',
+        entity: 'shipment',
+        entityId: shipmentId,
+        after: { fabricId, pricePerUnit, rollCount },
+        severity: 'medium',
+      });
+    }
 
     await auditFromService(trx, {
       actorUserId,
@@ -346,18 +368,29 @@ export async function getShipment(id: number): Promise<ShipmentWithLines | undef
   const shipment = await db('shipments').where({ id }).first();
   if (!shipment) return undefined;
   const lines = await db('shipment_lines as sl')
-    .where({ shipment_id: id })
+    .where('sl.shipment_id', id)
     .join('rolls as r', 'sl.roll_id', 'r.id')
     .join('fabrics as f', 'r.fabric_id', 'f.id')
     .join('colors as c', 'r.color_id', 'c.id')
     .select(
-      'sl.*',
+      'sl.id',
+      'sl.shipment_id',
+      'sl.roll_id',
+      'sl.status',
+      'sl.reject_reason_ar',
+      'sl.created_at',
+      'sl.updated_at',
+      'r.fabric_id',
       'f.name_ar as fabric_name_ar',
+      'f.unit as fabric_unit',
       'c.name_ar as color_name_ar',
       'c.code as color_code',
       'r.weight_kg',
+      'r.length_m',
+      'r.reference_price_per_unit',
       'r.internal_barcode',
     )
+    .orderBy('r.fabric_id', 'asc')
     .orderBy('sl.id', 'asc');
   return { ...(shipment as Shipment), lines };
 }
