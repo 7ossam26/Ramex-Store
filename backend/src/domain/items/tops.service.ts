@@ -70,6 +70,11 @@ export async function createTopBatch(
 ): Promise<{ fabric: Fabric; rolls: RollWithDetails[] }> {
   return db.transaction(async (trx) => {
     const fabric = await resolveFabric(trx, input.fabric, actorUserId);
+    if (fabric.unit === 'meter') {
+      const missing = input.rolls.some((r) => !r.length_m || r.length_m <= 0);
+      if (missing) throw new Error('LENGTH_M_REQUIRED_FOR_METER_FABRIC');
+    }
+
     const createdRollIds: number[] = [];
 
     for (const entry of input.rolls) {

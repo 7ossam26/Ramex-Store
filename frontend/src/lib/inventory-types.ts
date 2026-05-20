@@ -198,14 +198,13 @@ export type ColorRef =
 export type TopRollEntry = {
   color: ColorRef;
   weight_kg: number;
+  width_cm: number;
   length_m?: number | null;
   lot_id?: number | null;
   roll_sr_no?: string | null;
   order_no?: string | null;
-  // Label fields (Phase 5)
   supplier_order_no?: string | null;
   top_number?: number | null;
-  width_cm?: number | null;
   grade_id?: number | null;
   composition_id?: number | null;
   brand_id?: number | null;
