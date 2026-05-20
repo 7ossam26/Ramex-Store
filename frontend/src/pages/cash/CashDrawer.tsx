@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { TrendingUp, TrendingDown } from 'lucide-react';
+import { TrendingUp, TrendingDown, Lock, Clock } from 'lucide-react';
 import { financeApi } from '@/lib/finance-api';
 import { useAuth } from '@/lib/auth';
 import { ar } from '@/i18n/ar';
@@ -51,6 +51,7 @@ export function CashDrawerPage() {
   const [showOpeningDlg, setShowOpeningDlg] = useState(false);
   const [showDepositDlg, setShowDepositDlg] = useState(false);
   const [showWithdrawalDlg, setShowWithdrawalDlg] = useState(false);
+  const [showCloseDlg, setShowCloseDlg] = useState(false);
 
   const balanceQ = useQuery({
     queryKey: ['cash-balance'],
@@ -113,6 +114,14 @@ export function CashDrawerPage() {
       qc.invalidateQueries({ queryKey: ['cash-movements'] });
       setShowWithdrawalDlg(false);
       withdrawalForm.reset();
+    },
+  });
+
+  const closeMut = useMutation({
+    mutationFn: financeApi.closeCashDrawer,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['cash-balance'] });
+      setShowCloseDlg(false);
     },
   });
 
@@ -215,9 +224,23 @@ export function CashDrawerPage() {
                 {ar.cash.ownerWithdrawal}
               </Button>
             )}
+            <Button
+              variant="outline"
+              onClick={() => setShowCloseDlg(true)}
+              className="gap-1.5"
+            >
+              <Lock className="size-4" aria-hidden />
+              {ar.cash.closeCashDrawer}
+            </Button>
           </>
         }
       />
+
+      {/* Day window info label */}
+      <div className="flex items-center gap-2 rounded-md border border-border-subtle bg-surface-elevated px-3 py-2 text-sm text-foreground-muted w-fit">
+        <Clock className="size-4 shrink-0" aria-hidden />
+        <span>{ar.cash.drawerWindowLabel}</span>
+      </div>
 
       {/* Balance card */}
       <div className="rounded-lg border border-border-subtle bg-surface-elevated p-5 shadow-sm">
@@ -253,6 +276,16 @@ export function CashDrawerPage() {
                 </p>
                 <p className="text-sm text-foreground tabular-num" dir="ltr">
                   {fmtDate(balanceQ.data.last_movement_at)}
+                </p>
+              </div>
+            )}
+            {balanceQ.data.last_closed_at && (
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-foreground-muted mb-1">
+                  {ar.cash.lastClosed}
+                </p>
+                <p className="text-sm text-foreground tabular-num" dir="ltr">
+                  {fmtDate(balanceQ.data.last_closed_at)}
                 </p>
               </div>
             )}
@@ -426,6 +459,47 @@ export function CashDrawerPage() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Close Cash Drawer Dialog */}
+      <Dialog open={showCloseDlg} onOpenChange={setShowCloseDlg}>
+        <DialogContent dir="rtl">
+          <DialogHeader>
+            <DialogTitle>{ar.cash.closeCashDrawer}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-foreground-muted">
+              {ar.cash.closeCashDrawerConfirm}
+            </p>
+            {balanceQ.data && (
+              <div className="rounded-md border border-border-subtle bg-surface-elevated px-4 py-3 flex items-center justify-between">
+                <span className="text-sm text-foreground-muted">{ar.cash.balance}</span>
+                <span className="tabular-num font-semibold text-foreground" dir="ltr">
+                  {fmt(balanceQ.data.current_balance_egp)}{' '}
+                  <span className="text-xs text-foreground-tertiary font-normal">ج.م</span>
+                </span>
+              </div>
+            )}
+            {closeMut.error && (
+              <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">حدث خطأ</p>
+            )}
+            <div className="flex justify-end gap-2">
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  إلغاء
+                </Button>
+              </DialogClose>
+              <Button
+                variant="outline"
+                className="border-foreground/30 hover:bg-surface-elevated"
+                disabled={closeMut.isPending}
+                onClick={() => closeMut.mutate()}
+              >
+                {closeMut.isPending ? 'جاري الإغلاق...' : ar.cash.confirmClose}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

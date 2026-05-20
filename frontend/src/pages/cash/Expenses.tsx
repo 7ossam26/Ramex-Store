@@ -46,7 +46,7 @@ const CATEGORIES = [
 type ExpenseFormValues = {
   category: string;
   amount_egp: string;
-  paid_from: 'cash' | 'bank';
+  paid_from: 'cash' | 'bank' | 'instapay';
   bank_account_id: string;
   notes_ar: string;
 };
@@ -100,7 +100,7 @@ export function ExpensesPage() {
         category: d.category,
         amount_egp: Number(d.amount_egp),
         paid_from: d.paid_from,
-        bank_account_id: d.paid_from === 'bank' && d.bank_account_id ? Number(d.bank_account_id) : null,
+        bank_account_id: (d.paid_from === 'bank' || d.paid_from === 'instapay') && d.bank_account_id ? Number(d.bank_account_id) : null,
         notes_ar: d.notes_ar || null,
       }),
     onSuccess: () => {
@@ -164,7 +164,11 @@ export function ExpensesPage() {
     {
       key: 'paid_from',
       header: 'مدفوع من',
-      cell: (e) => (e.paid_from === 'cash' ? 'نقدي' : 'بنك'),
+      cell: (e) => {
+        if (e.paid_from === 'cash') return 'نقدي';
+        if (e.paid_from === 'instapay') return 'انستاباي';
+        return 'بنك';
+      },
     },
     {
       key: 'status',
@@ -320,23 +324,43 @@ export function ExpensesPage() {
               <Label>
                 مدفوع من <span className="text-danger">*</span>
               </Label>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" value="cash" {...form.register('paid_from')} />
-                  <span className="text-sm text-foreground">نقدي</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" value="bank" {...form.register('paid_from')} />
-                  <span className="text-sm text-foreground">بنك</span>
-                </label>
+              <div className="flex flex-wrap gap-3">
+                {(
+                  [
+                    { value: 'cash', label: 'نقدي' },
+                    { value: 'bank', label: 'بنك' },
+                    { value: 'instapay', label: 'انستاباي' },
+                  ] as const
+                ).map((opt) => (
+                  <label
+                    key={opt.value}
+                    className={`flex items-center gap-2 cursor-pointer rounded-md border px-3 py-2 text-sm transition-colors ${
+                      paidFrom === opt.value
+                        ? 'border-accent bg-accent/10 text-foreground font-medium'
+                        : 'border-border-default text-foreground-muted hover:border-accent/60'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      value={opt.value}
+                      className="sr-only"
+                      {...form.register('paid_from')}
+                    />
+                    {opt.label}
+                  </label>
+                ))}
               </div>
             </div>
-            {paidFrom === 'bank' && (
+            {(paidFrom === 'bank' || paidFrom === 'instapay') && (
               <div className="space-y-1.5">
-                <Label>الحساب البنكي</Label>
+                <Label>
+                  الحساب البنكي <span className="text-danger">*</span>
+                </Label>
                 <select
                   className="w-full rounded-md border border-border-default bg-surface-elevated h-10 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                  {...form.register('bank_account_id')}
+                  {...form.register('bank_account_id', {
+                    required: paidFrom === 'bank' || paidFrom === 'instapay',
+                  })}
                 >
                   <option value="">-- اختر حساب --</option>
                   {(banksQ.data ?? [])

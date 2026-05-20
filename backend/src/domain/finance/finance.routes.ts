@@ -18,6 +18,7 @@ financeRouter.post(
   ctl.depositToBank,
 );
 financeRouter.post('/cash/owner-withdrawal', requireRole('owner'), ctl.ownerWithdrawal);
+financeRouter.post('/cash/close', requireRole('owner', 'shop_seller'), ctl.closeCashDrawer);
 
 // ─── Bank Accounts ────────────────────────────────────────────────────────────
 financeRouter.get('/banks', ctl.listBanks);

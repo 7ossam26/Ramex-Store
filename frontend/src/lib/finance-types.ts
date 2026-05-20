@@ -22,6 +22,7 @@ export type CashDrawerBalance = {
   opening_balance_egp: number;
   opening_set_at: string | null;
   last_movement_at: string | null;
+  last_closed_at: string | null;
 };
 
 export type CashMovement = {
@@ -77,7 +78,7 @@ export type Expense = {
   requires_approval: boolean;
   approved_by_user_id: number | null;
   approved_at: string | null;
-  paid_from: 'cash' | 'bank';
+  paid_from: 'cash' | 'bank' | 'instapay';
   bank_account_id: number | null;
   actor_user_id: number;
   actor_username: string | null;

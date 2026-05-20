@@ -31,6 +31,9 @@ export const financeApi = {
   ownerWithdrawal: (body: { amount: number; notes_ar?: string | null }) =>
     api.post<{ ok: boolean }>('/cash/owner-withdrawal', body).then((r) => r.data),
 
+  closeCashDrawer: () =>
+    api.post<{ last_closed_at: string }>('/cash/close').then((r) => r.data),
+
   // ── Banks ────────────────────────────────────────────────────────────────
   listBanks: () =>
     api.get<BankAccount[]>('/banks').then((r) => r.data),
@@ -79,7 +82,7 @@ export const financeApi = {
   // ── Expenses ─────────────────────────────────────────────────────────────
   listExpenses: (params?: {
     category?: string;
-    paid_from?: 'cash' | 'bank';
+    paid_from?: 'cash' | 'bank' | 'instapay';
     status?: 'pending' | 'approved' | 'all';
     from?: string;
     to?: string;
@@ -93,7 +96,7 @@ export const financeApi = {
   createExpense: (body: {
     category: string;
     amount_egp: number;
-    paid_from: 'cash' | 'bank';
+    paid_from: 'cash' | 'bank' | 'instapay';
     bank_account_id?: number | null;
     notes_ar?: string | null;
   }) => api.post<Expense>('/expenses', body).then((r) => r.data),

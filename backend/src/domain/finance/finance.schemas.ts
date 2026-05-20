@@ -66,7 +66,7 @@ export const BankReconcileSchema = z.object({
 export const CreateExpenseSchema = z.object({
   category: z.string().min(1).max(32),
   amount_egp: z.number().positive(),
-  paid_from: z.enum(['cash', 'bank']),
+  paid_from: z.enum(['cash', 'bank', 'instapay']),
   bank_account_id: z.number().int().positive().nullable().optional(),
   notes_ar: z.string().nullable().optional(),
 });
@@ -77,7 +77,7 @@ export const RejectExpenseSchema = z.object({
 
 export const ExpensesQuerySchema = z.object({
   category: z.string().optional(),
-  paid_from: z.enum(['cash', 'bank']).optional(),
+  paid_from: z.enum(['cash', 'bank', 'instapay']).optional(),
   status: z.enum(['pending', 'approved', 'all']).optional().default('all'),
   from: z.string().optional(),
   to: z.string().optional(),

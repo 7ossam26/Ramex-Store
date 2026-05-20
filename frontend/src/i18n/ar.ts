@@ -588,6 +588,11 @@ export const ar = {
     variance: 'الفرق',
     noVariance: 'تطابق مثالي — لا يوجد فرق',
     discrepancyNotified: 'تم إشعار المالك',
+    drawerWindowLabel: 'اليوم يبدأ من 10:30 ص — إغلاق يدوي',
+    closeCashDrawer: 'إغلاق الخزنة',
+    closeCashDrawerConfirm: 'تأكيد إغلاق الخزنة لهذا اليوم. يمكن الإغلاق مجدداً متى أردت.',
+    confirmClose: 'تأكيد الإغلاق',
+    lastClosed: 'آخر إغلاق',
   },
   returns: {
     title: 'المرتجعات',

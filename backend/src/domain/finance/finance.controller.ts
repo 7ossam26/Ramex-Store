@@ -127,6 +127,13 @@ export const ownerWithdrawal: RequestHandler = async (req, res) => {
   } catch (e) { handleErr(res, e); }
 };
 
+export const closeCashDrawer: RequestHandler = async (req, res) => {
+  try {
+    const result = await cashDrawer.closeCashDrawer(req.user!.sub);
+    res.json(result);
+  } catch (e) { handleErr(res, e); }
+};
+
 // ─── Bank Accounts ────────────────────────────────────────────────────────────
 
 export const listBanks: RequestHandler = async (_req, res) => {
