@@ -429,6 +429,18 @@ export const ar = {
     saveAsDepositHint: 'سيتم تسجيل فاتورة مفتوحة بدون رولات — يمكن إضافة الرولات لاحقاً',
     depositAmount: 'مبلغ الدفعة',
     depositRequired: 'أدخل مبلغ الدفعة المقدمة',
+    // v2 Phase 6 — Return on Scan
+    returnDrawerTitle: 'إرجاع',
+    returnDrawerRefundAmount: 'مبلغ الاسترجاع',
+    returnDrawerOriginalInvoice: 'الفاتورة الأصلية',
+    returnDrawerCustomer: 'العميل',
+    returnDrawerSaleDate: 'تاريخ البيع',
+    returnDrawerRollInfo: 'بيانات التوب',
+    returnDrawerConfirm: 'تأكيد الإرجاع',
+    returnAlreadyOpen: 'لوحة الإرجاع مفتوحة لهذا التوب بالفعل',
+    returnDamagedRoll: 'الرول معطوب — لا يمكن استرجاعه',
+    returnSuccess: 'تم تسجيل الإرجاع بنجاح',
+    returnLoadingMeta: 'جارٍ تحميل بيانات الفاتورة...',
   },
   invoices: {
     title: 'الفواتير',

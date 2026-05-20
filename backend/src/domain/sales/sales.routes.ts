@@ -52,6 +52,9 @@ salesRouter.get('/bank-accounts', async (_req, res) => {
 // Returns & Exchanges
 salesRouter.post('/returns', requireRole('owner', 'shop_seller'), retCtl.processReturn);
 salesRouter.post('/returns/exchange', requireRole('owner', 'shop_seller'), retCtl.processExchange);
+// Phase 6 — scan routes before /:id to prevent Express capturing the literal segment
+salesRouter.get('/returns/scan-preview/:rollId', retCtl.getScanPreview);
+salesRouter.post('/returns/from-scan', requireRole('owner', 'shop_seller'), retCtl.createScanReturn);
 salesRouter.get('/returns', retCtl.listReturns);
 salesRouter.get('/returns/:id/slip-pdf', retCtl.getReturnSlipPdf);
 salesRouter.get('/returns/:id', retCtl.getReturn);

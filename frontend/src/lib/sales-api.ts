@@ -12,9 +12,11 @@ import type {
   InvoiceStatusHistoryEntry,
   OpenInvoiceRow,
   PendingPickupRow,
+  ReturnScanMeta,
   RollLookup,
   SaleLineInput,
   SalePreview,
+  ScanReturnResult,
 } from './sales-types';
 
 export const salesApi = {
@@ -92,4 +94,14 @@ export const salesApi = {
     warehouse?: string;
     is_visible_at_pos?: boolean;
   }) => api.get<RollLookup[]>('/rolls', { params }).then((r) => r.data),
+
+  // Phase 6 — Return on Scan
+  scanPreview: (rollId: number) =>
+    api.get<ReturnScanMeta>(`/returns/scan-preview/${rollId}`).then((r) => r.data),
+
+  scanReturn: (body: {
+    rollId: number;
+    refundMethod: 'cash' | 'instapay';
+    bankAccountId?: number | null;
+  }) => api.post<ScanReturnResult>('/returns/from-scan', body).then((r) => r.data),
 };

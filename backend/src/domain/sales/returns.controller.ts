@@ -3,11 +3,13 @@ import {
   ProcessReturnSchema,
   ProcessExchangeSchema,
   ListReturnsQuerySchema,
+  ReturnFromScanSchema,
 } from './returns.schemas.js';
 import * as svc from './returnsService.js';
 import { buildReturnSlipPdf } from '../../lib/pdf/return-slip.js';
 
 const ERR_MAP: Record<string, { status: number; message: string }> = {
+  INVOICE_LINE_NOT_FOUND: { status: 404, message: 'لم يتم العثور على سطر الفاتورة الأصلي' },
   INVOICE_NOT_FOUND: { status: 404, message: 'الفاتورة غير موجودة' },
   INVOICE_NOT_COMPLETED: { status: 409, message: 'لا يمكن الإرجاع — الفاتورة ليست مكتملة' },
   RETURN_WINDOW_EXPIRED: { status: 409, message: 'انتهت مدة الإرجاع' },
@@ -108,4 +110,36 @@ export async function getReturnSlipPdf(req: Request, res: Response): Promise<voi
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `inline; filename="${detail.return_no}.pdf"`);
   res.end(buf);
+}
+
+// Phase 6 — Return on Scan
+
+export async function getScanPreview(req: Request, res: Response): Promise<void> {
+  const rollId = Number(req.params.rollId);
+  if (!rollId || !Number.isFinite(rollId)) {
+    res.status(400).json({ error: 'INVALID_ROLL_ID', message: 'معرّف التوب غير صالح' });
+    return;
+  }
+  const meta = await svc.getRollSaleMeta(rollId);
+  if (!meta) {
+    res.status(404).json({ error: 'ROLL_NOT_SOLD', message: 'التوب ليس في حالة مباع أو غير موجود' });
+    return;
+  }
+  res.json(meta);
+}
+
+export async function createScanReturn(req: Request, res: Response): Promise<void> {
+  const data = ReturnFromScanSchema.parse(req.body);
+  try {
+    const result = await svc.createReturnFromRollScan({
+      rollId: data.rollId,
+      refundMethod: data.refundMethod,
+      bankAccountId: data.bankAccountId ?? null,
+      actorUserId: actorId(req),
+    });
+    res.status(201).json(result);
+  } catch (e) {
+    if (handleDomainError(e, res)) return;
+    throw e;
+  }
 }

@@ -161,6 +161,30 @@ export type BankAccount = {
   current_balance_egp: string;
 };
 
+// Phase 6 — Return on Scan
+export type ReturnScanMeta = {
+  rollId: number;
+  rollInternalBarcode: string;
+  rollSrNo: string | null;
+  fabricNameAr: string;
+  colorNameAr: string;
+  colorCode: string | null;
+  refundEgp: number;
+  originalInvoiceId: number;
+  originalInvoiceNo: string;
+  customerNameAr: string;
+  customerPhone: string;
+  saleDate: string;
+};
+
+export type ScanReturnResult = {
+  id: number;
+  return_no: string;
+  total_refund_egp: string;
+  refundEgp: number;
+  originalInvoiceNo: string;
+};
+
 export type RollLookup = {
   id: number;
   internal_barcode: string;

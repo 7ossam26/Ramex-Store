@@ -19,6 +19,8 @@ import {
   MoreVertical,
   Store,
   Factory,
+  RotateCcw,
+  Loader2,
 } from 'lucide-react';
 import { Toast } from '@/components/Toast';
 import { Tooltip } from '@/components/Tooltip';
@@ -32,6 +34,7 @@ import type {
   BankAccount,
   FulfillmentDestination,
   Invoice,
+  ReturnScanMeta,
   RollLookup,
   SalePreview,
 } from '@/lib/sales-types';
@@ -159,6 +162,14 @@ export function POSPage() {
   // v2 Phase 5 — no-lines deposit dialog state.
   const [depositOpen, setDepositOpen] = useState(false);
 
+  // v2 Phase 6 — return on scan state.
+  const [returnDrawerRoll, setReturnDrawerRoll] = useState<RollLookup | null>(null);
+  const [returnMeta, setReturnMeta] = useState<ReturnScanMeta | null>(null);
+  const [returnMetaLoading, setReturnMetaLoading] = useState(false);
+  const [returnMethod, setReturnMethod] = useState<'cash' | 'instapay'>('cash');
+  const [returnBankId, setReturnBankId] = useState<number | ''>('');
+  const [returnConfirming, setReturnConfirming] = useState(false);
+
   /* Bottom toast (functional error feedback). */
   type ToastState = { id: number; message: string };
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -244,6 +255,23 @@ export function POSPage() {
     if (!barcode.trim()) return;
     try {
       const roll = await salesApi.rollByBarcode(barcode.trim());
+
+      // Phase 6 — sold roll triggers return drawer, not cart addition.
+      if (roll.status === 'sold') {
+        if (returnDrawerRoll?.id === roll.id) {
+          // Re-scan of the roll already in the open return panel — silent no-op.
+          showToast(ar.pos.returnAlreadyOpen);
+          return;
+        }
+        await openReturnDrawer(roll);
+        return;
+      }
+
+      if (roll.status === 'damaged') {
+        flagScanFailure(ar.pos.returnDamagedRoll);
+        return;
+      }
+
       if (roll.status !== 'in_stock') {
         flagScanFailure(ar.pos.notFound);
       } else if (!roll.is_visible_at_pos) {
@@ -265,6 +293,47 @@ export function POSPage() {
     } catch (e) {
       const status = axios.isAxiosError(e) ? e.response?.status : 0;
       flagScanFailure(status === 404 ? ar.pos.notFound : ar.common.error);
+    }
+  }
+
+  async function openReturnDrawer(roll: RollLookup) {
+    setReturnDrawerRoll(roll);
+    setReturnMeta(null);
+    setReturnMetaLoading(true);
+    setReturnMethod('cash');
+    setReturnBankId(typeof bankAccountId === 'number' ? bankAccountId : '');
+    try {
+      const meta = await salesApi.scanPreview(roll.id);
+      setReturnMeta(meta);
+    } catch {
+      setReturnDrawerRoll(null);
+      showToast(ar.common.error);
+    } finally {
+      setReturnMetaLoading(false);
+    }
+  }
+
+  async function confirmScanReturn() {
+    if (!returnMeta || returnConfirming) return;
+    setReturnConfirming(true);
+    try {
+      const result = await salesApi.scanReturn({
+        rollId: returnMeta.rollId,
+        refundMethod: returnMethod,
+        bankAccountId: returnMethod === 'instapay' ? (returnBankId || null) : null,
+      });
+      setReturnDrawerRoll(null);
+      setReturnMeta(null);
+      qc.invalidateQueries({ queryKey: ['invoices'] });
+      qc.invalidateQueries({ queryKey: ['pos-rolls'] });
+      showToast(`${ar.pos.returnSuccess} — ${result.return_no}`);
+    } catch (e) {
+      const msg =
+        axios.isAxiosError(e) &&
+        (e.response?.data as { message?: string } | undefined)?.message;
+      showToast(msg || ar.common.error);
+    } finally {
+      setReturnConfirming(false);
     }
   }
 
@@ -710,6 +779,26 @@ export function POSPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Phase 6 — return on scan: side drawer opens when a sold roll is scanned. */}
+      <ReturnDrawer
+        roll={returnDrawerRoll}
+        meta={returnMeta}
+        metaLoading={returnMetaLoading}
+        banks={banks}
+        method={returnMethod}
+        setMethod={setReturnMethod}
+        bankId={returnBankId}
+        setBankId={setReturnBankId}
+        confirming={returnConfirming}
+        onConfirm={() => void confirmScanReturn()}
+        onClose={() => {
+          if (!returnConfirming) {
+            setReturnDrawerRoll(null);
+            setReturnMeta(null);
+          }
+        }}
+      />
 
       {/* Phase 5 — save a no-lines deposit invoice. Enabled when the cart is
           empty and a customer is selected. */}
@@ -1851,6 +1940,213 @@ function NoLinesDepositDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── *
+ * RETURN DRAWER — v2 Phase 6
+ * Opens from the right edge (RTL) when a sold roll is scanned.
+ * ────────────────────────────────────────────────────────────────────────── */
+function ReturnDrawer({
+  roll,
+  meta,
+  metaLoading,
+  banks,
+  method,
+  setMethod,
+  bankId,
+  setBankId,
+  confirming,
+  onConfirm,
+  onClose,
+}: {
+  roll: RollLookup | null;
+  meta: ReturnScanMeta | null;
+  metaLoading: boolean;
+  banks: BankAccount[];
+  method: 'cash' | 'instapay';
+  setMethod: (m: 'cash' | 'instapay') => void;
+  bankId: number | '';
+  setBankId: (n: number | '') => void;
+  confirming: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Sheet open={!!roll} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent side="right" className="w-full sm:max-w-md flex flex-col p-0 gap-0">
+        {/* Header */}
+        <SheetHeader className="px-4 py-3 border-b border-border-subtle shrink-0">
+          <SheetTitle className="flex items-center gap-2 text-lg">
+            <RotateCcw className="size-5 text-accent" />
+            {ar.pos.returnDrawerTitle}
+          </SheetTitle>
+        </SheetHeader>
+
+        {/* Body — scrollable */}
+        <div className="flex-1 overflow-y-auto px-4 py-5 space-y-4">
+          {metaLoading ? (
+            <div className="space-y-3 animate-pulse">
+              <div className="h-28 rounded-xl bg-surface-hover" />
+              <div className="h-5 rounded bg-surface-hover w-3/4" />
+              <div className="h-5 rounded bg-surface-hover w-1/2" />
+              <div className="h-5 rounded bg-surface-hover w-2/3" />
+              <div className="h-24 rounded-md bg-surface-hover" />
+              <div className="h-20 rounded-lg bg-surface-hover" />
+            </div>
+          ) : meta ? (
+            <>
+              {/* Refund amount — prominent hero block */}
+              <div className="rounded-xl border-2 border-success/40 bg-success-subtle p-6 text-center space-y-1">
+                <p className="text-sm text-foreground-muted">{ar.pos.returnDrawerRefundAmount}</p>
+                <p
+                  className="text-5xl font-bold text-success-foreground tabular-num leading-none"
+                  dir="ltr"
+                >
+                  {fmtMoney(meta.refundEgp)}
+                </p>
+                <p className="text-base font-medium text-success-foreground">ج.م</p>
+              </div>
+
+              {/* Sale meta */}
+              <div className="rounded-md border border-border-subtle bg-surface-elevated divide-y divide-border-subtle text-sm">
+                <ReturnMetaRow label={ar.pos.returnDrawerOriginalInvoice} value={meta.originalInvoiceNo} mono />
+                <ReturnMetaRow
+                  label={ar.pos.returnDrawerCustomer}
+                  value={`${meta.customerNameAr}`}
+                  sub={meta.customerPhone}
+                />
+                <ReturnMetaRow label={ar.pos.returnDrawerSaleDate} value={fmtReturnDate(meta.saleDate)} />
+              </div>
+
+              {/* Roll info */}
+              <div className="rounded-md border border-border-subtle bg-surface-elevated p-3 space-y-1 text-sm">
+                <p className="text-xs font-medium text-foreground-muted uppercase tracking-wide">
+                  {ar.pos.returnDrawerRollInfo}
+                </p>
+                <p className="font-medium text-foreground">{meta.fabricNameAr}</p>
+                <p className="text-foreground-muted">
+                  {meta.colorNameAr}
+                  {meta.colorCode ? ` · ${meta.colorCode}` : ''}
+                </p>
+                <p className="text-xs font-mono text-foreground-tertiary" dir="ltr">
+                  {meta.rollInternalBarcode}
+                  {meta.rollSrNo ? ` · ${meta.rollSrNo}` : ''}
+                </p>
+              </div>
+
+              {/* Method picker */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-foreground">
+                  {ar.pos.paymentMethod}
+                </Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['cash', 'instapay'] as const).map((m) => {
+                    const active = method === m;
+                    const Icon = m === 'cash' ? Banknote : CreditCard;
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setMethod(m)}
+                        className={`cursor-pointer rounded-lg border-2 p-3 flex flex-col items-center justify-center gap-1.5 transition-colors duration-150 min-h-[72px] ${
+                          active
+                            ? 'border-accent bg-accent-subtle text-accent'
+                            : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
+                        }`}
+                      >
+                        <Icon className="size-5" />
+                        <span className="text-sm font-medium">{ar.pos[m]}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {method === 'instapay' && (
+                <div className="space-y-1">
+                  <Label>{ar.pos.bankAccount}</Label>
+                  <select
+                    className="h-11 w-full border border-border-default rounded-md px-2 bg-surface-elevated text-foreground cursor-pointer"
+                    value={bankId}
+                    onChange={(e) => setBankId(e.target.value ? Number(e.target.value) : '')}
+                  >
+                    <option value="">—</option>
+                    {banks.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name_ar}
+                        {b.is_default ? ' (افتراضي)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </>
+          ) : null}
+        </div>
+
+        {/* Sticky footer */}
+        <div className="border-t border-border-subtle px-4 py-4 space-y-2 shrink-0 bg-surface">
+          <Button
+            className="w-full h-12 cursor-pointer gap-2"
+            size="lg"
+            disabled={!meta || confirming || metaLoading}
+            onClick={onConfirm}
+          >
+            {confirming ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <RotateCcw className="size-4" />
+            )}
+            {ar.pos.returnDrawerConfirm}
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full h-11 cursor-pointer"
+            onClick={onClose}
+            disabled={confirming}
+          >
+            {ar.common.cancel}
+          </Button>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function ReturnMetaRow({
+  label,
+  value,
+  sub,
+  mono,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 px-3 py-2.5">
+      <span className="text-foreground-muted text-sm shrink-0">{label}</span>
+      <div className="text-end">
+        <span className={`text-sm font-medium text-foreground ${mono ? 'font-mono' : ''}`}>
+          {value}
+        </span>
+        {sub && (
+          <p className="text-xs text-foreground-tertiary font-mono" dir="ltr">
+            {sub}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function fmtReturnDate(s: string): string {
+  return new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(s));
 }
 
 /* ────────────────────────────────────────────────────────────────────────── *

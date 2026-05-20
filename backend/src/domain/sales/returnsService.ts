@@ -8,6 +8,228 @@ import { settlePayment } from '../finance/paymentSettlementService.js';
 import { createSale } from './invoices.service.js';
 import type { CreateSaleInput } from './sales.types.js';
 
+// ─── Phase 6 — Return on Scan ──────────────────────────────────────────────
+
+export type ReturnScanMeta = {
+  rollId: number;
+  rollInternalBarcode: string;
+  rollSrNo: string | null;
+  fabricNameAr: string;
+  colorNameAr: string;
+  colorCode: string | null;
+  refundEgp: number;
+  originalInvoiceId: number;
+  originalInvoiceNo: string;
+  customerNameAr: string;
+  customerPhone: string;
+  saleDate: string;
+};
+
+export async function getRollSaleMeta(rollId: number): Promise<ReturnScanMeta | undefined> {
+  const row = await db('rolls as r')
+    .where('r.id', rollId)
+    .where('r.status', 'sold')
+    .join('invoice_lines as il', 'il.roll_id', 'r.id')
+    .join('invoices as inv', 'il.invoice_id', 'inv.id')
+    .join('customers as c', 'inv.customer_id', 'c.id')
+    .join('fabrics as f', 'r.fabric_id', 'f.id')
+    .join('colors as col', 'r.color_id', 'col.id')
+    .select(
+      'r.id as roll_id',
+      'r.internal_barcode',
+      'r.roll_sr_no',
+      'f.name_ar as fabric_name_ar',
+      'col.name_ar as color_name_ar',
+      'col.code as color_code',
+      'il.line_total_egp',
+      'inv.id as invoice_id',
+      'inv.invoice_no',
+      'c.name_ar as customer_name_ar',
+      'c.phone as customer_phone',
+      'inv.created_at as sale_date',
+    )
+    .orderBy('il.id', 'desc')
+    .first();
+
+  if (!row) return undefined;
+
+  return {
+    rollId: Number(row.roll_id),
+    rollInternalBarcode: row.internal_barcode as string,
+    rollSrNo: row.roll_sr_no as string | null,
+    fabricNameAr: row.fabric_name_ar as string,
+    colorNameAr: row.color_name_ar as string,
+    colorCode: row.color_code as string | null,
+    refundEgp: roundEgp(Number(row.line_total_egp)),
+    originalInvoiceId: Number(row.invoice_id),
+    originalInvoiceNo: row.invoice_no as string,
+    customerNameAr: row.customer_name_ar as string,
+    customerPhone: row.customer_phone as string,
+    saleDate: row.sale_date as string,
+  };
+}
+
+export type ReturnFromScanInput = {
+  rollId: number;
+  refundMethod: 'cash' | 'instapay';
+  bankAccountId?: number | null;
+  actorUserId: number;
+};
+
+export async function createReturnFromRollScan(
+  input: ReturnFromScanInput,
+): Promise<ReturnRow & { originalInvoiceNo: string; refundEgp: number }> {
+  return db.transaction(async (trx) => {
+    const roll = await trx('rolls').where({ id: input.rollId }).forUpdate().first();
+    if (!roll) throw new Error('ROLL_NOT_FOUND');
+    if (roll.status !== 'sold') throw new Error('ROLL_NOT_SOLD');
+
+    const invoiceLine = await trx('invoice_lines as il')
+      .where('il.roll_id', input.rollId)
+      .join('invoices as inv', 'il.invoice_id', 'inv.id')
+      .select(
+        'il.id',
+        'il.invoice_id',
+        'il.line_total_egp',
+        'inv.invoice_no',
+        'inv.customer_id',
+      )
+      .orderBy('il.id', 'desc')
+      .first();
+
+    if (!invoiceLine) throw new Error('INVOICE_LINE_NOT_FOUND');
+
+    const refundEgp = roundEgp(Number(invoiceLine.line_total_egp));
+    const year = new Date().getFullYear();
+    const return_no = await nextReturnNo(trx, year);
+
+    const [{ id: retId }] = await trx('returns')
+      .insert({
+        return_no,
+        original_invoice_id: invoiceLine.invoice_id,
+        customer_id: invoiceLine.customer_id,
+        created_by_user_id: input.actorUserId,
+        total_refund_egp: refundEgp,
+        refund_method: input.refundMethod,
+        bank_account_id: input.bankAccountId ?? null,
+        notes_ar: null,
+        kind: 'refund',
+      })
+      .returning('id');
+
+    const ret = await trx('returns').where({ id: retId }).first();
+
+    await trx('return_lines').insert({
+      return_id: ret.id,
+      original_invoice_line_id: invoiceLine.id,
+      roll_id: input.rollId,
+      refund_amount_egp: refundEgp,
+      roll_disposition: 'back_to_stock',
+      notes_ar: null,
+    });
+
+    // Flip roll back to in_stock — warehouse stays unchanged.
+    await trx('rolls').where({ id: input.rollId }).update({
+      status: 'in_stock',
+      updated_at: trx.fn.now(),
+    });
+
+    await trx('stock_movements').insert({
+      roll_id: input.rollId,
+      from_warehouse: null,
+      to_warehouse: roll.warehouse,
+      event_type: 'return_in',
+      reference_type: 'return',
+      reference_id: ret.id,
+      actor_user_id: input.actorUserId,
+      notes_ar: `مرتجع بالمسح: ${return_no}`,
+    });
+
+    await trx('payments').insert({
+      invoice_id: invoiceLine.invoice_id,
+      method: input.refundMethod,
+      amount_egp: -refundEgp,
+      payment_kind: 'refund',
+      bank_account_id: input.bankAccountId ?? null,
+      notes_ar: `استرجاع مسح: ${return_no}`,
+      actor_user_id: input.actorUserId,
+    });
+
+    await settlePayment(trx, {
+      method: input.refundMethod,
+      paymentKind: 'refund',
+      amount: refundEgp,
+      bankAccountId: input.bankAccountId ?? null,
+      referenceType: 'return',
+      referenceId: ret.id,
+      actorUserId: input.actorUserId,
+      notesAr: `استرجاع مسح: ${return_no}`,
+    });
+
+    const customer = await trx('customers')
+      .where({ id: invoiceLine.customer_id })
+      .forUpdate()
+      .first();
+
+    const newLifetime = roundEgp(Number(customer.lifetime_volume_egp) - refundEgp);
+    const newBalance = roundEgp(Number(customer.current_balance_egp));
+
+    await trx('customer_ledger_entries').insert({
+      customer_id: invoiceLine.customer_id,
+      entry_type: 'refund',
+      reference_type: 'return',
+      reference_id: ret.id,
+      amount_egp: -refundEgp,
+      balance_after_egp: newBalance,
+      notes_ar: `مرتجع مسح ${return_no}`,
+      actor_user_id: input.actorUserId,
+    });
+
+    await trx('customers').where({ id: invoiceLine.customer_id }).update({
+      lifetime_volume_egp: newLifetime,
+      updated_at: trx.fn.now(),
+    });
+
+    await auditFromService(trx, {
+      actorUserId: input.actorUserId,
+      action: 'return_on_scan',
+      entity: 'return',
+      entityId: ret.id,
+      after: {
+        return_no,
+        originalInvoiceId: invoiceLine.invoice_id,
+        returnInvoiceId: ret.id,
+        rollId: input.rollId,
+        refundEgp,
+        method: input.refundMethod,
+      },
+      severity: 'medium',
+    });
+
+    await notify({
+      recipientRole: 'owner',
+      severity: 'low',
+      eventType: 'return_processed',
+      titleAr: 'مرتجع بالمسح',
+      bodyAr: `تم تسجيل مرتجع رقم ${return_no} بمسح التوب من نقطة البيع`,
+      payload: {
+        return_no,
+        kind: 'refund',
+        total_refund_egp: refundEgp,
+        refund_method: input.refundMethod,
+        original_invoice_id: invoiceLine.invoice_id,
+        roll_id: input.rollId,
+      },
+    });
+
+    return {
+      ...(ret as ReturnRow),
+      originalInvoiceNo: invoiceLine.invoice_no as string,
+      refundEgp,
+    };
+  });
+}
+
 export type ReturnLineInput = {
   originalLineId: number;
   rollId: number;

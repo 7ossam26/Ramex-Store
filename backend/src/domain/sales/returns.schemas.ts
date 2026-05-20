@@ -40,6 +40,14 @@ export const ProcessExchangeSchema = ProcessReturnSchema.extend({
 });
 export type ProcessExchangeInput = z.infer<typeof ProcessExchangeSchema>;
 
+// Phase 6 — Return on Scan
+export const ReturnFromScanSchema = z.object({
+  rollId: z.coerce.number().int().positive(),
+  refundMethod: z.enum(['cash', 'instapay']),
+  bankAccountId: z.coerce.number().int().positive().nullable().optional(),
+});
+export type ReturnFromScanInput = z.infer<typeof ReturnFromScanSchema>;
+
 export const ListReturnsQuerySchema = z.object({
   customer_id: z.coerce.number().int().positive().optional(),
   original_invoice_id: z.coerce.number().int().positive().optional(),
