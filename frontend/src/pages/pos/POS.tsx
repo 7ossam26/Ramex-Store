@@ -17,6 +17,8 @@ import {
   Banknote,
   AlertTriangle,
   MoreVertical,
+  Store,
+  Factory,
 } from 'lucide-react';
 import { Toast } from '@/components/Toast';
 import { Tooltip } from '@/components/Tooltip';
@@ -26,7 +28,13 @@ import { customersApi } from '@/lib/customers-api';
 import { itemsApi } from '@/lib/items-api';
 import { openPdfBlob } from '@/lib/pdf';
 import type { Customer } from '@/lib/customers-types';
-import type { BankAccount, Invoice, RollLookup, SalePreview } from '@/lib/sales-types';
+import type {
+  BankAccount,
+  FulfillmentDestination,
+  Invoice,
+  RollLookup,
+  SalePreview,
+} from '@/lib/sales-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -84,12 +92,28 @@ function isFabricRoll(r: RollLookup): boolean {
   );
 }
 
+function isFactoryRoll(r: RollLookup): boolean {
+  return r.warehouse === 'factory';
+}
+
+function isShopRoll(r: RollLookup): boolean {
+  return r.warehouse === 'shop' || r.warehouse === 'damaged_shop';
+}
+
+function rollMatchesDestination(r: RollLookup, dest: FulfillmentDestination): boolean {
+  return dest === 'factory_direct' ? isFactoryRoll(r) : isShopRoll(r);
+}
+
 export function POSPage() {
   const qc = useQueryClient();
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanFlash, setScanFlash] = useState<RollLookup | null>(null);
+
+  // Phase 4 — fulfillment destination (per invoice). Default: shop.
+  const [destination, setDestination] = useState<FulfillmentDestination>('shop');
+  const [pendingDestination, setPendingDestination] = useState<FulfillmentDestination | null>(null);
 
   /* Functional-motion feedback state — local UI only, no impact on scanning logic. */
   const [scannerFeedback, setScannerFeedback] = useState<ScannerFeedback>('idle');
@@ -206,8 +230,12 @@ export function POSPage() {
         flagScanFailure(ar.pos.notFound);
       } else if (!roll.is_visible_at_pos) {
         flagScanFailure(ar.pos.notVisible);
-      } else if (roll.warehouse !== 'shop' && roll.warehouse !== 'damaged_shop') {
-        flagScanFailure(ar.pos.notAtShop);
+      } else if (!rollMatchesDestination(roll, destination)) {
+        flagScanFailure(
+          destination === 'shop'
+            ? ar.pos.factoryRollInShopMode
+            : ar.pos.shopRollInFactoryMode,
+        );
       } else if (cart.find((l) => l.roll.id === roll.id)) {
         flagScanFailure(ar.pos.alreadyInCart);
       } else {
@@ -220,6 +248,25 @@ export function POSPage() {
       const status = axios.isAxiosError(e) ? e.response?.status : 0;
       flagScanFailure(status === 404 ? ar.pos.notFound : ar.common.error);
     }
+  }
+
+  function requestDestinationChange(next: FulfillmentDestination) {
+    if (next === destination) return;
+    const incompatible = cart.some((l) => !rollMatchesDestination(l.roll, next));
+    if (incompatible) {
+      setPendingDestination(next);
+      return;
+    }
+    setDestination(next);
+  }
+
+  function confirmDestinationChange() {
+    if (!pendingDestination) return;
+    const next = pendingDestination;
+    setCart((c) => c.filter((l) => rollMatchesDestination(l.roll, next)));
+    setDestination(next);
+    setPendingDestination(null);
+    setScanFlash(null);
   }
 
   function flagScanFailure(message: string) {
@@ -281,6 +328,7 @@ export function POSPage() {
       }
       return salesApi.create({
         customerId: customer.id,
+        fulfillmentDestination: destination,
         lines: cart.map((l) => ({
           rollId: l.roll.id,
           sellingPriceOverride: parseAmount(l.priceOverride) || null,
@@ -334,6 +382,8 @@ export function POSPage() {
     setSubmitError(null);
     setPaymentSheetOpen(false);
     setCartSheetOpen(false);
+    setDestination('shop');
+    setPendingDestination(null);
   }
 
   return (
@@ -366,7 +416,16 @@ export function POSPage() {
           feedback={scannerFeedback}
           shakeNonce={shakeNonce}
           cart={cart}
+          destination={destination}
           onPickManual={(roll) => {
+            if (!rollMatchesDestination(roll, destination)) {
+              flagScanFailure(
+                destination === 'shop'
+                  ? ar.pos.factoryRollInShopMode
+                  : ar.pos.shopRollInFactoryMode,
+              );
+              return;
+            }
             if (!cart.find((l) => l.roll.id === roll.id)) {
               setCart((c) => [...c, { roll, priceOverride: '', lineDiscount: '' }]);
               setScanFlash(roll);
@@ -390,6 +449,8 @@ export function POSPage() {
             onShowLabel={setLabelRoll}
             onPay={() => setPaymentSheetOpen(true)}
             disabled={cart.length === 0}
+            destination={destination}
+            onChangeDestination={requestDestinationChange}
           />
         </div>
       </div>
@@ -416,6 +477,8 @@ export function POSPage() {
               }}
               disabled={cart.length === 0}
               embedded
+              destination={destination}
+              onChangeDestination={requestDestinationChange}
             />
           </div>
         </SheetContent>
@@ -584,6 +647,42 @@ export function POSPage() {
         onClose={() => setToast(null)}
         className="bottom-20 lg:bottom-6"
       />
+
+      {/* Phase 4 — confirm switching destination when cart has incompatible rolls. */}
+      <Dialog
+        open={pendingDestination !== null}
+        onOpenChange={(o) => {
+          if (!o) setPendingDestination(null);
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{ar.pos.switchDestinationTitle}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-foreground">
+            {pendingDestination === 'factory_direct'
+              ? ar.pos.switchDestinationToFactoryBody
+              : ar.pos.switchDestinationToShopBody}
+          </p>
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPendingDestination(null)}
+              className="cursor-pointer"
+            >
+              {ar.common.cancel}
+            </Button>
+            <Button
+              size="sm"
+              onClick={confirmDestinationChange}
+              className="cursor-pointer"
+            >
+              {ar.pos.switchDestinationConfirm}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -715,6 +814,7 @@ function ScanColumn({
   feedback,
   shakeNonce,
   cart,
+  destination,
   onPickManual,
   onShowLabel,
 }: {
@@ -724,6 +824,7 @@ function ScanColumn({
   feedback: ScannerFeedback;
   shakeNonce: number;
   cart: CartLine[];
+  destination: FulfillmentDestination;
   onPickManual: (r: RollLookup) => void;
   onShowLabel: (r: RollLookup) => void;
 }) {
@@ -782,6 +883,7 @@ function ScanColumn({
 
         <ProductsGrid
           cart={cart}
+          destination={destination}
           onPick={onPickManual}
           onShowLabel={onShowLabel}
         />
@@ -842,6 +944,8 @@ function CartPanel({
   onPay,
   disabled,
   embedded = false,
+  destination,
+  onChangeDestination,
 }: {
   cart: CartLine[];
   preview: SalePreview | null | undefined;
@@ -854,6 +958,8 @@ function CartPanel({
   onPay: () => void;
   disabled: boolean;
   embedded?: boolean;
+  destination: FulfillmentDestination;
+  onChangeDestination: (d: FulfillmentDestination) => void;
 }) {
   const Wrap: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     embedded ? (
@@ -877,6 +983,8 @@ function CartPanel({
 
   return (
     <Wrap>
+      <DestinationToggle value={destination} onChange={onChangeDestination} />
+
       {cart.length === 0 ? (
         <div className="text-center py-12">
           <div
@@ -1285,10 +1393,12 @@ function PaymentForm({
  * ────────────────────────────────────────────────────────────────────────── */
 function ProductsGrid({
   cart,
+  destination,
   onPick,
   onShowLabel,
 }: {
   cart: CartLine[];
+  destination: FulfillmentDestination;
   onPick: (r: RollLookup) => void;
   onShowLabel: (r: RollLookup) => void;
 }) {
@@ -1303,14 +1413,19 @@ function ProductsGrid({
   const cartIds = useMemo(() => new Set(cart.map((l) => l.roll.id)), [cart]);
 
   const filtered = useMemo(() => {
+    const visible =
+      destination === 'factory_direct'
+        ? // Hide shop rolls entirely when picking from the factory.
+          rolls.filter((r) => isFactoryRoll(r))
+        : rolls;
     const q = search.trim().toLowerCase();
-    if (!q) return rolls;
-    return rolls.filter((r) =>
+    if (!q) return visible;
+    return visible.filter((r) =>
       `${r.fabric_name_ar} ${r.color_name_ar} ${r.color_code ?? ''} ${r.roll_sr_no ?? ''} ${r.internal_barcode} ${r.brand_arabic_name ?? ''}`
         .toLowerCase()
         .includes(q),
     );
-  }, [rolls, search]);
+  }, [rolls, search, destination]);
 
   return (
     <div className="space-y-3 border-t border-border-subtle pt-3">
@@ -1355,19 +1470,30 @@ function ProductsGrid({
           {filtered.map((r) => {
             const inCart = cartIds.has(r.id);
             const fabric = isFabricRoll(r);
+            const wrongWarehouse = !rollMatchesDestination(r, destination);
+            const factoryInShopMode = destination === 'shop' && isFactoryRoll(r);
             return (
               <div
                 key={r.id}
+                aria-disabled={wrongWarehouse || undefined}
                 className={`group relative rounded-md border bg-surface-elevated p-3 flex flex-col gap-2 transition-colors duration-150 ${
                   inCart
                     ? 'border-success/40 bg-success-subtle'
-                    : 'border-border-subtle hover:border-accent hover:bg-surface-hover'
+                    : wrongWarehouse
+                      ? 'border-border-subtle opacity-60'
+                      : 'border-border-subtle hover:border-accent hover:bg-surface-hover'
                 }`}
               >
                 {inCart && (
                   <span className="absolute top-2 start-2 inline-flex items-center gap-1 rounded-pill bg-success text-white px-2 py-0.5 text-[10px] font-medium">
                     <CheckCircle2 className="size-3" />
                     {ar.pos.inCart}
+                  </span>
+                )}
+                {!inCart && factoryInShopMode && (
+                  <span className="absolute top-2 start-2 inline-flex items-center gap-1 rounded-pill bg-surface-row-alt text-foreground-muted border border-border-default px-2 py-0.5 text-[10px] font-medium">
+                    <Factory className="size-3" />
+                    {ar.pos.factoryRollBadge}
                   </span>
                 )}
 
@@ -1401,14 +1527,20 @@ function ProductsGrid({
                   <Button
                     size="sm"
                     variant={inCart ? 'outline' : 'default'}
-                    disabled={inCart}
+                    disabled={inCart || wrongWarehouse}
                     onClick={() => onPick(r)}
                     className="h-9 flex-1 cursor-pointer gap-1 disabled:cursor-not-allowed"
+                    title={factoryInShopMode ? ar.pos.factoryRollBadge : undefined}
                   >
                     {inCart ? (
                       <>
                         <CheckCircle2 className="size-4" />
                         {ar.pos.inCart}
+                      </>
+                    ) : factoryInShopMode ? (
+                      <>
+                        <Factory className="size-4" />
+                        {ar.pos.factoryRollBadge}
                       </>
                     ) : (
                       <>
@@ -1620,6 +1752,53 @@ function QuickCustomerDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── *
+ * DESTINATION TOGGLE — Phase 4
+ * ────────────────────────────────────────────────────────────────────────── */
+function DestinationToggle({
+  value,
+  onChange,
+}: {
+  value: FulfillmentDestination;
+  onChange: (d: FulfillmentDestination) => void;
+}) {
+  const options: Array<{ key: FulfillmentDestination; label: string; Icon: typeof Store }> = [
+    { key: 'shop', label: ar.pos.fulfillmentShop, Icon: Store },
+    { key: 'factory_direct', label: ar.pos.fulfillmentFactoryDirect, Icon: Factory },
+  ];
+  return (
+    <div className="space-y-1.5">
+      <div className="text-xs font-medium text-foreground-muted">{ar.pos.fulfillment}</div>
+      <div
+        role="radiogroup"
+        aria-label={ar.pos.fulfillment}
+        className="grid grid-cols-2 gap-1 rounded-md border border-border-subtle bg-surface-row-alt p-1"
+      >
+        {options.map(({ key, label, Icon }) => {
+          const active = value === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => onChange(key)}
+              className={`cursor-pointer rounded-sm px-3 py-2 text-xs sm:text-sm font-medium inline-flex items-center justify-center gap-1.5 transition-colors duration-150 ${
+                active
+                  ? 'bg-accent text-white shadow-sm'
+                  : 'bg-transparent text-foreground hover:bg-surface-hover'
+              }`}
+            >
+              <Icon className="size-4" />
+              <span className="truncate">{label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

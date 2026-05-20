@@ -5,6 +5,7 @@ import { ar } from '@/i18n/ar';
 import { salesApi } from '@/lib/sales-api';
 import { openPdfBlob } from '@/lib/pdf';
 import type {
+  FulfillmentDestination,
   InvoiceListRow,
   InvoiceStatus,
   OpenInvoiceRow,
@@ -79,13 +80,15 @@ export function InvoicesListPage() {
 function DefaultTab({ status }: { status?: InvoiceStatus }) {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [destination, setDestination] = useState<FulfillmentDestination | 'all'>('all');
   const [page, setPage] = useState(1);
 
   const q = useQuery({
-    queryKey: ['invoices', status, dateFrom, dateTo, page],
+    queryKey: ['invoices', status, destination, dateFrom, dateTo, page],
     queryFn: () =>
       salesApi.list({
         status: status || undefined,
+        fulfillment_destination: destination === 'all' ? undefined : destination,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
         page,
@@ -96,7 +99,8 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
   const rows: InvoiceListRow[] = q.data?.rows ?? [];
   const total = q.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const activeFilters = (dateFrom ? 1 : 0) + (dateTo ? 1 : 0);
+  const activeFilters =
+    (dateFrom ? 1 : 0) + (dateTo ? 1 : 0) + (destination !== 'all' ? 1 : 0);
 
   const reprintMut = useMutation({
     mutationFn: (invoiceId: number) => salesApi.pdfBlob(invoiceId, 'reprint'),
@@ -125,6 +129,29 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
             dir="ltr"
             className="h-11 md:h-10"
           />
+        </div>
+      </div>
+      <div className="space-y-1">
+        <Label className="text-sm font-medium text-foreground">{ar.invoices.filterFulfillment}</Label>
+        <div className="flex gap-2 flex-wrap">
+          <FilterChip
+            active={destination === 'all'}
+            onClick={() => { setDestination('all'); setPage(1); }}
+          >
+            {ar.invoices.filterAll}
+          </FilterChip>
+          <FilterChip
+            active={destination === 'shop'}
+            onClick={() => { setDestination('shop'); setPage(1); }}
+          >
+            {ar.invoices.fulfillmentShop}
+          </FilterChip>
+          <FilterChip
+            active={destination === 'factory_direct'}
+            onClick={() => { setDestination('factory_direct'); setPage(1); }}
+          >
+            {ar.invoices.fulfillmentFactoryDirect}
+          </FilterChip>
         </div>
       </div>
     </div>
@@ -223,7 +250,7 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
         isLoading={q.isLoading}
         isError={q.isError}
         onRetry={() => q.refetch()}
-        resetKey={`${status ?? ''}|${dateFrom}|${dateTo}|${page}`}
+        resetKey={`${status ?? ''}|${destination}|${dateFrom}|${dateTo}|${page}`}
       />
 
       {totalPages > 1 && (

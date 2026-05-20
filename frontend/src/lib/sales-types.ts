@@ -1,6 +1,7 @@
 export type InvoiceStatus = 'open' | 'closed_pending_pickup' | 'completed' | 'cancelled';
 export type PaymentMethod = 'cash' | 'instapay';
 export type PaymentKind = 'deposit' | 'final' | 'refund';
+export type FulfillmentDestination = 'shop' | 'factory_direct';
 
 export type Invoice = {
   id: number;
@@ -8,6 +9,7 @@ export type Invoice = {
   customer_id: number;
   cashier_user_id: number;
   status: InvoiceStatus;
+  fulfillment_destination: FulfillmentDestination;
   subtotal_egp: string;
   cart_discount_egp: string;
   tax_egp: string;
@@ -121,6 +123,7 @@ export type SalePaymentInput = {
 
 export type CreateSaleBody = {
   customerId: number;
+  fulfillmentDestination?: FulfillmentDestination;
   lines: SaleLineInput[];
   cartTargetFinal?: number | null;
   payments: SalePaymentInput[];

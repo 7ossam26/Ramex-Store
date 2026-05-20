@@ -19,6 +19,7 @@ const ERR_MAP: Record<string, { status: number; message: string }> = {
   ROLL_NOT_AVAILABLE: { status: 409, message: 'هذا التوب غير متاح للبيع' },
   ROLL_NOT_VISIBLE_AT_POS: { status: 409, message: 'التوب مخفي عن نقطة البيع' },
   ROLL_NOT_AT_SHOP: { status: 409, message: 'التوب ليس داخل مخزن المحل' },
+  ROLL_NOT_AT_FACTORY: { status: 409, message: 'هذا التوب ليس داخل مخزن المصنع' },
   DUPLICATE_ROLL_IN_CART: { status: 400, message: 'لا يمكن تكرار نفس التوب في الفاتورة' },
   LINE_DISCOUNT_EXCEEDS_PRICE: { status: 400, message: 'الخصم أكبر من سعر التوب' },
   TARGET_FINAL_GREATER_THAN_SUBTOTAL: {

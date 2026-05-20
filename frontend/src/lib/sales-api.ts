@@ -27,6 +27,7 @@ export const salesApi = {
   list: (params?: {
     status?: string;
     customer_id?: number;
+    fulfillment_destination?: 'shop' | 'factory_direct';
     date_from?: string;
     date_to?: string;
     page?: number;

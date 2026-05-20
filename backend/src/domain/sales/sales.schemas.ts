@@ -25,8 +25,11 @@ export const SalePaymentSchema = z
     }
   });
 
+export const FulfillmentDestinationEnum = z.enum(['shop', 'factory_direct']);
+
 export const CreateSaleSchema = z.object({
   customerId: z.coerce.number().int().positive(),
+  fulfillmentDestination: FulfillmentDestinationEnum.optional().default('shop'),
   lines: z.array(SaleLineSchema).min(1),
   cartTargetFinal: nonNegativeAmount.nullable().optional(),
   payments: z.array(SalePaymentSchema).min(1),
@@ -49,6 +52,7 @@ export type VoidInvoiceInput = z.infer<typeof VoidInvoiceSchema>;
 export const ListInvoicesQuerySchema = z.object({
   status: z.enum(['open', 'closed_pending_pickup', 'completed', 'cancelled']).optional(),
   customer_id: z.coerce.number().int().positive().optional(),
+  fulfillment_destination: FulfillmentDestinationEnum.optional(),
   date_from: z.string().optional(),
   date_to: z.string().optional(),
   page: z.coerce.number().int().min(1).optional().default(1),

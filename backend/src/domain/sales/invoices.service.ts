@@ -8,6 +8,7 @@ import { backCalculateDiscount, roundEgp } from './discountCalculator.js';
 import { settlePayment } from '../finance/paymentSettlementService.js';
 import type {
   CreateSaleInput,
+  FulfillmentDestination,
   Invoice,
   InvoiceDetail,
   InvoiceLineWithDetail,
@@ -44,6 +45,7 @@ type LockedRoll = {
 async function lockAndValidateRolls(
   trx: Knex.Transaction,
   rollIds: number[],
+  destination: FulfillmentDestination,
 ): Promise<Map<number, LockedRoll>> {
   // SELECT FOR UPDATE to prevent two POS sessions selling the same roll.
   const rolls = await trx('rolls')
@@ -57,8 +59,12 @@ async function lockAndValidateRolls(
     if (!roll) throw new Error('ROLL_NOT_FOUND');
     if (roll.status !== 'in_stock') throw new Error('ROLL_NOT_AVAILABLE');
     if (!roll.is_visible_at_pos) throw new Error('ROLL_NOT_VISIBLE_AT_POS');
-    if (roll.warehouse !== 'shop' && roll.warehouse !== 'damaged_shop') {
-      throw new Error('ROLL_NOT_AT_SHOP');
+    if (destination === 'factory_direct') {
+      if (roll.warehouse !== 'factory') throw new Error('ROLL_NOT_AT_FACTORY');
+    } else {
+      if (roll.warehouse !== 'shop' && roll.warehouse !== 'damaged_shop') {
+        throw new Error('ROLL_NOT_AT_SHOP');
+      }
     }
   }
   return byId;
@@ -174,7 +180,8 @@ export async function createSale(
     // 2) Lock + validate rolls.
     const rollIds = input.lines.map((l) => l.rollId);
     if (new Set(rollIds).size !== rollIds.length) throw new Error('DUPLICATE_ROLL_IN_CART');
-    const locked = await lockAndValidateRolls(trx, rollIds);
+    const destination: FulfillmentDestination = input.fulfillmentDestination ?? 'shop';
+    const locked = await lockAndValidateRolls(trx, rollIds, destination);
     const rollPrices = new Map<number, number>();
     for (const [id, r] of locked) rollPrices.set(id, Number(r.selling_price_egp));
 
@@ -223,6 +230,7 @@ export async function createSale(
       customer_id: input.customerId,
       cashier_user_id: cashierUserId,
       status,
+      fulfillment_destination: destination,
       subtotal_egp: totals.subtotal,
       cart_discount_egp: totals.cartDiscount,
       tax_egp: totals.tax,
@@ -360,6 +368,7 @@ export async function createSale(
       after: {
         invoice_no,
         status,
+        fulfillment_destination: destination,
         total_egp: totals.total,
         paid_egp: paidTotal,
         line_count: totals.lines.length,
@@ -574,6 +583,9 @@ export async function listInvoices(
 
   if (q.status) base.where('i.status', q.status);
   if (q.customer_id) base.where('i.customer_id', q.customer_id);
+  if (q.fulfillment_destination) {
+    base.where('i.fulfillment_destination', q.fulfillment_destination);
+  }
   if (q.date_from) base.where('i.created_at', '>=', q.date_from);
   if (q.date_to) base.where('i.created_at', '<=', q.date_to);
 
