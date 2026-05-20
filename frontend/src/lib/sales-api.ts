@@ -3,6 +3,8 @@ import type {
   AddOpenInvoiceLinesBody,
   BankAccount,
   CancelOpenInvoiceBody,
+  Cheque,
+  ChequeDetails,
   CreateSaleBody,
   DepositRefundBody,
   FinalPaymentBody,
@@ -101,7 +103,22 @@ export const salesApi = {
 
   scanReturn: (body: {
     rollId: number;
-    refundMethod: 'cash' | 'instapay';
+    refundMethod: 'cash' | 'instapay' | 'bank_transfer' | 'cheque';
     bankAccountId?: number | null;
+    reference?: string | null;
+    chequeDetails?: ChequeDetails | null;
   }) => api.post<ScanReturnResult>('/returns/from-scan', body).then((r) => r.data),
+
+  // Phase 7 — Cheques admin list
+  listCheques: (params?: {
+    status?: 'pending' | 'cleared' | 'bounced' | 'cancelled';
+    bank_name_ar?: string;
+    due_date_from?: string;
+    due_date_to?: string;
+    page?: number;
+    limit?: number;
+  }) =>
+    api
+      .get<{ rows: Cheque[]; total: number }>('/cheques', { params })
+      .then((r) => r.data),
 };

@@ -58,3 +58,6 @@ salesRouter.post('/returns/from-scan', requireRole('owner', 'shop_seller'), retC
 salesRouter.get('/returns', retCtl.listReturns);
 salesRouter.get('/returns/:id/slip-pdf', retCtl.getReturnSlipPdf);
 salesRouter.get('/returns/:id', retCtl.getReturn);
+
+// Cheques admin list
+salesRouter.get('/cheques', ctl.listCheques);

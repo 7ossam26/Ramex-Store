@@ -7,6 +7,7 @@ import { settlePayment } from '../finance/paymentSettlementService.js';
 import { getSetting } from '../settings/settings.service.js';
 import type {
   AddLinesInput,
+  ChequeDetails,
   DepositRefundInput,
   FulfillmentDestination,
   Invoice,
@@ -20,6 +21,8 @@ type FinalPayment = {
   method: PaymentMethod;
   amount: number;
   bankAccountId?: number | null;
+  reference?: string | null;
+  chequeDetails?: ChequeDetails | null;
 };
 
 type StatusHistoryRow = {
@@ -88,7 +91,10 @@ export async function addFinalPayment(
     if (paidNow > balance + EPS) throw new Error('OVERPAYMENT_NOT_ALLOWED');
 
     let defaultBankId: number | null = null;
-    const needsBank = payments.some((p) => p.method === 'instapay' && p.bankAccountId == null);
+    const needsBank = payments.some(
+      (p) =>
+        (p.method === 'instapay' || p.method === 'bank_transfer') && p.bankAccountId == null,
+    );
     if (needsBank) {
       const def = await trx('bank_accounts').where({ is_default: true, is_active: true }).first();
       if (!def) throw new Error('NO_DEFAULT_BANK_ACCOUNT');
@@ -105,15 +111,32 @@ export async function addFinalPayment(
     let customerBalance = Number(customer.current_balance_egp);
     for (const p of payments) {
       const amount = roundEgp(Number(p.amount));
-      const bankId = p.method === 'instapay' ? (p.bankAccountId ?? defaultBankId) : null;
-      await trx('payments').insert({
+      const bankId =
+        p.method === 'instapay' || p.method === 'bank_transfer'
+          ? (p.bankAccountId ?? defaultBankId)
+          : null;
+      const [{ id: paymentId }] = await trx('payments').insert({
         invoice_id: invoiceId,
         method: p.method,
         amount_egp: amount,
         payment_kind: 'final',
         bank_account_id: bankId,
+        reference: p.reference ?? null,
         actor_user_id: actorUserId,
-      });
+      }).returning('id');
+      if (p.method === 'cheque' && p.chequeDetails) {
+        await trx('cheques').insert({
+          payment_id: paymentId,
+          cheque_number: p.chequeDetails.chequeNumber,
+          bank_name_ar: p.chequeDetails.bankNameAr,
+          branch_ar: p.chequeDetails.branchAr ?? null,
+          issuer_name_ar: p.chequeDetails.issuerNameAr ?? null,
+          amount_egp: amount,
+          issue_date: p.chequeDetails.issueDate,
+          due_date: p.chequeDetails.dueDate,
+          notes_ar: p.chequeDetails.notesAr ?? null,
+        });
+      }
       await settlePayment(trx, {
         method: p.method,
         paymentKind: 'final',
@@ -258,6 +281,8 @@ export async function cancelOpenInvoice(
     refundMethod?: PaymentMethod | null;
     partialRefundAmount?: number | null;
     bankAccountId?: number | null;
+    reference?: string | null;
+    chequeDetails?: ChequeDetails | null;
     notesAr: string;
   },
 ): Promise<{ invoice: Invoice }> {
@@ -282,10 +307,12 @@ export async function cancelOpenInvoice(
       throw new Error('REFUND_METHOD_REQUIRED');
     }
 
-    // Resolve bank for instapay refund. Caller-provided bank wins; fall back
-    // to the default-active account so older clients keep working.
+    // Resolve bank for instapay/bank_transfer refunds.
     let refundBankId: number | null = null;
-    if (refundAmount > 0 && opts.refundMethod === 'instapay') {
+    if (
+      refundAmount > 0 &&
+      (opts.refundMethod === 'instapay' || opts.refundMethod === 'bank_transfer')
+    ) {
       if (opts.bankAccountId != null) {
         const acc = await trx('bank_accounts')
           .where({ id: opts.bankAccountId, is_active: true })
@@ -334,15 +361,29 @@ export async function cancelOpenInvoice(
 
     // Cash refund row (separate from customer book balance).
     if (refundAmount > 0) {
-      await trx('payments').insert({
+      const [{ id: paymentId }] = await trx('payments').insert({
         invoice_id: invoiceId,
         method: opts.refundMethod!,
         amount_egp: -refundAmount,
         payment_kind: 'refund',
         bank_account_id: refundBankId,
+        reference: opts.reference ?? null,
         notes_ar: `إلغاء فاتورة: ${opts.notesAr}`,
         actor_user_id: actorUserId,
-      });
+      }).returning('id');
+      if (opts.refundMethod === 'cheque' && opts.chequeDetails) {
+        await trx('cheques').insert({
+          payment_id: paymentId,
+          cheque_number: opts.chequeDetails.chequeNumber,
+          bank_name_ar: opts.chequeDetails.bankNameAr,
+          branch_ar: opts.chequeDetails.branchAr ?? null,
+          issuer_name_ar: opts.chequeDetails.issuerNameAr ?? null,
+          amount_egp: refundAmount,
+          issue_date: opts.chequeDetails.issueDate,
+          due_date: opts.chequeDetails.dueDate,
+          notes_ar: opts.chequeDetails.notesAr ?? null,
+        });
+      }
       await settlePayment(trx, {
         method: opts.refundMethod!,
         paymentKind: 'refund',
@@ -825,9 +866,9 @@ export async function depositRefund(
     if (overDeposit <= 0) throw new Error('NO_OVER_DEPOSIT');
     if (refundAmount > overDeposit + EPS) throw new Error('REFUND_EXCEEDS_OVER_DEPOSIT');
 
-    // Resolve bank account for instapay refunds.
+    // Resolve bank account for instapay/bank_transfer refunds.
     let refundBankId: number | null = null;
-    if (input.method === 'instapay') {
+    if (input.method === 'instapay' || input.method === 'bank_transfer') {
       if (input.bankAccountId != null) {
         const acc = await trx('bank_accounts')
           .where({ id: input.bankAccountId, is_active: true })
@@ -844,15 +885,29 @@ export async function depositRefund(
     }
 
     // Insert the negative-payment row + settle the cash/bank outflow.
-    await trx('payments').insert({
+    const [{ id: paymentId }] = await trx('payments').insert({
       invoice_id: invoiceId,
       method: input.method,
       amount_egp: -refundAmount,
       payment_kind: 'refund',
       bank_account_id: refundBankId,
+      reference: input.reference ?? null,
       notes_ar: 'استرجاع الدفعة المقدمة',
       actor_user_id: actorUserId,
-    });
+    }).returning('id');
+    if (input.method === 'cheque' && input.chequeDetails) {
+      await trx('cheques').insert({
+        payment_id: paymentId,
+        cheque_number: input.chequeDetails.chequeNumber,
+        bank_name_ar: input.chequeDetails.bankNameAr,
+        branch_ar: input.chequeDetails.branchAr ?? null,
+        issuer_name_ar: input.chequeDetails.issuerNameAr ?? null,
+        amount_egp: refundAmount,
+        issue_date: input.chequeDetails.issueDate,
+        due_date: input.chequeDetails.dueDate,
+        notes_ar: input.chequeDetails.notesAr ?? null,
+      });
+    }
     await settlePayment(trx, {
       method: input.method,
       paymentKind: 'refund',

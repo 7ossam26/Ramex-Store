@@ -4,8 +4,36 @@ export type InvoiceStatus =
   | 'completed'
   | 'cancelled'
   | 'deposit_refunded';
-export type PaymentMethod = 'cash' | 'instapay';
+export type PaymentMethod = 'cash' | 'instapay' | 'bank_transfer' | 'cheque';
 export type PaymentKind = 'deposit' | 'final' | 'refund';
+
+export type ChequeDetails = {
+  chequeNumber: string;
+  bankNameAr: string;
+  branchAr?: string | null;
+  issuerNameAr?: string | null;
+  issueDate: string;
+  dueDate: string;
+  notesAr?: string | null;
+};
+
+export type Cheque = {
+  id: number;
+  payment_id: number;
+  cheque_number: string;
+  bank_name_ar: string;
+  branch_ar: string | null;
+  issuer_name_ar: string | null;
+  amount_egp: string;
+  issue_date: string;
+  due_date: string;
+  status: 'pending' | 'cleared' | 'bounced' | 'cancelled';
+  notes_ar: string | null;
+  created_at: string;
+  updated_at: string;
+  invoice_no: string | null;
+  customer_name_ar: string | null;
+};
 export type FulfillmentDestination = 'shop' | 'factory_direct';
 
 export type Invoice = {
@@ -57,6 +85,8 @@ export type FinalPaymentBody = {
     method: PaymentMethod;
     amount: number;
     bankAccountId?: number | null;
+    reference?: string | null;
+    chequeDetails?: ChequeDetails | null;
   }>;
 };
 
@@ -65,6 +95,8 @@ export type CancelOpenInvoiceBody = {
   refund_method?: PaymentMethod | null;
   partial_refund_amount?: number | null;
   bank_account_id?: number | null;
+  reference?: string | null;
+  cheque_details?: ChequeDetails | null;
   notes_ar: string;
 };
 
@@ -77,6 +109,8 @@ export type DepositRefundBody = {
   amountEgp: number;
   method: PaymentMethod;
   bankAccountId?: number | null;
+  reference?: string | null;
+  chequeDetails?: ChequeDetails | null;
 };
 
 export type InvoiceLineDetail = {
@@ -105,6 +139,7 @@ export type Payment = {
   amount_egp: string;
   payment_kind: PaymentKind;
   bank_account_id: number | null;
+  reference: string | null;
   notes_ar: string | null;
   actor_user_id: number;
   created_at: string;
@@ -141,6 +176,8 @@ export type SalePaymentInput = {
   method: PaymentMethod;
   amount: number;
   bankAccountId?: number | null;
+  reference?: string | null;
+  chequeDetails?: ChequeDetails | null;
 };
 
 export type CreateSaleBody = {

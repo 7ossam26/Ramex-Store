@@ -6,7 +6,7 @@ import { roundEgp } from './discountCalculator.js';
 import { nextReturnNo } from './returnNumber.service.js';
 import { settlePayment } from '../finance/paymentSettlementService.js';
 import { createSale } from './invoices.service.js';
-import type { CreateSaleInput } from './sales.types.js';
+import type { CreateSaleInput, ChequeDetails } from './sales.types.js';
 
 // ─── Phase 6 — Return on Scan ──────────────────────────────────────────────
 
@@ -71,8 +71,10 @@ export async function getRollSaleMeta(rollId: number): Promise<ReturnScanMeta | 
 
 export type ReturnFromScanInput = {
   rollId: number;
-  refundMethod: 'cash' | 'instapay';
+  refundMethod: 'cash' | 'instapay' | 'bank_transfer' | 'cheque';
   bankAccountId?: number | null;
+  reference?: string | null;
+  chequeDetails?: ChequeDetails | null;
   actorUserId: number;
 };
 
@@ -145,15 +147,29 @@ export async function createReturnFromRollScan(
       notes_ar: `مرتجع بالمسح: ${return_no}`,
     });
 
-    await trx('payments').insert({
+    const [{ id: paymentId }] = await trx('payments').insert({
       invoice_id: invoiceLine.invoice_id,
       method: input.refundMethod,
       amount_egp: -refundEgp,
       payment_kind: 'refund',
       bank_account_id: input.bankAccountId ?? null,
+      reference: input.reference ?? null,
       notes_ar: `استرجاع مسح: ${return_no}`,
       actor_user_id: input.actorUserId,
-    });
+    }).returning('id');
+    if (input.refundMethod === 'cheque' && input.chequeDetails) {
+      await trx('cheques').insert({
+        payment_id: paymentId,
+        cheque_number: input.chequeDetails.chequeNumber,
+        bank_name_ar: input.chequeDetails.bankNameAr,
+        branch_ar: input.chequeDetails.branchAr ?? null,
+        issuer_name_ar: input.chequeDetails.issuerNameAr ?? null,
+        amount_egp: refundEgp,
+        issue_date: input.chequeDetails.issueDate,
+        due_date: input.chequeDetails.dueDate,
+        notes_ar: input.chequeDetails.notesAr ?? null,
+      });
+    }
 
     await settlePayment(trx, {
       method: input.refundMethod,
@@ -241,8 +257,10 @@ export type ReturnLineInput = {
 export type ProcessReturnInput = {
   originalInvoiceId: number;
   lines: ReturnLineInput[];
-  refundMethod: 'cash' | 'instapay' | 'customer_credit';
+  refundMethod: 'cash' | 'instapay' | 'customer_credit' | 'bank_transfer' | 'cheque';
   bankAccountId?: number | null;
+  reference?: string | null;
+  chequeDetails?: ChequeDetails | null;
   notesAr?: string | null;
   actorUserId: number;
   actorRole: string;
@@ -264,7 +282,7 @@ export type ReturnRow = {
   created_by_user_id: number;
   processed_at: string;
   total_refund_egp: string;
-  refund_method: 'cash' | 'instapay' | 'customer_credit';
+  refund_method: 'cash' | 'instapay' | 'customer_credit' | 'bank_transfer' | 'cheque';
   bank_account_id: number | null;
   notes_ar: string | null;
   kind: 'refund' | 'exchange';
@@ -441,17 +459,31 @@ export async function processReturn(input: ProcessReturnInput): Promise<ReturnRo
 
     // Handle refund payment / customer credit.
     if (input.refundMethod !== 'customer_credit') {
-      await trx('payments').insert({
+      const [{ id: paymentId }] = await trx('payments').insert({
         invoice_id: input.originalInvoiceId,
         method: input.refundMethod,
         amount_egp: -totalRefund,
         payment_kind: 'refund',
         bank_account_id: input.bankAccountId ?? null,
+        reference: input.reference ?? null,
         notes_ar: `استرجاع: ${return_no}`,
         actor_user_id: input.actorUserId,
-      });
+      }).returning('id');
+      if (input.refundMethod === 'cheque' && input.chequeDetails) {
+        await trx('cheques').insert({
+          payment_id: paymentId,
+          cheque_number: input.chequeDetails.chequeNumber,
+          bank_name_ar: input.chequeDetails.bankNameAr,
+          branch_ar: input.chequeDetails.branchAr ?? null,
+          issuer_name_ar: input.chequeDetails.issuerNameAr ?? null,
+          amount_egp: totalRefund,
+          issue_date: input.chequeDetails.issueDate,
+          due_date: input.chequeDetails.dueDate,
+          notes_ar: input.chequeDetails.notesAr ?? null,
+        });
+      }
       await settlePayment(trx, {
-        method: input.refundMethod as 'cash' | 'instapay',
+        method: input.refundMethod,
         paymentKind: 'refund',
         amount: totalRefund,
         bankAccountId: input.bankAccountId ?? null,
@@ -628,17 +660,31 @@ export async function processExchange(input: ProcessExchangeInput): Promise<{
     }
 
     if (input.refundMethod !== 'customer_credit') {
-      await trx('payments').insert({
+      const [{ id: paymentId }] = await trx('payments').insert({
         invoice_id: input.originalInvoiceId,
         method: input.refundMethod,
         amount_egp: -totalRefund,
         payment_kind: 'refund',
         bank_account_id: input.bankAccountId ?? null,
+        reference: input.reference ?? null,
         notes_ar: `استرجاع استبدال: ${return_no}`,
         actor_user_id: input.actorUserId,
-      });
+      }).returning('id');
+      if (input.refundMethod === 'cheque' && input.chequeDetails) {
+        await trx('cheques').insert({
+          payment_id: paymentId,
+          cheque_number: input.chequeDetails.chequeNumber,
+          bank_name_ar: input.chequeDetails.bankNameAr,
+          branch_ar: input.chequeDetails.branchAr ?? null,
+          issuer_name_ar: input.chequeDetails.issuerNameAr ?? null,
+          amount_egp: totalRefund,
+          issue_date: input.chequeDetails.issueDate,
+          due_date: input.chequeDetails.dueDate,
+          notes_ar: input.chequeDetails.notesAr ?? null,
+        });
+      }
       await settlePayment(trx, {
-        method: input.refundMethod as 'cash' | 'instapay',
+        method: input.refundMethod,
         paymentKind: 'refund',
         amount: totalRefund,
         bankAccountId: input.bankAccountId ?? null,

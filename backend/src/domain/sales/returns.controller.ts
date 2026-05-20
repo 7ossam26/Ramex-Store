@@ -48,6 +48,8 @@ export async function processReturn(req: Request, res: Response): Promise<void> 
       lines: data.lines,
       refundMethod: data.refundMethod,
       bankAccountId: data.bankAccountId ?? null,
+      reference: data.reference ?? null,
+      chequeDetails: data.chequeDetails ?? null,
       notesAr: data.notesAr ?? null,
       actorUserId: actorId(req),
       actorRole: String(req.user!.role),
@@ -68,6 +70,8 @@ export async function processExchange(req: Request, res: Response): Promise<void
       lines: data.lines,
       refundMethod: data.refundMethod,
       bankAccountId: data.bankAccountId ?? null,
+      reference: data.reference ?? null,
+      chequeDetails: data.chequeDetails ?? null,
       notesAr: data.notesAr ?? null,
       actorUserId: actorId(req),
       actorRole: String(req.user!.role),
@@ -135,6 +139,8 @@ export async function createScanReturn(req: Request, res: Response): Promise<voi
       rollId: data.rollId,
       refundMethod: data.refundMethod,
       bankAccountId: data.bankAccountId ?? null,
+      reference: data.reference ?? null,
+      chequeDetails: data.chequeDetails ?? null,
       actorUserId: actorId(req),
     });
     res.status(201).json(result);

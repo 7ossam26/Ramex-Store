@@ -21,6 +21,9 @@ import {
   Factory,
   RotateCcw,
   Loader2,
+  Landmark,
+  FileText,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { Toast } from '@/components/Toast';
 import { Tooltip } from '@/components/Tooltip';
@@ -32,6 +35,7 @@ import { openPdfBlob } from '@/lib/pdf';
 import type { Customer } from '@/lib/customers-types';
 import type {
   BankAccount,
+  ChequeDetails,
   FulfillmentDestination,
   Invoice,
   ReturnScanMeta,
@@ -63,7 +67,34 @@ type CartLine = {
   lineDiscount: string;
 };
 
-type PaymentMode = 'cash' | 'instapay' | 'both';
+type PaymentMode = 'cash' | 'instapay' | 'bank_transfer' | 'cheque' | 'split';
+
+type ChequeFormState = {
+  chequeNumber: string;
+  bankNameAr: string;
+  branchAr: string;
+  issuerNameAr: string;
+  issueDate: string;
+  dueDate: string;
+  notesAr: string;
+};
+
+function emptyCheque(): ChequeFormState {
+  return { chequeNumber: '', bankNameAr: '', branchAr: '', issuerNameAr: '', issueDate: '', dueDate: '', notesAr: '' };
+}
+
+function chequeStateToDetails(s: ChequeFormState): ChequeDetails | null {
+  if (!s.chequeNumber || !s.bankNameAr || !s.issueDate || !s.dueDate) return null;
+  return {
+    chequeNumber: s.chequeNumber,
+    bankNameAr: s.bankNameAr,
+    branchAr: s.branchAr || null,
+    issuerNameAr: s.issuerNameAr || null,
+    issueDate: s.issueDate,
+    dueDate: s.dueDate,
+    notesAr: s.notesAr || null,
+  };
+}
 
 type ScannerFeedback = 'idle' | 'success' | 'danger';
 
@@ -149,6 +180,8 @@ export function POSPage() {
   const [cashAmount, setCashAmount] = useState('');
   const [instaAmount, setInstaAmount] = useState('');
   const [bankAccountId, setBankAccountId] = useState<number | ''>('');
+  const [reference, setReference] = useState('');
+  const [chequeState, setChequeState] = useState<ChequeFormState>(emptyCheque());
   const [saveAsOpen, setSaveAsOpen] = useState(false);
   const [notesAr, setNotesAr] = useState('');
 
@@ -166,8 +199,10 @@ export function POSPage() {
   const [returnDrawerRoll, setReturnDrawerRoll] = useState<RollLookup | null>(null);
   const [returnMeta, setReturnMeta] = useState<ReturnScanMeta | null>(null);
   const [returnMetaLoading, setReturnMetaLoading] = useState(false);
-  const [returnMethod, setReturnMethod] = useState<'cash' | 'instapay'>('cash');
+  const [returnMethod, setReturnMethod] = useState<'cash' | 'instapay' | 'bank_transfer' | 'cheque'>('cash');
   const [returnBankId, setReturnBankId] = useState<number | ''>('');
+  const [returnReference, setReturnReference] = useState('');
+  const [returnChequeState, setReturnChequeState] = useState<ChequeFormState>(emptyCheque());
   const [returnConfirming, setReturnConfirming] = useState(false);
 
   /* Bottom toast (functional error feedback). */
@@ -320,7 +355,9 @@ export function POSPage() {
       const result = await salesApi.scanReturn({
         rollId: returnMeta.rollId,
         refundMethod: returnMethod,
-        bankAccountId: returnMethod === 'instapay' ? (returnBankId || null) : null,
+        bankAccountId: (returnMethod === 'instapay' || returnMethod === 'bank_transfer') ? (returnBankId || null) : null,
+        reference: returnMethod === 'bank_transfer' ? (returnReference || null) : null,
+        chequeDetails: returnMethod === 'cheque' ? chequeStateToDetails(returnChequeState) : null,
       });
       setReturnDrawerRoll(null);
       setReturnMeta(null);
@@ -381,11 +418,11 @@ export function POSPage() {
   const cashNum = parseAmount(cashAmount);
   const instaNum = parseAmount(instaAmount);
   const paymentSum =
-    paymentMode === 'cash'
+    paymentMode === 'cash' || paymentMode === 'cheque'
       ? cashNum
-      : paymentMode === 'instapay'
+      : paymentMode === 'instapay' || paymentMode === 'bank_transfer'
         ? instaNum
-        : cashNum + instaNum;
+        : cashNum + instaNum; // split
 
   const invoicePdfMut = useMutation({
     mutationFn: ({ id, variant }: { id: number; variant: 'original' | 'reprint' | 'open' }) =>
@@ -397,20 +434,28 @@ export function POSPage() {
     mutationFn: () => {
       if (!customer) throw new Error('NO_CUSTOMER');
       const payments: Array<{
-        method: 'cash' | 'instapay';
+        method: 'cash' | 'instapay' | 'bank_transfer' | 'cheque';
         amount: number;
         bankAccountId?: number | null;
+        reference?: string | null;
+        chequeDetails?: ChequeDetails | null;
       }> = [];
-      if (paymentMode === 'cash' || paymentMode === 'both') {
+      if (paymentMode === 'cash' || paymentMode === 'split') {
         if (cashNum > 0) payments.push({ method: 'cash', amount: cashNum });
       }
-      if (paymentMode === 'instapay' || paymentMode === 'both') {
+      if (paymentMode === 'instapay' || paymentMode === 'split') {
         if (instaNum > 0) {
-          payments.push({
-            method: 'instapay',
-            amount: instaNum,
-            bankAccountId: bankAccountId || null,
-          });
+          payments.push({ method: 'instapay', amount: instaNum, bankAccountId: bankAccountId || null });
+        }
+      }
+      if (paymentMode === 'bank_transfer') {
+        if (instaNum > 0) {
+          payments.push({ method: 'bank_transfer', amount: instaNum, bankAccountId: bankAccountId || null, reference: reference || null });
+        }
+      }
+      if (paymentMode === 'cheque') {
+        if (cashNum > 0) {
+          payments.push({ method: 'cheque', amount: cashNum, chequeDetails: chequeStateToDetails(chequeState) });
         }
       }
       return salesApi.create({
@@ -465,6 +510,8 @@ export function POSPage() {
     setPaymentMode('cash');
     setCashAmount('');
     setInstaAmount('');
+    setReference('');
+    setChequeState(emptyCheque());
     setSaveAsOpen(false);
     setNotesAr('');
     setCompleted(null);
@@ -597,6 +644,10 @@ export function POSPage() {
               setInstaAmount={setInstaAmount}
               bankAccountId={bankAccountId}
               setBankAccountId={setBankAccountId}
+              reference={reference}
+              setReference={setReference}
+              chequeState={chequeState}
+              setChequeState={setChequeState}
               saveAsOpen={saveAsOpen}
               setSaveAsOpen={setSaveAsOpen}
               notesAr={notesAr}
@@ -790,6 +841,10 @@ export function POSPage() {
         setMethod={setReturnMethod}
         bankId={returnBankId}
         setBankId={setReturnBankId}
+        reference={returnReference}
+        setReference={setReturnReference}
+        chequeState={returnChequeState}
+        setChequeState={setReturnChequeState}
         confirming={returnConfirming}
         onConfirm={() => void confirmScanReturn()}
         onClose={() => {
@@ -1368,6 +1423,72 @@ function ChipRow({ roll }: { roll: RollLookup }) {
 /* ────────────────────────────────────────────────────────────────────────── *
  * PAYMENT FORM (rendered inside bottom sheet)
  * ────────────────────────────────────────────────────────────────────────── */
+function ChequeDetailsForm({
+  state,
+  onChange,
+  className,
+}: {
+  state: ChequeFormState;
+  onChange: (s: ChequeFormState) => void;
+  className?: string;
+}) {
+  const set = (k: keyof ChequeFormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    onChange({ ...state, [k]: e.target.value });
+  return (
+    <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${className ?? ''}`}>
+      <div className="space-y-1">
+        <Label>{ar.pos.chequeNumber}</Label>
+        <Input value={state.chequeNumber} onChange={set('chequeNumber')} dir="ltr" className="h-11" />
+      </div>
+      <div className="space-y-1">
+        <Label>{ar.pos.chequeBank}</Label>
+        <Input value={state.bankNameAr} onChange={set('bankNameAr')} dir="rtl" className="h-11" />
+      </div>
+      <div className="space-y-1">
+        <Label>{ar.pos.chequeBranch}</Label>
+        <Input value={state.branchAr} onChange={set('branchAr')} dir="rtl" className="h-11" placeholder="اختياري" />
+      </div>
+      <div className="space-y-1">
+        <Label>{ar.pos.chequeIssuer}</Label>
+        <Input value={state.issuerNameAr} onChange={set('issuerNameAr')} dir="rtl" className="h-11" placeholder="اختياري" />
+      </div>
+      <div className="space-y-1">
+        <Label>{ar.pos.chequeIssueDate}</Label>
+        <Input type="date" value={state.issueDate} onChange={set('issueDate')} dir="ltr" className="h-11" />
+      </div>
+      <div className="space-y-1">
+        <Label>{ar.pos.chequeDueDate}</Label>
+        <Input type="date" value={state.dueDate} onChange={set('dueDate')} dir="ltr" className="h-11" />
+      </div>
+    </div>
+  );
+}
+
+function BankAccountSelect({
+  banks,
+  value,
+  onChange,
+}: {
+  banks: BankAccount[];
+  value: number | '';
+  onChange: (n: number | '') => void;
+}) {
+  return (
+    <select
+      className="h-11 w-full border border-border-default rounded-md px-2 bg-surface-elevated text-foreground cursor-pointer"
+      value={value}
+      onChange={(e) => onChange(e.target.value ? Number(e.target.value) : '')}
+    >
+      <option value="">—</option>
+      {banks.map((b) => (
+        <option key={b.id} value={b.id}>
+          {b.name_ar}{b.is_default ? ' (افتراضي)' : ''}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function PaymentForm({
   banks,
   paymentMode,
@@ -1378,6 +1499,10 @@ function PaymentForm({
   setInstaAmount,
   bankAccountId,
   setBankAccountId,
+  reference,
+  setReference,
+  chequeState,
+  setChequeState,
   saveAsOpen,
   setSaveAsOpen,
   notesAr,
@@ -1399,6 +1524,10 @@ function PaymentForm({
   setInstaAmount: (s: string) => void;
   bankAccountId: number | '';
   setBankAccountId: (n: number | '') => void;
+  reference: string;
+  setReference: (s: string) => void;
+  chequeState: ChequeFormState;
+  setChequeState: (s: ChequeFormState) => void;
   saveAsOpen: boolean;
   setSaveAsOpen: (b: boolean) => void;
   notesAr: string;
@@ -1411,99 +1540,105 @@ function PaymentForm({
   onSubmit: () => void;
   total: number;
 }) {
+  const SINGLE_TILES: { value: PaymentMode; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
+    { value: 'cash', label: ar.pos.cash, Icon: Banknote },
+    { value: 'instapay', label: ar.pos.instapay, Icon: CreditCard },
+    { value: 'bank_transfer', label: ar.pos.bank_transfer, Icon: Landmark },
+    { value: 'cheque', label: ar.pos.cheque, Icon: FileText },
+  ];
+
   return (
     <div className="space-y-4 max-w-2xl mx-auto">
-      {/* Method tile grid */}
-      <div className="grid grid-cols-3 gap-2">
-        {(['cash', 'instapay', 'both'] as const).map((m) => {
+      {/* 4 method tiles (2×2) + split row */}
+      <div className="grid grid-cols-4 gap-2">
+        {SINGLE_TILES.map(({ value: m, label, Icon }) => {
           const active = paymentMode === m;
-          const Icon = m === 'cash' ? Banknote : m === 'instapay' ? CreditCard : Receipt;
           return (
             <button
               key={m}
               type="button"
               onClick={() => setPaymentMode(m)}
-              className={`cursor-pointer rounded-lg border-2 p-3 flex flex-col items-center justify-center gap-1 transition-colors duration-150 min-h-[80px] ${
+              className={`cursor-pointer rounded-lg border-2 p-3 flex flex-col items-center justify-center gap-1 transition-colors duration-150 min-h-[76px] ${
                 active
                   ? 'border-accent bg-accent-subtle text-accent'
                   : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
               }`}
             >
-              <Icon className="size-6" />
-              <span className="text-sm font-medium">{ar.pos[m]}</span>
+              <Icon className="size-5" />
+              <span className="text-xs font-medium text-center leading-snug">{label}</span>
             </button>
           );
         })}
       </div>
+      {/* Split tile (full width) */}
+      <button
+        type="button"
+        onClick={() => setPaymentMode('split')}
+        className={`w-full cursor-pointer rounded-lg border-2 p-2.5 flex items-center justify-center gap-2 transition-colors duration-150 ${
+          paymentMode === 'split'
+            ? 'border-accent bg-accent-subtle text-accent'
+            : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
+        }`}
+      >
+        <ArrowLeftRight className="size-4" />
+        <span className="text-sm font-medium">كاش + انستاباي</span>
+      </button>
 
-      {/* Amounts */}
+      {/* Amounts / method-specific fields */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {(paymentMode === 'cash' || paymentMode === 'both') && (
+        {/* Cash: standalone or split */}
+        {(paymentMode === 'cash' || paymentMode === 'split') && (
           <div className="space-y-1">
             <Label>{ar.pos.cashAmount}</Label>
-            <Input
-              value={cashAmount}
-              onChange={(e) => setCashAmount(e.target.value)}
-              dir="ltr"
-              inputMode="decimal"
-              className="h-11 tabular-num"
-            />
+            <Input value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} dir="ltr" inputMode="decimal" className="h-11 tabular-num" />
           </div>
         )}
-        {(paymentMode === 'instapay' || paymentMode === 'both') && (
-          <>
-            <div className="space-y-1">
-              <Label>{ar.pos.instapayAmount}</Label>
-              <Input
-                value={instaAmount}
-                onChange={(e) => setInstaAmount(e.target.value)}
-                dir="ltr"
-                inputMode="decimal"
-                className="h-11 tabular-num"
-              />
-            </div>
-            <div className="space-y-1 sm:col-span-2">
-              <Label>{ar.pos.bankAccount}</Label>
-              <select
-                className="h-11 w-full border border-border-default rounded-md px-2 bg-surface-elevated text-foreground cursor-pointer"
-                value={bankAccountId}
-                onChange={(e) =>
-                  setBankAccountId(e.target.value ? Number(e.target.value) : '')
-                }
-              >
-                <option value="">—</option>
-                {banks.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name_ar}
-                    {b.is_default ? ' (افتراضي)' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </>
+        {/* Cheque: standalone amount field */}
+        {paymentMode === 'cheque' && (
+          <div className="space-y-1 sm:col-span-2">
+            <Label>{ar.pos.chequeAmount}</Label>
+            <Input value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} dir="ltr" inputMode="decimal" className="h-11 tabular-num" />
+          </div>
+        )}
+        {/* Instapay / bank_transfer / split: bank-channel amount */}
+        {(paymentMode === 'instapay' || paymentMode === 'bank_transfer' || paymentMode === 'split') && (
+          <div className="space-y-1">
+            <Label>
+              {paymentMode === 'bank_transfer' ? ar.pos.bankTransferAmount : ar.pos.instapayAmount}
+            </Label>
+            <Input value={instaAmount} onChange={(e) => setInstaAmount(e.target.value)} dir="ltr" inputMode="decimal" className="h-11 tabular-num" />
+          </div>
+        )}
+        {/* Bank account selector */}
+        {(paymentMode === 'instapay' || paymentMode === 'bank_transfer' || paymentMode === 'split') && (
+          <div className="space-y-1 sm:col-span-2">
+            <Label>{ar.pos.bankAccount}</Label>
+            <BankAccountSelect banks={banks} value={bankAccountId} onChange={setBankAccountId} />
+          </div>
+        )}
+        {/* Reference for bank_transfer */}
+        {paymentMode === 'bank_transfer' && (
+          <div className="space-y-1 sm:col-span-2">
+            <Label>{ar.pos.reference}</Label>
+            <Input value={reference} onChange={(e) => setReference(e.target.value)} dir="ltr" maxLength={64} className="h-11" placeholder="اختياري" />
+          </div>
+        )}
+        {/* Cheque details form */}
+        {paymentMode === 'cheque' && (
+          <ChequeDetailsForm state={chequeState} onChange={setChequeState} className="sm:col-span-2" />
         )}
       </div>
 
-      {/* Save as open toggle (also surfaced in top bar; mirrored here for convenience) */}
+      {/* Save as open toggle */}
       <label className="flex items-center gap-2 text-sm cursor-pointer min-h-11 text-foreground">
-        <input
-          type="checkbox"
-          checked={saveAsOpen}
-          onChange={(e) => setSaveAsOpen(e.target.checked)}
-          className="size-5 cursor-pointer accent-accent"
-        />
+        <input type="checkbox" checked={saveAsOpen} onChange={(e) => setSaveAsOpen(e.target.checked)} className="size-5 cursor-pointer accent-accent" />
         {ar.pos.saveAsOpen}
       </label>
 
       {/* Notes */}
       <div className="space-y-1">
         <Label>{ar.pos.notes}</Label>
-        <Input
-          value={notesAr}
-          onChange={(e) => setNotesAr(e.target.value)}
-          dir="rtl"
-          className="h-11"
-        />
+        <Input value={notesAr} onChange={(e) => setNotesAr(e.target.value)} dir="rtl" className="h-11" />
       </div>
 
       {/* Summary */}
@@ -1511,24 +1646,13 @@ function PaymentForm({
         <div className="rounded-md border border-border-subtle bg-surface-row-alt p-3 space-y-1 text-sm tabular-num">
           <Row label={ar.pos.subtotal} value={fmtMoney(preview.subtotal_egp)} />
           {preview.cart_discount_egp > 0 && (
-            <Row
-              label={ar.pos.discount}
-              value={`- ${fmtMoney(preview.cart_discount_egp)}`}
-              tone="success"
-            />
+            <Row label={ar.pos.discount} value={`- ${fmtMoney(preview.cart_discount_egp)}`} tone="success" />
           )}
-          {preview.tax_enabled && (
-            <Row label={ar.pos.tax} value={fmtMoney(preview.tax_egp)} />
-          )}
-          {preview.rounding_egp !== 0 && (
-            <Row label={ar.pos.rounding} value={fmtMoney(preview.rounding_egp)} />
-          )}
+          {preview.tax_enabled && <Row label={ar.pos.tax} value={fmtMoney(preview.tax_egp)} />}
+          {preview.rounding_egp !== 0 && <Row label={ar.pos.rounding} value={fmtMoney(preview.rounding_egp)} />}
           <Row label={ar.pos.total} value={fmtMoney(preview.total_egp)} size="lg" />
           <Row label={ar.pos.paid} value={fmtMoney(paymentSum)} />
-          <Row
-            label={ar.pos.balance}
-            value={fmtMoney(Math.max(0, total - paymentSum))}
-          />
+          <Row label={ar.pos.balance} value={fmtMoney(Math.max(0, total - paymentSum))} />
         </div>
       )}
 
@@ -1545,12 +1669,7 @@ function PaymentForm({
         </div>
       )}
 
-      <Button
-        className="w-full h-12 cursor-pointer"
-        size="lg"
-        disabled={!!validation || submitting}
-        onClick={onSubmit}
-      >
+      <Button className="w-full h-12 cursor-pointer" size="lg" disabled={!!validation || submitting} onClick={onSubmit}>
         {ar.pos.submit}
       </Button>
     </div>
@@ -1766,8 +1885,10 @@ function NoLinesDepositDialog({
   onCreated: (invoice: Invoice) => void;
 }) {
   const [amount, setAmount] = useState('');
-  const [method, setMethod] = useState<'cash' | 'instapay'>('cash');
+  const [method, setMethod] = useState<'cash' | 'instapay' | 'bank_transfer' | 'cheque'>('cash');
   const [bankAccountId, setBankAccountId] = useState<number | ''>(defaultBankId ?? '');
+  const [reference, setReference] = useState('');
+  const [chequeState, setChequeState] = useState<ChequeFormState>(emptyCheque());
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -1777,6 +1898,8 @@ function NoLinesDepositDialog({
       setAmount('');
       setMethod('cash');
       setBankAccountId(defaultBankId ?? '');
+      setReference('');
+      setChequeState(emptyCheque());
       setNotes('');
       setError(null);
     }
@@ -1787,23 +1910,21 @@ function NoLinesDepositDialog({
       if (!customer) throw new Error('NO_CUSTOMER');
       const value = Number(amount);
       if (!Number.isFinite(value) || value <= 0) throw new Error('AMOUNT_INVALID');
+      const bankId = (method === 'instapay' || method === 'bank_transfer')
+        ? (bankAccountId === '' ? null : Number(bankAccountId))
+        : null;
       return salesApi.create({
         customerId: customer.id,
         fulfillmentDestination: destination,
         lines: [],
         cartTargetFinal: null,
-        payments: [
-          {
-            method,
-            amount: value,
-            bankAccountId:
-              method === 'instapay'
-                ? bankAccountId === ''
-                  ? null
-                  : Number(bankAccountId)
-                : null,
-          },
-        ],
+        payments: [{
+          method,
+          amount: value,
+          bankAccountId: bankId,
+          reference: method === 'bank_transfer' ? (reference || null) : null,
+          chequeDetails: method === 'cheque' ? chequeStateToDetails(chequeState) : null,
+        }],
         notesAr: notes || null,
       });
     },
@@ -1855,50 +1976,46 @@ function NoLinesDepositDialog({
             />
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-2">
             <Label>{ar.pos.paymentMethod}</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {(['cash', 'instapay'] as const).map((m) => {
-                const active = method === m;
-                const Icon = m === 'cash' ? Banknote : CreditCard;
-                return (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setMethod(m)}
-                    className={`cursor-pointer rounded-md border-2 p-2 flex items-center justify-center gap-2 transition-colors duration-150 min-h-11 ${
-                      active
-                        ? 'border-accent bg-accent-subtle text-accent'
-                        : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
-                    }`}
-                  >
-                    <Icon className="size-4" />
-                    <span className="text-sm font-medium">{ar.pos[m]}</span>
-                  </button>
-                );
-              })}
+            <div className="grid grid-cols-4 gap-2">
+              {([
+                { v: 'cash' as const, label: ar.pos.cash, Icon: Banknote },
+                { v: 'instapay' as const, label: ar.pos.instapay, Icon: CreditCard },
+                { v: 'bank_transfer' as const, label: ar.pos.bank_transfer, Icon: Landmark },
+                { v: 'cheque' as const, label: ar.pos.cheque, Icon: FileText },
+              ]).map(({ v: m, label, Icon }) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMethod(m)}
+                  className={`cursor-pointer rounded-lg border-2 p-2 flex flex-col items-center justify-center gap-1 transition-colors duration-150 min-h-[64px] ${
+                    method === m
+                      ? 'border-accent bg-accent-subtle text-accent'
+                      : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
+                  }`}
+                >
+                  <Icon className="size-4" />
+                  <span className="text-xs font-medium text-center leading-snug">{label}</span>
+                </button>
+              ))}
             </div>
           </div>
 
-          {method === 'instapay' && (
+          {(method === 'instapay' || method === 'bank_transfer') && (
             <div className="space-y-1">
               <Label>{ar.pos.bankAccount}</Label>
-              <select
-                className="h-11 w-full border border-border-default rounded-md px-2 bg-surface-elevated text-foreground cursor-pointer"
-                value={bankAccountId}
-                onChange={(e) =>
-                  setBankAccountId(e.target.value ? Number(e.target.value) : '')
-                }
-              >
-                <option value="">—</option>
-                {banks.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name_ar}
-                    {b.is_default ? ' (افتراضي)' : ''}
-                  </option>
-                ))}
-              </select>
+              <BankAccountSelect banks={banks} value={bankAccountId} onChange={setBankAccountId} />
             </div>
+          )}
+          {method === 'bank_transfer' && (
+            <div className="space-y-1">
+              <Label>{ar.pos.reference}</Label>
+              <Input value={reference} onChange={(e) => setReference(e.target.value)} dir="ltr" maxLength={64} className="h-11" placeholder="اختياري" />
+            </div>
+          )}
+          {method === 'cheque' && (
+            <ChequeDetailsForm state={chequeState} onChange={setChequeState} />
           )}
 
           <div className="space-y-1">
@@ -1955,6 +2072,10 @@ function ReturnDrawer({
   setMethod,
   bankId,
   setBankId,
+  reference,
+  setReference,
+  chequeState,
+  setChequeState,
   confirming,
   onConfirm,
   onClose,
@@ -1963,10 +2084,14 @@ function ReturnDrawer({
   meta: ReturnScanMeta | null;
   metaLoading: boolean;
   banks: BankAccount[];
-  method: 'cash' | 'instapay';
-  setMethod: (m: 'cash' | 'instapay') => void;
+  method: 'cash' | 'instapay' | 'bank_transfer' | 'cheque';
+  setMethod: (m: 'cash' | 'instapay' | 'bank_transfer' | 'cheque') => void;
   bankId: number | '';
   setBankId: (n: number | '') => void;
+  reference: string;
+  setReference: (s: string) => void;
+  chequeState: ChequeFormState;
+  setChequeState: (s: ChequeFormState) => void;
   confirming: boolean;
   onConfirm: () => void;
   onClose: () => void;
@@ -2034,51 +2159,49 @@ function ReturnDrawer({
                 </p>
               </div>
 
-              {/* Method picker */}
+              {/* Method picker — 4 tiles */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-foreground">
                   {ar.pos.paymentMethod}
                 </Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['cash', 'instapay'] as const).map((m) => {
-                    const active = method === m;
-                    const Icon = m === 'cash' ? Banknote : CreditCard;
-                    return (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setMethod(m)}
-                        className={`cursor-pointer rounded-lg border-2 p-3 flex flex-col items-center justify-center gap-1.5 transition-colors duration-150 min-h-[72px] ${
-                          active
-                            ? 'border-accent bg-accent-subtle text-accent'
-                            : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
-                        }`}
-                      >
-                        <Icon className="size-5" />
-                        <span className="text-sm font-medium">{ar.pos[m]}</span>
-                      </button>
-                    );
-                  })}
+                <div className="grid grid-cols-4 gap-2">
+                  {([
+                    { v: 'cash' as const, label: ar.pos.cash, Icon: Banknote },
+                    { v: 'instapay' as const, label: ar.pos.instapay, Icon: CreditCard },
+                    { v: 'bank_transfer' as const, label: ar.pos.bank_transfer, Icon: Landmark },
+                    { v: 'cheque' as const, label: ar.pos.cheque, Icon: FileText },
+                  ]).map(({ v: m, label, Icon }) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setMethod(m)}
+                      className={`cursor-pointer rounded-lg border-2 p-2.5 flex flex-col items-center justify-center gap-1 transition-colors duration-150 min-h-[68px] ${
+                        method === m
+                          ? 'border-accent bg-accent-subtle text-accent'
+                          : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
+                      }`}
+                    >
+                      <Icon className="size-4" />
+                      <span className="text-xs font-medium text-center leading-snug">{label}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {method === 'instapay' && (
+              {(method === 'instapay' || method === 'bank_transfer') && (
                 <div className="space-y-1">
                   <Label>{ar.pos.bankAccount}</Label>
-                  <select
-                    className="h-11 w-full border border-border-default rounded-md px-2 bg-surface-elevated text-foreground cursor-pointer"
-                    value={bankId}
-                    onChange={(e) => setBankId(e.target.value ? Number(e.target.value) : '')}
-                  >
-                    <option value="">—</option>
-                    {banks.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name_ar}
-                        {b.is_default ? ' (افتراضي)' : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <BankAccountSelect banks={banks} value={bankId} onChange={setBankId} />
                 </div>
+              )}
+              {method === 'bank_transfer' && (
+                <div className="space-y-1">
+                  <Label>{ar.pos.reference}</Label>
+                  <Input value={reference} onChange={(e) => setReference(e.target.value)} dir="ltr" maxLength={64} className="h-11" placeholder="اختياري" />
+                </div>
+              )}
+              {method === 'cheque' && (
+                <ChequeDetailsForm state={chequeState} onChange={setChequeState} />
               )}
             </>
           ) : null}

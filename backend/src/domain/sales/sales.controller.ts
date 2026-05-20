@@ -5,6 +5,7 @@ import {
   CreateSaleSchema,
   DepositRefundSchema,
   FinalPaymentSchema,
+  ListChequesQuerySchema,
   ListInvoicesQuerySchema,
   PdfVariantSchema,
   SalePreviewSchema,
@@ -150,6 +151,8 @@ export async function cancelOpenInvoice(req: Request, res: Response): Promise<vo
       partialRefundAmount:
         data.partial_refund_amount == null ? null : Number(data.partial_refund_amount),
       bankAccountId: data.bank_account_id ?? null,
+      reference: data.reference ?? null,
+      chequeDetails: data.cheque_details ?? null,
       notesAr: data.notes_ar,
     });
     res.json(result);
@@ -187,6 +190,8 @@ export async function depositRefund(req: Request, res: Response): Promise<void> 
       amountEgp: Number(data.amountEgp),
       method: data.method,
       bankAccountId: data.bankAccountId ?? null,
+      reference: data.reference ?? null,
+      chequeDetails: data.chequeDetails ?? null,
     });
     res.json(result);
   } catch (e) {
@@ -206,6 +211,11 @@ export async function listOpenInvoices(_req: Request, res: Response): Promise<vo
 
 export async function listPendingPickup(_req: Request, res: Response): Promise<void> {
   res.json(await openSvc.listPendingPickup());
+}
+
+export async function listCheques(req: Request, res: Response): Promise<void> {
+  const q = ListChequesQuerySchema.parse(req.query);
+  res.json(await svc.listCheques(q));
 }
 
 export async function getInvoicePdf(req: Request, res: Response): Promise<void> {

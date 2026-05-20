@@ -7,6 +7,7 @@ import { nextInvoiceNo } from './invoiceNumber.service.js';
 import { backCalculateDiscount, roundEgp } from './discountCalculator.js';
 import { settlePayment } from '../finance/paymentSettlementService.js';
 import type {
+  Cheque,
   CreateSaleInput,
   FulfillmentDestination,
   Invoice,
@@ -15,7 +16,7 @@ import type {
   Payment,
   SalePreview,
 } from './sales.types.js';
-import type { ListInvoicesQueryInput, SalePreviewInput } from './sales.schemas.js';
+import type { ListChequesQueryInput, ListInvoicesQueryInput, SalePreviewInput } from './sales.schemas.js';
 
 type SettingsCache = {
   taxEnabled: boolean;
@@ -311,10 +312,12 @@ export async function createSale(
       if (paidTotal < minDeposit) throw new Error('DEPOSIT_BELOW_MIN');
     }
 
-    // 5) Resolve default bank account for instapay payments without one.
+    // 5) Resolve default bank account for instapay/bank_transfer payments without one.
     let defaultBankId: number | null = null;
     const needsBank = input.payments.some(
-      (p) => p.method === 'instapay' && p.bankAccountId == null,
+      (p) =>
+        (p.method === 'instapay' || p.method === 'bank_transfer') &&
+        p.bankAccountId == null,
     );
     if (needsBank) {
       const def = await trx('bank_accounts')
@@ -418,17 +421,34 @@ export async function createSale(
     let runningPaid = 0;
     for (const p of input.payments) {
       const bankId =
-        p.method === 'instapay' ? (p.bankAccountId ?? defaultBankId) : null;
+        p.method === 'instapay' || p.method === 'bank_transfer'
+          ? (p.bankAccountId ?? defaultBankId)
+          : null;
       const kind: 'deposit' | 'final' = isFullyPaid ? 'final' : 'deposit';
       const amount = roundEgp(Number(p.amount));
-      await trx('payments').insert({
+      const [{ id: paymentId }] = await trx('payments').insert({
         invoice_id: invoice.id,
         method: p.method,
         amount_egp: amount,
         payment_kind: kind,
         bank_account_id: bankId,
+        reference: p.reference ?? null,
         actor_user_id: cashierUserId,
-      });
+      }).returning('id');
+
+      if (p.method === 'cheque' && p.chequeDetails) {
+        await trx('cheques').insert({
+          payment_id: paymentId,
+          cheque_number: p.chequeDetails.chequeNumber,
+          bank_name_ar: p.chequeDetails.bankNameAr,
+          branch_ar: p.chequeDetails.branchAr ?? null,
+          issuer_name_ar: p.chequeDetails.issuerNameAr ?? null,
+          amount_egp: amount,
+          issue_date: p.chequeDetails.issueDate,
+          due_date: p.chequeDetails.dueDate,
+          notes_ar: p.chequeDetails.notesAr ?? null,
+        });
+      }
 
       await settlePayment(trx, {
         method: p.method,
@@ -719,6 +739,33 @@ export async function listInvoices(
   const rows = await base.orderBy('i.created_at', 'desc').limit(q.limit).offset(offset);
   return {
     rows: rows as Array<Invoice & { customer_name_ar: string }>,
+    total: Number((countRow as { count: string }).count),
+  };
+}
+
+export async function listCheques(
+  q: ListChequesQueryInput,
+): Promise<{ rows: Array<Cheque & { invoice_no: string | null; customer_name_ar: string | null }>; total: number }> {
+  const offset = (q.page - 1) * q.limit;
+  const base = db('cheques as ch')
+    .leftJoin('payments as p', 'ch.payment_id', 'p.id')
+    .leftJoin('invoices as inv', 'p.invoice_id', 'inv.id')
+    .leftJoin('customers as c', 'inv.customer_id', 'c.id')
+    .select(
+      'ch.*',
+      'inv.invoice_no',
+      'c.name_ar as customer_name_ar',
+    );
+
+  if (q.status) base.where('ch.status', q.status);
+  if (q.bank_name_ar) base.whereILike('ch.bank_name_ar', `%${q.bank_name_ar}%`);
+  if (q.due_date_from) base.where('ch.due_date', '>=', q.due_date_from);
+  if (q.due_date_to) base.where('ch.due_date', '<=', q.due_date_to);
+
+  const [countRow] = await base.clone().clearSelect().count<Array<{ count: string }>>('ch.id as count');
+  const rows = await base.orderBy('ch.due_date', 'asc').limit(q.limit).offset(offset);
+  return {
+    rows: rows as Array<Cheque & { invoice_no: string | null; customer_name_ar: string | null }>,
     total: Number((countRow as { count: string }).count),
   };
 }

@@ -20,6 +20,7 @@ import { POSPage } from './pages/pos/POS';
 import { InvoicesListPage } from './pages/invoices/InvoicesList';
 import { InvoiceDetailPage } from './pages/invoices/InvoiceDetail';
 import { InvoicesReturnsHubPage } from './pages/invoicesReturns/InvoicesReturnsHub';
+import { ChequesPage } from './pages/invoicesReturns/ChequesPage';
 import { CashDrawerPage } from './pages/cash/CashDrawer';
 import { BanksPage } from './pages/cash/Banks';
 import { ExpensesPage } from './pages/cash/Expenses';
@@ -101,6 +102,7 @@ export function App() {
                 <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
                 <Route path="/returns" element={<ReturnsListPage />} />
                 <Route path="/returns/:id" element={<ReturnDetailPage />} />
+                <Route path="/cheques" element={<ChequesPage />} />
 
                 <Route path="/treasury" element={<TreasuryHubPage />} />
                 <Route path="/treasury/overview" element={<TreasuriesOverviewPage />} />
