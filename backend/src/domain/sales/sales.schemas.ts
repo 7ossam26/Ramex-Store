@@ -6,6 +6,7 @@ const nonNegativeAmount = z.coerce.number().min(0);
 export const SaleLineSchema = z.object({
   rollId: z.coerce.number().int().positive(),
   sellingPriceOverride: positiveAmount.nullable().optional(),
+  finalPricePerUnit: positiveAmount.nullable().optional(),
   lineDiscountEgp: nonNegativeAmount.nullable().optional(),
 });
 
@@ -27,14 +28,17 @@ export const SalePaymentSchema = z
 
 export const FulfillmentDestinationEnum = z.enum(['shop', 'factory_direct']);
 
-export const CreateSaleSchema = z.object({
-  customerId: z.coerce.number().int().positive(),
-  fulfillmentDestination: FulfillmentDestinationEnum.optional().default('shop'),
-  lines: z.array(SaleLineSchema).min(1),
-  cartTargetFinal: nonNegativeAmount.nullable().optional(),
-  payments: z.array(SalePaymentSchema).min(1),
-  notesAr: z.string().max(2000).nullable().optional(),
-});
+export const CreateSaleSchema = z
+  .object({
+    customerId: z.coerce.number().int().positive(),
+    fulfillmentDestination: FulfillmentDestinationEnum.optional().default('shop'),
+    // v2 Phase 5: lines may be empty when creating a no-lines deposit invoice;
+    // the service layer enforces "empty lines ⇒ deposit-only payment".
+    lines: z.array(SaleLineSchema),
+    cartTargetFinal: nonNegativeAmount.nullable().optional(),
+    payments: z.array(SalePaymentSchema).min(1),
+    notesAr: z.string().max(2000).nullable().optional(),
+  });
 export type CreateSaleInput = z.infer<typeof CreateSaleSchema>;
 
 export const SalePreviewSchema = z.object({
@@ -50,7 +54,9 @@ export const VoidInvoiceSchema = z.object({
 export type VoidInvoiceInput = z.infer<typeof VoidInvoiceSchema>;
 
 export const ListInvoicesQuerySchema = z.object({
-  status: z.enum(['open', 'closed_pending_pickup', 'completed', 'cancelled']).optional(),
+  status: z
+    .enum(['open', 'closed_pending_pickup', 'completed', 'cancelled', 'deposit_refunded'])
+    .optional(),
   customer_id: z.coerce.number().int().positive().optional(),
   fulfillment_destination: FulfillmentDestinationEnum.optional(),
   date_from: z.string().optional(),
@@ -119,3 +125,29 @@ export const CancelOpenInvoiceSchema = z
     }
   });
 export type CancelOpenInvoiceInput = z.infer<typeof CancelOpenInvoiceSchema>;
+
+// v2 Phase 5 — add lines to an existing open invoice (used after a no-lines
+// deposit invoice is reopened in POS, or to extend a partially-stocked open
+// invoice with more rolls).
+export const AddLinesSchema = z.object({
+  lines: z.array(SaleLineSchema).min(1),
+  cartTargetFinal: nonNegativeAmount.nullable().optional(),
+});
+export type AddLinesInput = z.infer<typeof AddLinesSchema>;
+
+// v2 Phase 5 — refund the over-deposit portion of an open invoice. Server
+// writes a negative-amount payments row + matching cash/bank outflow.
+export const DepositRefundSchema = z.object({
+  amountEgp: positiveAmount,
+  method: z.enum(['cash', 'instapay']),
+  bankAccountId: z.coerce.number().int().positive().nullable().optional(),
+}).superRefine((v, ctx) => {
+  if (v.method === 'instapay' && v.bankAccountId == null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['bankAccountId'],
+      message: 'bank_account_id is required for instapay refunds',
+    });
+  }
+});
+export type DepositRefundInput = z.infer<typeof DepositRefundSchema>;

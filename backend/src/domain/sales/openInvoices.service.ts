@@ -2,10 +2,17 @@ import type { Knex } from 'knex';
 import { db } from '../../db/connection.js';
 import { auditFromService } from '../inventory/audit.helper.js';
 import { notify } from '../notifications/notificationsService.js';
-import { roundEgp } from './discountCalculator.js';
+import { backCalculateDiscount, roundEgp } from './discountCalculator.js';
 import { settlePayment } from '../finance/paymentSettlementService.js';
 import { getSetting } from '../settings/settings.service.js';
-import type { Invoice, InvoiceStatus, PaymentMethod } from './sales.types.js';
+import type {
+  AddLinesInput,
+  DepositRefundInput,
+  FulfillmentDestination,
+  Invoice,
+  InvoiceStatus,
+  PaymentMethod,
+} from './sales.types.js';
 
 const EPS = 0.001;
 
@@ -465,6 +472,7 @@ export async function listOpenInvoices(): Promise<
       age_days: number;
       is_stale: boolean;
       stale_threshold_days: number;
+      line_count: number;
     }
   >
 > {
@@ -472,7 +480,13 @@ export async function listOpenInvoices(): Promise<
   const rows = await db('invoices as i')
     .leftJoin('customers as c', 'i.customer_id', 'c.id')
     .where('i.status', 'open')
-    .select('i.*', 'c.name_ar as customer_name_ar')
+    .select(
+      'i.*',
+      'c.name_ar as customer_name_ar',
+      db.raw(
+        '(SELECT COUNT(*) FROM invoice_lines il WHERE il.invoice_id = i.id) as line_count',
+      ),
+    )
     .orderBy('i.created_at', 'asc');
   const now = Date.now();
   return rows.map((r) => {
@@ -482,6 +496,7 @@ export async function listOpenInvoices(): Promise<
       age_days: ageDays,
       is_stale: ageDays >= staleDays,
       stale_threshold_days: staleDays,
+      line_count: Number(r.line_count),
     };
   }) as Array<
     Invoice & {
@@ -489,8 +504,456 @@ export async function listOpenInvoices(): Promise<
       age_days: number;
       is_stale: boolean;
       stale_threshold_days: number;
+      line_count: number;
     }
   >;
+}
+
+type RollPricingInfo = {
+  weight_kg: string;
+  length_m: string | null;
+  fabric_unit: 'kg' | 'meter';
+  selling_price_egp: string | null;
+  reference_price_per_unit: string | null;
+  warehouse: string;
+  status: string;
+  is_visible_at_pos: boolean;
+};
+
+function rollQuantity(info: RollPricingInfo): number {
+  if (info.fabric_unit === 'meter') {
+    if (info.length_m == null) throw new Error('ROLL_LENGTH_MISSING');
+    return Number(info.length_m);
+  }
+  return Number(info.weight_kg);
+}
+
+type SettingsForLines = { taxEnabled: boolean; taxRate: number };
+
+async function readTaxSettings(trx: Knex.Transaction): Promise<SettingsForLines> {
+  const [taxEnabled, taxRate] = await Promise.all([
+    getSetting<boolean>(trx, 'tax_enabled', false),
+    getSetting<number>(trx, 'tax_rate', 0.14),
+  ]);
+  return { taxEnabled, taxRate };
+}
+
+/**
+ * v2 Phase 5 — add lines to an existing open invoice.
+ *
+ * Recomputes subtotal/tax/rounding/total from `sum(line_totals)`. The existing
+ * `paid_egp` is preserved; `balance_egp = total_egp − paid_egp` (may be
+ * negative when the deposit exceeds the line total — the cashier resolves
+ * that via `depositRefund`).
+ *
+ * Rolls flip to `reserved`. If the resulting balance is exactly zero, the
+ * invoice closes to `closed_pending_pickup` and the rolls flip to `sold`,
+ * mirroring the existing `addFinalPayment` close path.
+ */
+export async function addLinesToOpenInvoice(
+  invoiceId: number,
+  actorUserId: number,
+  input: AddLinesInput,
+): Promise<{ invoice: Invoice }> {
+  if (input.lines.length === 0) throw new Error('NO_LINES_PROVIDED');
+
+  const rollIds = input.lines.map((l) => l.rollId);
+  if (new Set(rollIds).size !== rollIds.length) throw new Error('DUPLICATE_ROLL_IN_CART');
+
+  return db.transaction(async (trx) => {
+    const settings = await readTaxSettings(trx);
+
+    const invoice = await trx('invoices').where({ id: invoiceId }).forUpdate().first();
+    if (!invoice) throw new Error('INVOICE_NOT_FOUND');
+    if (invoice.status !== 'open') throw new Error('INVOICE_NOT_OPEN');
+
+    const destination: FulfillmentDestination =
+      (invoice.fulfillment_destination as FulfillmentDestination) ?? 'shop';
+
+    // Lock + validate rolls. Mirrors invoices.service.lockAndValidateRolls
+    // but inline (no cross-module import needed).
+    const lockedRows = await trx('rolls as r')
+      .join('fabrics as f', 'r.fabric_id', 'f.id')
+      .whereIn('r.id', rollIds)
+      .select(
+        'r.id',
+        'r.selling_price_egp',
+        'r.reference_price_per_unit',
+        'r.weight_kg',
+        'r.length_m',
+        'r.status',
+        'r.warehouse',
+        'r.is_visible_at_pos',
+        'f.unit as fabric_unit',
+      )
+      .forUpdate();
+    const locked = new Map<number, RollPricingInfo & { id: number }>();
+    for (const row of lockedRows) {
+      locked.set(row.id as number, {
+        ...row,
+        fabric_unit: row.fabric_unit as 'kg' | 'meter',
+        selling_price_egp: row.selling_price_egp == null ? null : String(row.selling_price_egp),
+        reference_price_per_unit:
+          row.reference_price_per_unit == null ? null : String(row.reference_price_per_unit),
+        weight_kg: String(row.weight_kg),
+        length_m: row.length_m == null ? null : String(row.length_m),
+        warehouse: String(row.warehouse),
+        status: String(row.status),
+        is_visible_at_pos: Boolean(row.is_visible_at_pos),
+      });
+    }
+    for (const id of rollIds) {
+      const r = locked.get(id);
+      if (!r) throw new Error('ROLL_NOT_FOUND');
+      if (r.status !== 'in_stock') throw new Error('ROLL_NOT_AVAILABLE');
+      if (!r.is_visible_at_pos) throw new Error('ROLL_NOT_VISIBLE_AT_POS');
+      if (destination === 'factory_direct') {
+        if (r.warehouse !== 'factory') throw new Error('ROLL_NOT_AT_FACTORY');
+      } else {
+        if (r.warehouse !== 'shop' && r.warehouse !== 'damaged_shop') {
+          throw new Error('ROLL_NOT_AT_SHOP');
+        }
+      }
+    }
+
+    // Compute per-line totals using the same rules as createSale.
+    const lines = input.lines.map((l) => {
+      const info = locked.get(l.rollId)!;
+      const qty = rollQuantity(info);
+      let perUnit: number;
+      let absolutePrice: number;
+      if (l.finalPricePerUnit != null) {
+        perUnit = Number(l.finalPricePerUnit);
+        absolutePrice = perUnit * qty;
+      } else if (l.sellingPriceOverride != null) {
+        absolutePrice = Number(l.sellingPriceOverride);
+        perUnit = qty > 0 ? absolutePrice / qty : 0;
+      } else {
+        throw new Error('LINE_PRICE_REQUIRED');
+      }
+      if (!Number.isFinite(absolutePrice) || absolutePrice <= 0) {
+        throw new Error('LINE_PRICE_REQUIRED');
+      }
+      const lineDiscount = roundEgp(Number(l.lineDiscountEgp ?? 0));
+      if (lineDiscount > absolutePrice) throw new Error('LINE_DISCOUNT_EXCEEDS_PRICE');
+      const lineTotal = roundEgp(absolutePrice - lineDiscount);
+      return {
+        rollId: l.rollId,
+        selling_price_egp: roundEgp(absolutePrice),
+        final_price_per_unit: roundEgp(perUnit),
+        line_discount_egp: lineDiscount,
+        line_total_egp: lineTotal,
+      };
+    });
+
+    const subtotal = roundEgp(lines.reduce((s, l) => s + l.line_total_egp, 0));
+
+    let cartDiscount = 0;
+    let beforeTax = subtotal;
+    if (input.cartTargetFinal != null) {
+      const c = backCalculateDiscount(subtotal, Number(input.cartTargetFinal));
+      cartDiscount = c.cart_discount_egp;
+      beforeTax = roundEgp(subtotal - cartDiscount);
+    }
+    const tax = settings.taxEnabled ? roundEgp(beforeTax * settings.taxRate) : 0;
+    const rawTotal = beforeTax + tax;
+    const total = roundEgp(rawTotal);
+    const rounding = roundEgp(total - rawTotal);
+
+    const paid = roundEgp(Number(invoice.paid_egp));
+    const newBalance = roundEgp(total - paid);
+    const EPS_ = 0.001;
+    const isClosed = Math.abs(newBalance) < EPS_;
+    const newRollStatus: 'sold' | 'reserved' = isClosed ? 'sold' : 'reserved';
+    const newEventType: 'sale_out' | 'reserve' = isClosed ? 'sale_out' : 'reserve';
+
+    // Insert invoice lines.
+    await trx('invoice_lines').insert(
+      lines.map((l) => ({
+        invoice_id: invoiceId,
+        roll_id: l.rollId,
+        selling_price_egp: l.selling_price_egp,
+        final_price_per_unit: l.final_price_per_unit,
+        line_discount_egp: l.line_discount_egp,
+        line_total_egp: l.line_total_egp,
+      })),
+    );
+
+    // Flip roll status, persist per-roll final price, emit movement.
+    for (const l of lines) {
+      await trx('rolls').where({ id: l.rollId }).update({
+        status: newRollStatus,
+        selling_price_egp: l.selling_price_egp,
+        updated_at: trx.fn.now(),
+      });
+      await trx('stock_movements').insert({
+        roll_id: l.rollId,
+        from_warehouse: locked.get(l.rollId)!.warehouse,
+        to_warehouse: null,
+        event_type: newEventType,
+        reference_type: 'invoice',
+        reference_id: invoiceId,
+        actor_user_id: actorUserId,
+      });
+    }
+
+    // Audit each price override individually.
+    for (let i = 0; i < input.lines.length; i++) {
+      const inp = input.lines[i]!;
+      const computed = lines[i]!;
+      const lockedRoll = locked.get(inp.rollId)!;
+      const referencePerUnit =
+        lockedRoll.reference_price_per_unit == null
+          ? null
+          : Number(lockedRoll.reference_price_per_unit);
+      await auditFromService(trx, {
+        actorUserId,
+        action: 'pos_price_override',
+        entity: 'roll',
+        entityId: inp.rollId,
+        before: { reference_price_per_unit: referencePerUnit },
+        after: {
+          final_price_per_unit: computed.final_price_per_unit,
+          line_total_egp: computed.line_total_egp,
+          invoice_id: invoiceId,
+        },
+        severity: 'medium',
+      });
+    }
+
+    // Adjust customer lifetime_volume + balance for the delta between the
+    // previous total (deposit placeholder, or any prior sum-of-lines value)
+    // and the new total.
+    const customer = await trx('customers')
+      .where({ id: invoice.customer_id })
+      .forUpdate()
+      .first();
+    if (!customer) throw new Error('CUSTOMER_NOT_FOUND');
+    const previousTotal = roundEgp(Number(invoice.total_egp));
+    const delta = roundEgp(total - previousTotal);
+    if (Math.abs(delta) > EPS_) {
+      const newLifetime = roundEgp(Number(customer.lifetime_volume_egp) + delta);
+      const newCustomerBalance = roundEgp(Number(customer.current_balance_egp) - delta);
+      await trx('customer_ledger_entries').insert({
+        customer_id: invoice.customer_id,
+        entry_type: 'adjustment',
+        reference_type: 'invoice',
+        reference_id: invoiceId,
+        amount_egp: -delta,
+        balance_after_egp: newCustomerBalance,
+        notes_ar: `تعديل الإجمالي بعد إضافة بنود لفاتورة ${invoice.invoice_no}`,
+        actor_user_id: actorUserId,
+      });
+      await trx('customers').where({ id: invoice.customer_id }).update({
+        current_balance_egp: newCustomerBalance,
+        lifetime_volume_egp: newLifetime,
+        updated_at: trx.fn.now(),
+      });
+    }
+
+    const newStatus: InvoiceStatus = isClosed ? 'closed_pending_pickup' : 'open';
+
+    await trx('invoices').where({ id: invoiceId }).update({
+      subtotal_egp: subtotal,
+      cart_discount_egp: cartDiscount,
+      tax_egp: tax,
+      rounding_egp: rounding,
+      total_egp: total,
+      balance_egp: newBalance,
+      status: newStatus,
+      closed_at: isClosed ? trx.fn.now() : invoice.closed_at,
+    });
+
+    if (isClosed) {
+      await appendStatusHistory(
+        trx,
+        invoiceId,
+        'open',
+        'closed_pending_pickup',
+        actorUserId,
+        'إغلاق الفاتورة بعد إضافة البنود (الباقي = 0)',
+      );
+    }
+
+    await auditFromService(trx, {
+      actorUserId,
+      action: 'open_invoice_lines_added',
+      entity: 'invoice',
+      entityId: invoiceId,
+      before: { total_egp: previousTotal, status: invoice.status },
+      after: {
+        total_egp: total,
+        balance_egp: newBalance,
+        status: newStatus,
+        lines_added: lines.length,
+      },
+      severity: 'medium',
+    });
+
+    const updated = await trx('invoices').where({ id: invoiceId }).first();
+    return { invoice: updated as Invoice };
+  });
+}
+
+/**
+ * v2 Phase 5 — refund the over-deposit portion of an open invoice.
+ *
+ * Preconditions:
+ *  - invoice.status === 'open'
+ *  - amount > 0 and amount <= paid_egp − total_egp (over-deposit only)
+ *
+ * Side effects: writes a negative `payments` row, settles a cash/bank outflow,
+ * updates `paid_egp` and `balance_egp`, flips status to `deposit_refunded`,
+ * flips any reserved rolls on the invoice to `sold` (the invoice is finalised
+ * line-wise), and audits.
+ */
+export async function depositRefund(
+  invoiceId: number,
+  actorUserId: number,
+  input: DepositRefundInput,
+): Promise<{ invoice: Invoice }> {
+  const refundAmount = roundEgp(Number(input.amountEgp));
+  if (refundAmount <= 0) throw new Error('REFUND_AMOUNT_INVALID');
+
+  return db.transaction(async (trx) => {
+    const { invoice, rollIds } = await lockInvoiceWithLineRolls(trx, invoiceId);
+    if (invoice.status !== 'open') throw new Error('INVOICE_NOT_OPEN');
+
+    const total = roundEgp(Number(invoice.total_egp));
+    const paid = roundEgp(Number(invoice.paid_egp));
+    const overDeposit = roundEgp(paid - total);
+    if (overDeposit <= 0) throw new Error('NO_OVER_DEPOSIT');
+    if (refundAmount > overDeposit + EPS) throw new Error('REFUND_EXCEEDS_OVER_DEPOSIT');
+
+    // Resolve bank account for instapay refunds.
+    let refundBankId: number | null = null;
+    if (input.method === 'instapay') {
+      if (input.bankAccountId != null) {
+        const acc = await trx('bank_accounts')
+          .where({ id: input.bankAccountId, is_active: true })
+          .first();
+        if (!acc) throw new Error('NO_DEFAULT_BANK_ACCOUNT');
+        refundBankId = acc.id as number;
+      } else {
+        const def = await trx('bank_accounts')
+          .where({ is_default: true, is_active: true })
+          .first();
+        if (!def) throw new Error('NO_DEFAULT_BANK_ACCOUNT');
+        refundBankId = def.id as number;
+      }
+    }
+
+    // Insert the negative-payment row + settle the cash/bank outflow.
+    await trx('payments').insert({
+      invoice_id: invoiceId,
+      method: input.method,
+      amount_egp: -refundAmount,
+      payment_kind: 'refund',
+      bank_account_id: refundBankId,
+      notes_ar: 'استرجاع الدفعة المقدمة',
+      actor_user_id: actorUserId,
+    });
+    await settlePayment(trx, {
+      method: input.method,
+      paymentKind: 'refund',
+      amount: refundAmount,
+      bankAccountId: refundBankId,
+      referenceType: 'invoice',
+      referenceId: invoiceId,
+      actorUserId,
+      notesAr: 'استرجاع الدفعة المقدمة',
+    });
+
+    // Customer ledger — refund mirrors the payment direction (a negative
+    // payment reduces the customer-credit position).
+    const customer = await trx('customers')
+      .where({ id: invoice.customer_id })
+      .forUpdate()
+      .first();
+    if (!customer) throw new Error('CUSTOMER_NOT_FOUND');
+    const newCustomerBalance = roundEgp(Number(customer.current_balance_egp) - refundAmount);
+    await trx('customer_ledger_entries').insert({
+      customer_id: invoice.customer_id,
+      entry_type: 'refund',
+      reference_type: 'invoice',
+      reference_id: invoiceId,
+      amount_egp: -refundAmount,
+      balance_after_egp: newCustomerBalance,
+      notes_ar: `استرجاع دفعة لفاتورة ${invoice.invoice_no}`,
+      actor_user_id: actorUserId,
+    });
+    await trx('customers').where({ id: invoice.customer_id }).update({
+      current_balance_egp: newCustomerBalance,
+      updated_at: trx.fn.now(),
+    });
+
+    const newPaid = roundEgp(paid - refundAmount);
+    const newBalance = roundEgp(total - newPaid);
+    const fullyRefunded = Math.abs(newBalance) < EPS;
+
+    // If this refund settles the balance to zero, the invoice is done — flip
+    // any reserved rolls to sold and stamp deposit_refunded.
+    if (fullyRefunded && rollIds.length > 0) {
+      for (const rollId of rollIds) {
+        const r = await trx('rolls').where({ id: rollId }).first();
+        if (r && r.status === 'reserved') {
+          await trx('rolls').where({ id: rollId }).update({
+            status: 'sold',
+            updated_at: trx.fn.now(),
+          });
+          await trx('stock_movements').insert({
+            roll_id: rollId,
+            from_warehouse: null,
+            to_warehouse: null,
+            event_type: 'sale_out',
+            reference_type: 'invoice',
+            reference_id: invoiceId,
+            actor_user_id: actorUserId,
+            notes_ar: 'إغلاق بعد استرجاع الدفعة',
+          });
+        }
+      }
+    }
+
+    const newStatus: InvoiceStatus = fullyRefunded ? 'deposit_refunded' : 'open';
+    await trx('invoices').where({ id: invoiceId }).update({
+      paid_egp: newPaid,
+      balance_egp: newBalance,
+      status: newStatus,
+      closed_at: fullyRefunded ? trx.fn.now() : invoice.closed_at,
+    });
+
+    if (fullyRefunded) {
+      await appendStatusHistory(
+        trx,
+        invoiceId,
+        'open',
+        'deposit_refunded',
+        actorUserId,
+        `استرجاع ${refundAmount.toFixed(2)} ج.م`,
+      );
+    }
+
+    await auditFromService(trx, {
+      actorUserId,
+      action: 'deposit_refund',
+      entity: 'invoice',
+      entityId: invoiceId,
+      before: { paid_egp: paid, balance_egp: Number(invoice.balance_egp), status: invoice.status },
+      after: {
+        invoiceId,
+        refundEgp: refundAmount,
+        method: input.method,
+        paid_egp: newPaid,
+        balance_egp: newBalance,
+        status: newStatus,
+      },
+      severity: 'medium',
+    });
+
+    const updated = await trx('invoices').where({ id: invoiceId }).first();
+    return { invoice: updated as Invoice };
+  });
 }
 
 export async function listPendingPickup(): Promise<

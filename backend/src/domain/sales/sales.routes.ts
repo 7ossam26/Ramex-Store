@@ -34,6 +34,16 @@ salesRouter.post(
   requireRole('owner', 'shop_seller'),
   ctl.cancelOpenInvoice,
 );
+salesRouter.post(
+  '/invoices/:id/lines',
+  requireRole('owner', 'shop_seller'),
+  ctl.addOpenInvoiceLines,
+);
+salesRouter.post(
+  '/invoices/:id/deposit-refund',
+  requireRole('owner', 'shop_seller'),
+  ctl.depositRefund,
+);
 
 salesRouter.get('/bank-accounts', async (_req, res) => {
   res.json(await listActiveBankAccounts());

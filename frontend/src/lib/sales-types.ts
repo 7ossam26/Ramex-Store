@@ -1,4 +1,9 @@
-export type InvoiceStatus = 'open' | 'closed_pending_pickup' | 'completed' | 'cancelled';
+export type InvoiceStatus =
+  | 'open'
+  | 'closed_pending_pickup'
+  | 'completed'
+  | 'cancelled'
+  | 'deposit_refunded';
 export type PaymentMethod = 'cash' | 'instapay';
 export type PaymentKind = 'deposit' | 'final' | 'refund';
 export type FulfillmentDestination = 'shop' | 'factory_direct';
@@ -30,6 +35,7 @@ export type OpenInvoiceRow = InvoiceListRow & {
   age_days: number;
   is_stale: boolean;
   stale_threshold_days: number;
+  line_count: number;
 };
 export type PendingPickupRow = InvoiceListRow & { customer_phone: string };
 
@@ -62,6 +68,17 @@ export type CancelOpenInvoiceBody = {
   notes_ar: string;
 };
 
+export type AddOpenInvoiceLinesBody = {
+  lines: SaleLineInput[];
+  cartTargetFinal?: number | null;
+};
+
+export type DepositRefundBody = {
+  amountEgp: number;
+  method: PaymentMethod;
+  bankAccountId?: number | null;
+};
+
 export type InvoiceLineDetail = {
   id: number;
   invoice_id: number;
@@ -69,11 +86,15 @@ export type InvoiceLineDetail = {
   selling_price_egp: string;
   line_discount_egp: string;
   line_total_egp: string;
+  final_price_per_unit: string | null;
   fabric_name_ar: string;
+  fabric_unit: 'kg' | 'meter';
   color_name_ar: string;
   color_code: string | null;
   roll_sr_no: string | null;
   weight_kg: string;
+  length_m: string | null;
+  reference_price_per_unit: string | null;
   internal_barcode: string;
 };
 
@@ -112,6 +133,7 @@ export type SalePreview = {
 export type SaleLineInput = {
   rollId: number;
   sellingPriceOverride?: number | null;
+  finalPricePerUnit?: number | null;
   lineDiscountEgp?: number | null;
 };
 
@@ -147,11 +169,14 @@ export type RollLookup = {
   color_id: number;
   fabric_code: string;
   fabric_name_ar: string;
+  fabric_unit: 'kg' | 'meter';
   color_name_ar: string;
   color_code: string;
   roll_sr_no: string | null;
   weight_kg: string;
-  selling_price_egp: string;
+  length_m: string | null;
+  reference_price_per_unit: string | null;
+  selling_price_egp: string | null;
   status: string;
   warehouse: string;
   is_visible_at_pos: boolean;

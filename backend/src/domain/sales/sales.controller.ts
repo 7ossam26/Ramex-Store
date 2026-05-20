@@ -1,7 +1,9 @@
 import type { Request, Response } from 'express';
 import {
+  AddLinesSchema,
   CancelOpenInvoiceSchema,
   CreateSaleSchema,
+  DepositRefundSchema,
   FinalPaymentSchema,
   ListInvoicesQuerySchema,
   PdfVariantSchema,
@@ -39,6 +41,12 @@ const ERR_MAP: Record<string, { status: number; message: string }> = {
   PARTIAL_REFUND_INVALID: { status: 400, message: 'مبلغ الاسترجاع الجزئي غير صحيح' },
   PARTIAL_REFUND_EXCEEDS_PAID: { status: 400, message: 'مبلغ الاسترجاع أكبر من المدفوع' },
   REFUND_METHOD_REQUIRED: { status: 400, message: 'طريقة الاسترجاع مطلوبة' },
+  NO_LINES_PROVIDED: { status: 400, message: 'يجب اختيار توب واحد على الأقل' },
+  ROLL_LENGTH_MISSING: { status: 400, message: 'الطول بالمتر مفقود لهذا التوب' },
+  LINE_PRICE_REQUIRED: { status: 400, message: 'سعر البيع النهائي مطلوب' },
+  REFUND_AMOUNT_INVALID: { status: 400, message: 'مبلغ الاسترجاع غير صحيح' },
+  NO_OVER_DEPOSIT: { status: 400, message: 'لا توجد دفعة زائدة لاستردادها' },
+  REFUND_EXCEEDS_OVER_DEPOSIT: { status: 400, message: 'مبلغ الاسترجاع أكبر من فرق الدفعة المقدمة' },
 };
 
 function handleDomainError(e: unknown, res: Response): boolean {
@@ -143,6 +151,42 @@ export async function cancelOpenInvoice(req: Request, res: Response): Promise<vo
         data.partial_refund_amount == null ? null : Number(data.partial_refund_amount),
       bankAccountId: data.bank_account_id ?? null,
       notesAr: data.notes_ar,
+    });
+    res.json(result);
+  } catch (e) {
+    if (handleDomainError(e, res)) return;
+    throw e;
+  }
+}
+
+export async function addOpenInvoiceLines(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  const data = AddLinesSchema.parse(req.body);
+  try {
+    const result = await openSvc.addLinesToOpenInvoice(id, actorId(req), {
+      lines: data.lines.map((l) => ({
+        rollId: l.rollId,
+        sellingPriceOverride: l.sellingPriceOverride ?? null,
+        finalPricePerUnit: l.finalPricePerUnit ?? null,
+        lineDiscountEgp: l.lineDiscountEgp ?? null,
+      })),
+      cartTargetFinal: data.cartTargetFinal ?? null,
+    });
+    res.json(result);
+  } catch (e) {
+    if (handleDomainError(e, res)) return;
+    throw e;
+  }
+}
+
+export async function depositRefund(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  const data = DepositRefundSchema.parse(req.body);
+  try {
+    const result = await openSvc.depositRefund(id, actorId(req), {
+      amountEgp: Number(data.amountEgp),
+      method: data.method,
+      bankAccountId: data.bankAccountId ?? null,
     });
     res.json(result);
   } catch (e) {

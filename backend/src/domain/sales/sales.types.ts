@@ -1,4 +1,9 @@
-export type InvoiceStatus = 'open' | 'closed_pending_pickup' | 'completed' | 'cancelled';
+export type InvoiceStatus =
+  | 'open'
+  | 'closed_pending_pickup'
+  | 'completed'
+  | 'cancelled'
+  | 'deposit_refunded';
 export type PaymentMethod = 'cash' | 'instapay';
 export type PaymentKind = 'deposit' | 'final' | 'refund';
 export type FulfillmentDestination = 'shop' | 'factory_direct';
@@ -32,6 +37,7 @@ export type InvoiceLine = {
   selling_price_egp: string;
   line_discount_egp: string;
   line_total_egp: string;
+  final_price_per_unit: string | null;
 };
 
 export type Payment = {
@@ -58,10 +64,13 @@ export type SalePreview = {
 
 export type InvoiceLineWithDetail = InvoiceLine & {
   fabric_name_ar: string;
+  fabric_unit: 'kg' | 'meter';
   color_name_ar: string;
   color_code: string | null;
   roll_sr_no: string | null;
   weight_kg: string;
+  length_m: string | null;
+  reference_price_per_unit: string | null;
   internal_barcode: string;
 };
 
@@ -81,6 +90,7 @@ export type CreateSaleInput = {
   lines: Array<{
     rollId: number;
     sellingPriceOverride?: number | null;
+    finalPricePerUnit?: number | null;
     lineDiscountEgp?: number | null;
   }>;
   cartTargetFinal?: number | null;
@@ -90,4 +100,20 @@ export type CreateSaleInput = {
     bankAccountId?: number | null;
   }>;
   notesAr?: string | null;
+};
+
+export type AddLinesInput = {
+  lines: Array<{
+    rollId: number;
+    sellingPriceOverride?: number | null;
+    finalPricePerUnit?: number | null;
+    lineDiscountEgp?: number | null;
+  }>;
+  cartTargetFinal?: number | null;
+};
+
+export type DepositRefundInput = {
+  amountEgp: number;
+  method: PaymentMethod;
+  bankAccountId?: number | null;
 };

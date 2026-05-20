@@ -297,7 +297,14 @@ function OpenInvoicesTab() {
     {
       key: 'customer',
       header: ar.invoices.customer,
-      cell: (r) => <span className="block truncate">{r.customer_name_ar}</span>,
+      cell: (r) => (
+        <span className="inline-flex items-center gap-2 min-w-0">
+          <span className="block truncate">{r.customer_name_ar}</span>
+          {r.line_count === 0 && (
+            <StatusPill tone="info">{ar.invoices.noLinesDepositBadge}</StatusPill>
+          )}
+        </span>
+      ),
       secondary: true,
       align: 'center',
     },

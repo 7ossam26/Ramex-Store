@@ -1,8 +1,10 @@
 import { api } from './api';
 import type {
+  AddOpenInvoiceLinesBody,
   BankAccount,
   CancelOpenInvoiceBody,
   CreateSaleBody,
+  DepositRefundBody,
   FinalPaymentBody,
   Invoice,
   InvoiceDetail,
@@ -65,6 +67,12 @@ export const salesApi = {
 
   cancelOpenInvoice: (id: number, body: CancelOpenInvoiceBody) =>
     api.post<{ invoice: Invoice }>(`/invoices/${id}/cancel`, body).then((r) => r.data),
+
+  addOpenInvoiceLines: (id: number, body: AddOpenInvoiceLinesBody) =>
+    api.post<{ invoice: Invoice }>(`/invoices/${id}/lines`, body).then((r) => r.data),
+
+  depositRefund: (id: number, body: DepositRefundBody) =>
+    api.post<{ invoice: Invoice }>(`/invoices/${id}/deposit-refund`, body).then((r) => r.data),
 
   pdfBlob: (id: number, variant: 'original' | 'reprint' | 'open' = 'original') =>
     api

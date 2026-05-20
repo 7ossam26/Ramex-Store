@@ -75,13 +75,28 @@ function parseAmount(s: string): number {
   return Number.isFinite(v) ? v : 0;
 }
 
-function effectivePrice(line: CartLine): number {
-  const ov = parseAmount(line.priceOverride);
-  return ov > 0 ? ov : Number(line.roll.selling_price_egp);
+// v2 Phase 5 — POS price is per-unit, kg or meter. The cashier always types a
+// per-unit price; the line's absolute amount = perUnit × qty. `priceOverride`
+// holds the per-unit cashier input (raw string for free typing).
+function rollQuantity(roll: RollLookup): number {
+  if (roll.fabric_unit === 'meter') {
+    return roll.length_m == null ? 0 : Number(roll.length_m);
+  }
+  return Number(roll.weight_kg);
+}
+
+function effectivePerUnit(line: CartLine): number {
+  const v = parseAmount(line.priceOverride);
+  return v > 0 ? v : 0;
+}
+
+function lineAbsolute(line: CartLine): number {
+  const qty = rollQuantity(line.roll);
+  return effectivePerUnit(line) * qty;
 }
 
 function lineSubtotal(line: CartLine): number {
-  const price = effectivePrice(line);
+  const price = lineAbsolute(line);
   const disc = Math.min(parseAmount(line.lineDiscount), price);
   return Math.max(0, price - disc);
 }
@@ -140,6 +155,9 @@ export function POSPage() {
 
   const [completed, setCompleted] = useState<Invoice | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // v2 Phase 5 — no-lines deposit dialog state.
+  const [depositOpen, setDepositOpen] = useState(false);
 
   /* Bottom toast (functional error feedback). */
   type ToastState = { id: number; message: string };
@@ -200,7 +218,7 @@ export function POSPage() {
     () =>
       cart.map((l) => ({
         rollId: l.roll.id,
-        sellingPriceOverride: parseAmount(l.priceOverride) || null,
+        finalPricePerUnit: parseAmount(l.priceOverride) || null,
         lineDiscountEgp: parseAmount(l.lineDiscount) || null,
       })),
     [cart],
@@ -331,7 +349,7 @@ export function POSPage() {
         fulfillmentDestination: destination,
         lines: cart.map((l) => ({
           rollId: l.roll.id,
-          sellingPriceOverride: parseAmount(l.priceOverride) || null,
+          finalPricePerUnit: parseAmount(l.priceOverride) || null,
           lineDiscountEgp: parseAmount(l.lineDiscount) || null,
         })),
         cartTargetFinal: useCartDiscount ? targetFinalNum : null,
@@ -360,6 +378,8 @@ export function POSPage() {
   const validation = (() => {
     if (cart.length === 0) return ar.pos.cartEmpty;
     if (!customer) return ar.pos.customerRequired;
+    // v2 Phase 5: every cart line must carry a per-unit final price.
+    if (cart.some((l) => effectivePerUnit(l) <= 0)) return ar.pos.finalPriceRequired;
     if (paymentSum <= 0) return ar.pos.payment;
     if (saveAsOpen) return null;
     if (Math.abs(paymentSum - total) > 0.01) return ar.pos.sumMustEqualTotal;
@@ -451,6 +471,8 @@ export function POSPage() {
             disabled={cart.length === 0}
             destination={destination}
             onChangeDestination={requestDestinationChange}
+            customer={customer}
+            onOpenDeposit={() => setDepositOpen(true)}
           />
         </div>
       </div>
@@ -479,6 +501,11 @@ export function POSPage() {
               embedded
               destination={destination}
               onChangeDestination={requestDestinationChange}
+              customer={customer}
+              onOpenDeposit={() => {
+                setCartSheetOpen(false);
+                setDepositOpen(true);
+              }}
             />
           </div>
         </SheetContent>
@@ -683,6 +710,22 @@ export function POSPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Phase 5 — save a no-lines deposit invoice. Enabled when the cart is
+          empty and a customer is selected. */}
+      <NoLinesDepositDialog
+        open={depositOpen}
+        onOpenChange={setDepositOpen}
+        customer={customer}
+        destination={destination}
+        banks={banks}
+        defaultBankId={typeof bankAccountId === 'number' ? bankAccountId : null}
+        onCreated={(invoice) => {
+          qc.invalidateQueries({ queryKey: ['invoices'] });
+          setDepositOpen(false);
+          setCompleted(invoice);
+        }}
+      />
     </div>
   );
 }
@@ -946,6 +989,8 @@ function CartPanel({
   embedded = false,
   destination,
   onChangeDestination,
+  customer,
+  onOpenDeposit,
 }: {
   cart: CartLine[];
   preview: SalePreview | null | undefined;
@@ -960,6 +1005,8 @@ function CartPanel({
   embedded?: boolean;
   destination: FulfillmentDestination;
   onChangeDestination: (d: FulfillmentDestination) => void;
+  customer: Customer | null;
+  onOpenDeposit: () => void;
 }) {
   const Wrap: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     embedded ? (
@@ -986,14 +1033,29 @@ function CartPanel({
       <DestinationToggle value={destination} onChange={onChangeDestination} />
 
       {cart.length === 0 ? (
-        <div className="text-center py-12">
+        <div className="text-center py-10 space-y-4">
           <div
-            className="size-12 mx-auto mb-3 rounded-full bg-surface-hover flex items-center justify-center"
+            className="size-12 mx-auto rounded-full bg-surface-hover flex items-center justify-center"
             aria-hidden
           >
             <ShoppingCart className="size-6 text-foreground-tertiary" />
           </div>
           <p className="text-foreground-muted text-sm">{ar.pos.cartEmpty}</p>
+          <div className="px-3 space-y-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full h-11 cursor-pointer gap-2 disabled:cursor-not-allowed"
+              disabled={!customer}
+              onClick={onOpenDeposit}
+            >
+              <Receipt className="size-4" />
+              {ar.pos.saveAsDeposit}
+            </Button>
+            <p className="text-[11px] text-foreground-tertiary leading-snug">
+              {customer ? ar.pos.saveAsDepositHint : ar.pos.customerRequired}
+            </p>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pe-1 -me-1">
@@ -1071,6 +1133,12 @@ function EnrichedCartLine({
 }) {
   const r = line.roll;
   const fabric = isFabricRoll(r);
+  const isMeter = r.fabric_unit === 'meter';
+  const qty = rollQuantity(r);
+  const qtyLabel = isMeter ? ar.pos.quantityM : ar.pos.quantityKg;
+  const finalPriceLabel = isMeter ? ar.pos.finalPricePerMeter : ar.pos.finalPricePerKg;
+  const referenceUnit = r.reference_price_per_unit;
+  const hasReference = referenceUnit != null && Number(referenceUnit) > 0;
 
   return (
     <div
@@ -1092,7 +1160,7 @@ function EnrichedCartLine({
           )}
           {fabric && <ChipRow roll={r} />}
           <div className="text-xs text-foreground-tertiary font-mono tabular-num" dir="ltr">
-            {r.roll_sr_no ?? r.internal_barcode} · {Number(r.weight_kg).toFixed(3)} kg
+            {r.roll_sr_no ?? r.internal_barcode} · {qty.toFixed(3)} {qtyLabel}
           </div>
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">
@@ -1130,17 +1198,29 @@ function EnrichedCartLine({
         </div>
       </div>
 
-      {/* Inline price + line discount + total */}
+      {/* Reference price — read-only hint from shipment receive time (Phase 3). */}
+      <div className="flex items-center justify-between text-[11px] text-foreground-muted">
+        <span>
+          {ar.pos.referencePrice}{' '}
+          <span className="text-foreground-tertiary">({qtyLabel})</span>
+        </span>
+        <span className="tabular-num text-foreground" dir="ltr">
+          {hasReference ? fmtMoney(referenceUnit!) : ar.pos.referenceUnset}
+        </span>
+      </div>
+
+      {/* Inline per-unit final price + line discount + total */}
       <div className="grid grid-cols-3 gap-2 items-end">
         <div className="space-y-1">
-          <Label className="text-xs text-foreground-muted">{ar.pos.pricePerKg}</Label>
+          <Label className="text-xs text-foreground-muted">{finalPriceLabel}</Label>
           <Input
             value={line.priceOverride}
             onChange={(e) => onUpdate({ priceOverride: e.target.value })}
-            placeholder={fmtMoney(r.selling_price_egp)}
+            placeholder={hasReference ? fmtMoney(referenceUnit!) : '0.00'}
             dir="ltr"
             inputMode="decimal"
             className="h-9 tabular-num"
+            aria-label={finalPriceLabel}
           />
         </div>
         <div className="space-y-1">
@@ -1516,10 +1596,13 @@ function ProductsGrid({
 
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-foreground-muted tabular-num" dir="ltr">
-                    {Number(r.weight_kg).toFixed(3)} كجم
+                    {rollQuantity(r).toFixed(3)}{' '}
+                    {r.fabric_unit === 'meter' ? ar.pos.quantityM : ar.pos.quantityKg}
                   </span>
                   <span className="font-semibold text-foreground tabular-num" dir="ltr">
-                    {fmtMoney(r.selling_price_egp)}
+                    {r.reference_price_per_unit != null
+                      ? fmtMoney(r.reference_price_per_unit)
+                      : '—'}
                   </span>
                 </div>
 
@@ -1568,6 +1651,205 @@ function ProductsGrid({
         </div>
       )}
     </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── *
+ * NO-LINES DEPOSIT DIALOG — v2 Phase 5
+ * Creates an open invoice with `lines: []` and a single deposit payment.
+ * Cashier later attaches rolls via the standard POS flow.
+ * ────────────────────────────────────────────────────────────────────────── */
+function NoLinesDepositDialog({
+  open,
+  onOpenChange,
+  customer,
+  destination,
+  banks,
+  defaultBankId,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  customer: Customer | null;
+  destination: FulfillmentDestination;
+  banks: BankAccount[];
+  defaultBankId: number | null;
+  onCreated: (invoice: Invoice) => void;
+}) {
+  const [amount, setAmount] = useState('');
+  const [method, setMethod] = useState<'cash' | 'instapay'>('cash');
+  const [bankAccountId, setBankAccountId] = useState<number | ''>(defaultBankId ?? '');
+  const [notes, setNotes] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  // Reset state on each open.
+  useEffect(() => {
+    if (open) {
+      setAmount('');
+      setMethod('cash');
+      setBankAccountId(defaultBankId ?? '');
+      setNotes('');
+      setError(null);
+    }
+  }, [open, defaultBankId]);
+
+  const mut = useMutation({
+    mutationFn: () => {
+      if (!customer) throw new Error('NO_CUSTOMER');
+      const value = Number(amount);
+      if (!Number.isFinite(value) || value <= 0) throw new Error('AMOUNT_INVALID');
+      return salesApi.create({
+        customerId: customer.id,
+        fulfillmentDestination: destination,
+        lines: [],
+        cartTargetFinal: null,
+        payments: [
+          {
+            method,
+            amount: value,
+            bankAccountId:
+              method === 'instapay'
+                ? bankAccountId === ''
+                  ? null
+                  : Number(bankAccountId)
+                : null,
+          },
+        ],
+        notesAr: notes || null,
+      });
+    },
+    onSuccess: onCreated,
+    onError: (e: unknown) => {
+      if (e instanceof Error && e.message === 'AMOUNT_INVALID') {
+        setError(ar.pos.depositRequired);
+        return;
+      }
+      const msg =
+        axios.isAxiosError(e) && (e.response?.data as { message?: string } | undefined)?.message;
+      setError(msg || ar.common.error);
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Receipt className="size-5 text-accent" />
+            {ar.pos.saveAsDeposit}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          {customer ? (
+            <div className="rounded-md border border-border-subtle bg-surface-row-alt p-2 text-sm">
+              <span className="text-foreground-muted">{ar.pos.customer}: </span>
+              <span className="font-medium text-foreground">{customer.name_ar}</span>
+              <span className="text-xs text-foreground-tertiary mx-2 font-mono" dir="ltr">
+                {customer.phone}
+              </span>
+            </div>
+          ) : (
+            <p className="text-sm text-danger-foreground">{ar.pos.customerRequired}</p>
+          )}
+
+          <div className="space-y-1">
+            <Label>{ar.pos.depositAmount}</Label>
+            <Input
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
+              dir="ltr"
+              inputMode="decimal"
+              className="h-11 tabular-num"
+              aria-label={ar.pos.depositAmount}
+              autoFocus
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label>{ar.pos.paymentMethod}</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {(['cash', 'instapay'] as const).map((m) => {
+                const active = method === m;
+                const Icon = m === 'cash' ? Banknote : CreditCard;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setMethod(m)}
+                    className={`cursor-pointer rounded-md border-2 p-2 flex items-center justify-center gap-2 transition-colors duration-150 min-h-11 ${
+                      active
+                        ? 'border-accent bg-accent-subtle text-accent'
+                        : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
+                    }`}
+                  >
+                    <Icon className="size-4" />
+                    <span className="text-sm font-medium">{ar.pos[m]}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {method === 'instapay' && (
+            <div className="space-y-1">
+              <Label>{ar.pos.bankAccount}</Label>
+              <select
+                className="h-11 w-full border border-border-default rounded-md px-2 bg-surface-elevated text-foreground cursor-pointer"
+                value={bankAccountId}
+                onChange={(e) =>
+                  setBankAccountId(e.target.value ? Number(e.target.value) : '')
+                }
+              >
+                <option value="">—</option>
+                {banks.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name_ar}
+                    {b.is_default ? ' (افتراضي)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="space-y-1">
+            <Label>{ar.pos.notes}</Label>
+            <Input
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              dir="rtl"
+              className="h-11"
+            />
+          </div>
+
+          {error && (
+            <p
+              className="text-sm text-danger-foreground bg-danger-subtle border border-danger/30 rounded-md p-2 flex items-center gap-2"
+              role="alert"
+            >
+              <AlertTriangle className="size-4 shrink-0 text-danger" />
+              {error}
+            </p>
+          )}
+
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+            <DialogClose asChild>
+              <Button variant="outline" className="h-11 cursor-pointer">
+                {ar.common.cancel}
+              </Button>
+            </DialogClose>
+            <Button
+              className="h-11 cursor-pointer gap-2"
+              disabled={!customer || mut.isPending || Number(amount) <= 0}
+              onClick={() => mut.mutate()}
+            >
+              <Receipt className="size-4" />
+              {ar.common.save}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
