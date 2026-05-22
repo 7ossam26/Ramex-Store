@@ -14,19 +14,32 @@ import {
 import { ar } from '@/i18n/ar';
 import { PageHeader } from '@/components/PageHeader';
 
-type SecondaryCard = {
+type ReportCard = {
   label: string;
   desc: string;
   href: string;
   icon: LucideIcon;
+  featured?: boolean;
 };
 
 type Section = {
   heading: string;
-  cards: SecondaryCard[];
+  cards: ReportCard[];
 };
 
 const sections: Section[] = [
+  {
+    heading: 'الرئيسية',
+    cards: [
+      {
+        label: ar.reports.daily,
+        desc: ar.hubs.reportsDailyDesc,
+        href: '/reports/daily',
+        icon: CalendarClock,
+        featured: true,
+      },
+    ],
+  },
   {
     heading: ar.hubs.reportsInventorySection,
     cards: [
@@ -50,99 +63,73 @@ const sections: Section[] = [
   },
 ];
 
-const sectionVariants = {
+const containerVariants = {
   hidden: {},
-  show: { transition: { staggerChildren: 0.05, delayChildren: 0.05 } },
+  show: { transition: { staggerChildren: 0.06, delayChildren: 0.04 } },
 };
 const cardVariants = {
   hidden: { opacity: 0, y: 8 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.22, ease: [0, 0, 0.2, 1] as const },
-  },
+  show: { opacity: 1, y: 0, transition: { duration: 0.22, ease: [0, 0, 0.2, 1] as const } },
 };
+
+function ReportCardLink({ card }: { card: ReportCard }) {
+  const Icon = card.icon;
+  return (
+    <motion.div variants={cardVariants}>
+      <Link
+        to={card.href}
+        className={[
+          'group flex items-start gap-4 rounded-xl border bg-surface-elevated p-5 shadow-sm',
+          'hover:shadow-md hover:-translate-y-0.5 transition-all duration-150 ease-decelerate',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+          card.featured
+            ? 'border-border-subtle border-s-4 border-s-accent'
+            : 'border-border-subtle',
+        ].join(' ')}
+      >
+        <span
+          className="size-11 shrink-0 rounded-lg bg-accent-subtle text-accent inline-flex items-center justify-center group-hover:bg-accent group-hover:text-accent-foreground transition-colors duration-150"
+          aria-hidden
+        >
+          <Icon className="size-5" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className={['font-semibold text-foreground', card.featured ? 'text-lg' : 'text-base'].join(' ')}>
+            {card.label}
+          </p>
+          <p className="text-sm text-foreground-muted mt-0.5 leading-relaxed line-clamp-2">{card.desc}</p>
+        </div>
+        <ChevronLeft
+          className="size-5 text-foreground-tertiary shrink-0 mt-0.5 group-hover:text-accent transition-colors duration-150"
+          aria-hidden
+        />
+      </Link>
+    </motion.div>
+  );
+}
 
 export function ReportsHubPage() {
   return (
-    <div className="space-y-8 max-w-6xl mx-auto">
-      <PageHeader
-        title={ar.hubs.reportsTitle}
-        description={ar.hubs.reportsDescription}
-      />
+    <div className="space-y-8 max-w-5xl mx-auto">
+      <PageHeader title={ar.hubs.reportsTitle} description={ar.hubs.reportsDescription} />
 
-      {/* Featured daily report card */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.24, ease: [0, 0, 0.2, 1] }}
-      >
-        <Link
-          to="/reports/daily"
-          className="group block rounded-lg border border-border-subtle border-s-2 border-s-accent bg-surface-elevated p-6 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-150 ease-decelerate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-        >
-          <div className="flex items-start gap-5">
-            <span
-              className="size-14 shrink-0 rounded-lg bg-accent-subtle text-accent inline-flex items-center justify-center group-hover:bg-accent group-hover:text-accent-foreground transition-colors duration-150"
-              aria-hidden
-            >
-              <CalendarClock className="size-7" />
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className="text-xl font-semibold text-foreground">{ar.reports.daily}</p>
-              <p className="text-sm text-foreground-muted mt-1 leading-relaxed">
-                {ar.hubs.reportsDailyDesc}
-              </p>
-            </div>
-            <ChevronLeft
-              className="size-6 text-foreground-tertiary shrink-0 mt-1 group-hover:text-accent transition-colors duration-150"
-              aria-hidden
-            />
-          </div>
-        </Link>
-      </motion.div>
-
-      {/* Grouped sections */}
       {sections.map((section, si) => (
         <section key={section.heading} className="space-y-3">
-          <h2 className="text-xs font-medium uppercase tracking-wide text-foreground-muted">
-            {section.heading}
-          </h2>
+          <h2 className="text-sm font-semibold text-foreground-muted">{section.heading}</h2>
           <motion.div
-            variants={sectionVariants}
+            variants={containerVariants}
             initial="hidden"
             animate="show"
-            style={{ ['--delay' as string]: `${si * 0.04}s` }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+            style={{ ['--section-delay' as string]: `${si * 0.05}s` }}
+            className={
+              section.cards.length === 1
+                ? 'grid grid-cols-1'
+                : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4'
+            }
           >
-            {section.cards.map((c) => {
-              const Icon = c.icon;
-              return (
-                <motion.div key={c.href} variants={cardVariants}>
-                  <Link
-                    to={c.href}
-                    className="group block rounded-lg border border-border-subtle bg-surface-elevated p-5 shadow-sm hover:shadow-md hover:border-border-default hover:-translate-y-0.5 transition-all duration-150 ease-decelerate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                  >
-                    <div className="flex items-start gap-4">
-                      <span
-                        className="size-11 shrink-0 rounded-md bg-accent-subtle text-accent inline-flex items-center justify-center group-hover:bg-accent group-hover:text-accent-foreground transition-colors duration-150"
-                        aria-hidden
-                      >
-                        <Icon className="size-5" />
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-base font-semibold text-foreground">{c.label}</p>
-                        <p className="text-xs text-foreground-muted mt-0.5 leading-relaxed line-clamp-2">{c.desc}</p>
-                      </div>
-                      <ChevronLeft
-                        className="size-5 text-foreground-tertiary shrink-0 mt-0.5 group-hover:text-accent transition-colors duration-150"
-                        aria-hidden
-                      />
-                    </div>
-                  </Link>
-                </motion.div>
-              );
-            })}
+            {section.cards.map((c) => (
+              <ReportCardLink key={c.href} card={c} />
+            ))}
           </motion.div>
         </section>
       ))}
