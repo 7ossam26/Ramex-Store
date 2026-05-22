@@ -137,7 +137,7 @@ export async function openInvoices() {
     .where('i.status', 'open')
     .select(
       'i.id', 'i.invoice_no', 'i.total_egp', 'i.paid_egp', 'i.balance_egp',
-      'i.created_at', 'c.full_name_ar as customer_name', 'c.phone as customer_phone',
+      'i.created_at', 'c.name_ar as customer_name', 'c.phone as customer_phone',
     )
     .orderBy('i.created_at', 'asc') as Array<Record<string, unknown>>;
 
@@ -209,13 +209,12 @@ export async function topFabrics(period: '7d' | '30d' | '90d' = '7d', limit = 10
 export async function ownerNotifications(includeArchived = false, page = 1, limit = 20) {
   const offset = (page - 1) * limit;
   const q = db('notifications')
-    .where('recipient_role', 'owner')
-    .orderBy('created_at', 'desc');
+    .where('recipient_role', 'owner');
 
   if (!includeArchived) q.whereNull('archived_at');
 
   const [countRow] = await q.clone().clearSelect().count<Array<{ count: string }>>('id as count');
-  const rows = await q.clone().select('*').limit(limit).offset(offset);
+  const rows = await q.clone().select('*').orderBy('created_at', 'desc').limit(limit).offset(offset);
 
   return { rows, total: Number((countRow as { count: string }).count) };
 }
