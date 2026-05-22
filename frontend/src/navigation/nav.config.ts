@@ -345,7 +345,7 @@ export const NAV: NavTop[] = [
         ],
       },
       {
-        groupLabelAr: 'تقارير فرعية',
+        groupLabelAr: 'تقارير المبيعات',
         items: [
           {
             id: 'reports.salesByFabricColor',
@@ -354,10 +354,10 @@ export const NAV: NavTop[] = [
             route: '/reports/secondary/salesByFabricColor',
           },
           {
-            id: 'reports.customerLedger',
-            labelAr: 'كشف حساب العميل',
-            icon: User,
-            route: '/reports/secondary/customerLedger',
+            id: 'reports.salesByPaymentMethod',
+            labelAr: 'المبيعات حسب وسيلة الدفع',
+            icon: CreditCard,
+            route: '/reports/secondary/salesByPaymentMethod',
           },
           {
             id: 'reports.outstandingOpenInvoices',
@@ -366,11 +366,57 @@ export const NAV: NavTop[] = [
             route: '/reports/secondary/outstandingOpenInvoices',
           },
           {
+            id: 'reports.customerLedger',
+            labelAr: 'كشف حساب العميل',
+            icon: User,
+            route: '/reports/secondary/customerLedger',
+          },
+          {
+            id: 'reports.returnsReport',
+            labelAr: 'تقرير المرتجعات',
+            icon: Undo2,
+            route: '/reports/secondary/returnsReport',
+          },
+        ],
+      },
+      {
+        groupLabelAr: 'تقارير المخزون',
+        items: [
+          {
             id: 'reports.stocktakeInventory',
             labelAr: 'جرد المخزون',
             icon: ClipboardList,
             route: '/reports/secondary/stocktakeInventory',
           },
+          {
+            id: 'reports.stockByWarehouse',
+            labelAr: 'المخزون حسب المخزن',
+            icon: Warehouse,
+            route: '/reports/secondary/stockByWarehouse',
+          },
+          {
+            id: 'reports.agingInventory',
+            labelAr: 'التوبات الراكدة',
+            icon: Clock,
+            route: '/reports/secondary/agingInventory',
+          },
+          {
+            id: 'reports.shipmentsSummary',
+            labelAr: 'ملخص الطلبيات',
+            icon: Truck,
+            route: '/reports/secondary/shipmentsSummary',
+          },
+          {
+            id: 'reports.damageLoss',
+            labelAr: 'التلف والفقد',
+            icon: AlertTriangle,
+            route: '/reports/secondary/damageLoss',
+          },
+        ],
+      },
+      {
+        groupLabelAr: 'التقارير المالية',
+        items: [
           {
             id: 'reports.cashFlow',
             labelAr: 'التدفق النقدي',
@@ -390,17 +436,33 @@ export const NAV: NavTop[] = [
             route: '/reports/secondary/expenses',
           },
           {
-            id: 'reports.damageLoss',
-            labelAr: 'التلف والفقد',
-            icon: AlertTriangle,
-            route: '/reports/secondary/damageLoss',
+            id: 'reports.outstandingCheques',
+            labelAr: 'الشيكات المعلّقة',
+            icon: Banknote,
+            route: '/reports/secondary/outstandingCheques',
+          },
+        ],
+      },
+      {
+        groupLabelAr: 'تقارير الموظفين',
+        items: [
+          {
+            id: 'reports.payrollSummary',
+            labelAr: 'ملخص الرواتب',
+            icon: Wallet,
+            route: '/reports/secondary/payrollSummary',
           },
           {
-            id: 'reports.salesByPaymentMethod',
-            labelAr: 'المبيعات حسب طريقة الدفع',
-            icon: CreditCard,
-            route: '/reports/secondary/salesByPaymentMethod',
+            id: 'reports.hrAdjustments',
+            labelAr: 'السُّلف والخصومات',
+            icon: Users,
+            route: '/reports/secondary/hrAdjustments',
           },
+        ],
+      },
+      {
+        groupLabelAr: 'النظام',
+        items: [
           {
             id: 'reports.auditLog',
             labelAr: 'سجل المراجعة',

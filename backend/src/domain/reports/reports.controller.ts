@@ -14,6 +14,13 @@ import { getExpenses, expensesToExport } from './secondaryReports/expenses.js';
 import { getDamageLoss, damageLossToExport } from './secondaryReports/damageLoss.js';
 import { getSalesByPaymentMethod, salesByPaymentMethodToExport } from './secondaryReports/salesByPaymentMethod.js';
 import { getAuditLog, auditLogToExport } from './secondaryReports/auditLog.js';
+import { getReturnsReport, returnsReportToExport } from './secondaryReports/returnsReport.js';
+import { getStockByWarehouse, stockByWarehouseToExport } from './secondaryReports/stockByWarehouse.js';
+import { getAgingInventory, agingInventoryToExport } from './secondaryReports/agingInventory.js';
+import { getShipmentsSummary, shipmentsSummaryToExport } from './secondaryReports/shipmentsSummary.js';
+import { getOutstandingCheques, outstandingChequesToExport } from './secondaryReports/outstandingCheques.js';
+import { getPayrollSummary, payrollSummaryToExport } from './secondaryReports/payrollSummary.js';
+import { getHrAdjustments, hrAdjustmentsToExport } from './secondaryReports/hrAdjustments.js';
 
 function handleErr(res: Parameters<RequestHandler>[1], err: unknown): void {
   const msg = err instanceof Error ? err.message : 'INTERNAL_ERROR';
@@ -98,6 +105,13 @@ export const getSecondaryReportJson: RequestHandler = async (req, res) => {
         res.json(await getAuditLog(opts));
         break;
       }
+      case 'returnsReport': res.json(await getReturnsReport(from, to)); break;
+      case 'stockByWarehouse': res.json(await getStockByWarehouse()); break;
+      case 'agingInventory': res.json(await getAgingInventory()); break;
+      case 'shipmentsSummary': res.json(await getShipmentsSummary(from, to)); break;
+      case 'outstandingCheques': res.json(await getOutstandingCheques(from, to)); break;
+      case 'payrollSummary': res.json(await getPayrollSummary(from, to)); break;
+      case 'hrAdjustments': res.json(await getHrAdjustments(from, to)); break;
       default: res.status(404).json({ error: 'REPORT_NOT_FOUND' });
     }
   } catch (e) { handleErr(res, e); }
@@ -167,6 +181,41 @@ export const exportSecondaryReport: RequestHandler = async (req, res) => {
       case 'auditLog': {
         const data = await getAuditLog({ from, to, page: 1, limit: 10000 });
         opts = auditLogToExport(data, { from: fromDisplay, to: toDisplay }, generatedAt);
+        break;
+      }
+      case 'returnsReport': {
+        const data = await getReturnsReport(from, to);
+        opts = returnsReportToExport(data, fromDisplay, toDisplay, generatedAt);
+        break;
+      }
+      case 'stockByWarehouse': {
+        const data = await getStockByWarehouse();
+        opts = stockByWarehouseToExport(data, generatedAt);
+        break;
+      }
+      case 'agingInventory': {
+        const data = await getAgingInventory();
+        opts = agingInventoryToExport(data, generatedAt);
+        break;
+      }
+      case 'shipmentsSummary': {
+        const data = await getShipmentsSummary(from, to);
+        opts = shipmentsSummaryToExport(data, fromDisplay, toDisplay, generatedAt);
+        break;
+      }
+      case 'outstandingCheques': {
+        const data = await getOutstandingCheques(from, to);
+        opts = outstandingChequesToExport(data, fromDisplay, toDisplay, generatedAt);
+        break;
+      }
+      case 'payrollSummary': {
+        const data = await getPayrollSummary(from, to);
+        opts = payrollSummaryToExport(data, fromDisplay, toDisplay, generatedAt);
+        break;
+      }
+      case 'hrAdjustments': {
+        const data = await getHrAdjustments(from, to);
+        opts = hrAdjustmentsToExport(data, fromDisplay, toDisplay, generatedAt);
         break;
       }
       default: res.status(404).json({ error: 'REPORT_NOT_FOUND' }); return;
