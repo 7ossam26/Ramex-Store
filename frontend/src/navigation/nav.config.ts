@@ -345,7 +345,7 @@ export const NAV: NavTop[] = [
         ],
       },
       {
-        groupLabelAr: 'تقارير المبيعات',
+        groupLabelAr: 'مبيعات الخامات',
         items: [
           {
             id: 'reports.salesByFabricColor',
@@ -353,34 +353,10 @@ export const NAV: NavTop[] = [
             icon: BarChart3,
             route: '/reports/secondary/salesByFabricColor',
           },
-          {
-            id: 'reports.salesByPaymentMethod',
-            labelAr: 'المبيعات حسب وسيلة الدفع',
-            icon: CreditCard,
-            route: '/reports/secondary/salesByPaymentMethod',
-          },
-          {
-            id: 'reports.outstandingOpenInvoices',
-            labelAr: 'الفواتير المفتوحة المتأخرة',
-            icon: Clock,
-            route: '/reports/secondary/outstandingOpenInvoices',
-          },
-          {
-            id: 'reports.customerLedger',
-            labelAr: 'كشف حساب العميل',
-            icon: User,
-            route: '/reports/secondary/customerLedger',
-          },
-          {
-            id: 'reports.returnsReport',
-            labelAr: 'تقرير المرتجعات',
-            icon: Undo2,
-            route: '/reports/secondary/returnsReport',
-          },
         ],
       },
       {
-        groupLabelAr: 'تقارير المخزون',
+        groupLabelAr: 'المخزون والمستودع',
         items: [
           {
             id: 'reports.stockByWarehouse',
@@ -405,52 +381,6 @@ export const NAV: NavTop[] = [
             labelAr: 'التلف والفقد',
             icon: AlertTriangle,
             route: '/reports/secondary/damageLoss',
-          },
-        ],
-      },
-      {
-        groupLabelAr: 'التقارير المالية',
-        items: [
-          {
-            id: 'reports.cashFlow',
-            labelAr: 'التدفق النقدي',
-            icon: Coins,
-            route: '/reports/secondary/cashFlow',
-          },
-          {
-            id: 'reports.bankReconciliation',
-            labelAr: 'التسوية البنكية',
-            icon: Scale,
-            route: '/reports/secondary/bankReconciliation',
-          },
-          {
-            id: 'reports.expenses',
-            labelAr: 'المصروفات',
-            icon: ScrollText,
-            route: '/reports/secondary/expenses',
-          },
-          {
-            id: 'reports.outstandingCheques',
-            labelAr: 'الشيكات المعلّقة',
-            icon: Banknote,
-            route: '/reports/secondary/outstandingCheques',
-          },
-        ],
-      },
-      {
-        groupLabelAr: 'تقارير الموظفين',
-        items: [
-          {
-            id: 'reports.payrollSummary',
-            labelAr: 'ملخص الرواتب',
-            icon: Wallet,
-            route: '/reports/secondary/payrollSummary',
-          },
-          {
-            id: 'reports.hrAdjustments',
-            labelAr: 'السُّلف والخصومات',
-            icon: Users,
-            route: '/reports/secondary/hrAdjustments',
           },
         ],
       },

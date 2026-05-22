@@ -3,22 +3,12 @@ import { motion } from 'framer-motion';
 import {
   CalendarClock,
   Palette,
-  UserSquare,
-  FileClock,
-  TrendingUp,
-  Landmark,
-  Receipt,
   AlertOctagon,
-  CreditCard,
   ShieldCheck,
   ChevronLeft,
-  RotateCcw,
   Warehouse,
   Clock4,
   PackageSearch,
-  Banknote,
-  Users,
-  Wallet,
   type LucideIcon,
 } from 'lucide-react';
 import { ar } from '@/i18n/ar';
@@ -41,10 +31,6 @@ const sections: Section[] = [
     heading: ar.hubs.reportsSalesSection,
     cards: [
       { label: ar.reports.salesByFabricColor, desc: ar.reports.salesByFabricColorDesc, href: '/reports/secondary/salesByFabricColor', icon: Palette },
-      { label: ar.reports.salesByPaymentMethod, desc: ar.reports.salesByPaymentMethodDesc, href: '/reports/secondary/salesByPaymentMethod', icon: CreditCard },
-      { label: ar.reports.outstandingOpenInvoices, desc: ar.reports.outstandingOpenInvoicesDesc, href: '/reports/secondary/outstandingOpenInvoices', icon: FileClock },
-      { label: ar.reports.customerLedger, desc: ar.reports.customerLedgerDesc, href: '/reports/secondary/customerLedger', icon: UserSquare },
-      { label: ar.reports.returnsReport, desc: ar.reports.returnsReportDesc, href: '/reports/secondary/returnsReport', icon: RotateCcw },
     ],
   },
   {
@@ -54,22 +40,6 @@ const sections: Section[] = [
       { label: ar.reports.agingInventory, desc: ar.reports.agingInventoryDesc, href: '/reports/secondary/agingInventory', icon: Clock4 },
       { label: ar.reports.shipmentsSummary, desc: ar.reports.shipmentsSummaryDesc, href: '/reports/secondary/shipmentsSummary', icon: PackageSearch },
       { label: ar.reports.damageLoss, desc: ar.reports.damageLossDesc, href: '/reports/secondary/damageLoss', icon: AlertOctagon },
-    ],
-  },
-  {
-    heading: ar.hubs.reportsTreasurySection,
-    cards: [
-      { label: ar.reports.cashFlow, desc: ar.reports.cashFlowDesc, href: '/reports/secondary/cashFlow', icon: TrendingUp },
-      { label: ar.reports.bankReconciliation, desc: ar.reports.bankReconciliationDesc, href: '/reports/secondary/bankReconciliation', icon: Landmark },
-      { label: ar.reports.expenses, desc: ar.reports.expensesDesc, href: '/reports/secondary/expenses', icon: Receipt },
-      { label: ar.reports.outstandingCheques, desc: ar.reports.outstandingChequesDesc, href: '/reports/secondary/outstandingCheques', icon: Banknote },
-    ],
-  },
-  {
-    heading: ar.hubs.reportsHrSection,
-    cards: [
-      { label: ar.reports.payrollSummary, desc: ar.reports.payrollSummaryDesc, href: '/reports/secondary/payrollSummary', icon: Wallet },
-      { label: ar.reports.hrAdjustments, desc: ar.reports.hrAdjustmentsDesc, href: '/reports/secondary/hrAdjustments', icon: Users },
     ],
   },
   {
