@@ -352,17 +352,6 @@ export const NAV: NavTop[] = [
         ],
       },
       {
-        groupLabelAr: 'مبيعات الخامات',
-        items: [
-          {
-            id: 'reports.salesByFabricColor',
-            labelAr: 'مبيعات حسب الخامة واللون',
-            icon: BarChart3,
-            route: '/reports/secondary/salesByFabricColor',
-          },
-        ],
-      },
-      {
         groupLabelAr: 'المخزون والمستودع',
         items: [
           {
@@ -388,6 +377,17 @@ export const NAV: NavTop[] = [
             labelAr: 'التلف والفقد',
             icon: AlertTriangle,
             route: '/reports/secondary/damageLoss',
+          },
+        ],
+      },
+      {
+        groupLabelAr: 'مبيعات الخامات',
+        items: [
+          {
+            id: 'reports.salesByFabricColor',
+            labelAr: 'مبيعات حسب الخامة واللون',
+            icon: BarChart3,
+            route: '/reports/secondary/salesByFabricColor',
           },
         ],
       },

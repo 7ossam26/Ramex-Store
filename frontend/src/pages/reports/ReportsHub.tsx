@@ -28,18 +28,18 @@ type Section = {
 
 const sections: Section[] = [
   {
-    heading: ar.hubs.reportsSalesSection,
-    cards: [
-      { label: ar.reports.salesByFabricColor, desc: ar.reports.salesByFabricColorDesc, href: '/reports/secondary/salesByFabricColor', icon: Palette },
-    ],
-  },
-  {
     heading: ar.hubs.reportsInventorySection,
     cards: [
       { label: ar.reports.stockByWarehouse, desc: ar.reports.stockByWarehouseDesc, href: '/reports/secondary/stockByWarehouse', icon: Warehouse },
       { label: ar.reports.agingInventory, desc: ar.reports.agingInventoryDesc, href: '/reports/secondary/agingInventory', icon: Clock4 },
       { label: ar.reports.shipmentsSummary, desc: ar.reports.shipmentsSummaryDesc, href: '/reports/secondary/shipmentsSummary', icon: PackageSearch },
       { label: ar.reports.damageLoss, desc: ar.reports.damageLossDesc, href: '/reports/secondary/damageLoss', icon: AlertOctagon },
+    ],
+  },
+  {
+    heading: ar.hubs.reportsSalesSection,
+    cards: [
+      { label: ar.reports.salesByFabricColor, desc: ar.reports.salesByFabricColorDesc, href: '/reports/secondary/salesByFabricColor', icon: Palette },
     ],
   },
   {
