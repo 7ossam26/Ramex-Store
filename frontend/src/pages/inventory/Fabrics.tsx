@@ -29,9 +29,7 @@ type CompositionRow = { material: string; percent: string };
 type FormState = {
   name_ar: string;
   width_cm: string;
-  grade: string;
   unit: FabricUnit;
-  supplier_code: string;
   notes: string;
   composition: CompositionRow[];
   is_active: boolean;
@@ -43,9 +41,7 @@ type FormState = {
 const blank = (): FormState => ({
   name_ar: '',
   width_cm: '',
-  grade: 'A',
   unit: 'kg',
-  supplier_code: '',
   notes: '',
   composition: [{ material: '', percent: '100' }],
   is_active: true,
@@ -58,9 +54,7 @@ function fromFabric(f: FabricFull & { default_grade_id?: number | null; default_
   return {
     name_ar: f.name_ar,
     width_cm: String(f.width_cm),
-    grade: f.grade,
     unit: f.unit,
-    supplier_code: f.supplier_code ?? '',
     notes: f.notes ?? '',
     composition:
       f.composition.length > 0
@@ -158,18 +152,17 @@ export function FabricsPage() {
       setErrorMsg(ar.addTop.errors.widthRequired);
       return null;
     }
-    if (!form.name_ar.trim() || !form.grade.trim()) {
+    if (!form.name_ar.trim()) {
       setErrorMsg(ar.addTop.errors.fabricFieldsRequired);
       return null;
     }
     return {
       name_ar: form.name_ar.trim(),
       width_cm: widthCm,
-      grade: form.grade.trim(),
+      grade: 'A',
       composition,
       notes: form.notes.trim() || null,
       unit: form.unit,
-      supplier_code: form.supplier_code.trim() || null,
     };
   }
 
@@ -210,22 +203,9 @@ export function FabricsPage() {
         cell: (f) => <span dir="ltr">{Number(f.width_cm).toFixed(2)} cm</span>,
       },
       {
-        key: 'grade',
-        header: ar.fabrics.grade,
-        cell: (f) => f.grade,
-      },
-      {
         key: 'unit',
         header: ar.fabrics.unit,
         cell: (f) => (f.unit === 'meter' ? ar.fabrics.unitMeter : ar.fabrics.unitKg),
-      },
-      {
-        key: 'supplier_code',
-        header: ar.fabrics.supplierCode,
-        cell: (f) =>
-          f.supplier_code
-            ? <span className="font-mono text-xs" dir="ltr">{f.supplier_code}</span>
-            : <span className="text-foreground-muted">—</span>,
       },
       {
         key: 'composition',
@@ -326,18 +306,6 @@ export function FabricsPage() {
                   className="h-11 md:h-10"
                 />
               </div>
-              <div className="space-y-1">
-                <Label>{ar.addTop.grade}</Label>
-                <select
-                  className="w-full h-11 md:h-10 rounded border border-border bg-canvas px-3 text-sm"
-                  value={form.grade}
-                  onChange={(e) => setForm({ ...form, grade: e.target.value })}
-                >
-                  <option value="A">A</option>
-                  <option value="B">B</option>
-                  <option value="C">C</option>
-                </select>
-              </div>
               <div className="space-y-1 md:col-span-2">
                 <Label>{ar.fabrics.unit}</Label>
                 <div
@@ -401,6 +369,10 @@ export function FabricsPage() {
                         onChange={(e) => {
                           const next = [...form.composition];
                           next[idx] = { ...c, percent: e.target.value };
+                          if (idx + 1 < next.length) {
+                            const sumExceptNext = next.reduce((s, row, i) => i !== idx + 1 ? s + (Number(row.percent) || 0) : s, 0);
+                            next[idx + 1] = { ...next[idx + 1], percent: String(Math.max(0, 100 - sumExceptNext)) };
+                          }
                           setForm({ ...form, composition: next });
                         }}
                         dir="ltr"
@@ -428,12 +400,11 @@ export function FabricsPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() =>
-                    setForm({
-                      ...form,
-                      composition: [...form.composition, { material: '', percent: '' }],
-                    })
-                  }
+                  onClick={() => {
+                    const used = form.composition.reduce((s, c) => s + (Number(c.percent) || 0), 0);
+                    const remaining = Math.max(0, 100 - used);
+                    setForm({ ...form, composition: [...form.composition, { material: '', percent: String(remaining) }] });
+                  }}
                 >
                   + {ar.addTop.addMaterial}
                 </Button>
@@ -448,20 +419,6 @@ export function FabricsPage() {
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
               />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="fabric-supplier-code">{ar.fabrics.supplierCode}</Label>
-              <Input
-                id="fabric-supplier-code"
-                value={form.supplier_code}
-                onChange={(e) => setForm({ ...form, supplier_code: e.target.value })}
-                dir="ltr"
-                className="h-11 md:h-10"
-              />
-              <p className="text-xs text-foreground-muted">
-                {ar.fabrics.supplierCodeHint}
-              </p>
             </div>
 
             {/* Default label fields — shown only when editing */}

@@ -53,7 +53,6 @@ import {
   Users,
   Wallet,
   Warehouse,
-  ClipboardCheck as ApprovalsIcon,
   UserCheck,
   DollarSign,
   ArrowDownUp,
@@ -66,12 +65,12 @@ export type SectionId =
   | 'pos'
   | 'items'
   | 'inventory'
+  | 'codes'
   | 'shipments'
   | 'customers'
   | 'invoicesReturns'
   | 'treasury'
   | 'reports'
-  | 'approvals'
   | 'hr'
   | 'settings';
 
@@ -196,16 +195,16 @@ export const NAV: NavTop[] = [
             icon: AlertTriangle,
             route: '/inventory/damage',
           },
-          {
-            id: 'inventory.codes',
-            labelAr: 'التكويدات',
-            descAr: 'الجودات والتركيبات والماركات',
-            icon: Hash,
-            route: '/inventory/codes',
-          },
         ],
       },
     ],
+  },
+  {
+    id: 'codes',
+    labelAr: 'التكويدات',
+    descAr: 'الجودات والتركيبات والماركات والموردين',
+    icon: Hash,
+    route: '/codes',
   },
   {
     id: 'shipments',
@@ -238,7 +237,7 @@ export const NAV: NavTop[] = [
             labelAr: 'كل الطلبيات',
             descAr: 'عرض كل الطلبيات',
             icon: List,
-            route: '/shipments',
+            route: '/shipments/all',
           },
         ],
       },
@@ -413,14 +412,6 @@ export const NAV: NavTop[] = [
     ],
   },
   {
-    id: 'approvals',
-    labelAr: 'الموافقات',
-    descAr: 'قائمة الإجراءات المعلقة',
-    icon: ApprovalsIcon,
-    route: '/approvals',
-    visibleTo: ['owner', 'shop_seller'],
-  },
-  {
     id: 'hr',
     labelAr: 'الموارد البشرية',
     descAr: 'الموظفون، الرواتب، والتسويات',
@@ -472,12 +463,12 @@ const SECTION_ROUTE_PREFIXES: Record<SectionId, string[]> = {
   pos: ['/pos'],
   items: ['/items'],
   inventory: ['/inventory'],
+  codes: ['/codes'],
   shipments: ['/shipments'],
   customers: ['/customers'],
   invoicesReturns: ['/invoices-returns', '/invoices', '/returns'],
   treasury: ['/treasury', '/cash', '/banks', '/expenses', '/reconcile'],
   reports: ['/reports'],
-  approvals: ['/approvals'],
   hr: ['/hr'],
   settings: ['/settings'],
 };

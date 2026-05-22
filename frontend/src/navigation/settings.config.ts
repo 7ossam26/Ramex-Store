@@ -16,19 +16,13 @@ import {
   Database,
   Hash,
   Info,
-  Landmark,
-  Percent,
   ShieldCheck,
-  ShoppingCart,
   type LucideIcon,
 } from 'lucide-react';
 
 export type SettingsSectionId =
   | 'general'
-  | 'tax'
-  | 'pos'
   | 'cashDrawer'
-  | 'banks'
   | 'usersPermissions'
   | 'reasonCodes'
   | 'dayRollover'
@@ -50,28 +44,10 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Info,
   },
   {
-    id: 'tax',
-    labelAr: 'الضرائب',
-    descAr: 'تفعيل الضريبة ونسبتها وتسميتها على الإيصال',
-    icon: Percent,
-  },
-  {
-    id: 'pos',
-    labelAr: 'نقطة البيع',
-    descAr: 'حدود العربون والإلغاء والموافقة ونوافذ الإرجاع والفواتير المتأخرة',
-    icon: ShoppingCart,
-  },
-  {
     id: 'cashDrawer',
     labelAr: 'خزنة الكاش',
     descAr: 'الرصيد الافتتاحي لخزنة الكاش (للعرض فقط بعد الإعداد)',
     icon: Banknote,
-  },
-  {
-    id: 'banks',
-    labelAr: 'البنوك',
-    descAr: 'إدارة الحسابات البنكية وتفعيلها',
-    icon: Landmark,
   },
   {
     id: 'usersPermissions',

@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Trash2, RotateCcw, X, Check, Plus } from 'lucide-react';
 import { ar } from '@/i18n/ar';
-import { codesApi, type CodeColor, type CodeGrade, type CodeBrand, type CodeComposition, type CodeSupplier, type RollReference } from '@/lib/codes-api';
+import { codesApi, type CodeColor, type CodeComposition, type RollReference } from '@/lib/codes-api';
+import { FabricsPage } from './Fabrics';
 import { settingsApi } from '@/lib/settings-api';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -11,17 +12,14 @@ import { useAuth } from '@/lib/auth';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type TabKey = 'colors' | 'grades' | 'brands' | 'compositions' | 'suppliers' | 'damage' | 'expense';
+type TabKey = 'fabrics' | 'colors' | 'compositions' | 'expense';
 type StatusFilter = 'active' | 'inactive' | 'all';
 type ReasonCode = { code: string; name_ar: string };
 
 const TABS: { key: TabKey; label: string }[] = [
+  { key: 'fabrics',      label: ar.codes.tabs.fabrics      },
   { key: 'colors',       label: ar.codes.tabs.colors       },
-  { key: 'grades',       label: ar.codes.tabs.grades       },
-  { key: 'brands',       label: ar.codes.tabs.brands       },
   { key: 'compositions', label: ar.codes.tabs.compositions },
-  { key: 'suppliers',    label: ar.codes.tabs.suppliers    },
-  { key: 'damage',       label: ar.codes.tabs.damage       },
   { key: 'expense',      label: ar.codes.tabs.expense      },
 ];
 
@@ -437,291 +435,6 @@ function ColorsTab({ isOwner }: { isOwner: boolean }) {
   );
 }
 
-// ── Grades Tab ────────────────────────────────────────────────────────────────
-
-function GradesTab({ isOwner }: { isOwner: boolean }) {
-  const qc = useQueryClient();
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<StatusFilter>('active');
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState({ arabic_name: '', english_name: '' });
-  const [addingNew, setAddingNew] = useState(false);
-  const [newForm, setNewForm] = useState({ arabic_name: '', english_name: '' });
-  const [deleteTarget, setDeleteTarget] = useState<CodeGrade | null>(null);
-  const [refsItem, setRefsItem] = useState<{ id: number; name: string } | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  const { data = [], isLoading } = useQuery({
-    queryKey: ['codes-page', 'grades', filter],
-    queryFn: () => codesApi.listGradesFiltered(filter),
-  });
-
-  const filtered = useMemo(() => data.filter((g) => g.arabic_name.includes(search)), [data, search]);
-
-  function invalidate() {
-    qc.invalidateQueries({ queryKey: ['codes-page', 'grades'] });
-    qc.invalidateQueries({ queryKey: ['codes-grades'] });
-    qc.invalidateQueries({ queryKey: ['codes-grades-all'] });
-  }
-
-  const createMut = useMutation({
-    mutationFn: () => codesApi.create('grades', { arabic_name: newForm.arabic_name.trim(), english_name: newForm.english_name.trim() || null }),
-    onSuccess: () => { invalidate(); setAddingNew(false); setNewForm({ arabic_name: '', english_name: '' }); setErr(null); },
-    onError: (e) => setErr(extractApiError(e)),
-  });
-
-  const updateMut = useMutation({
-    mutationFn: ({ id }: { id: number }) => codesApi.update('grades', id, { arabic_name: editForm.arabic_name.trim(), english_name: editForm.english_name.trim() || null }),
-    onSuccess: () => { invalidate(); setEditingId(null); setErr(null); },
-    onError: (e) => setErr(extractApiError(e)),
-  });
-
-  const deleteMut = useMutation({
-    mutationFn: ({ id, force }: { id: number; force: boolean }) => codesApi.deactivate('grades', id, force),
-    onSuccess: () => { invalidate(); setDeleteTarget(null); setErr(null); },
-    onError: (e) => setErr(extractApiError(e)),
-  });
-
-  const restoreMut = useMutation({
-    mutationFn: (id: number) => codesApi.restore('grades', id),
-    onSuccess: () => { invalidate(); setErr(null); },
-    onError: (e) => setErr(extractApiError(e)),
-  });
-
-  if (isLoading) return <p className="text-sm text-foreground-muted p-4">{ar.loading}</p>;
-
-  return (
-    <div className="space-y-4">
-      <Toolbar search={search} onSearch={setSearch} filter={filter} onFilter={setFilter}
-        isOwner={isOwner} onAdd={() => { setAddingNew(true); setEditingId(null); }} />
-      {err && <p role="alert" className="text-sm text-danger-foreground bg-danger-subtle border border-danger/30 rounded-md px-3 py-2 transition-opacity duration-75 ease-standard">{err}</p>}
-      <div className="overflow-x-auto rounded border border-border">
-        <table className="w-full border-collapse">
-          <thead className="bg-surface-hover/50 sticky top-0 z-sticky">
-            <tr>
-              <Th>{ar.codes.columns.nameAr}</Th>
-              <Th>{ar.codes.columns.nameEn}</Th>
-              <Th center>{ar.codes.columns.usage}</Th>
-              <Th center>{ar.codes.columns.status}</Th>
-              {isOwner && <Th center>{ar.codes.columns.actions}</Th>}
-            </tr>
-          </thead>
-          <tbody>
-            {addingNew && (
-              <tr className="bg-info-subtle/50">
-                <Td><InlineInput value={newForm.arabic_name} onChange={(v) => setNewForm({ ...newForm, arabic_name: v })} placeholder="درجة أ" /></Td>
-                <Td><InlineInput value={newForm.english_name} onChange={(v) => setNewForm({ ...newForm, english_name: v })} placeholder="Grade A" /></Td>
-                <Td center>—</Td>
-                <Td center>—</Td>
-                <Td center>
-                  <SaveCancelBtns onSave={() => createMut.mutate()} onCancel={() => { setAddingNew(false); setErr(null); }} disabled={!newForm.arabic_name || createMut.isPending} />
-                </Td>
-              </tr>
-            )}
-            {filtered.length === 0 && !addingNew && (
-              <tr><td colSpan={isOwner ? 5 : 4} className="py-8 text-center text-sm text-muted-foreground">{ar.codes.noResults}</td></tr>
-            )}
-            {filtered.map((g) =>
-              editingId === g.id ? (
-                <tr key={g.id} className="bg-info-subtle/40">
-                  <Td><InlineInput value={editForm.arabic_name} onChange={(v) => setEditForm({ ...editForm, arabic_name: v })} /></Td>
-                  <Td><InlineInput value={editForm.english_name} onChange={(v) => setEditForm({ ...editForm, english_name: v })} /></Td>
-                  <Td center>{g.usage_count}</Td>
-                  <Td center><StatusBadge active={g.is_active} /></Td>
-                  <Td center>
-                    <SaveCancelBtns onSave={() => updateMut.mutate({ id: g.id })} onCancel={() => { setEditingId(null); setErr(null); }} disabled={!editForm.arabic_name || updateMut.isPending} />
-                  </Td>
-                </tr>
-              ) : (
-                <tr key={g.id} className="hover:bg-surface-hover transition-colors duration-150">
-                  <Td>{g.arabic_name}</Td>
-                  <Td muted>{g.english_name ?? '—'}</Td>
-                  <Td center>
-                    <UsageBadge count={g.usage_count} onClick={() => setRefsItem({ id: g.id, name: g.arabic_name })} />
-                  </Td>
-                  <Td center><StatusBadge active={g.is_active} /></Td>
-                  {isOwner && (
-                    <Td center>
-                      <RowActions isActive={g.is_active} isOwner={isOwner}
-                        onEdit={() => { setEditingId(g.id); setEditForm({ arabic_name: g.arabic_name, english_name: g.english_name ?? '' }); setAddingNew(false); }}
-                        onDelete={() => { setDeleteTarget(g); setErr(null); }}
-                        onRestore={() => restoreMut.mutate(g.id)}
-                      />
-                    </Td>
-                  )}
-                </tr>
-              ),
-            )}
-          </tbody>
-        </table>
-      </div>
-      {deleteTarget && (
-        <DeleteDialog name={deleteTarget.arabic_name} usageCount={deleteTarget.usage_count} isOwner={isOwner} pending={deleteMut.isPending}
-          onConfirm={() => deleteMut.mutate({ id: deleteTarget.id, force: false })}
-          onForce={() => deleteMut.mutate({ id: deleteTarget.id, force: true })}
-          onCancel={() => setDeleteTarget(null)}
-        />
-      )}
-      {refsItem && <RefsSheet entity="grades" item={refsItem} onClose={() => setRefsItem(null)} />}
-    </div>
-  );
-}
-
-// ── Brands Tab ────────────────────────────────────────────────────────────────
-
-function BrandsTab({ isOwner }: { isOwner: boolean }) {
-  const qc = useQueryClient();
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<StatusFilter>('active');
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState({ arabic_name: '', product_line: '', supplier_id: '' });
-  const [addingNew, setAddingNew] = useState(false);
-  const [newForm, setNewForm] = useState({ arabic_name: '', product_line: '', supplier_id: '' });
-  const [deleteTarget, setDeleteTarget] = useState<CodeBrand | null>(null);
-  const [refsItem, setRefsItem] = useState<{ id: number; name: string } | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  const { data = [], isLoading } = useQuery({
-    queryKey: ['codes-page', 'brands', filter],
-    queryFn: () => codesApi.listBrandsFiltered(filter),
-  });
-
-  const { data: suppliers = [] } = useQuery({
-    queryKey: ['codes-suppliers'],
-    queryFn: codesApi.listSuppliers,
-  });
-
-  const filtered = useMemo(() => data.filter((b) => b.arabic_name.includes(search)), [data, search]);
-
-  function invalidate() {
-    qc.invalidateQueries({ queryKey: ['codes-page', 'brands'] });
-    qc.invalidateQueries({ queryKey: ['codes-brands'] });
-    qc.invalidateQueries({ queryKey: ['codes-brands-all'] });
-  }
-
-  const supplierName = (id: number | null) => suppliers.find((s) => s.id === id)?.arabic_name ?? '—';
-
-  function buildPayload(form: typeof newForm) {
-    return { arabic_name: form.arabic_name.trim(), product_line: form.product_line.trim() || null, supplier_id: form.supplier_id ? Number(form.supplier_id) : null };
-  }
-
-  const createMut = useMutation({
-    mutationFn: () => codesApi.create('brands', buildPayload(newForm)),
-    onSuccess: () => { invalidate(); setAddingNew(false); setNewForm({ arabic_name: '', product_line: '', supplier_id: '' }); setErr(null); },
-    onError: (e) => setErr(extractApiError(e)),
-  });
-
-  const updateMut = useMutation({
-    mutationFn: ({ id }: { id: number }) => codesApi.update('brands', id, buildPayload(editForm)),
-    onSuccess: () => { invalidate(); setEditingId(null); setErr(null); },
-    onError: (e) => setErr(extractApiError(e)),
-  });
-
-  const deleteMut = useMutation({
-    mutationFn: ({ id, force }: { id: number; force: boolean }) => codesApi.deactivate('brands', id, force),
-    onSuccess: () => { invalidate(); setDeleteTarget(null); setErr(null); },
-    onError: (e) => setErr(extractApiError(e)),
-  });
-
-  const restoreMut = useMutation({
-    mutationFn: (id: number) => codesApi.restore('brands', id),
-    onSuccess: () => { invalidate(); setErr(null); },
-    onError: (e) => setErr(extractApiError(e)),
-  });
-
-  function SupplierSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-    return (
-      <select value={value} onChange={(e) => onChange(e.target.value)}
-        className="border border-border rounded px-2 py-1 text-sm bg-canvas focus:outline-none focus:ring-1 focus:ring-primary w-full">
-        <option value="">—</option>
-        {suppliers.map((s) => <option key={s.id} value={s.id}>{s.arabic_name}</option>)}
-      </select>
-    );
-  }
-
-  if (isLoading) return <p className="text-sm text-foreground-muted p-4">{ar.loading}</p>;
-
-  return (
-    <div className="space-y-4">
-      <Toolbar search={search} onSearch={setSearch} filter={filter} onFilter={setFilter}
-        isOwner={isOwner} onAdd={() => { setAddingNew(true); setEditingId(null); }} />
-      {err && <p role="alert" className="text-sm text-danger-foreground bg-danger-subtle border border-danger/30 rounded-md px-3 py-2 transition-opacity duration-75 ease-standard">{err}</p>}
-      <div className="overflow-x-auto rounded border border-border">
-        <table className="w-full border-collapse">
-          <thead className="bg-surface-hover/50 sticky top-0 z-sticky">
-            <tr>
-              <Th>{ar.codes.columns.nameAr}</Th>
-              <Th>{ar.codes.columns.supplier}</Th>
-              <Th>{ar.codes.columns.productLine}</Th>
-              <Th center>{ar.codes.columns.usage}</Th>
-              <Th center>{ar.codes.columns.status}</Th>
-              {isOwner && <Th center>{ar.codes.columns.actions}</Th>}
-            </tr>
-          </thead>
-          <tbody>
-            {addingNew && (
-              <tr className="bg-info-subtle/50">
-                <Td><InlineInput value={newForm.arabic_name} onChange={(v) => setNewForm({ ...newForm, arabic_name: v })} placeholder="ماركة جديدة" /></Td>
-                <Td><SupplierSelect value={newForm.supplier_id} onChange={(v) => setNewForm({ ...newForm, supplier_id: v })} /></Td>
-                <Td><InlineInput value={newForm.product_line} onChange={(v) => setNewForm({ ...newForm, product_line: v })} placeholder="خط الإنتاج" /></Td>
-                <Td center>—</Td>
-                <Td center>—</Td>
-                <Td center>
-                  <SaveCancelBtns onSave={() => createMut.mutate()} onCancel={() => { setAddingNew(false); setErr(null); }} disabled={!newForm.arabic_name || createMut.isPending} />
-                </Td>
-              </tr>
-            )}
-            {filtered.length === 0 && !addingNew && (
-              <tr><td colSpan={isOwner ? 6 : 5} className="py-8 text-center text-sm text-muted-foreground">{ar.codes.noResults}</td></tr>
-            )}
-            {filtered.map((b) =>
-              editingId === b.id ? (
-                <tr key={b.id} className="bg-info-subtle/40">
-                  <Td><InlineInput value={editForm.arabic_name} onChange={(v) => setEditForm({ ...editForm, arabic_name: v })} /></Td>
-                  <Td><SupplierSelect value={editForm.supplier_id} onChange={(v) => setEditForm({ ...editForm, supplier_id: v })} /></Td>
-                  <Td><InlineInput value={editForm.product_line} onChange={(v) => setEditForm({ ...editForm, product_line: v })} /></Td>
-                  <Td center>{b.usage_count}</Td>
-                  <Td center><StatusBadge active={b.is_active} /></Td>
-                  <Td center>
-                    <SaveCancelBtns onSave={() => updateMut.mutate({ id: b.id })} onCancel={() => { setEditingId(null); setErr(null); }} disabled={!editForm.arabic_name || updateMut.isPending} />
-                  </Td>
-                </tr>
-              ) : (
-                <tr key={b.id} className="hover:bg-surface-hover transition-colors duration-150">
-                  <Td>{b.arabic_name}</Td>
-                  <Td muted>{supplierName(b.supplier_id)}</Td>
-                  <Td muted>{b.product_line ?? '—'}</Td>
-                  <Td center>
-                    <UsageBadge count={b.usage_count} onClick={() => setRefsItem({ id: b.id, name: b.arabic_name })} />
-                  </Td>
-                  <Td center><StatusBadge active={b.is_active} /></Td>
-                  {isOwner && (
-                    <Td center>
-                      <RowActions isActive={b.is_active} isOwner={isOwner}
-                        onEdit={() => { setEditingId(b.id); setEditForm({ arabic_name: b.arabic_name, product_line: b.product_line ?? '', supplier_id: b.supplier_id ? String(b.supplier_id) : '' }); setAddingNew(false); }}
-                        onDelete={() => { setDeleteTarget(b); setErr(null); }}
-                        onRestore={() => restoreMut.mutate(b.id)}
-                      />
-                    </Td>
-                  )}
-                </tr>
-              ),
-            )}
-          </tbody>
-        </table>
-      </div>
-      {deleteTarget && (
-        <DeleteDialog name={deleteTarget.arabic_name} usageCount={deleteTarget.usage_count} isOwner={isOwner} pending={deleteMut.isPending}
-          onConfirm={() => deleteMut.mutate({ id: deleteTarget.id, force: false })}
-          onForce={() => deleteMut.mutate({ id: deleteTarget.id, force: true })}
-          onCancel={() => setDeleteTarget(null)}
-        />
-      )}
-      {refsItem && <RefsSheet entity="brands" item={refsItem} onClose={() => setRefsItem(null)} />}
-    </div>
-  );
-}
-
 // ── Compositions Tab ──────────────────────────────────────────────────────────
 
 type CompMode = 'string' | 'structured';
@@ -955,137 +668,7 @@ function CompositionsTab({ isOwner }: { isOwner: boolean }) {
   );
 }
 
-// ── Suppliers Tab ─────────────────────────────────────────────────────────────
 
-function SuppliersTab({ isOwner }: { isOwner: boolean }) {
-  const qc = useQueryClient();
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<StatusFilter>('active');
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState({ arabic_name: '', arabic_warning_text: '' });
-  const [addingNew, setAddingNew] = useState(false);
-  const [newForm, setNewForm] = useState({ arabic_name: '', arabic_warning_text: '' });
-  const [deleteTarget, setDeleteTarget] = useState<CodeSupplier | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  const { data = [], isLoading } = useQuery({
-    queryKey: ['codes-page', 'suppliers', filter],
-    queryFn: () => codesApi.listSuppliersFiltered(filter),
-  });
-
-  const filtered = useMemo(() => data.filter((s) => s.arabic_name.includes(search)), [data, search]);
-
-  function invalidate() {
-    qc.invalidateQueries({ queryKey: ['codes-page', 'suppliers'] });
-    qc.invalidateQueries({ queryKey: ['codes-suppliers'] });
-    qc.invalidateQueries({ queryKey: ['codes-suppliers-all'] });
-  }
-
-  const createMut = useMutation({
-    mutationFn: () => codesApi.create('suppliers', { arabic_name: newForm.arabic_name.trim(), arabic_warning_text: newForm.arabic_warning_text.trim() || null }),
-    onSuccess: () => { invalidate(); setAddingNew(false); setNewForm({ arabic_name: '', arabic_warning_text: '' }); setErr(null); },
-    onError: (e) => setErr(extractApiError(e)),
-  });
-
-  const updateMut = useMutation({
-    mutationFn: ({ id }: { id: number }) => codesApi.update('suppliers', id, { arabic_name: editForm.arabic_name.trim(), arabic_warning_text: editForm.arabic_warning_text.trim() || null }),
-    onSuccess: () => { invalidate(); setEditingId(null); setErr(null); },
-    onError: (e) => setErr(extractApiError(e)),
-  });
-
-  const deleteMut = useMutation({
-    mutationFn: ({ id, force }: { id: number; force: boolean }) => codesApi.deactivate('suppliers', id, force),
-    onSuccess: () => { invalidate(); setDeleteTarget(null); setErr(null); },
-    onError: (e) => setErr(extractApiError(e)),
-  });
-
-  const restoreMut = useMutation({
-    mutationFn: (id: number) => codesApi.restore('suppliers', id),
-    onSuccess: () => { invalidate(); setErr(null); },
-    onError: (e) => setErr(extractApiError(e)),
-  });
-
-  if (isLoading) return <p className="text-sm text-foreground-muted p-4">{ar.loading}</p>;
-
-  return (
-    <div className="space-y-4">
-      <Toolbar search={search} onSearch={setSearch} filter={filter} onFilter={setFilter}
-        isOwner={isOwner} onAdd={() => { setAddingNew(true); setEditingId(null); }} />
-      {err && <p role="alert" className="text-sm text-danger-foreground bg-danger-subtle border border-danger/30 rounded-md px-3 py-2 transition-opacity duration-75 ease-standard">{err}</p>}
-      <div className="overflow-x-auto rounded border border-border">
-        <table className="w-full border-collapse">
-          <thead className="bg-surface-hover/50 sticky top-0 z-sticky">
-            <tr>
-              <Th>{ar.codes.columns.nameAr}</Th>
-              <Th>{ar.codes.columns.warningText}</Th>
-              <Th center>{ar.codes.columns.status}</Th>
-              {isOwner && <Th center>{ar.codes.columns.actions}</Th>}
-            </tr>
-          </thead>
-          <tbody>
-            {addingNew && (
-              <tr className="bg-info-subtle/50">
-                <Td><InlineInput value={newForm.arabic_name} onChange={(v) => setNewForm({ ...newForm, arabic_name: v })} placeholder="اسم المورد" /></Td>
-                <Td>
-                  <textarea dir="rtl" value={newForm.arabic_warning_text}
-                    onChange={(e) => setNewForm({ ...newForm, arabic_warning_text: e.target.value })}
-                    rows={2} placeholder="نص التحذير على ملصق الموردين"
-                    className="border border-border rounded px-2 py-1 text-sm bg-canvas focus:outline-none focus:ring-1 focus:ring-primary w-full resize-none" />
-                </Td>
-                <Td center>—</Td>
-                <Td center>
-                  <SaveCancelBtns onSave={() => createMut.mutate()} onCancel={() => { setAddingNew(false); setErr(null); }} disabled={!newForm.arabic_name || createMut.isPending} />
-                </Td>
-              </tr>
-            )}
-            {filtered.length === 0 && !addingNew && (
-              <tr><td colSpan={isOwner ? 4 : 3} className="py-8 text-center text-sm text-muted-foreground">{ar.codes.noResults}</td></tr>
-            )}
-            {filtered.map((s) =>
-              editingId === s.id ? (
-                <tr key={s.id} className="bg-info-subtle/60 align-top">
-                  <Td><InlineInput value={editForm.arabic_name} onChange={(v) => setEditForm({ ...editForm, arabic_name: v })} /></Td>
-                  <Td>
-                    <textarea dir="rtl" value={editForm.arabic_warning_text}
-                      onChange={(e) => setEditForm({ ...editForm, arabic_warning_text: e.target.value })}
-                      rows={2}
-                      className="border border-border rounded px-2 py-1 text-sm bg-canvas focus:outline-none focus:ring-1 focus:ring-primary w-full resize-none" />
-                  </Td>
-                  <Td center><StatusBadge active={s.is_active} /></Td>
-                  <Td center>
-                    <SaveCancelBtns onSave={() => updateMut.mutate({ id: s.id })} onCancel={() => { setEditingId(null); setErr(null); }} disabled={!editForm.arabic_name || updateMut.isPending} />
-                  </Td>
-                </tr>
-              ) : (
-                <tr key={s.id} className="hover:bg-surface-hover transition-colors duration-150">
-                  <Td>{s.arabic_name}</Td>
-                  <Td muted><span className="truncate block max-w-64">{s.arabic_warning_text ?? '—'}</span></Td>
-                  <Td center><StatusBadge active={s.is_active} /></Td>
-                  {isOwner && (
-                    <Td center>
-                      <RowActions isActive={s.is_active} isOwner={isOwner}
-                        onEdit={() => { setEditingId(s.id); setEditForm({ arabic_name: s.arabic_name, arabic_warning_text: s.arabic_warning_text ?? '' }); setAddingNew(false); }}
-                        onDelete={() => { setDeleteTarget(s); setErr(null); }}
-                        onRestore={() => restoreMut.mutate(s.id)}
-                      />
-                    </Td>
-                  )}
-                </tr>
-              ),
-            )}
-          </tbody>
-        </table>
-      </div>
-      {deleteTarget && (
-        <DeleteDialog name={deleteTarget.arabic_name} usageCount={deleteTarget.usage_count} isOwner={isOwner} pending={deleteMut.isPending}
-          onConfirm={() => deleteMut.mutate({ id: deleteTarget.id, force: false })}
-          onForce={() => deleteMut.mutate({ id: deleteTarget.id, force: true })}
-          onCancel={() => setDeleteTarget(null)}
-        />
-      )}
-    </div>
-  );
-}
 
 // ── Settings Reason Tab (cancellations / damage / expense) ────────────────────
 
@@ -1244,12 +827,9 @@ export function CodesPage() {
 
       {/* Tab content */}
       <div className="flex-1 overflow-auto p-6">
+        {activeTab === 'fabrics'      && <FabricsPage />}
         {activeTab === 'colors'       && <ColorsTab       isOwner={isOwner} />}
-        {activeTab === 'grades'       && <GradesTab       isOwner={isOwner} />}
-        {activeTab === 'brands'       && <BrandsTab       isOwner={isOwner} />}
         {activeTab === 'compositions' && <CompositionsTab isOwner={isOwner} />}
-        {activeTab === 'suppliers'    && <SuppliersTab    isOwner={isOwner} />}
-        {activeTab === 'damage'       && <SettingsReasonTab settingsKey="reason_codes.damage"  isOwner={isOwner} />}
         {activeTab === 'expense'      && <SettingsReasonTab settingsKey="reason_codes.expense" isOwner={isOwner} />}
       </div>
     </div>

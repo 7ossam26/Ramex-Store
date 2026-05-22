@@ -13,7 +13,7 @@ import type { ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { ar } from '@/i18n/ar';
-import { settingsApi, permissionsApi, usersApi, bankAccountsApi } from '@/lib/settings-api';
+import { settingsApi, permissionsApi, usersApi } from '@/lib/settings-api';
 import { codesApi, type CodeGrade, type CodeComposition, type CodeBrand, type CodeSupplier } from '@/lib/codes-api';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
@@ -227,7 +227,6 @@ function GeneralSection({ settings, onSave, notifySaved }: SectionProps) {
     logoPath: String(settings['shop.logo_path'] ?? ''),
     addressAr: String(settings['shop.address_ar'] ?? ''),
     phone: String(settings['shop.phone'] ?? ''),
-    taxNo: String(settings['shop.tax_no'] ?? ''),
     warningTextAr: String(settings['receipt.warning_text_ar'] ?? ''),
   });
   const [saving, setSaving] = useState(false);
@@ -241,7 +240,6 @@ function GeneralSection({ settings, onSave, notifySaved }: SectionProps) {
         onSave('shop.logo_path', form.logoPath || null),
         onSave('shop.address_ar', form.addressAr),
         onSave('shop.phone', form.phone),
-        onSave('shop.tax_no', form.taxNo),
         onSave('receipt.warning_text_ar', form.warningTextAr),
       ]);
       notifySaved();
@@ -264,9 +262,6 @@ function GeneralSection({ settings, onSave, notifySaved }: SectionProps) {
       <FieldRow label={ar.settings.general.phone}>
         <TextInput value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} placeholder="01XXXXXXXXX" />
       </FieldRow>
-      <FieldRow label={ar.settings.general.taxNo}>
-        <TextInput value={form.taxNo} onChange={(v) => setForm({ ...form, taxNo: v })} />
-      </FieldRow>
       <FieldRow label={ar.settings.general.warningTextAr}>
         <textarea
           dir="rtl"
@@ -284,104 +279,6 @@ function GeneralSection({ settings, onSave, notifySaved }: SectionProps) {
   );
 }
 
-// ─── Section: Tax ────────────────────────────────────────────────────────────
-
-function TaxSection({ settings, onSave, notifySaved }: SectionProps) {
-  const [enabled, setEnabled] = useState(Boolean(settings['tax.enabled'] ?? false));
-  const [rate, setRate] = useState(Number(settings['tax.rate'] ?? 0.14));
-  const [labelAr, setLabelAr] = useState(String(settings['tax.label_ar'] ?? 'ضريبة'));
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function save() {
-    setError(null);
-    setSaving(true);
-    try {
-      await Promise.all([
-        onSave('tax.enabled', enabled),
-        onSave('tax.rate', rate),
-        onSave('tax.label_ar', labelAr),
-      ]);
-      notifySaved();
-    } catch (e) {
-      setError(extractApiError(e));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className={cn('space-y-5', saving && 'opacity-70 pointer-events-none')}>
-      {error && <SaveErrorBanner message={error} onDismiss={() => setError(null)} />}
-      <FieldRow label={ar.settings.tax.enabled}>
-        <Toggle checked={enabled} onChange={setEnabled} />
-      </FieldRow>
-      <FieldRow label={ar.settings.tax.rate}>
-        <NumInput value={rate} onChange={setRate} step={0.01} min={0} max={1} />
-      </FieldRow>
-      <FieldRow label={ar.settings.tax.labelAr}>
-        <TextInput value={labelAr} onChange={setLabelAr} />
-      </FieldRow>
-      <StickySaveBar onSave={save} saving={saving} />
-    </div>
-  );
-}
-
-// ─── Section: POS ────────────────────────────────────────────────────────────
-
-function PosSection({ settings, onSave, notifySaved }: SectionProps) {
-  const [form, setForm] = useState({
-    minDepositPct: Number(settings['pos.min_deposit_pct'] ?? 0.25),
-    voidTimeLimitHours: Number(settings['pos.void_time_limit_hours'] ?? 24),
-    approvalThreshold: Number(settings['pos.approval_threshold_egp'] ?? 5000),
-    staleInvoiceDays: Number(settings['pos.stale_invoice_days'] ?? 7),
-    returnWindowDays: Number(settings['pos.return_window_days'] ?? 14),
-  });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function save() {
-    setError(null);
-    setSaving(true);
-    try {
-      await Promise.all([
-        onSave('pos.min_deposit_pct', form.minDepositPct),
-        onSave('pos.void_time_limit_hours', form.voidTimeLimitHours),
-        onSave('pos.approval_threshold_egp', form.approvalThreshold),
-        onSave('pos.stale_invoice_days', form.staleInvoiceDays),
-        onSave('pos.return_window_days', form.returnWindowDays),
-      ]);
-      notifySaved();
-    } catch (e) {
-      setError(extractApiError(e));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className={cn('space-y-5', saving && 'opacity-70 pointer-events-none')}>
-      {error && <SaveErrorBanner message={error} onDismiss={() => setError(null)} />}
-      <FieldRow label={ar.settings.pos.minDepositPct}>
-        <NumInput value={form.minDepositPct} onChange={(v) => setForm({ ...form, minDepositPct: v })} step={0.01} min={0} max={1} />
-      </FieldRow>
-      <FieldRow label={ar.settings.pos.voidTimeLimitHours}>
-        <NumInput value={form.voidTimeLimitHours} onChange={(v) => setForm({ ...form, voidTimeLimitHours: v })} min={0} />
-      </FieldRow>
-      <FieldRow label={ar.settings.pos.approvalThresholdEgp}>
-        <NumInput value={form.approvalThreshold} onChange={(v) => setForm({ ...form, approvalThreshold: v })} step={100} min={0} />
-      </FieldRow>
-      <FieldRow label={ar.settings.pos.staleInvoiceDays}>
-        <NumInput value={form.staleInvoiceDays} onChange={(v) => setForm({ ...form, staleInvoiceDays: v })} min={1} />
-      </FieldRow>
-      <FieldRow label={ar.settings.pos.returnWindowDays}>
-        <NumInput value={form.returnWindowDays} onChange={(v) => setForm({ ...form, returnWindowDays: v })} min={0} />
-      </FieldRow>
-      <StickySaveBar onSave={save} saving={saving} />
-    </div>
-  );
-}
-
 // ─── Section: Cash Drawer (read-only) ───────────────────────────────────────
 
 function CashDrawerSection() {
@@ -389,109 +286,6 @@ function CashDrawerSection() {
     <div className="rounded-lg border border-border-subtle bg-surface p-4">
       <p className="text-sm text-foreground-muted mb-2">{ar.settings.cashDrawer.openingBalance}</p>
       <p className="text-sm text-foreground">{ar.settings.system.auditRetentionValue}</p>
-    </div>
-  );
-}
-
-// ─── Section: Banks ─────────────────────────────────────────────────────────
-
-function BanksSection({ notifySaved }: { notifySaved: () => void }) {
-  const qc = useQueryClient();
-  const { data: banks = [] } = useQuery({
-    queryKey: ['settings-banks'],
-    queryFn: bankAccountsApi.list,
-  });
-
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ name_ar: '', bank_name_ar: '', account_number: '' });
-  const [error, setError] = useState<string | null>(null);
-
-  const createMut = useMutation({
-    mutationFn: () =>
-      bankAccountsApi.create({
-        name_ar: form.name_ar,
-        bank_name_ar: form.bank_name_ar,
-        account_number: form.account_number,
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['settings-banks'] });
-      setShowAdd(false);
-      setForm({ name_ar: '', bank_name_ar: '', account_number: '' });
-      notifySaved();
-    },
-    onError: (e) => setError(extractApiError(e)),
-  });
-
-  const toggleMut = useMutation({
-    mutationFn: ({ id, is_active }: { id: number; is_active: boolean }) =>
-      bankAccountsApi.update(id, { is_active }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['settings-banks'] });
-      notifySaved();
-    },
-    onError: (e) => setError(extractApiError(e)),
-  });
-
-  return (
-    <div className="space-y-4">
-      {error && <SaveErrorBanner message={error} onDismiss={() => setError(null)} />}
-      <Button size="sm" variant="outline" onClick={() => setShowAdd(!showAdd)}>
-        {ar.settings.banks.addBank}
-      </Button>
-      {showAdd && (
-        <div className="rounded-lg border border-border-subtle bg-surface p-4 space-y-3">
-          <FieldRow label={ar.settings.banks.nameAr}>
-            <TextInput value={form.name_ar} onChange={(v) => setForm({ ...form, name_ar: v })} />
-          </FieldRow>
-          <FieldRow label={ar.settings.banks.bankNameAr}>
-            <TextInput value={form.bank_name_ar} onChange={(v) => setForm({ ...form, bank_name_ar: v })} />
-          </FieldRow>
-          <div className="flex gap-2 pt-1">
-            <Button
-              size="sm"
-              onClick={() => createMut.mutate()}
-              disabled={!form.name_ar || createMut.isPending}
-            >
-              {ar.common.save}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setShowAdd(false)}>
-              {ar.common.cancel}
-            </Button>
-          </div>
-        </div>
-      )}
-      <div className="rounded-lg border border-border-subtle overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-surface-row-alt text-foreground-muted">
-            <tr>
-              <th className="py-2.5 px-3 text-start font-medium">{ar.settings.banks.nameAr}</th>
-              <th className="py-2.5 px-3 text-start font-medium">{ar.settings.banks.bankNameAr}</th>
-              <th className="py-2.5 px-3 text-start font-medium">{ar.settings.banks.isActive}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border-subtle bg-surface-elevated">
-            {banks.map((b, i) => (
-              <tr key={b.id} className={cn('hover:bg-surface-hover transition-colors duration-150', i % 2 === 1 && 'bg-surface-row-alt/40')}>
-                <td className="py-2.5 px-3 text-foreground">{b.name_ar}</td>
-                <td className="py-2.5 px-3 text-foreground-muted">{b.bank_name_ar ?? '—'}</td>
-                <td className="py-2.5 px-3">
-                  <Toggle
-                    checked={b.is_active}
-                    onChange={(v) => toggleMut.mutate({ id: b.id, is_active: v })}
-                  />
-                </td>
-              </tr>
-            ))}
-            {banks.length === 0 && (
-              <tr>
-                <td colSpan={3} className="py-8 px-3 text-center text-foreground-tertiary">
-                  {ar.codes.noResults}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }
@@ -1590,14 +1384,8 @@ export function SettingsPage() {
     switch (activeSection) {
       case 'general':
         return <GeneralSection settings={settings} onSave={handleSave} notifySaved={notifySaved} />;
-      case 'tax':
-        return <TaxSection settings={settings} onSave={handleSave} notifySaved={notifySaved} />;
-      case 'pos':
-        return <PosSection settings={settings} onSave={handleSave} notifySaved={notifySaved} />;
       case 'cashDrawer':
         return <CashDrawerSection />;
-      case 'banks':
-        return <BanksSection notifySaved={notifySaved} />;
       case 'usersPermissions':
         return <UsersPermissionsSection notifySaved={notifySaved} />;
       case 'reasonCodes':

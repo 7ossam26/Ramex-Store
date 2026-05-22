@@ -1119,6 +1119,35 @@ function FlashCard({ roll, onShowLabel }: { roll: RollLookup; onShowLabel: () =>
 /* ────────────────────────────────────────────────────────────────────────── *
  * CART PANEL + ENRICHED CART LINE
  * ────────────────────────────────────────────────────────────────────────── */
+
+function CartPanelWrap({
+  embedded,
+  cartLength,
+  children,
+}: {
+  embedded?: boolean;
+  cartLength: number;
+  children: React.ReactNode;
+}) {
+  if (embedded) return <div className="space-y-3">{children}</div>;
+  return (
+    <Card className="lg:sticky lg:top-20">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <ShoppingCart className="size-5 text-accent" />
+          {ar.pos.cart}
+          {cartLength > 0 && (
+            <span className="inline-flex items-center justify-center rounded-pill bg-accent-subtle text-accent-foreground bg-accent px-2 py-0.5 text-xs font-medium min-w-[1.5rem]">
+              {cartLength}
+            </span>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">{children}</CardContent>
+    </Card>
+  );
+}
+
 function CartPanel({
   cart,
   preview,
@@ -1152,28 +1181,8 @@ function CartPanel({
   customer: Customer | null;
   onOpenDeposit: () => void;
 }) {
-  const Wrap: React.FC<{ children: React.ReactNode }> = ({ children }) =>
-    embedded ? (
-      <div className="space-y-3">{children}</div>
-    ) : (
-      <Card className="lg:sticky lg:top-20">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <ShoppingCart className="size-5 text-accent" />
-            {ar.pos.cart}
-            {cart.length > 0 && (
-              <span className="inline-flex items-center justify-center rounded-pill bg-accent-subtle text-accent-foreground bg-accent px-2 py-0.5 text-xs font-medium min-w-[1.5rem]">
-                {cart.length}
-              </span>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">{children}</CardContent>
-      </Card>
-    );
-
   return (
-    <Wrap>
+    <CartPanelWrap embedded={embedded} cartLength={cart.length}>
       <DestinationToggle value={destination} onChange={onChangeDestination} />
 
       {cart.length === 0 ? (
@@ -1258,7 +1267,7 @@ function CartPanel({
         <CreditCard className="size-5" />
         {ar.pos.payment}
       </Button>
-    </Wrap>
+    </CartPanelWrap>
   );
 }
 

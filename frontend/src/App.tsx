@@ -7,6 +7,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { CreateShipmentPage } from './pages/shipments/CreateShipment';
 import { ShipmentsListPage } from './pages/shipments/ShipmentsList';
 import { ReviewShipmentPage } from './pages/shipments/ReviewShipment';
+import { ShipmentsHubPage } from './pages/shipments/ShipmentsHub';
 import { FabricsPage } from './pages/inventory/Fabrics';
 import { StockMovementsPage } from './pages/inventory/StockMovements';
 import { StocktakePage } from './pages/inventory/Stocktake';
@@ -36,7 +37,7 @@ import { ItemsHubPage } from './pages/items/ItemsHub';
 import { NotificationsPage } from './pages/notifications/NotificationsPage';
 import { ReportsHubPage } from './pages/reports/ReportsHub';
 import { SettingsPage } from './pages/settings/SettingsPage';
-import { ApprovalsPage } from './pages/approvals/ApprovalsPage';
+import { HrHubPage } from './pages/hr/HrHub';
 import { EmployeesPage } from './pages/hr/Employees';
 import { SalariesPage } from './pages/hr/Salaries';
 import { AdjustmentsPage as HrAdjustmentsPage } from './pages/hr/Adjustments';
@@ -80,13 +81,14 @@ export function App() {
                 <Route path="/items/tops/add" element={<AddTopPage />} />
 
                 <Route path="/inventory" element={<InventoryHubPage />} />
-                <Route path="/inventory/codes" element={<CodesPage />} />
+                <Route path="/codes" element={<CodesPage />} />
                 <Route path="/inventory/stock-movements" element={<StockMovementsPage />} />
                 <Route path="/inventory/stocktake" element={<StocktakePage />} />
                 <Route path="/inventory/adjustments" element={<AdjustmentsPage />} />
                 <Route path="/inventory/damage" element={<DamagePage />} />
 
-                <Route path="/shipments" element={<ShipmentsListPage />} />
+                <Route path="/shipments" element={<ShipmentsHubPage />} />
+                <Route path="/shipments/all" element={<ShipmentsListPage />} />
                 <Route path="/shipments/create" element={<CreateShipmentPage />} />
                 <Route
                   path="/shipments/pending"
@@ -120,12 +122,12 @@ export function App() {
                 <Route path="/reports/daily" element={<DailyReportPage />} />
                 <Route path="/reports/secondary/:reportKey" element={<SecondaryReportPage />} />
 
+                <Route path="/hr" element={<HrHubPage />} />
                 <Route path="/hr/employees" element={<EmployeesPage />} />
                 <Route path="/hr/salaries" element={<SalariesPage />} />
                 <Route path="/hr/adjustments" element={<HrAdjustmentsPage />} />
 
                 <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/approvals" element={<ApprovalsPage />} />
               </Routes>
               </Suspense>
             </AppShell>

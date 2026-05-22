@@ -19,7 +19,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { RollStatusPill } from '@/components/items/RollStatusPill';
 
 export function LabelsPage() {
-  const [filters, setFilters] = useState({ fabric: '', color: '', rollSrNo: '', barcodePartial: '' });
+  const [filters, setFilters] = useState({ fabric: '', color: '', rollSrNo: '' });
   const [applied, setApplied] = useState<typeof filters | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [reprintTarget, setReprintTarget] = useState<RollWithDetails | null>(null);
@@ -33,7 +33,6 @@ export function LabelsPage() {
             fabric: applied.fabric || undefined,
             color: applied.color || undefined,
             rollSrNo: applied.rollSrNo || undefined,
-            barcodePartial: applied.barcodePartial || undefined,
           })
         : Promise.resolve<RollWithDetails[]>([]),
     enabled: applied !== null,
@@ -84,7 +83,7 @@ export function LabelsPage() {
   const filterControls = (
     <div className="rounded-lg border border-border-subtle bg-surface-elevated p-3 space-y-3">
       <h2 className="text-base font-semibold text-foreground">{ar.labels.title}</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <div className="space-y-1">
           <Label className="text-sm font-medium text-foreground">{ar.labels.fabricFilter}</Label>
           <Input
@@ -111,16 +110,6 @@ export function LabelsPage() {
             value={filters.rollSrNo}
             onChange={(e) => setFilters((f) => ({ ...f, rollSrNo: e.target.value }))}
             placeholder="SR-001"
-            dir="ltr"
-            className="h-11 md:h-10"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-sm font-medium text-foreground">{ar.labels.barcodeFilter}</Label>
-          <Input
-            value={filters.barcodePartial}
-            onChange={(e) => setFilters((f) => ({ ...f, barcodePartial: e.target.value }))}
-            placeholder="RMX-R-"
             dir="ltr"
             className="h-11 md:h-10"
           />

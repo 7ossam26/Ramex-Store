@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, ChevronUp, Copy, Plus, Trash2, X } from 'lucide-react';
+import { Copy, Plus, Trash2, X } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
 import { itemsApi } from '@/lib/items-api';
-import { codesApi } from '@/lib/codes-api';
 import type {
   Color,
   CreateFabricInput,
@@ -60,15 +59,6 @@ type RollRowState = {
   weight_kg: string;
   length_m: string;
   lot_id: number | null;
-  // optional "More" fields
-  roll_sr_no: string;
-  order_no: string;
-  supplier_order_no: string;
-  top_number: string;
-  brand_id: number | null;
-  grade_id: number | null;
-  composition_id: number | null;
-  expanded: boolean;
   selected: boolean;
   errors: RollErrors;
 };
@@ -90,14 +80,6 @@ function blankRow(opts?: {
     weight_kg: '',
     length_m: '',
     lot_id: null,
-    roll_sr_no: '',
-    order_no: '',
-    supplier_order_no: '',
-    top_number: '',
-    brand_id: null,
-    grade_id: null,
-    composition_id: null,
-    expanded: false,
     selected: false,
     errors: {},
   };
@@ -130,21 +112,17 @@ type CompositionRow = { material: string; percent: string };
 type FabricDraftState = {
   name_ar: string;
   width_cm: string;
-  grade: string;
   composition: CompositionRow[];
   notes: string;
   unit: FabricUnit;
-  supplier_code: string;
 };
 
 const blankFabricDraft = (): FabricDraftState => ({
   name_ar: '',
   width_cm: '',
-  grade: 'A',
   composition: [{ material: '', percent: '100' }],
   notes: '',
   unit: 'kg',
-  supplier_code: '',
 });
 
 function FabricCreateDialog({
@@ -191,11 +169,11 @@ function FabricCreateDialog({
     mut.mutate({
       name_ar: draft.name_ar.trim(),
       width_cm,
-      grade: draft.grade,
+      grade: 'A',
       composition,
       notes: draft.notes.trim() || null,
       unit: draft.unit,
-      supplier_code: draft.supplier_code.trim() || null,
+      supplier_code: null,
     });
   }
 
@@ -212,14 +190,6 @@ function FabricCreateDialog({
             <div className="space-y-1">
               <Label>{ar.addTop.widthCm}</Label>
               <Input type="number" inputMode="decimal" step="0.5" value={draft.width_cm} onChange={(e) => setDraft({ ...draft, width_cm: e.target.value })} dir="ltr" />
-            </div>
-            <div className="space-y-1">
-              <Label>{ar.addTop.grade}</Label>
-              <select className="w-full h-10 rounded border border-border bg-canvas px-3 text-sm" value={draft.grade} onChange={(e) => setDraft({ ...draft, grade: e.target.value })}>
-                <option value="A">A</option>
-                <option value="B">B</option>
-                <option value="C">C</option>
-              </select>
             </div>
             <div className="space-y-1 col-span-2">
               <Label>{ar.fabrics.unit}</Label>
@@ -241,21 +211,28 @@ function FabricCreateDialog({
                 <div key={idx} className="grid grid-cols-[1fr_100px_auto] gap-2">
                   <Input value={c.material} onChange={(e) => { const next = [...draft.composition]; next[idx] = { ...c, material: e.target.value }; setDraft({ ...draft, composition: next }); }} placeholder={ar.addTop.material} />
                   <div className="flex items-center gap-1">
-                    <Input type="number" inputMode="decimal" step="0.1" value={c.percent} onChange={(e) => { const next = [...draft.composition]; next[idx] = { ...c, percent: e.target.value }; setDraft({ ...draft, composition: next }); }} dir="ltr" />
+                    <Input type="number" inputMode="decimal" step="0.1" value={c.percent} onChange={(e) => {
+                      const next = [...draft.composition];
+                      next[idx] = { ...c, percent: e.target.value };
+                      if (idx + 1 < next.length) {
+                        const sumExceptNext = next.reduce((s, row, i) => i !== idx + 1 ? s + (Number(row.percent) || 0) : s, 0);
+                        next[idx + 1] = { ...next[idx + 1], percent: String(Math.max(0, 100 - sumExceptNext)) };
+                      }
+                      setDraft({ ...draft, composition: next });
+                    }} dir="ltr" />
                     <span className="text-sm text-muted-foreground">%</span>
                   </div>
                   <Button type="button" variant="ghost" size="sm" onClick={() => setDraft({ ...draft, composition: draft.composition.filter((_, i) => i !== idx) })} disabled={draft.composition.length === 1}>×</Button>
                 </div>
               ))}
-              <Button type="button" variant="outline" size="sm" onClick={() => setDraft({ ...draft, composition: [...draft.composition, { material: '', percent: '' }] })}>
+              <Button type="button" variant="outline" size="sm" onClick={() => {
+                const used = draft.composition.reduce((s, c) => s + (Number(c.percent) || 0), 0);
+                const remaining = Math.max(0, 100 - used);
+                setDraft({ ...draft, composition: [...draft.composition, { material: '', percent: String(remaining) }] });
+              }}>
                 + {ar.addTop.addMaterial}
               </Button>
             </div>
-          </div>
-          <div className="space-y-1">
-            <Label>{ar.fabrics.supplierCode}</Label>
-            <Input value={draft.supplier_code} onChange={(e) => setDraft({ ...draft, supplier_code: e.target.value })} dir="ltr" className="h-10" />
-            <p className="text-xs text-foreground-muted">{ar.fabrics.supplierCodeHint}</p>
           </div>
           {err && <p className="text-sm text-danger-foreground">{err}</p>}
           <div className="flex justify-end gap-2 pt-1">
@@ -378,95 +355,12 @@ function LotCell({
   );
 }
 
-// ---------- MoreDrawer (expanded row) ----------
-
-function MoreDrawer({
-  row,
-  colCount,
-  colors,
-  gradesData,
-  brandsData,
-  compositionsData,
-  onChange,
-}: {
-  row: RollRowState;
-  colCount: number;
-  colors: Color[];
-  gradesData: Array<{ id: number; arabic_name: string }>;
-  brandsData: Array<{ id: number; arabic_name: string; product_line?: string | null }>;
-  compositionsData: Array<{ id: number; arabic_name: string; description?: string | null }>;
-  onChange: (changes: Partial<RollRowState>) => void;
-}) {
-  return (
-    <tr className="bg-surface-elevated border-b border-border-subtle">
-      <td colSpan={colCount} className="px-3 py-2">
-        <p className="text-xs font-medium text-foreground-muted mb-2">{ar.addTop.moreOptional}</p>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2">
-          <div className="space-y-0.5">
-            <label className="text-xs text-foreground-muted">{ar.addTop.rollSrNo}</label>
-            <Input className="h-7 text-xs px-2" dir="ltr" value={row.roll_sr_no}
-              onChange={(e) => onChange({ roll_sr_no: e.target.value })} />
-          </div>
-          <div className="space-y-0.5">
-            <label className="text-xs text-foreground-muted">{ar.addTop.orderNo}</label>
-            <Input className="h-7 text-xs px-2" dir="ltr" value={row.order_no}
-              onChange={(e) => onChange({ order_no: e.target.value })} />
-          </div>
-          <div className="space-y-0.5 col-span-2 md:col-span-1">
-            <p className="text-xs font-medium text-foreground-muted border-t border-border-subtle pt-1 mb-1 md:hidden">{ar.addTop.supplierDataSection}</p>
-          </div>
-          <div className="space-y-0.5">
-            <label className="text-xs text-foreground-muted">{ar.addTop.supplierOrderNo}</label>
-            <Input className="h-7 text-xs px-2" dir="ltr" value={row.supplier_order_no}
-              onChange={(e) => onChange({ supplier_order_no: e.target.value })} />
-          </div>
-          <div className="space-y-0.5">
-            <label className="text-xs text-foreground-muted">{ar.addTop.topNumber}</label>
-            <Input type="number" inputMode="numeric" className="h-7 text-xs px-2" dir="ltr" value={row.top_number}
-              onChange={(e) => onChange({ top_number: e.target.value })} />
-          </div>
-          <div className="space-y-0.5">
-            <label className="text-xs text-foreground-muted">{ar.addTop.gradeCode}</label>
-            <select className="w-full h-7 rounded border border-border bg-canvas px-1.5 text-xs"
-              value={row.grade_id === null ? '' : String(row.grade_id)}
-              onChange={(e) => onChange({ grade_id: e.target.value ? Number(e.target.value) : null })}>
-              <option value="">—</option>
-              {gradesData.map((g) => <option key={g.id} value={g.id}>{g.arabic_name}</option>)}
-            </select>
-          </div>
-          <div className="space-y-0.5">
-            <label className="text-xs text-foreground-muted">{ar.addTop.brand}</label>
-            <select className="w-full h-7 rounded border border-border bg-canvas px-1.5 text-xs"
-              value={row.brand_id === null ? '' : String(row.brand_id)}
-              onChange={(e) => onChange({ brand_id: e.target.value ? Number(e.target.value) : null })}>
-              <option value="">—</option>
-              {brandsData.map((b) => <option key={b.id} value={b.id}>{b.arabic_name}{b.product_line ? ` — ${b.product_line}` : ''}</option>)}
-            </select>
-          </div>
-          <div className="space-y-0.5">
-            <label className="text-xs text-foreground-muted">{ar.addTop.compositionCode}</label>
-            <select className="w-full h-7 rounded border border-border bg-canvas px-1.5 text-xs"
-              value={row.composition_id === null ? '' : String(row.composition_id)}
-              onChange={(e) => onChange({ composition_id: e.target.value ? Number(e.target.value) : null })}>
-              <option value="">—</option>
-              {compositionsData.map((c) => <option key={c.id} value={c.id}>{c.arabic_name}{c.description ? ` (${c.description})` : ''}</option>)}
-            </select>
-          </div>
-        </div>
-      </td>
-    </tr>
-  );
-}
-
 // ---------- FabricSubGroup ----------
 
 function FabricSubGroup({
   group,
   fabricsFull,
   colors,
-  gradesData,
-  brandsData,
-  compositionsData,
   onFabricChange,
   onRemoveGroup,
   onRowChange,
@@ -480,9 +374,6 @@ function FabricSubGroup({
   group: GroupState;
   fabricsFull: FabricFull[];
   colors: Color[];
-  gradesData: Array<{ id: number; arabic_name: string }>;
-  brandsData: Array<{ id: number; arabic_name: string; product_line?: string | null }>;
-  compositionsData: Array<{ id: number; arabic_name: string; description?: string | null }>;
   onFabricChange: (fabricId: number | null) => void;
   onRemoveGroup: () => void;
   onRowChange: (rowUid: string, changes: Partial<RollRowState>) => void;
@@ -527,8 +418,8 @@ function FabricSubGroup({
 
   const lots = lotsQ.data ?? [];
 
-  // column count: checkbox + color + width + weight + (length?) + lot + more + actions
-  const colCount = 7 + (isMeter ? 1 : 0) + 1; // +1 for checkbox
+  // column count: checkbox + color + width + weight + (length?) + lot + actions
+  const colCount = 6 + (isMeter ? 1 : 0) + 1; // +1 for checkbox
 
   return (
     <Card className="overflow-hidden">
@@ -605,7 +496,6 @@ function FabricSubGroup({
                   <th className="py-1.5 px-2 text-right font-medium w-24">{ar.addTop.colWeightKg}</th>
                   {isMeter && <th className="py-1.5 px-2 text-right font-medium w-20">{ar.addTop.colLengthM}</th>}
                   <th className="py-1.5 px-2 text-right font-medium w-40">{ar.addTop.colLot}</th>
-                  <th className="py-1.5 px-2 text-center font-medium w-8">{ar.addTop.colMore}</th>
                   <th className="py-1.5 px-2 text-center font-medium w-16">—</th>
                   <th className="py-1.5 px-2 text-center font-medium w-6">
                     <input type="checkbox" className="h-3.5 w-3.5 cursor-pointer"
@@ -719,18 +609,6 @@ function FabricSubGroup({
                           />
                         </td>
 
-                        {/* More toggle */}
-                        <td className="px-2 py-1 text-center">
-                          <button
-                            type="button"
-                            className="h-7 w-7 flex items-center justify-center rounded hover:bg-accent transition-colors cursor-pointer text-foreground-muted mx-auto"
-                            onClick={() => onRowChange(row.uid, { expanded: !row.expanded })}
-                            title={ar.addTop.moreOptional}
-                          >
-                            {row.expanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
-                          </button>
-                        </td>
-
                         {/* Actions */}
                         <td className="px-2 py-1 text-center">
                           <div className="flex items-center justify-center gap-0.5">
@@ -765,20 +643,7 @@ function FabricSubGroup({
                         </td>
                       </tr>
 
-                      {/* More drawer */}
-                      {row.expanded && (
-                        <MoreDrawer
-                          key={`${row.uid}-more`}
-                          row={row}
-                          colCount={colCount}
-                          colors={colors}
-                          gradesData={gradesData}
-                          brandsData={brandsData}
-                          compositionsData={compositionsData}
-                          onChange={(changes) => onRowChange(row.uid, changes)}
-                        />
-                      )}
-                    </>
+</>
                   );
                 })}
               </tbody>
@@ -820,9 +685,6 @@ export function AddTopPage() {
   const qc = useQueryClient();
   const fabricsFullQ = useQuery({ queryKey: ['fabrics-full'], queryFn: inventoryApi.listFabricsFull });
   const colorsQ = useQuery({ queryKey: ['colors'], queryFn: inventoryApi.listColors });
-  const gradesQ = useQuery({ queryKey: ['codes-grades'], queryFn: codesApi.listGrades });
-  const brandsQ = useQuery({ queryKey: ['codes-brands'], queryFn: codesApi.listBrands });
-  const compositionsQ = useQuery({ queryKey: ['codes-compositions'], queryFn: codesApi.listCompositions });
 
   const fabricsFull: FabricFull[] = fabricsFullQ.data ?? [];
   const colors: Color[] = colorsQ.data ?? [];
@@ -850,13 +712,6 @@ export function AddTopPage() {
           width_cm: Number(r.width_cm),
           ...(isMeter ? { length_m: Number(r.length_m) } : {}),
           lot_id: r.lot_id ?? null,
-          roll_sr_no: r.roll_sr_no.trim() || null,
-          order_no: r.order_no.trim() || null,
-          supplier_order_no: r.supplier_order_no.trim() || null,
-          top_number: num(r.top_number) ?? null,
-          grade_id: r.grade_id ?? null,
-          composition_id: r.composition_id ?? null,
-          brand_id: r.brand_id ?? null,
         }));
         const result = await inventoryApi.createTopBatch({ fabric: { id: g.fabricId }, rolls });
         out.push(result);
@@ -1128,9 +983,6 @@ export function AddTopPage() {
           group={group}
           fabricsFull={fabricsFull}
           colors={colors}
-          gradesData={gradesQ.data ?? []}
-          brandsData={brandsQ.data ?? []}
-          compositionsData={compositionsQ.data ?? []}
           onFabricChange={(fabricId) => handleFabricChange(group.uid, fabricId)}
           onRemoveGroup={() => handleRemoveGroup(group.uid)}
           onRowChange={(rowUid, changes) => updateRow(group.uid, rowUid, changes)}
