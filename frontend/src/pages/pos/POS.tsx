@@ -24,6 +24,7 @@ import {
   Landmark,
   FileText,
   ArrowLeftRight,
+  ChevronRight,
 } from 'lucide-react';
 import { Toast } from '@/components/Toast';
 import { Tooltip } from '@/components/Tooltip';
@@ -567,24 +568,90 @@ export function POSPage() {
           onShowLabel={setLabelRoll}
         />
 
-        {/* RIGHT: cart (visible on lg+) */}
+        {/* RIGHT: cart → payment inline flip (lg+) */}
         <div className="hidden lg:block">
-          <CartPanel
-            cart={cart}
-            preview={preview}
-            subtotal={subtotal}
-            useCartDiscount={useCartDiscount}
-            updateLine={updateLine}
-            removeLine={removeLine}
-            flashRowId={flashRowId}
-            onShowLabel={setLabelRoll}
-            onPay={() => setPaymentSheetOpen(true)}
-            disabled={cart.length === 0}
-            destination={destination}
-            onChangeDestination={requestDestinationChange}
-            customer={customer}
-            onOpenDeposit={() => setDepositOpen(true)}
-          />
+          <AnimatePresence mode="wait" initial={false}>
+            {paymentSheetOpen ? (
+              <motion.div
+                key="payment-inline"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18, ease: [0, 0, 0.2, 1] }}
+              >
+                <Card className="lg:sticky lg:top-20">
+                  <CardHeader className="pb-3 border-b border-border-subtle">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentSheetOpen(false)}
+                        className="inline-flex items-center gap-1 text-sm font-normal text-foreground-muted hover:text-foreground transition-colors cursor-pointer"
+                        aria-label={ar.pos.cart}
+                      >
+                        <ChevronRight className="size-4" />
+                        {ar.pos.cart}
+                      </button>
+                      <span className="text-foreground-tertiary text-xs">•</span>
+                      <span>{ar.pos.paymentSheetTitle}</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="overflow-y-auto max-h-[calc(100vh-9rem)] pt-4 pb-6">
+                    <PaymentForm
+                      banks={banks}
+                      paymentMode={paymentMode}
+                      setPaymentMode={setPaymentMode}
+                      cashAmount={cashAmount}
+                      setCashAmount={setCashAmount}
+                      instaAmount={instaAmount}
+                      setInstaAmount={setInstaAmount}
+                      bankAccountId={bankAccountId}
+                      setBankAccountId={setBankAccountId}
+                      reference={reference}
+                      setReference={setReference}
+                      chequeState={chequeState}
+                      setChequeState={setChequeState}
+                      saveAsOpen={saveAsOpen}
+                      setSaveAsOpen={setSaveAsOpen}
+                      notesAr={notesAr}
+                      setNotesAr={setNotesAr}
+                      preview={preview}
+                      paymentSum={paymentSum}
+                      validation={validation}
+                      submitError={submitError}
+                      submitting={submit.isPending}
+                      onSubmit={() => submit.mutate()}
+                      total={total}
+                    />
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="cart-panel"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18, ease: [0, 0, 0.2, 1] }}
+              >
+                <CartPanel
+                  cart={cart}
+                  preview={preview}
+                  subtotal={subtotal}
+                  useCartDiscount={useCartDiscount}
+                  updateLine={updateLine}
+                  removeLine={removeLine}
+                  flashRowId={flashRowId}
+                  onShowLabel={setLabelRoll}
+                  onPay={() => setPaymentSheetOpen(true)}
+                  disabled={cart.length === 0}
+                  destination={destination}
+                  onChangeDestination={requestDestinationChange}
+                  customer={customer}
+                  onOpenDeposit={() => setDepositOpen(true)}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
@@ -622,42 +689,44 @@ export function POSPage() {
         </SheetContent>
       </Sheet>
 
-      {/* Payment bottom sheet */}
-      <Sheet open={paymentSheetOpen} onOpenChange={setPaymentSheetOpen}>
-        <SheetContent side="bottom" className="max-h-[92vh] flex flex-col">
-          <SheetHeader>
-            <SheetTitle>{ar.pos.paymentSheetTitle}</SheetTitle>
-          </SheetHeader>
-          <div className="mt-3 flex-1 overflow-y-auto pb-4">
-            <PaymentForm
-              banks={banks}
-              paymentMode={paymentMode}
-              setPaymentMode={setPaymentMode}
-              cashAmount={cashAmount}
-              setCashAmount={setCashAmount}
-              instaAmount={instaAmount}
-              setInstaAmount={setInstaAmount}
-              bankAccountId={bankAccountId}
-              setBankAccountId={setBankAccountId}
-              reference={reference}
-              setReference={setReference}
-              chequeState={chequeState}
-              setChequeState={setChequeState}
-              saveAsOpen={saveAsOpen}
-              setSaveAsOpen={setSaveAsOpen}
-              notesAr={notesAr}
-              setNotesAr={setNotesAr}
-              preview={preview}
-              paymentSum={paymentSum}
-              validation={validation}
-              submitError={submitError}
-              submitting={submit.isPending}
-              onSubmit={() => submit.mutate()}
-              total={total}
-            />
-          </div>
-        </SheetContent>
-      </Sheet>
+      {/* Payment bottom sheet — mobile/tablet only (lg+ uses inline panel above) */}
+      <div className="lg:hidden">
+        <Sheet open={paymentSheetOpen} onOpenChange={setPaymentSheetOpen}>
+          <SheetContent side="bottom" className="max-h-[92vh] flex flex-col">
+            <SheetHeader>
+              <SheetTitle>{ar.pos.paymentSheetTitle}</SheetTitle>
+            </SheetHeader>
+            <div className="mt-3 flex-1 overflow-y-auto pb-4">
+              <PaymentForm
+                banks={banks}
+                paymentMode={paymentMode}
+                setPaymentMode={setPaymentMode}
+                cashAmount={cashAmount}
+                setCashAmount={setCashAmount}
+                instaAmount={instaAmount}
+                setInstaAmount={setInstaAmount}
+                bankAccountId={bankAccountId}
+                setBankAccountId={setBankAccountId}
+                reference={reference}
+                setReference={setReference}
+                chequeState={chequeState}
+                setChequeState={setChequeState}
+                saveAsOpen={saveAsOpen}
+                setSaveAsOpen={setSaveAsOpen}
+                notesAr={notesAr}
+                setNotesAr={setNotesAr}
+                preview={preview}
+                paymentSum={paymentSum}
+                validation={validation}
+                submitError={submitError}
+                submitting={submit.isPending}
+                onSubmit={() => submit.mutate()}
+                total={total}
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
+      </div>
 
       {/* Mobile sticky bottom bar — cart count + pay */}
       {cart.length > 0 && (
