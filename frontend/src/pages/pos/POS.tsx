@@ -279,11 +279,6 @@ export function POSPage() {
     enabled: cart.length > 0,
   });
 
-  useEffect(() => {
-    if (preview && !saveAsOpen && paymentMode === 'cash' && cashAmount === '') {
-      setCashAmount(preview.total_egp.toFixed(2));
-    }
-  }, [preview, paymentMode, saveAsOpen, cashAmount]);
 
   async function handleScanEnter(barcode: string) {
     setScanError(null);
@@ -629,11 +624,11 @@ export function POSPage() {
 
       {/* Payment bottom sheet */}
       <Sheet open={paymentSheetOpen} onOpenChange={setPaymentSheetOpen}>
-        <SheetContent side="bottom" className="max-h-[92vh]">
+        <SheetContent side="bottom" className="max-h-[92vh] flex flex-col">
           <SheetHeader>
             <SheetTitle>{ar.pos.paymentSheetTitle}</SheetTitle>
           </SheetHeader>
-          <div className="mt-3 flex-1 overflow-y-auto">
+          <div className="mt-3 flex-1 overflow-y-auto pb-4">
             <PaymentForm
               banks={banks}
               paymentMode={paymentMode}
