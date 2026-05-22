@@ -597,6 +597,7 @@ export function POSPage() {
                   </CardHeader>
                   <CardContent className="overflow-y-auto max-h-[calc(100vh-9rem)] pt-4 pb-6">
                     <PaymentForm
+                      compact
                       banks={banks}
                       paymentMode={paymentMode}
                       setPaymentMode={setPaymentMode}
@@ -1587,6 +1588,7 @@ function PaymentForm({
   submitting,
   onSubmit,
   total,
+  compact = false,
 }: {
   banks: BankAccount[];
   paymentMode: PaymentMode;
@@ -1612,50 +1614,78 @@ function PaymentForm({
   submitting: boolean;
   onSubmit: () => void;
   total: number;
+  compact?: boolean;
 }) {
-  const SINGLE_TILES: { value: PaymentMode; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
+  const ALL_TILES: { value: PaymentMode; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
     { value: 'cash', label: ar.pos.cash, Icon: Banknote },
     { value: 'instapay', label: ar.pos.instapay, Icon: CreditCard },
     { value: 'bank_transfer', label: ar.pos.bank_transfer, Icon: Landmark },
     { value: 'cheque', label: ar.pos.cheque, Icon: FileText },
+    { value: 'split', label: 'كاش + انستاباي', Icon: ArrowLeftRight },
   ];
 
   return (
-    <div className="space-y-4 max-w-2xl mx-auto">
-      {/* 4 method tiles (2×2) + split row */}
-      <div className="grid grid-cols-4 gap-2">
-        {SINGLE_TILES.map(({ value: m, label, Icon }) => {
-          const active = paymentMode === m;
-          return (
-            <button
-              key={m}
-              type="button"
-              onClick={() => setPaymentMode(m)}
-              className={`cursor-pointer rounded-lg border-2 p-3 flex flex-col items-center justify-center gap-1 transition-colors duration-150 min-h-[76px] ${
-                active
-                  ? 'border-accent bg-accent-subtle text-accent'
-                  : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
-              }`}
-            >
-              <Icon className="size-5" />
-              <span className="text-xs font-medium text-center leading-snug">{label}</span>
-            </button>
-          );
-        })}
-      </div>
-      {/* Split tile (full width) */}
-      <button
-        type="button"
-        onClick={() => setPaymentMode('split')}
-        className={`w-full cursor-pointer rounded-lg border-2 p-2.5 flex items-center justify-center gap-2 transition-colors duration-150 ${
-          paymentMode === 'split'
-            ? 'border-accent bg-accent-subtle text-accent'
-            : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
-        }`}
-      >
-        <ArrowLeftRight className="size-4" />
-        <span className="text-sm font-medium">كاش + انستاباي</span>
-      </button>
+    <div className={compact ? 'space-y-4' : 'space-y-4 max-w-2xl mx-auto'}>
+      {/* Payment method selector */}
+      {compact ? (
+        /* Inline panel: 5 methods in a clean 2-col grid */
+        <div className="grid grid-cols-2 gap-2">
+          {ALL_TILES.map(({ value: m, label, Icon }) => {
+            const active = paymentMode === m;
+            return (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setPaymentMode(m)}
+                className={`cursor-pointer rounded-lg border-2 px-3 py-3 flex items-center gap-3 transition-colors duration-150 ${
+                  active
+                    ? 'border-accent bg-accent-subtle text-accent'
+                    : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
+                }`}
+              >
+                <Icon className="size-5 shrink-0" />
+                <span className="text-sm font-medium leading-snug">{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        /* Bottom sheet: 4 tile cols + separate split row */
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {ALL_TILES.filter((t) => t.value !== 'split').map(({ value: m, label, Icon }) => {
+              const active = paymentMode === m;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setPaymentMode(m)}
+                  className={`cursor-pointer rounded-lg border-2 p-3 flex flex-col items-center justify-center gap-1 transition-colors duration-150 min-h-[72px] ${
+                    active
+                      ? 'border-accent bg-accent-subtle text-accent'
+                      : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
+                  }`}
+                >
+                  <Icon className="size-5" />
+                  <span className="text-xs font-medium text-center leading-snug">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() => setPaymentMode('split')}
+            className={`w-full cursor-pointer rounded-lg border-2 p-2.5 flex items-center justify-center gap-2 transition-colors duration-150 ${
+              paymentMode === 'split'
+                ? 'border-accent bg-accent-subtle text-accent'
+                : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
+            }`}
+          >
+            <ArrowLeftRight className="size-4" />
+            <span className="text-sm font-medium">كاش + انستاباي</span>
+          </button>
+        </>
+      )}
 
       {/* Amounts / method-specific fields */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
