@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/PageHeader';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { Skeleton } from '@/components/Skeleton';
+import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
+import { StatusPill } from '@/components/StatusPill';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
@@ -232,81 +234,73 @@ export function SalariesPage() {
         </div>
       </div>
 
-      {isLoading && (
-        <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full rounded-md" />
-          ))}
-        </div>
-      )}
-      {error && (
-        <ErrorBanner
-          title={ar.common.error}
-          description={extractError(error)}
-          onRetry={() => refetch()}
-        />
-      )}
-
-      {!isLoading && (
-        <div className="rounded-lg border border-border-subtle overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-surface-row-alt text-foreground-muted">
-              <tr>
-                <th className="py-2.5 px-3 text-start font-medium">{ar.hr.employee.nameAr}</th>
-                <th className="py-2.5 px-3 text-end font-medium">{ar.hr.salary.gross} (ج.م)</th>
-                <th className="py-2.5 px-3 text-end font-medium">{ar.hr.salary.adjustmentsTotal} (ج.م)</th>
-                <th className="py-2.5 px-3 text-end font-medium">{ar.hr.salary.net} (ج.م)</th>
-                <th className="py-2.5 px-3 text-center font-medium w-28">{ar.hr.salary.disburse}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle bg-surface-elevated">
-              {rows.map((row, i) => (
-                <tr
-                  key={row.employee_id}
-                  className={cn(
-                    'hover:bg-surface-hover transition-colors duration-150',
-                    i % 2 === 1 && 'bg-surface-row-alt/40',
-                  )}
+      <ResponsiveTable<HrSalaryPreview>
+        columns={[
+          {
+            key: 'name',
+            header: ar.hr.employee.nameAr,
+            primary: true,
+            cell: (r) => <span className="font-medium text-foreground">{r.name_ar}</span>,
+          },
+          {
+            key: 'gross',
+            header: `${ar.hr.salary.gross} (ج.م)`,
+            align: 'end',
+            cell: (r) => (
+              <span className="tabular-num text-foreground" dir="ltr">
+                {fmt(r.base_salary_egp)}
+              </span>
+            ),
+          },
+          {
+            key: 'adjustments',
+            header: `${ar.hr.salary.adjustmentsTotal} (ج.م)`,
+            align: 'end',
+            secondary: true,
+            cell: (r) => (
+              <span className={cn('tabular-num', r.adjustments_egp > 0 ? 'text-danger-foreground' : 'text-foreground-muted')} dir="ltr">
+                {r.adjustments_egp > 0 ? `− ${fmt(r.adjustments_egp)}` : '—'}
+              </span>
+            ),
+          },
+          {
+            key: 'net',
+            header: `${ar.hr.salary.net} (ج.م)`,
+            align: 'end',
+            cell: (r) => (
+              <span className="tabular-num font-semibold text-foreground" dir="ltr">
+                {fmt(r.net_egp)}
+              </span>
+            ),
+          },
+          {
+            key: 'action',
+            header: ar.hr.salary.disburse,
+            align: 'center',
+            cell: (r) =>
+              r.already_disbursed ? (
+                <StatusPill tone="success">{ar.hr.salary.alreadyDisbursed}</StatusPill>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="cursor-pointer text-xs h-7"
+                  onClick={(e) => { e.stopPropagation(); setDisbursingPreview(r); }}
                 >
-                  <td className="py-2.5 px-3 font-medium text-foreground">{row.name_ar}</td>
-                  <td className="py-2.5 px-3 text-end tabular-num text-foreground">
-                    {fmt(row.base_salary_egp)}
-                  </td>
-                  <td className={cn('py-2.5 px-3 text-end tabular-num', row.adjustments_egp > 0 ? 'text-danger' : 'text-foreground-muted')}>
-                    {row.adjustments_egp > 0 ? `− ${fmt(row.adjustments_egp)}` : '—'}
-                  </td>
-                  <td className="py-2.5 px-3 text-end tabular-num font-semibold text-foreground">
-                    {fmt(row.net_egp)}
-                  </td>
-                  <td className="py-2.5 px-3 text-center">
-                    {row.already_disbursed ? (
-                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-success/15 text-success">
-                        {ar.hr.salary.alreadyDisbursed}
-                      </span>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="cursor-pointer text-xs h-7"
-                        onClick={() => setDisbursingPreview(row)}
-                      >
-                        {ar.hr.salary.disburse}
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {rows.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-10 px-3 text-center text-foreground-tertiary">
-                    {ar.hr.salary.empty}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+                  {ar.hr.salary.disburse}
+                </Button>
+              ),
+          },
+        ]}
+        rows={rows}
+        rowKey={(r) => String(r.employee_id)}
+        isLoading={isLoading}
+        isError={!!error}
+        onRetry={() => refetch()}
+        errorTitle={ar.common.error}
+        empty={ar.hr.salary.empty}
+        resetKey={month}
+      />
 
       {disbursingPreview && (
         <DisburseDialog

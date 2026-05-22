@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
 import { PageHeader } from '@/components/PageHeader';
+import { KpiGrid } from '@/components/dashboard/KpiGrid';
+import { MetricCard } from '@/components/dashboard/MetricCard';
 import { StatusPill } from '@/components/StatusPill';
 
 function fmtMoney(s: string | number): string {
@@ -55,6 +57,18 @@ export function ReturnsListPage() {
   const total = q.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / 30));
   const activeFilters = (dateFrom ? 1 : 0) + (dateTo ? 1 : 0);
+
+  const kpis = useMemo(() => {
+    let totalRefund = 0;
+    let refunds = 0;
+    let exchanges = 0;
+    for (const r of rows) {
+      totalRefund += Number(r.total_refund_egp);
+      if (r.kind === 'refund') refunds += 1;
+      else exchanges += 1;
+    }
+    return { totalRefund, refunds, exchanges };
+  }, [rows]);
 
   const columns: Column<ReturnListRow>[] = [
     {
@@ -155,14 +169,36 @@ export function ReturnsListPage() {
     <div className="max-w-6xl mx-auto space-y-4">
       <PageHeader title={ar.returns.title} description={ar.hubs.returnsDesc} />
 
+      <KpiGrid className="lg:grid-cols-3">
+        <MetricCard
+          label="إجمالي المرتجعات"
+          value={q.isLoading ? null : total}
+          format="int"
+          tone="accent"
+          emDashOnZero={false}
+          meta="عدد المرتجعات"
+        />
+        <MetricCard
+          label="قيمة المرتجعات"
+          value={q.isLoading ? null : kpis.totalRefund}
+          format="money"
+          tone="danger"
+          meta="إجمالي المبالغ المستردة"
+        />
+        <MetricCard
+          label="استبدالات"
+          value={q.isLoading ? null : kpis.exchanges}
+          format="int"
+          tone="info"
+          emDashOnZero={false}
+          meta="عمليات الاستبدال"
+        />
+      </KpiGrid>
+
       {/* Filters: inline ≥md, bottom sheet <md */}
       <MobileFilterSheet activeCount={activeFilters}>
         {filterControls}
       </MobileFilterSheet>
-
-      <div className="text-sm text-foreground-muted">
-        {ar.returns.title}: <span className="tabular-num text-foreground" dir="ltr">{total}</span>
-      </div>
 
       <ResponsiveTable
         columns={columns}

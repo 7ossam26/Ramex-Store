@@ -9,6 +9,7 @@ import { ShipmentsListPage } from './pages/shipments/ShipmentsList';
 import { ReviewShipmentPage } from './pages/shipments/ReviewShipment';
 import { ShipmentsHubPage } from './pages/shipments/ShipmentsHub';
 import { FabricsPage } from './pages/inventory/Fabrics';
+import { StockViewPage } from './pages/inventory/StockView';
 import { StockMovementsPage } from './pages/inventory/StockMovements';
 import { StocktakePage } from './pages/inventory/Stocktake';
 import { AdjustmentsPage } from './pages/inventory/Adjustments';
@@ -81,6 +82,7 @@ export function App() {
                 <Route path="/items/tops/add" element={<AddTopPage />} />
 
                 <Route path="/inventory" element={<InventoryHubPage />} />
+                <Route path="/inventory/stock" element={<StockViewPage />} />
                 <Route path="/codes" element={<CodesPage />} />
                 <Route path="/inventory/stock-movements" element={<StockMovementsPage />} />
                 <Route path="/inventory/stocktake" element={<StocktakePage />} />

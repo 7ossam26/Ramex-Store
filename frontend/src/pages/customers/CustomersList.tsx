@@ -1,8 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { AlertTriangle, Search, TrendingUp, Users, Wallet } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { customersApi } from '@/lib/customers-api';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,8 @@ import {
   DialogClose,
 } from '@/components/ResponsiveDialog';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
+import { KpiGrid } from '@/components/dashboard/KpiGrid';
+import { MetricCard } from '@/components/dashboard/MetricCard';
 import { PageHeader } from '@/components/PageHeader';
 import type { Customer } from '@/lib/customers-types';
 
@@ -93,6 +95,19 @@ export function CustomersListPage() {
   const total = q.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const kpis = useMemo(() => {
+    let withDebt = 0;
+    let withCredit = 0;
+    let totalVolume = 0;
+    for (const c of rows) {
+      const bal = Number(c.current_balance_egp);
+      if (bal < 0) withDebt += 1;
+      else if (bal > 0) withCredit += 1;
+      totalVolume += Number(c.lifetime_volume_egp);
+    }
+    return { withDebt, withCredit, totalVolume };
+  }, [rows]);
+
   const columns: Column<Customer>[] = [
     {
       key: 'code',
@@ -142,6 +157,40 @@ export function CustomersListPage() {
         title={ar.customers.title}
         actions={<Button onClick={openCreate}>{ar.customers.addCustomer}</Button>}
       />
+
+      <KpiGrid>
+        <MetricCard
+          label="إجمالي العملاء"
+          value={q.isLoading ? null : total}
+          format="int"
+          tone="accent"
+          emDashOnZero={false}
+          meta={<span className="inline-flex items-center gap-1"><Users className="size-3.5" />عميل مسجّل</span>}
+        />
+        <MetricCard
+          label="عملاء بمديونيات"
+          value={q.isLoading ? null : kpis.withDebt}
+          format="int"
+          tone={kpis.withDebt > 0 ? 'danger' : 'success'}
+          emDashOnZero={false}
+          meta={<span className="inline-flex items-center gap-1"><AlertTriangle className="size-3.5" />رصيد مدين</span>}
+        />
+        <MetricCard
+          label="عملاء برصيد دائن"
+          value={q.isLoading ? null : kpis.withCredit}
+          format="int"
+          tone={kpis.withCredit > 0 ? 'success' : 'default'}
+          emDashOnZero={false}
+          meta={<span className="inline-flex items-center gap-1"><Wallet className="size-3.5" />رصيد دائن</span>}
+        />
+        <MetricCard
+          label="إجمالي المبيعات"
+          value={q.isLoading ? null : kpis.totalVolume}
+          format="money"
+          tone="info"
+          meta={<span className="inline-flex items-center gap-1"><TrendingUp className="size-3.5" />حجم المبيعات</span>}
+        />
+      </KpiGrid>
 
       {/* Filter bar */}
       <div className="rounded-lg border border-border-subtle bg-surface-elevated p-3 flex flex-col sm:flex-row sm:items-center gap-3">

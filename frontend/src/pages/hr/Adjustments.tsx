@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/PageHeader';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { Skeleton } from '@/components/Skeleton';
+import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
+import { StatusPill } from '@/components/StatusPill';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
@@ -262,79 +264,63 @@ export function AdjustmentsPage() {
         </Button>
       </div>
 
-      {isLoading && (
-        <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full rounded-md" />
-          ))}
-        </div>
-      )}
-      {error && (
-        <ErrorBanner
-          title={ar.common.error}
-          description={extractError(error)}
-          onRetry={() => refetch()}
-        />
-      )}
-
-      {!isLoading && (
-        <div className="rounded-lg border border-border-subtle overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-surface-row-alt text-foreground-muted">
-              <tr>
-                <th className="py-2.5 px-3 text-start font-medium">{ar.hr.employee.nameAr}</th>
-                <th className="py-2.5 px-3 text-start font-medium">{ar.hr.adjustment.kind}</th>
-                <th className="py-2.5 px-3 text-end font-medium">{ar.hr.adjustment.amount}</th>
-                <th className="py-2.5 px-3 text-start font-medium">{ar.hr.adjustment.salaryMonth}</th>
-                <th className="py-2.5 px-3 text-start font-medium hidden md:table-cell">{ar.hr.adjustment.reason}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle bg-surface-elevated">
-              {rows.map((row, i) => (
-                <tr
-                  key={row.id}
-                  className={cn(
-                    'hover:bg-surface-hover transition-colors duration-150',
-                    i % 2 === 1 && 'bg-surface-row-alt/40',
-                  )}
-                >
-                  <td className="py-2.5 px-3 font-medium text-foreground">
-                    {row.employee_name_ar ?? `#${row.employee_id}`}
-                  </td>
-                  <td className="py-2.5 px-3">
-                    <span
-                      className={cn(
-                        'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-                        row.kind === 'advance'
-                          ? 'bg-warning/15 text-warning'
-                          : 'bg-danger/15 text-danger',
-                      )}
-                    >
-                      {row.kind === 'advance' ? ar.hr.adjustment.advance : ar.hr.adjustment.deduction}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-3 text-end tabular-num font-medium text-foreground">
-                    {fmt(row.amount_egp)} ج.م
-                  </td>
-                  <td className="py-2.5 px-3 text-foreground-muted tabular-num">
-                    {row.salary_month.slice(0, 7)}
-                  </td>
-                  <td className="py-2.5 px-3 text-foreground-muted text-xs hidden md:table-cell max-w-48 truncate">
-                    {row.reason_ar ?? '—'}
-                  </td>
-                </tr>
-              ))}
-              {rows.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-10 px-3 text-center text-foreground-tertiary">
-                    {ar.hr.adjustment.empty}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <ResponsiveTable<HrSalaryAdjustment>
+        columns={[
+          {
+            key: 'employee',
+            header: ar.hr.employee.nameAr,
+            primary: true,
+            cell: (r) => (
+              <span className="font-medium text-foreground">
+                {r.employee_name_ar ?? `#${r.employee_id}`}
+              </span>
+            ),
+          },
+          {
+            key: 'kind',
+            header: ar.hr.adjustment.kind,
+            secondary: true,
+            cell: (r) => (
+              <StatusPill tone={r.kind === 'advance' ? 'warning' : 'danger'}>
+                {r.kind === 'advance' ? ar.hr.adjustment.advance : ar.hr.adjustment.deduction}
+              </StatusPill>
+            ),
+          },
+          {
+            key: 'amount',
+            header: ar.hr.adjustment.amount,
+            align: 'end',
+            cell: (r) => (
+              <span className="tabular-num font-medium text-foreground" dir="ltr">
+                {fmt(r.amount_egp)} <span className="text-foreground-tertiary text-xs">ج.م</span>
+              </span>
+            ),
+          },
+          {
+            key: 'month',
+            header: ar.hr.adjustment.salaryMonth,
+            cell: (r) => (
+              <span className="text-foreground-muted tabular-num">{r.salary_month.slice(0, 7)}</span>
+            ),
+          },
+          {
+            key: 'reason',
+            header: ar.hr.adjustment.reason,
+            hideOnMobile: true,
+            cell: (r) => (
+              <span className="text-foreground-muted text-xs max-w-48 truncate block">{r.reason_ar ?? '—'}</span>
+            ),
+          },
+        ]}
+        rows={rows}
+        rowKey={(r) => String(r.id)}
+        isLoading={isLoading}
+        isError={!!error}
+        onRetry={() => refetch()}
+        errorTitle={ar.common.error}
+        empty={ar.hr.adjustment.empty}
+        resetKey={`${kindFilter}`}
+      />
 
       {showCreate && (
         <CreateAdjustmentDialog

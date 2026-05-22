@@ -72,6 +72,8 @@ export const ar = {
     inventoryStocktakeDesc: 'بدء جرد توبي أو تجميعي ومراجعة الفروقات',
     inventoryAdjustmentsDesc: 'تسجيل تسويات يدوية على المخزون',
     inventoryDamageDesc: 'تسجيل أحداث التلف والفقد والإحالة لقرار المالك',
+    inventoryOverviewDesc: 'نظرة عامة على مستويات المخزون والأسعار ومتابعة النواقص',
+    inventoryCodesDesc: 'الجودات والتركيبات والماركات وبيانات الموردين',
     invoicesReturnsTitle: 'الفواتير والمرتجعات',
     invoicesReturnsDescription: 'فواتير المبيعات وعمليات الإرجاع والاستبدال',
     invoicesDesc: 'كل الفواتير: المفتوحة، بانتظار الاستلام، المكتملة، الملغاة',

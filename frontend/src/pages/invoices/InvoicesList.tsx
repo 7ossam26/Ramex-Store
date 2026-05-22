@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
@@ -18,6 +18,8 @@ import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
 import { PageHeader } from '@/components/PageHeader';
+import { KpiGrid } from '@/components/dashboard/KpiGrid';
+import { MetricCard } from '@/components/dashboard/MetricCard';
 import { FilterChip } from '@/components/FilterChip';
 import { InvoiceStatusPill } from '@/components/invoices/InvoiceStatusPill';
 import { StatusPill } from '@/components/StatusPill';
@@ -101,6 +103,18 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const activeFilters =
     (dateFrom ? 1 : 0) + (dateTo ? 1 : 0) + (destination !== 'all' ? 1 : 0);
+
+  const kpis = useMemo(() => {
+    let revenue = 0;
+    let totalPaid = 0;
+    let totalBalance = 0;
+    for (const r of rows) {
+      revenue += Number(r.total_egp);
+      totalPaid += Number(r.paid_egp);
+      totalBalance += Number(r.balance_egp);
+    }
+    return { revenue, totalPaid, totalBalance };
+  }, [rows]);
 
   const reprintMut = useMutation({
     mutationFn: (invoiceId: number) => salesApi.pdfBlob(invoiceId, 'reprint'),
@@ -239,6 +253,38 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
 
   return (
     <>
+      <KpiGrid>
+        <MetricCard
+          label="إجمالي الفواتير"
+          value={q.isLoading ? null : total}
+          format="int"
+          tone="accent"
+          emDashOnZero={false}
+          meta="عدد الفواتير"
+        />
+        <MetricCard
+          label="إجمالي الإيرادات"
+          value={q.isLoading ? null : kpis.revenue}
+          format="money"
+          tone="success"
+          meta="إجمالي الفواتير الظاهرة"
+        />
+        <MetricCard
+          label="المحصّل"
+          value={q.isLoading ? null : kpis.totalPaid}
+          format="money"
+          tone="info"
+          meta="إجمالي المدفوع"
+        />
+        <MetricCard
+          label="المتبقي"
+          value={q.isLoading ? null : kpis.totalBalance}
+          format="money"
+          tone={kpis.totalBalance > 0 ? 'warning' : 'default'}
+          meta="رصيد غير محصّل"
+        />
+      </KpiGrid>
+
       <MobileFilterSheet activeCount={activeFilters}>{filterControls}</MobileFilterSheet>
 
       <ResponsiveTable

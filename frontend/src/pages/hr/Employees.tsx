@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/PageHeader';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { Skeleton } from '@/components/Skeleton';
+import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
+import { StatusPill } from '@/components/StatusPill';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { arSA } from 'date-fns/locale';
@@ -331,6 +333,57 @@ export function EmployeesPage() {
 
   const employees = data?.rows ?? [];
 
+  const columns: Column<HrEmployee>[] = [
+    {
+      key: 'name',
+      header: ar.hr.employee.nameAr,
+      primary: true,
+      cell: (e) => <span className="font-medium text-foreground">{e.name_ar}</span>,
+    },
+    {
+      key: 'role',
+      header: ar.hr.employee.roleAr,
+      secondary: true,
+      cell: (e) => <span className="text-foreground-muted">{e.role_ar ?? '—'}</span>,
+    },
+    {
+      key: 'salary',
+      header: ar.hr.employee.baseSalary,
+      align: 'end',
+      cell: (e) => (
+        <span className="tabular-num text-foreground" dir="ltr">
+          {fmt(e.base_salary_egp)} <span className="text-foreground-tertiary text-xs">ج.م</span>
+        </span>
+      ),
+    },
+    {
+      key: 'active',
+      header: ar.hr.employee.isActive,
+      align: 'center',
+      cell: (e) => (
+        <StatusPill tone={e.is_active ? 'success' : 'neutral'}>
+          {e.is_active ? ar.hr.employee.filterActive : ar.hr.employee.filterInactive}
+        </StatusPill>
+      ),
+    },
+    {
+      key: 'edit',
+      header: '',
+      align: 'end',
+      cell: (e) => (
+        <button
+          type="button"
+          onClick={(ev) => { ev.stopPropagation(); setEditingEmp(e); setFormError(null); }}
+          className="text-xs text-foreground-muted hover:text-accent transition-colors underline-offset-2 hover:underline cursor-pointer"
+          aria-label={ar.hr.employee.editEmployee}
+        >
+          {ar.hr.employee.editEmployee.split(' ')[0]}
+        </button>
+      ),
+      hideOnMobile: true,
+    },
+  ];
+
   return (
     <div dir="rtl" className="space-y-4">
       <PageHeader title={ar.hr.employees} description={ar.hr.title} />
@@ -398,79 +451,18 @@ export function EmployeesPage() {
         </div>
       )}
 
-      {/* Table */}
-      {isLoading && (
-        <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full rounded-md" />
-          ))}
-        </div>
-      )}
-      {error && <ErrorBanner title={ar.common.error} description={extractError(error)} />}
-      {!isLoading && (
-        <div className="rounded-lg border border-border-subtle overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-surface-row-alt text-foreground-muted">
-              <tr>
-                <th className="py-2.5 px-3 text-start font-medium">{ar.hr.employee.nameAr}</th>
-                <th className="py-2.5 px-3 text-start font-medium">{ar.hr.employee.roleAr}</th>
-                <th className="py-2.5 px-3 text-end font-medium">{ar.hr.employee.baseSalary}</th>
-                <th className="py-2.5 px-3 text-center font-medium w-20">{ar.hr.employee.isActive}</th>
-                <th className="py-2.5 px-3 w-16" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle bg-surface-elevated">
-              {employees.map((emp, i) => (
-                <tr
-                  key={emp.id}
-                  className={cn(
-                    'hover:bg-surface-hover transition-colors duration-150 cursor-pointer',
-                    i % 2 === 1 && 'bg-surface-row-alt/40',
-                  )}
-                  onClick={() => setDrawerEmpId(emp.id)}
-                >
-                  <td className="py-2.5 px-3 font-medium text-foreground">{emp.name_ar}</td>
-                  <td className="py-2.5 px-3 text-foreground-muted">{emp.role_ar ?? '—'}</td>
-                  <td className="py-2.5 px-3 text-end tabular-num text-foreground">
-                    {fmt(emp.base_salary_egp)}
-                  </td>
-                  <td className="py-2.5 px-3 text-center">
-                    <span
-                      className={cn(
-                        'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-                        emp.is_active
-                          ? 'bg-success/15 text-success'
-                          : 'bg-foreground-tertiary/15 text-foreground-muted',
-                      )}
-                    >
-                      {emp.is_active ? ar.hr.employee.filterActive : ar.hr.employee.filterInactive}
-                    </span>
-                  </td>
-                  <td
-                    className="py-2.5 px-3 text-center"
-                    onClick={(e) => { e.stopPropagation(); setEditingEmp(emp); setFormError(null); }}
-                  >
-                    <button
-                      type="button"
-                      className="text-xs text-foreground-muted hover:text-foreground transition-colors underline-offset-2 hover:underline cursor-pointer"
-                      aria-label={ar.hr.employee.editEmployee}
-                    >
-                      {ar.hr.employee.editEmployee.split(' ')[0]}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {employees.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-10 px-3 text-center text-foreground-tertiary">
-                    {ar.hr.employee.empty}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <ResponsiveTable
+        columns={columns}
+        rows={employees}
+        rowKey={(e) => String(e.id)}
+        onRowClick={(e) => setDrawerEmpId(e.id)}
+        isLoading={isLoading}
+        isError={!!error}
+        onRetry={() => {}}
+        errorTitle={ar.common.error}
+        empty={ar.hr.employee.empty}
+        resetKey={`${search}|${filterActive}`}
+      />
 
       {/* Detail drawer */}
       {drawerEmpId !== null && (

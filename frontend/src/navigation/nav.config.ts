@@ -168,6 +168,13 @@ export const NAV: NavTop[] = [
       {
         items: [
           {
+            id: 'inventory.stock',
+            labelAr: 'نظرة عامة على المخزون',
+            descAr: 'مستويات المخزون والأسعار ومتابعة النواقص',
+            icon: Warehouse,
+            route: '/inventory/stock',
+          },
+          {
             id: 'inventory.movements',
             labelAr: 'حركات المخزون',
             descAr: 'سجل دخول وخروج التوبات',
