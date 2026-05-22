@@ -5,7 +5,6 @@ import {
   Palette,
   UserSquare,
   FileClock,
-  Boxes,
   TrendingUp,
   Landmark,
   Receipt,
@@ -51,7 +50,6 @@ const sections: Section[] = [
   {
     heading: ar.hubs.reportsInventorySection,
     cards: [
-      { label: ar.reports.stocktakeInventory, desc: ar.reports.stocktakeInventoryDesc, href: '/reports/secondary/stocktakeInventory', icon: Boxes },
       { label: ar.reports.stockByWarehouse, desc: ar.reports.stockByWarehouseDesc, href: '/reports/secondary/stockByWarehouse', icon: Warehouse },
       { label: ar.reports.agingInventory, desc: ar.reports.agingInventoryDesc, href: '/reports/secondary/agingInventory', icon: Clock4 },
       { label: ar.reports.shipmentsSummary, desc: ar.reports.shipmentsSummaryDesc, href: '/reports/secondary/shipmentsSummary', icon: PackageSearch },

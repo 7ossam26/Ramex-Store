@@ -383,12 +383,6 @@ export const NAV: NavTop[] = [
         groupLabelAr: 'تقارير المخزون',
         items: [
           {
-            id: 'reports.stocktakeInventory',
-            labelAr: 'جرد المخزون',
-            icon: ClipboardList,
-            route: '/reports/secondary/stocktakeInventory',
-          },
-          {
             id: 'reports.stockByWarehouse',
             labelAr: 'المخزون حسب المخزن',
             icon: Warehouse,
