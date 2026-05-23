@@ -16,7 +16,7 @@ salesRouter.post('/sales', requireRole('owner', 'shop_seller'), requireOpenShift
 salesRouter.get('/invoices', ctl.listInvoices);
 salesRouter.get('/invoices/open', ctl.listOpenInvoices);
 salesRouter.get('/invoices/pending-pickup', ctl.listPendingPickup);
-salesRouter.get('/invoices/:id/pdf', ctl.getInvoicePdf);
+salesRouter.post('/invoices/:id/audit-reprint', ctl.auditReprint);
 salesRouter.get('/invoices/:id/status-history', ctl.getStatusHistory);
 salesRouter.get('/invoices/:id', ctl.getInvoice);
 salesRouter.post('/invoices/:id/void', requireRole('owner', 'shop_seller'), requireOpenShift, ctl.voidInvoice);

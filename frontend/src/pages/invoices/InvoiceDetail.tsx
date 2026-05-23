@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { extractApiError } from '@/lib/api-error';
 import { salesApi } from '@/lib/sales-api';
-import { openPdfBlob } from '@/lib/pdf';
 import { returnsApi } from '@/lib/returns-api';
 import { useAuth } from '@/lib/auth';
 import type {
@@ -114,11 +113,6 @@ export function InvoiceDetailPage() {
     },
   });
 
-  const pdfMut = useMutation({
-    mutationFn: (v: 'original' | 'reprint' | 'open') => salesApi.pdfBlob(idNum, v),
-    onSuccess: (blob) => openPdfBlob(blob),
-  });
-
   if (isLoading) {
     return (
       <div className="max-w-6xl mx-auto space-y-4" aria-hidden>
@@ -138,8 +132,6 @@ export function InvoiceDetailPage() {
     );
   }
   const inv = data;
-  const variant: 'original' | 'reprint' | 'open' =
-    inv.status === 'open' ? 'open' : 'original';
 
   const canVoid = inv.status === 'completed';
   const canAddFinal =
@@ -168,16 +160,14 @@ export function InvoiceDetailPage() {
             <Button
               variant="outline"
               size="sm"
-              disabled={pdfMut.isPending && pdfMut.variables === variant}
-              onClick={() => pdfMut.mutate(variant)}
+              onClick={() => window.open(`/invoices/${idNum}/draft`, '_blank', 'noopener')}
             >
               {ar.invoices.pdfDownload}
             </Button>
             <Button
               variant="outline"
               size="sm"
-              disabled={pdfMut.isPending && pdfMut.variables === 'reprint'}
-              onClick={() => pdfMut.mutate('reprint')}
+              onClick={() => window.open(`/invoices/${idNum}/draft?variant=reprint`, '_blank', 'noopener')}
             >
               {ar.invoices.reprint}
             </Button>

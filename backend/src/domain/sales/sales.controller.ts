@@ -7,13 +7,12 @@ import {
   FinalPaymentSchema,
   ListChequesQuerySchema,
   ListInvoicesQuerySchema,
-  PdfVariantSchema,
   SalePreviewSchema,
   VoidInvoiceSchema,
 } from './sales.schemas.js';
 import * as svc from './invoices.service.js';
 import * as openSvc from './openInvoices.service.js';
-import { buildInvoicePdf } from '../../lib/pdf/invoice.js';
+import { auditLog } from '../../middleware/audit.js';
 
 const ERR_MAP: Record<string, { status: number; message: string }> = {
   CUSTOMER_NOT_FOUND: { status: 404, message: 'العميل غير موجود' },
@@ -220,16 +219,13 @@ export async function listCheques(req: Request, res: Response): Promise<void> {
   res.json(await svc.listCheques(q));
 }
 
-export async function getInvoicePdf(req: Request, res: Response): Promise<void> {
+export async function auditReprint(req: Request, res: Response): Promise<void> {
   const id = Number(req.params.id);
-  const { variant } = PdfVariantSchema.parse(req.query);
   const detail = await svc.getInvoiceDetail(id);
   if (!detail) {
     res.status(404).json({ error: 'INVOICE_NOT_FOUND', message: 'الفاتورة غير موجودة' });
     return;
   }
-  const buf = await buildInvoicePdf(detail, variant);
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `inline; filename="${detail.invoice_no}.pdf"`);
-  res.end(buf);
+  await auditLog(req, 'invoice.reprint', 'invoice', id, null, { invoice_no: detail.invoice_no });
+  res.status(204).end();
 }

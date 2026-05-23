@@ -1,0 +1,164 @@
+import { useEffect, useRef } from 'react';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { salesApi } from '@/lib/sales-api';
+import type { InvoiceDetail, InvoiceLineDetail } from '@/lib/sales-types';
+import {
+  DraftInvoiceDocument,
+  demoDraftInvoice,
+  type DraftInvoiceDocumentProps,
+  type DraftInvoiceLine,
+} from '@/components/invoices/DraftInvoiceDocument';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/Skeleton';
+import { ErrorBanner } from '@/components/ErrorBanner';
+
+function mapLineToDraft(l: InvoiceLineDetail): DraftInvoiceLine {
+  const unit = l.fabric_unit === 'meter' ? 'm' : 'kg';
+  const qty = unit === 'kg' ? Number(l.weight_kg) : Number(l.length_m ?? l.weight_kg);
+  return {
+    description: `${l.fabric_name_ar} / ${l.color_name_ar}`,
+    bolts: 1,
+    quantity: qty,
+    quantityUnit: unit,
+    unitPrice: Number(l.selling_price_egp),
+    discountPct: 0,
+    amount: Number(l.line_total_egp),
+  };
+}
+
+function mapInvoiceToDraft(inv: InvoiceDetail): DraftInvoiceDocumentProps {
+  const totalQty = inv.lines.reduce(
+    (sum, l) =>
+      sum +
+      (l.fabric_unit === 'meter'
+        ? Number(l.length_m ?? l.weight_kg)
+        : Number(l.weight_kg)),
+    0,
+  );
+  return {
+    shopName: 'RMX',
+    customerName: inv.customer_name_ar,
+    phone: inv.customer_phone,
+    totalBolts: inv.lines.length,
+    totalQuantity: totalQty,
+    customerCode: inv.customer_code,
+    lines: inv.lines.map(mapLineToDraft),
+    subtotal: Number(inv.subtotal_egp),
+    rounding: Number(inv.rounding_egp),
+    total: Number(inv.total_egp),
+  };
+}
+
+export function DraftInvoicePrintPage() {
+  const { id } = useParams<{ id: string }>();
+  const [params] = useSearchParams();
+  const isPreview = params.get('preview') === '1';
+  const variant = params.get('variant');
+  const isReprint = variant === 'reprint';
+  const idNum = Number(id);
+  const auditFired = useRef(false);
+
+  const invoiceQ = useQuery<InvoiceDetail>({
+    queryKey: ['invoice', idNum],
+    queryFn: () => salesApi.get(idNum),
+    enabled: !isPreview,
+  });
+
+  const auditMut = useMutation({
+    mutationFn: () => salesApi.auditReprint(idNum),
+  });
+
+  /* Fire reprint audit exactly once after the invoice loads. */
+  useEffect(() => {
+    if (!isReprint || isPreview || !invoiceQ.data || auditFired.current) return;
+    auditFired.current = true;
+    auditMut.mutate();
+  }, [isReprint, isPreview, invoiceQ.data]);
+
+  const docProps: DraftInvoiceDocumentProps | null = isPreview
+    ? demoDraftInvoice
+    : invoiceQ.data
+      ? mapInvoiceToDraft(invoiceQ.data)
+      : null;
+
+  return (
+    <div className="rmx-draft-doc-route">
+      {/* Screen-only toolbar — hidden in print via CSS */}
+      <div
+        className="rmx-draft-doc-toolbar"
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 10,
+          display: 'flex',
+          gap: '8px',
+          padding: '8px 16px',
+          background: '#374151',
+          width: '210mm',
+          boxSizing: 'border-box',
+          alignItems: 'center',
+        }}
+        data-print="hide"
+      >
+        <Button
+          size="sm"
+          variant="outline"
+          style={{ color: '#fff', borderColor: '#9ca3af', backgroundColor: 'transparent' }}
+          onClick={() => window.print()}
+        >
+          طباعة
+        </Button>
+        <Link to={isPreview ? '/invoices' : `/invoices/${id}`}>
+          <Button
+            size="sm"
+            variant="outline"
+            style={{ color: '#fff', borderColor: '#9ca3af', backgroundColor: 'transparent' }}
+          >
+            رجوع
+          </Button>
+        </Link>
+        {isPreview && (
+          <span style={{ color: '#9ca3af', fontSize: '12px' }}>
+            معاينة — بيانات تجريبية
+          </span>
+        )}
+        {isReprint && !isPreview && (
+          <span style={{ color: '#fbbf24', fontSize: '12px' }}>
+            نسخة طبق الأصل
+          </span>
+        )}
+      </div>
+
+      {/* Loading state */}
+      {!isPreview && invoiceQ.isLoading && (
+        <div
+          style={{
+            width: '210mm',
+            padding: '15mm',
+            background: '#fff',
+            marginBlock: '8px',
+            boxShadow: '0 4px 24px rgba(0,0,0,.12)',
+          }}
+        >
+          <Skeleton className="h-8 w-48 mb-4" />
+          <Skeleton className="h-4 w-full mb-2" />
+          <Skeleton className="h-40 w-full" />
+        </div>
+      )}
+
+      {/* Error state */}
+      {!isPreview && invoiceQ.isError && (
+        <div style={{ width: '210mm', marginBlock: '8px' }}>
+          <ErrorBanner
+            title="تعذر تحميل الفاتورة"
+            onRetry={() => invoiceQ.refetch()}
+          />
+        </div>
+      )}
+
+      {/* Invoice document */}
+      {docProps && <DraftInvoiceDocument {...docProps} />}
+    </div>
+  );
+}

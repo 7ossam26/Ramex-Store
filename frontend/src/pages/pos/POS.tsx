@@ -32,7 +32,6 @@ import { ar } from '@/i18n/ar';
 import { salesApi } from '@/lib/sales-api';
 import { customersApi } from '@/lib/customers-api';
 import { itemsApi } from '@/lib/items-api';
-import { openPdfBlob } from '@/lib/pdf';
 import type { Customer } from '@/lib/customers-types';
 import type {
   BankAccount,
@@ -432,11 +431,6 @@ export function POSPage() {
         ? instaNum
         : cashNum + instaNum; // split
 
-  const invoicePdfMut = useMutation({
-    mutationFn: ({ id, variant }: { id: number; variant: 'original' | 'reprint' | 'open' }) =>
-      salesApi.pdfBlob(id, variant),
-    onSuccess: (blob) => openPdfBlob(blob),
-  });
 
   const submit = useMutation({
     mutationFn: () => {
@@ -919,8 +913,7 @@ export function POSPage() {
                 <Button
                   variant="outline"
                   className="flex-1 h-12 cursor-pointer"
-                  disabled={invoicePdfMut.isPending}
-                  onClick={() => invoicePdfMut.mutate({ id: completed.id, variant: 'original' })}
+                  onClick={() => window.open(`/invoices/${completed.id}/draft`, '_blank', 'noopener')}
                 >
                   {ar.pos.print}
                 </Button>

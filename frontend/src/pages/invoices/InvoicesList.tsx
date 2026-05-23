@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { salesApi } from '@/lib/sales-api';
-import { openPdfBlob } from '@/lib/pdf';
 import type {
   FulfillmentDestination,
   InvoiceListRow,
@@ -114,10 +113,6 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
     return { revenue, totalPaid, totalBalance };
   }, [rows]);
 
-  const reprintMut = useMutation({
-    mutationFn: (invoiceId: number) => salesApi.pdfBlob(invoiceId, 'reprint'),
-    onSuccess: (blob) => openPdfBlob(blob),
-  });
 
   const filterControls = (
     <div className="rounded-lg border border-border-subtle bg-surface-elevated p-3 space-y-3">
@@ -235,9 +230,8 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
           </Link>
           <button
             type="button"
-            className="text-xs text-accent hover:text-accent-hover hover:underline underline-offset-2 cursor-pointer disabled:opacity-50"
-            disabled={reprintMut.isPending && reprintMut.variables === r.id}
-            onClick={(e) => { e.stopPropagation(); reprintMut.mutate(r.id); }}
+            className="text-xs text-accent hover:text-accent-hover hover:underline underline-offset-2 cursor-pointer"
+            onClick={(e) => { e.stopPropagation(); window.open(`/invoices/${r.id}/draft?variant=reprint`, '_blank', 'noopener'); }}
           >
             {ar.invoices.reprint}
           </button>

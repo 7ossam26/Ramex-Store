@@ -20,6 +20,7 @@ import { CustomerDetailPage } from './pages/customers/CustomerDetail';
 import { POSPage } from './pages/pos/POS';
 import { InvoicesListPage } from './pages/invoices/InvoicesList';
 import { InvoiceDetailPage } from './pages/invoices/InvoiceDetail';
+import { DraftInvoicePrintPage } from './pages/invoices/DraftInvoicePrintPage';
 import { InvoicesReturnsHubPage } from './pages/invoicesReturns/InvoicesReturnsHub';
 import { ChequesPage } from './pages/invoicesReturns/ChequesPage';
 import { CashDrawerPage } from './pages/cash/CashDrawer';
@@ -67,6 +68,15 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      {/* Draft invoice print view — full-page, no AppShell chrome */}
+      <Route
+        path="/invoices/:id/draft"
+        element={
+          <ProtectedRoute>
+            <DraftInvoicePrintPage />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/*"
         element={
