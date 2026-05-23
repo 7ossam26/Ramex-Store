@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { FileText, Sheet, Printer } from 'lucide-react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { FileText, Sheet, Printer, Loader2 } from 'lucide-react';
 import { shiftsApi, type Shift } from '@/lib/shifts-api';
 import { type DailyReport } from '@/lib/reports-api';
 import { ar } from '@/i18n/ar';
@@ -28,21 +28,22 @@ export function EndDayDialog({ open, shift, onClose }: Props) {
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [closedShift, setClosedShift] = useState<Shift | null>(null);
-  const [report, setReport] = useState<DailyReport | null>(null);
 
   const closeMut = useMutation({
-    mutationFn: async () => {
-      const closed = await shiftsApi.close(notes.trim() || null);
-      const rpt = await shiftsApi.getReport(closed.id);
-      return { closed, rpt };
-    },
-    onSuccess: ({ closed, rpt }) => {
+    mutationFn: () => shiftsApi.close(notes.trim() || null),
+    onSuccess: (closed) => {
       setClosedShift(closed);
-      setReport(rpt);
       setStep('report');
       setError(null);
     },
     onError: (e) => setError(extractApiError(e)),
+  });
+
+  const reportQ = useQuery<DailyReport>({
+    queryKey: ['shift-report', closedShift?.id],
+    queryFn: () => shiftsApi.getReport(closedShift!.id),
+    enabled: !!closedShift && step === 'report',
+    staleTime: Infinity,
   });
 
   function handleOpenChange(v: boolean) {
@@ -54,7 +55,6 @@ export function EndDayDialog({ open, shift, onClose }: Props) {
     setNotes('');
     setError(null);
     setClosedShift(null);
-    setReport(null);
     onClose();
   }
 
@@ -110,7 +110,7 @@ export function EndDayDialog({ open, shift, onClose }: Props) {
           </>
         )}
 
-        {step === 'report' && report && (
+        {step === 'report' && (
           <>
             <DialogHeader>
               <DialogTitle>{ar.shifts.shiftReportTitle}</DialogTitle>
@@ -137,7 +137,25 @@ export function EndDayDialog({ open, shift, onClose }: Props) {
               </a>
             </div>
 
-            <DailyReportContent report={report} />
+            {reportQ.isLoading && (
+              <div className="flex items-center justify-center gap-2 py-12 text-sm text-foreground-muted">
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+                <span>جاري تحميل التقرير...</span>
+              </div>
+            )}
+
+            {reportQ.isError && (
+              <div className="space-y-3 py-6">
+                <p className="rounded-md bg-danger-subtle px-3 py-2 text-sm text-danger-foreground">
+                  {extractApiError(reportQ.error)}
+                </p>
+                <Button variant="outline" size="sm" onClick={() => reportQ.refetch()}>
+                  {ar.common.refresh}
+                </Button>
+              </div>
+            )}
+
+            {reportQ.data && <DailyReportContent report={reportQ.data} />}
 
             <div className="flex justify-end pt-4 border-t border-border-subtle">
               <Button onClick={handleDone}>تم</Button>
