@@ -160,14 +160,17 @@ function rollMatchesDestination(r: RollLookup, dest: FulfillmentDestination): bo
 export function POSPage() {
   const qc = useQueryClient();
 
+  const [endDayShift, setEndDayShift] = useState<Shift | null>(null);
+
   const shiftQ = useQuery<Shift | null>({
     queryKey: ['shift-current'],
     queryFn: () => shiftsApi.current(),
-    refetchInterval: 60_000,
+    // Pause refetch while the End Day dialog is showing the report —
+    // otherwise the auto-refetch would set shiftQ.data=null, the gate would
+    // re-render to StartDayPanel, and the dialog would unmount mid-report.
+    refetchInterval: endDayShift ? false : 60_000,
+    refetchOnWindowFocus: !endDayShift,
   });
-
-  const [endDayOpen, setEndDayOpen] = useState(false);
-  const [staleShiftOpen, setStaleShiftOpen] = useState(false);
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -522,40 +525,66 @@ export function POSPage() {
     setPendingDestination(null);
   }
 
+  // Render the End Day dialog whenever it's been opened — it captures its own
+  // shift snapshot so it stays mounted even after shiftQ.data becomes null
+  // (i.e., right after the user closes the shift). The user must explicitly
+  // click "تم" to dismiss it.
+  const endDayDialog = endDayShift ? (
+    <EndDayDialog
+      open
+      shift={endDayShift}
+      onClose={() => {
+        setEndDayShift(null);
+        qc.invalidateQueries({ queryKey: ['shift-current'] });
+        qc.invalidateQueries({ queryKey: ['cash-balance'] });
+      }}
+    />
+  ) : null;
+
   // --- Shift gate ---
   if (shiftQ.isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-foreground-muted text-sm">
-        {ar.loading}
-      </div>
+      <>
+        {endDayDialog}
+        <div className="flex min-h-screen items-center justify-center text-foreground-muted text-sm">
+          {ar.loading}
+        </div>
+      </>
     );
   }
 
   if (shiftQ.isError) {
     return (
-      <div className="flex min-h-screen items-center justify-center flex-col gap-4 px-4" dir="rtl">
-        <p className="text-sm text-danger-foreground">{ar.common.error}</p>
-        <button
-          type="button"
-          onClick={() => shiftQ.refetch()}
-          className="text-sm text-accent hover:underline"
-        >
-          {ar.common.refresh}
-        </button>
-      </div>
+      <>
+        {endDayDialog}
+        <div className="flex min-h-screen items-center justify-center flex-col gap-4 px-4" dir="rtl">
+          <p className="text-sm text-danger-foreground">{ar.common.error}</p>
+          <button
+            type="button"
+            onClick={() => shiftQ.refetch()}
+            className="text-sm text-accent hover:underline"
+          >
+            {ar.common.refresh}
+          </button>
+        </div>
+      </>
     );
   }
 
   if (!shiftQ.data) {
     return (
-      <StartDayPanel
-        onStaleShift={() => {
-          // A stale open shift exists — refetch so we can show it in EndDayDialog
-          qc.invalidateQueries({ queryKey: ['shift-current'] }).then(() => {
-            setStaleShiftOpen(true);
-          });
-        }}
-      />
+      <>
+        {endDayDialog}
+        <StartDayPanel
+          onStaleShift={async () => {
+            // A stale open shift exists — fetch it and surface in EndDayDialog
+            const stale = await shiftsApi.current();
+            if (stale) {
+              setEndDayShift(stale);
+            }
+          }}
+        />
+      </>
     );
   }
 
@@ -563,17 +592,7 @@ export function POSPage() {
 
   return (
     <>
-      {/* End Day Dialog */}
-      <EndDayDialog
-        open={endDayOpen || staleShiftOpen}
-        shift={activeShift}
-        onClose={() => {
-          setEndDayOpen(false);
-          setStaleShiftOpen(false);
-          qc.invalidateQueries({ queryKey: ['shift-current'] });
-          qc.invalidateQueries({ queryKey: ['cash-balance'] });
-        }}
-      />
+      {endDayDialog}
 
     <div
       data-motion="reduced"
@@ -589,7 +608,7 @@ export function POSPage() {
         </span>
         <button
           type="button"
-          onClick={() => setEndDayOpen(true)}
+          onClick={() => setEndDayShift(activeShift)}
           className="rounded-md bg-danger px-3 py-1.5 text-xs font-medium text-danger-foreground hover:opacity-90 transition-opacity"
         >
           {ar.shifts.endDay}

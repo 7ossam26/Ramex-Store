@@ -85,12 +85,9 @@ export const inventoryApi = {
       reject_reason_ar?: string | null;
     },
   ) => api.post(`/shipments/${shipmentId}/lines/${lineId}/review`, body).then((r) => r.data),
-  acceptShipment: (
-    shipmentId: number,
-    fabricReferencePrices: Array<{ fabricId: number; pricePerUnit: number }>,
-  ) =>
+  acceptShipment: (shipmentId: number) =>
     api
-      .post<Shipment>(`/shipments/${shipmentId}/accept`, { fabricReferencePrices })
+      .post<Shipment>(`/shipments/${shipmentId}/accept`, {})
       .then((r) => r.data),
 
   // Damage

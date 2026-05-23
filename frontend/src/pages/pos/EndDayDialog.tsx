@@ -47,6 +47,10 @@ export function EndDayDialog({ open, shift, onClose }: Props) {
   });
 
   function handleOpenChange(v: boolean) {
+    // While the report is showing (post-close), don't allow click-outside /
+    // Escape to dismiss — the user must explicitly click "تم". This prevents
+    // the closed-shift report from accidentally disappearing.
+    if (!v && step === 'report') return;
     if (!v) handleDone();
   }
 
