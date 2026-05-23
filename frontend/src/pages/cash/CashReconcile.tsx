@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { Calculator, CheckCircle2, AlertCircle, AlertOctagon } from 'lucide-react';
 import { financeApi } from '@/lib/finance-api';
 import { ar } from '@/i18n/ar';
+import { extractApiError } from '@/lib/api-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -192,6 +193,8 @@ export function CashReconcilePage() {
   const [tab, setTab] = useState<'cash' | 'bank'>('cash');
   const [selectedBankId, setSelectedBankId] = useState<number | null>(null);
   const [result, setResult] = useState<{ variance_egp: number } | null>(null);
+  const [cashMutError, setCashMutError] = useState<string | null>(null);
+  const [bankMutError, setBankMutError] = useState<string | null>(null);
 
   const balanceQ = useQuery({
     queryKey: ['cash-balance'],
@@ -243,8 +246,10 @@ export function CashReconcilePage() {
       qc.invalidateQueries({ queryKey: ['cash-balance'] });
       qc.invalidateQueries({ queryKey: ['cash-movements'] });
       setResult(data);
+      setCashMutError(null);
       cashForm.reset({ date: todayCairo(), actual_balance_egp: '', notes_ar: '' });
     },
+    onError: (e) => setCashMutError(extractApiError(e)),
   });
 
   const bankMut = useMutation({
@@ -260,8 +265,10 @@ export function CashReconcilePage() {
       qc.invalidateQueries({ queryKey: ['banks'] });
       qc.invalidateQueries({ queryKey: ['bank-movements'] });
       setResult(data);
+      setBankMutError(null);
       bankForm.reset({ date: todayCairo(), actual_balance_egp: '', notes_ar: '' });
     },
+    onError: (e) => setBankMutError(extractApiError(e)),
   });
 
   const switchTab = (next: 'cash' | 'bank') => {
@@ -346,8 +353,8 @@ export function CashReconcilePage() {
               <Label>ملاحظات</Label>
               <Input {...cashForm.register('notes_ar')} />
             </div>
-            {cashMut.error && (
-              <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">حدث خطأ</p>
+            {cashMutError && (
+              <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">{cashMutError}</p>
             )}
             <div className="flex justify-end">
               <Button type="submit" variant="accent" disabled={cashMut.isPending}>
@@ -422,8 +429,8 @@ export function CashReconcilePage() {
                   <Label>ملاحظات</Label>
                   <Input {...bankForm.register('notes_ar')} />
                 </div>
-                {bankMut.error && (
-                  <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">حدث خطأ</p>
+                {bankMutError && (
+                  <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">{bankMutError}</p>
                 )}
                 <div className="flex justify-end">
                   <Button

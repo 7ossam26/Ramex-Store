@@ -10,20 +10,13 @@ import { Skeleton } from '@/components/Skeleton';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { StatusPill } from '@/components/StatusPill';
 import { cn } from '@/lib/utils';
+import { extractApiError } from '@/lib/api-error';
 import { format } from 'date-fns';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(v: number) {
   return v.toLocaleString('en-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function extractError(e: unknown): string {
-  const msg =
-    (e as { response?: { data?: { message?: string; error?: string } } })?.response?.data?.message ??
-    (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-    (e as { message?: string })?.message;
-  return msg ?? ar.common.error;
 }
 
 function toMonthDate(ym: string) {
@@ -68,7 +61,7 @@ function DisburseDialog({ preview, month, onClose, onDone }: DisburseDialogProps
       qc.invalidateQueries({ queryKey: ['hr-salaries-preview'] });
       onDone();
     },
-    onError: (e) => setError(extractError(e)),
+    onError: (e) => setError(extractApiError(e)),
   });
 
   const needsBank = paidVia !== 'cash';

@@ -21,6 +21,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { TableFilterBar } from '@/components/TableFilterBar';
 import { Skeleton } from '@/components/Skeleton';
 import { cn } from '@/lib/utils';
+import { extractApiError } from '@/lib/api-error';
 
 const PAGE_SIZE = 50;
 
@@ -52,6 +53,10 @@ export function CashDrawerPage() {
   const [showDepositDlg, setShowDepositDlg] = useState(false);
   const [showWithdrawalDlg, setShowWithdrawalDlg] = useState(false);
   const [showCloseDlg, setShowCloseDlg] = useState(false);
+  const [openingError, setOpeningError] = useState<string | null>(null);
+  const [depositError, setDepositError] = useState<string | null>(null);
+  const [withdrawalError, setWithdrawalError] = useState<string | null>(null);
+  const [closeError, setCloseError] = useState<string | null>(null);
 
   const balanceQ = useQuery({
     queryKey: ['cash-balance'],
@@ -87,7 +92,9 @@ export function CashDrawerPage() {
       qc.invalidateQueries({ queryKey: ['cash-movements'] });
       setShowOpeningDlg(false);
       openingForm.reset();
+      setOpeningError(null);
     },
+    onError: (e) => setOpeningError(extractApiError(e)),
   });
 
   const depositMut = useMutation({
@@ -103,7 +110,9 @@ export function CashDrawerPage() {
       qc.invalidateQueries({ queryKey: ['banks'] });
       setShowDepositDlg(false);
       depositForm.reset();
+      setDepositError(null);
     },
+    onError: (e) => setDepositError(extractApiError(e)),
   });
 
   const withdrawalMut = useMutation({
@@ -114,7 +123,9 @@ export function CashDrawerPage() {
       qc.invalidateQueries({ queryKey: ['cash-movements'] });
       setShowWithdrawalDlg(false);
       withdrawalForm.reset();
+      setWithdrawalError(null);
     },
+    onError: (e) => setWithdrawalError(extractApiError(e)),
   });
 
   const closeMut = useMutation({
@@ -122,7 +133,9 @@ export function CashDrawerPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['cash-balance'] });
       setShowCloseDlg(false);
+      setCloseError(null);
     },
+    onError: (e) => setCloseError(extractApiError(e)),
   });
 
   const totalPages = movementsQ.data ? Math.ceil(movementsQ.data.total / PAGE_SIZE) : 1;
@@ -388,11 +401,9 @@ export function CashDrawerPage() {
                 {...openingForm.register('amount', { required: true })}
               />
             </div>
-            {openingMut.error && (
+            {openingError && (
               <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">
-                {(openingMut.error as Error).message === 'OPENING_BALANCE_ALREADY_SET'
-                  ? 'تم تعيين الرصيد الافتتاحي من قبل. لا يمكن إعادة التعيين.'
-                  : 'حدث خطأ'}
+                {openingError}
               </p>
             )}
             <div className="flex justify-end gap-2">
@@ -446,8 +457,8 @@ export function CashDrawerPage() {
               <Label>ملاحظات</Label>
               <Input {...depositForm.register('notes_ar')} />
             </div>
-            {depositMut.error && (
-              <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">حدث خطأ</p>
+            {depositError && (
+              <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">{depositError}</p>
             )}
             <div className="flex justify-end gap-2">
               <DialogClose asChild>
@@ -482,8 +493,8 @@ export function CashDrawerPage() {
                 </span>
               </div>
             )}
-            {closeMut.error && (
-              <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">حدث خطأ</p>
+            {closeError && (
+              <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">{closeError}</p>
             )}
             <div className="flex justify-end gap-2">
               <DialogClose asChild>
@@ -528,8 +539,8 @@ export function CashDrawerPage() {
               <Label>ملاحظات</Label>
               <Input {...withdrawalForm.register('notes_ar')} />
             </div>
-            {withdrawalMut.error && (
-              <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">حدث خطأ</p>
+            {withdrawalError && (
+              <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">{withdrawalError}</p>
             )}
             <div className="flex justify-end gap-2">
               <DialogClose asChild>

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useAuth } from '@/lib/auth';
+import { extractApiError } from '@/lib/api-error';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -29,12 +30,6 @@ function getInitialTab(): TabKey {
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
-
-function extractApiError(e: unknown): string {
-  const msg =
-    (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
-  return msg ?? ar.common.error;
-}
 
 function breakdownToString(bd: Array<{ material: string; percent: number }>): string {
   return bd.map((b) => `${b.percent}% ${b.material}`).join(' ');

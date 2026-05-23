@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, Plus, Trash2, X } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
+import { extractApiError } from '@/lib/api-error';
 import { itemsApi } from '@/lib/items-api';
 import type {
   Color,
@@ -148,10 +149,7 @@ function FabricCreateDialog({
       setErr(null);
     },
     onError: (e: unknown) => {
-      const msg =
-        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        ar.common.error;
-      setErr(msg);
+      setErr(extractApiError(e));
     },
   });
 
@@ -270,8 +268,7 @@ function ColorCreateDialog({
       setErr(null);
     },
     onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? ar.common.error;
-      setErr(msg);
+      setErr(extractApiError(e));
     },
   });
 
@@ -728,11 +725,7 @@ export function AddTopPage() {
       qc.invalidateQueries({ queryKey: ['rolls-search'] });
     },
     onError: (e: unknown) => {
-      const msg =
-        (e as { response?: { data?: { message?: string; error?: string } } })?.response?.data?.message ??
-        (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-        ar.common.error;
-      setGlobalError(msg);
+      setGlobalError(extractApiError(e));
     },
   });
 

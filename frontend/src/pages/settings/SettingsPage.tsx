@@ -24,6 +24,7 @@ import { ErrorBanner } from '@/components/ErrorBanner';
 import { Toast } from '@/components/Toast';
 import { Skeleton } from '@/components/Skeleton';
 import { cn } from '@/lib/utils';
+import { extractApiError } from '@/lib/api-error';
 import {
   SETTINGS_SECTIONS,
   SETTINGS_SECTION_IDS,
@@ -186,14 +187,6 @@ function SaveErrorBanner({ message, onDismiss }: { message: string; onDismiss?: 
       className="mb-4"
     />
   );
-}
-
-function extractApiError(e: unknown, fallback = ar.common.error): string {
-  const msg =
-    (e as { response?: { data?: { message?: string; error?: string } } })?.response?.data?.message ??
-    (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-    (e as { message?: string })?.message;
-  return msg ?? fallback;
 }
 
 // ─── Section: General ────────────────────────────────────────────────────────

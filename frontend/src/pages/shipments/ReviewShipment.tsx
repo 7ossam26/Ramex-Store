@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
+import { extractApiError } from '@/lib/api-error';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,6 +38,7 @@ export function ReviewShipmentPage() {
 
   const [reasons, setReasons] = useState<Record<number, string>>({});
   const [fabricPrices, setFabricPrices] = useState<Record<number, string>>({});
+  const [acceptError, setAcceptError] = useState<string | null>(null);
 
   const q = useQuery({
     queryKey: ['shipment', shipmentId],
@@ -63,7 +65,11 @@ export function ReviewShipmentPage() {
   const accept = useMutation({
     mutationFn: (fabricReferencePrices: Array<{ fabricId: number; pricePerUnit: number }>) =>
       inventoryApi.acceptShipment(shipmentId, fabricReferencePrices),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['shipment', shipmentId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['shipment', shipmentId] });
+      setAcceptError(null);
+    },
+    onError: (e) => setAcceptError(extractApiError(e)),
   });
 
   if (!q.data) return <div>{ar.loading}</div>;
@@ -113,10 +119,9 @@ export function ReviewShipmentPage() {
         actions={<ShipmentStatusPill status={shipment.status} />}
       />
 
-      {accept.isError && (
+      {acceptError && (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {(accept.error as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-            'حدث خطأ أثناء تأكيد الاستلام'}
+          {acceptError}
         </div>
       )}
 

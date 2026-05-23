@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import { extractApiError } from '@/lib/api-error';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   X,
@@ -322,8 +322,8 @@ export function POSPage() {
         setFlashRowId(roll.id);
       }
     } catch (e) {
-      const status = axios.isAxiosError(e) ? e.response?.status : 0;
-      flagScanFailure(status === 404 ? ar.pos.notFound : ar.common.error);
+      const status = (e as { response?: { status?: number } })?.response?.status;
+      flagScanFailure(status === 404 ? ar.pos.notFound : extractApiError(e));
     }
   }
 
@@ -361,10 +361,7 @@ export function POSPage() {
       qc.invalidateQueries({ queryKey: ['pos-rolls'] });
       showToast(`${ar.pos.returnSuccess} — ${result.return_no}`);
     } catch (e) {
-      const msg =
-        axios.isAxiosError(e) &&
-        (e.response?.data as { message?: string } | undefined)?.message;
-      showToast(msg || ar.common.error);
+      showToast(extractApiError(e));
     } finally {
       setReturnConfirming(false);
     }
@@ -474,12 +471,7 @@ export function POSPage() {
       setSubmitError(null);
     },
     onError: (e: unknown) => {
-      const msg =
-        axios.isAxiosError(e) &&
-        e.response?.data &&
-        (e.response.data as { message?: string }).message
-          ? (e.response.data as { message: string }).message
-          : ar.common.error;
+      const msg = extractApiError(e);
       setSubmitError(msg);
       showToast(msg);
     },
@@ -2037,9 +2029,7 @@ function NoLinesDepositDialog({
         setError(ar.pos.depositRequired);
         return;
       }
-      const msg =
-        axios.isAxiosError(e) && (e.response?.data as { message?: string } | undefined)?.message;
-      setError(msg || ar.common.error);
+      setError(extractApiError(e));
     },
   });
 
@@ -2500,13 +2490,7 @@ function QuickCustomerDialog({
       setError(null);
     },
     onError: (e: unknown) => {
-      const msg =
-        axios.isAxiosError(e) &&
-        e.response?.data &&
-        (e.response.data as { message?: string }).message
-          ? (e.response.data as { message: string }).message
-          : ar.common.error;
-      setError(msg);
+      setError(extractApiError(e));
     },
   });
 

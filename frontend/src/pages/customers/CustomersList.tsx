@@ -5,6 +5,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, Search, TrendingUp, Users, Wallet } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { customersApi } from '@/lib/customers-api';
+import { extractApiError } from '@/lib/api-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -52,6 +53,7 @@ export function CustomersListPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(searchParams.get('create') === '1');
+  const [createError, setCreateError] = useState<string | null>(null);
   const qc = useQueryClient();
 
   const q = useQuery({
@@ -78,7 +80,9 @@ export function CustomersListPage() {
       form.reset();
       setCreateOpen(false);
       setSearchParams({});
+      setCreateError(null);
     },
+    onError: (e) => setCreateError(extractApiError(e)),
   });
 
   const openCreate = useCallback(() => {
@@ -286,9 +290,9 @@ export function CustomersListPage() {
                 <Input {...form.register('notes_ar')} dir="rtl" />
               </div>
             </div>
-            {create.error && (
+            {createError && (
               <p className="text-sm text-danger transition-opacity duration-75 ease-standard" role="alert">
-                {(create.error as { response?: { data?: { message?: string } } })?.response?.data?.message ?? ar.common.error}
+                {createError}
               </p>
             )}
             <div className="flex gap-2 justify-end">

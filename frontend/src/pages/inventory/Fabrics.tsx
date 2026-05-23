@@ -23,6 +23,7 @@ import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusPill } from '@/components/StatusPill';
 import { useAuth } from '@/lib/auth';
+import { extractApiError } from '@/lib/api-error';
 
 type CompositionRow = { material: string; percent: string };
 
@@ -119,7 +120,7 @@ export function FabricsPage() {
       qc.invalidateQueries({ queryKey: ['fabrics'] });
       close();
     },
-    onError: (e: unknown) => setErrorMsg(extractErr(e)),
+    onError: (e: unknown) => setErrorMsg(extractApiError(e)),
   });
 
   const updateMut = useMutation({
@@ -130,7 +131,7 @@ export function FabricsPage() {
       qc.invalidateQueries({ queryKey: ['fabrics'] });
       close();
     },
-    onError: (e: unknown) => setErrorMsg(extractErr(e)),
+    onError: (e: unknown) => setErrorMsg(extractApiError(e)),
   });
 
   function buildPayload(): CreateFabricInput | null {
@@ -510,11 +511,3 @@ export function FabricsPage() {
   );
 }
 
-function extractErr(e: unknown): string {
-  return (
-    (e as { response?: { data?: { message?: string; error?: string } } })?.response?.data
-      ?.message ??
-    (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-    ar.common.error
-  );
-}

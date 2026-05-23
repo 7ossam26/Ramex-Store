@@ -5,6 +5,7 @@ import { Plus, Check, X } from 'lucide-react';
 import { financeApi } from '@/lib/finance-api';
 import { useAuth } from '@/lib/auth';
 import { ar } from '@/i18n/ar';
+import { extractApiError } from '@/lib/api-error';
 import type { Expense } from '@/lib/finance-types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -70,6 +71,8 @@ export function ExpensesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [rejectTarget, setRejectTarget] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [rejectError, setRejectError] = useState<string | null>(null);
 
   const expensesQ = useQuery({
     queryKey: ['expenses', page, statusFilter],
@@ -110,7 +113,9 @@ export function ExpensesPage() {
       qc.invalidateQueries({ queryKey: ['banks'] });
       setShowCreate(false);
       form.reset();
+      setCreateError(null);
     },
+    onError: (e) => setCreateError(extractApiError(e)),
   });
 
   const approveMut = useMutation({
@@ -129,7 +134,9 @@ export function ExpensesPage() {
       qc.invalidateQueries({ queryKey: ['expenses'] });
       setRejectTarget(null);
       setRejectReason('');
+      setRejectError(null);
     },
+    onError: (e) => setRejectError(extractApiError(e)),
   });
 
   const totalPages = expensesQ.data ? Math.ceil(expensesQ.data.total / PAGE_SIZE) : 1;
@@ -378,8 +385,8 @@ export function ExpensesPage() {
               <Label>ملاحظات</Label>
               <Input {...form.register('notes_ar')} />
             </div>
-            {createMut.error && (
-              <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">حدث خطأ</p>
+            {createError && (
+              <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">{createError}</p>
             )}
             <div className="flex justify-end gap-2 pt-2">
               <DialogClose asChild>
@@ -408,8 +415,8 @@ export function ExpensesPage() {
               </Label>
               <Input value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
             </div>
-            {rejectMut.error && (
-              <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">حدث خطأ</p>
+            {rejectError && (
+              <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">{rejectError}</p>
             )}
             <div className="flex justify-end gap-2 pt-2">
               <DialogClose asChild>

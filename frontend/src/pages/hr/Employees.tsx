@@ -10,6 +10,7 @@ import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { StatusPill } from '@/components/StatusPill';
 import { Toggle } from '@/components/Toggle';
 import { cn } from '@/lib/utils';
+import { extractApiError } from '@/lib/api-error';
 import { format } from 'date-fns';
 import { arSA } from 'date-fns/locale';
 
@@ -17,14 +18,6 @@ import { arSA } from 'date-fns/locale';
 
 function fmt(v: string | number) {
   return Number(v).toLocaleString('en-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function extractError(e: unknown): string {
-  const msg =
-    (e as { response?: { data?: { message?: string; error?: string } } })?.response?.data?.message ??
-    (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-    (e as { message?: string })?.message;
-  return msg ?? ar.common.error;
 }
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
@@ -198,7 +191,7 @@ function EmployeeDrawer({
             ))}
           </div>
         )}
-        {error && <ErrorBanner title={ar.common.error} description={extractError(error)} />}
+        {error && <ErrorBanner title={ar.common.error} description={extractApiError(error)} />}
         {data && (
           <>
             <dl className="rounded-lg border border-border-subtle bg-surface p-4 space-y-2 text-sm">
@@ -298,7 +291,7 @@ export function EmployeesPage() {
       setShowCreate(false);
       setFormError(null);
     },
-    onError: (e) => setFormError(extractError(e)),
+    onError: (e) => setFormError(extractApiError(e)),
   });
 
   const updateMut = useMutation({
@@ -316,7 +309,7 @@ export function EmployeesPage() {
       setEditingEmp(null);
       setFormError(null);
     },
-    onError: (e) => setFormError(extractError(e)),
+    onError: (e) => setFormError(extractApiError(e)),
   });
 
   const employees = data?.rows ?? [];
@@ -401,8 +394,8 @@ export function EmployeesPage() {
               {f === 'all'
                 ? ar.hr.employee.filterAll
                 : f === 'active'
-                ? ar.hr.employee.filterActive
-                : ar.hr.employee.filterInactive}
+                  ? ar.hr.employee.filterActive
+                  : ar.hr.employee.filterInactive}
             </button>
           ))}
         </div>
@@ -446,7 +439,7 @@ export function EmployeesPage() {
         onRowClick={(e) => setDrawerEmpId(e.id)}
         isLoading={isLoading}
         isError={!!error}
-        onRetry={() => {}}
+        onRetry={() => { }}
         errorTitle={ar.common.error}
         empty={ar.hr.employee.empty}
         resetKey={`${search}|${filterActive}`}

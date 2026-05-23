@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
 import { ar } from '@/i18n/ar';
+import { extractApiError } from '@/lib/api-error';
 import { salesApi } from '@/lib/sales-api';
 import { openPdfBlob } from '@/lib/pdf';
 import { returnsApi } from '@/lib/returns-api';
@@ -101,8 +101,7 @@ export function InvoiceDetailPage() {
       }
     },
     onError: (e: unknown) => {
-      const data = axios.isAxiosError(e) ? (e.response?.data as { message?: string } | undefined) : undefined;
-      setVoidResult(data?.message ?? ar.common.error);
+      setVoidResult(extractApiError(e));
     },
   });
 
@@ -511,8 +510,7 @@ function FinalPaymentDialog({
       onOpenChange(false);
     },
     onError: (e: unknown) => {
-      const data = axios.isAxiosError(e) ? (e.response?.data as { message?: string } | undefined) : undefined;
-      setError(data?.message ?? ar.common.error);
+      setError(extractApiError(e));
     },
   });
 
@@ -650,8 +648,7 @@ function CancelOpenDialog({
       onOpenChange(false);
     },
     onError: (e: unknown) => {
-      const data = axios.isAxiosError(e) ? (e.response?.data as { message?: string } | undefined) : undefined;
-      setError(data?.message ?? ar.common.error);
+      setError(extractApiError(e));
     },
   });
 
@@ -796,10 +793,7 @@ function DepositRefundDialog({
       onOpenChange(false);
     },
     onError: (e: unknown) => {
-      const data = axios.isAxiosError(e)
-        ? (e.response?.data as { message?: string } | undefined)
-        : undefined;
-      setError(data?.message ?? ar.common.error);
+      setError(extractApiError(e));
     },
   });
 
@@ -1002,8 +996,8 @@ function AddLinesDialog({
       setLines((prev) => [...prev, { roll, perUnit: '' }]);
       setScanInput('');
     } catch (e) {
-      const status = axios.isAxiosError(e) ? e.response?.status : 0;
-      setError(status === 404 ? ar.pos.notFound : ar.common.error);
+      const status = (e as { response?: { status?: number } })?.response?.status;
+      setError(status === 404 ? ar.pos.notFound : extractApiError(e));
     }
   }
 
@@ -1013,8 +1007,7 @@ function AddLinesDialog({
     mutationFn: (body: AddOpenInvoiceLinesBody) => salesApi.addOpenInvoiceLines(invoice.id, body),
     onSuccess: () => { onSuccess(); onOpenChange(false); },
     onError: (e: unknown) => {
-      const data = axios.isAxiosError(e) ? (e.response?.data as { message?: string } | undefined) : undefined;
-      setError(data?.message ?? ar.common.error);
+      setError(extractApiError(e));
     },
   });
 
@@ -1254,8 +1247,7 @@ function ReturnModal({
       onOpenChange(false);
     },
     onError: (e: unknown) => {
-      const d = axios.isAxiosError(e) ? (e.response?.data as { message?: string } | undefined) : undefined;
-      setError(d?.message ?? ar.common.error);
+      setError(extractApiError(e));
     },
   });
 

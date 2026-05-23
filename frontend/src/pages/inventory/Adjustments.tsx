@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { extractApiError } from '@/lib/api-error';
 import { useForm } from 'react-hook-form';
 import { Inbox } from 'lucide-react';
 import { ar } from '@/i18n/ar';
@@ -23,6 +25,7 @@ type FormVals = {
 
 export function AdjustmentsPage() {
   const qc = useQueryClient();
+  const [createError, setCreateError] = useState<string | null>(null);
   const list = useQuery({ queryKey: ['adjustments'], queryFn: inventoryApi.listAdjustments });
 
   const create = useMutation({
@@ -36,8 +39,10 @@ export function AdjustmentsPage() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['adjustments'] });
+      setCreateError(null);
       form.reset();
     },
+    onError: (e) => setCreateError(extractApiError(e)),
   });
 
   const form = useForm<FormVals>();
@@ -85,9 +90,9 @@ export function AdjustmentsPage() {
             </div>
             <div className="col-span-full flex items-center gap-3 flex-wrap">
               <Button type="submit" disabled={create.isPending}>{ar.adjustments.create}</Button>
-              {create.error && (
+              {createError && (
                 <span className="text-sm text-danger transition-opacity duration-75 ease-standard" role="alert">
-                  {(create.error as { response?: { data?: { message?: string } } })?.response?.data?.message ?? ar.common.error}
+                  {createError}
                 </span>
               )}
             </div>
