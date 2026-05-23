@@ -271,7 +271,7 @@ export function CashReconcilePage() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <PageHeader title={ar.cash.reconcile} description={ar.hubs.reconcileDesc} />
+      <PageHeader title={ar.cash.reconcile} description={ar.hubs.reconcileDesc} backTo="/treasury" />
 
       {/* Tab selector — sliding indicator */}
       <div className="flex gap-1 border-b border-border-subtle">

@@ -209,6 +209,7 @@ export function CashDrawerPage() {
       <PageHeader
         title={ar.cash.drawer}
         description={ar.hubs.cashDesc}
+        backTo="/treasury"
         actions={
           <>
             {isOwner && !balanceQ.data?.opening_set_at && (

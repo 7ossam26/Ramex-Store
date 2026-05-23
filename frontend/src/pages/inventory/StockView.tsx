@@ -303,6 +303,7 @@ export function StockViewPage() {
       <PageHeader
         title="إدارة المخزون"
         description="إدارة مستويات المخزون، الأسعار وتفاصيل المنتجات"
+        backTo="/inventory"
       />
 
       <KpiGrid className="lg:grid-cols-5">

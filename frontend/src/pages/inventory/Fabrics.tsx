@@ -232,6 +232,7 @@ export function FabricsPage() {
       <PageHeader
         title={ar.fabrics.title}
         description={ar.hubs.inventoryFabricsDesc}
+        backTo="/items"
         actions={
           isOwner && (
             <Button onClick={openCreate}>+ {ar.fabrics.addFabric}</Button>

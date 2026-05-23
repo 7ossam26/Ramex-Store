@@ -265,6 +265,7 @@ export function TreasuriesOverviewPage() {
       <PageHeader
         title={ar.treasuriesOverview.title}
         description={ar.treasuriesOverview.description}
+        backTo="/treasury"
         actions={
           <>
             {dataUpdatedAt > 0 && (

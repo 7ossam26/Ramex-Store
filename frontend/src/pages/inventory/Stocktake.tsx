@@ -20,7 +20,7 @@ export function StocktakePage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
-      <PageHeader title={ar.stocktake.title} description={ar.hubs.inventoryStocktakeDesc} />
+      <PageHeader title={ar.stocktake.title} description={ar.hubs.inventoryStocktakeDesc} backTo="/inventory" />
       {!active ? <StartCard onStarted={setActive} /> : <RunStocktake stocktake={active} onComplete={() => setActive(null)} />}
       <PastStocktakes />
     </div>

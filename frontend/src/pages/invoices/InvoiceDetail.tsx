@@ -162,6 +162,7 @@ export function InvoiceDetailPage() {
       <PageHeader
         title={inv.invoice_no}
         description={`${fmtDate(inv.created_at)} · ${ar.invoices.cashier}: ${inv.cashier_username}`}
+        backTo="/invoices"
         actions={
           <div className="flex items-center gap-2 flex-wrap [&_button]:print:hidden [&_a]:print:hidden">
             <InvoiceStatusPill status={inv.status} />

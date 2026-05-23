@@ -209,7 +209,7 @@ export function SalariesPage() {
 
   return (
     <div dir="rtl" className="space-y-4">
-      <PageHeader title={ar.hr.salaries} description={ar.hr.salary.previewHint} />
+      <PageHeader title={ar.hr.salaries} description={ar.hr.salary.previewHint} backTo="/hr" />
 
       {/* Month picker */}
       <div className="flex flex-wrap gap-3 items-center">

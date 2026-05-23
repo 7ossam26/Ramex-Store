@@ -190,7 +190,7 @@ export function LabelsPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-4">
-      <PageHeader title={ar.labels.title} description={ar.hubs.itemsLabelsDesc} />
+      <PageHeader title={ar.labels.title} description={ar.hubs.itemsLabelsDesc} backTo="/items" />
 
       <MobileFilterSheet activeCount={activeFilters}>{filterControls}</MobileFilterSheet>
 

@@ -1867,7 +1867,7 @@ function ProductsGrid({
               <div
                 key={r.id}
                 aria-disabled={wrongWarehouse || undefined}
-                className={`group relative rounded-md border bg-surface-elevated p-3 flex flex-col gap-2 transition-colors duration-150 ${
+                className={`group rounded-md border bg-surface-elevated p-3 flex flex-col gap-2 transition-colors duration-150 ${
                   inCart
                     ? 'border-success/40 bg-success-subtle'
                     : wrongWarehouse
@@ -1876,13 +1876,13 @@ function ProductsGrid({
                 }`}
               >
                 {inCart && (
-                  <span className="absolute top-2 start-2 inline-flex items-center gap-1 rounded-pill bg-success text-white px-2 py-0.5 text-[10px] font-medium">
+                  <span className="self-start inline-flex items-center gap-1 rounded-pill bg-success text-white px-2 py-0.5 text-[10px] font-medium">
                     <CheckCircle2 className="size-3" />
                     {ar.pos.inCart}
                   </span>
                 )}
                 {!inCart && factoryInShopMode && (
-                  <span className="absolute top-2 start-2 inline-flex items-center gap-1 rounded-pill bg-surface-row-alt text-foreground-muted border border-border-default px-2 py-0.5 text-[10px] font-medium">
+                  <span className="self-start inline-flex items-center gap-1 rounded-pill bg-surface-row-alt text-foreground-muted border border-border-default px-2 py-0.5 text-[10px] font-medium">
                     <Factory className="size-3" />
                     {ar.pos.factoryRollBadge}
                   </span>

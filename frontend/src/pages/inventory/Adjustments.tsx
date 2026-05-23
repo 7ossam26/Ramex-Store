@@ -44,7 +44,7 @@ export function AdjustmentsPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
-      <PageHeader title={ar.adjustments.title} description={ar.hubs.inventoryAdjustmentsDesc} />
+      <PageHeader title={ar.adjustments.title} description={ar.hubs.inventoryAdjustmentsDesc} backTo="/inventory" />
 
       <Card>
         <CardHeader><CardTitle>{ar.adjustments.create}</CardTitle></CardHeader>

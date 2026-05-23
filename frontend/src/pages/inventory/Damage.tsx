@@ -60,7 +60,7 @@ export function DamagePage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
-      <PageHeader title={ar.damage.title} description={ar.hubs.inventoryDamageDesc} />
+      <PageHeader title={ar.damage.title} description={ar.hubs.inventoryDamageDesc} backTo="/inventory" />
 
       <Card>
         <CardHeader><CardTitle>{ar.damage.record}</CardTitle></CardHeader>

@@ -8,6 +8,7 @@ import { ErrorBanner } from '@/components/ErrorBanner';
 import { Skeleton } from '@/components/Skeleton';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { StatusPill } from '@/components/StatusPill';
+import { Toggle } from '@/components/Toggle';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { arSA } from 'date-fns/locale';
@@ -123,24 +124,11 @@ function EmployeeForm({
         {'is_active' in initial && (
           <div className="flex items-center gap-3">
             <label className="text-sm font-medium text-foreground">{ar.hr.employee.isActive}</label>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={form.is_active}
-              onClick={() => field('is_active', !form.is_active)}
-              className={cn(
-                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-150',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
-                form.is_active ? 'bg-accent' : 'bg-border-default',
-              )}
-            >
-              <span
-                className={cn(
-                  'inline-block size-4 rounded-full bg-surface-elevated shadow-sm transition-transform duration-200',
-                  form.is_active ? 'translate-x-6' : 'translate-x-1',
-                )}
-              />
-            </button>
+            <Toggle
+              checked={form.is_active}
+              onChange={(v) => field('is_active', v)}
+              label={ar.hr.employee.isActive}
+            />
           </div>
         )}
       </div>
@@ -386,7 +374,7 @@ export function EmployeesPage() {
 
   return (
     <div dir="rtl" className="space-y-4">
-      <PageHeader title={ar.hr.employees} description={ar.hr.title} />
+      <PageHeader title={ar.hr.employees} description={ar.hr.title} backTo="/hr" />
 
       {/* Toolbar */}
       <div className="flex flex-wrap gap-3 items-center justify-between">

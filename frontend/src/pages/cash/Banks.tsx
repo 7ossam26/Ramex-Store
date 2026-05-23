@@ -221,6 +221,7 @@ export function BanksPage() {
       <PageHeader
         title={ar.cash.banks}
         description={ar.hubs.banksDesc}
+        backTo="/treasury"
         actions={
           isOwner ? (
             <Button variant="accent" onClick={() => setShowCreate(true)} className="gap-1.5">

@@ -95,6 +95,7 @@ export function StockMovementsPage() {
       <PageHeader
         title={ar.stockMovements.title}
         description={ar.hubs.inventoryMovementsDesc}
+        backTo="/inventory"
         actions={
           <select
             value={event}

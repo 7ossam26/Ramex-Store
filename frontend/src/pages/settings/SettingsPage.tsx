@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import { useIsDesktop } from '@/hooks/useMediaQuery';
 import { PageHeader } from '@/components/PageHeader';
+import { Toggle as SharedToggle } from '@/components/Toggle';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { Toast } from '@/components/Toast';
 import { Skeleton } from '@/components/Skeleton';
@@ -106,6 +107,8 @@ function NumInput({
   );
 }
 
+// Toggle is imported from @/components/Toggle
+// This local stub keeps existing call-sites working without touching them.
 function Toggle({
   checked,
   onChange,
@@ -115,28 +118,7 @@ function Toggle({
   onChange: (v: boolean) => void;
   disabled?: boolean;
 }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={cn(
-        'relative inline-flex h-6 w-11 items-center rounded-pill transition-colors duration-150 ease-standard',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-elevated',
-        'disabled:opacity-60 disabled:cursor-not-allowed',
-        checked ? 'bg-accent' : 'bg-border-default',
-      )}
-    >
-      <span
-        className={cn(
-          'inline-block size-4 rounded-full bg-surface-elevated shadow-sm transition-transform duration-200 ease-emphasized',
-          checked ? 'translate-x-6' : 'translate-x-1',
-        )}
-      />
-    </button>
-  );
+  return <SharedToggle checked={checked} onChange={onChange} disabled={disabled} />;
 }
 
 function SelectInput({

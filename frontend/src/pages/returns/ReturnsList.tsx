@@ -167,7 +167,7 @@ export function ReturnsListPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-4">
-      <PageHeader title={ar.returns.title} description={ar.hubs.returnsDesc} />
+      <PageHeader title={ar.returns.title} description={ar.hubs.returnsDesc} backTo="/invoices-returns" />
 
       <KpiGrid className="lg:grid-cols-3">
         <MetricCard

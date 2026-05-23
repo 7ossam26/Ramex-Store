@@ -70,6 +70,7 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
     <div className="space-y-4 max-w-5xl mx-auto">
       <PageHeader
         title={defaultStatus === 'pending_approval' ? ar.shipments.pending : ar.shipments.all}
+        backTo="/shipments"
         actions={
           <select
             value={status}

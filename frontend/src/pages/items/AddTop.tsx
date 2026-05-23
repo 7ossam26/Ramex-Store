@@ -877,7 +877,7 @@ export function AddTopPage() {
     const allRolls = results.flatMap((r) => r.rolls);
     return (
       <div className="max-w-5xl mx-auto space-y-4" dir="rtl">
-        <PageHeader title={ar.addTop.navTitle} description={ar.hubs.itemsAddTopDesc} />
+        <PageHeader title={ar.addTop.navTitle} description={ar.hubs.itemsAddTopDesc} backTo="/items" />
         <Card className="border-success/40 bg-success-subtle">
           <CardHeader>
             <CardTitle className="text-success-foreground">
@@ -947,7 +947,7 @@ export function AddTopPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-4" dir="rtl">
       <div className="flex items-center gap-3">
-        <PageHeader title={ar.addTop.navTitle} description={ar.hubs.itemsAddTopDesc} />
+        <PageHeader title={ar.addTop.navTitle} description={ar.hubs.itemsAddTopDesc} backTo="/items" />
         <span className="shrink-0 text-xs font-medium px-2 py-0.5 rounded-full bg-accent text-accent-foreground">
           {ar.addTop.factoryBadge}
         </span>

@@ -109,6 +109,7 @@ export function ReviewShipmentPage() {
     <div className="space-y-4 max-w-5xl mx-auto" dir="rtl">
       <PageHeader
         title={shipment.shipment_no}
+        backTo="/shipments"
         actions={<ShipmentStatusPill status={shipment.status} />}
       />
 

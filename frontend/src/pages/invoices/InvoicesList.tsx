@@ -57,7 +57,7 @@ export function InvoicesListPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-4">
-      <PageHeader title={ar.invoices.title} />
+      <PageHeader title={ar.invoices.title} backTo="/invoices-returns" />
 
       {/* Filter chip row */}
       <div className="flex gap-2 overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0 pb-1">

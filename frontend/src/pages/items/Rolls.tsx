@@ -273,7 +273,7 @@ export function RollsPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-4">
-      <PageHeader title={ar.labels.rollsTitle} description={ar.hubs.itemsRollsDesc} />
+      <PageHeader title={ar.labels.rollsTitle} description={ar.hubs.itemsRollsDesc} backTo="/items" />
 
       <MobileFilterSheet activeCount={activeFilters}>{filterControls}</MobileFilterSheet>
 

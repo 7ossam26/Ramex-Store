@@ -202,6 +202,7 @@ export function ExpensesPage() {
       <PageHeader
         title={ar.cash.expenses}
         description={ar.hubs.expensesDesc}
+        backTo="/treasury"
         actions={
           <Button variant="accent" onClick={() => setShowCreate(true)} className="gap-1.5">
             <Plus className="size-4" aria-hidden />

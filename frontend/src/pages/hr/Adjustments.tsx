@@ -234,7 +234,7 @@ export function AdjustmentsPage() {
 
   return (
     <div dir="rtl" className="space-y-4">
-      <PageHeader title={ar.hr.adjustments} description={ar.hr.title} />
+      <PageHeader title={ar.hr.adjustments} description={ar.hr.title} backTo="/hr" />
 
       {/* Toolbar */}
       <div className="flex flex-wrap gap-3 items-center justify-between">
