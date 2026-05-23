@@ -8,6 +8,7 @@ const cards: HubCard[] = [
     description: ar.hubs.inventoryOverviewDesc,
     href: '/inventory/stock',
     icon: LayoutDashboard,
+    featured: true,
   },
   {
     label: ar.inventory.stockMovements,

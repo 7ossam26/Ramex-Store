@@ -9,6 +9,7 @@ const cards: HubCard[] = [
     href: '/shipments/create',
     icon: PlusCircle,
     visibleTo: ['owner', 'factory_sender'],
+    featured: true,
   },
   {
     label: ar.shipments.pending,
@@ -31,6 +32,7 @@ export function ShipmentsHubPage() {
       title={ar.hubs.shipmentsTitle}
       description={ar.hubs.shipmentsDescription}
       cards={cards}
+      featuredMode="explicit"
     />
   );
 }
