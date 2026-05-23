@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 
 function fmtDateTime(iso: string) {
-  return new Date(iso).toLocaleString('ar-EG', { timeZone: 'Africa/Cairo' });
+  return new Date(iso).toLocaleString('en-GB', { timeZone: 'Africa/Cairo', hour12: false });
 }
 
 const columns: Column<Shift>[] = [

@@ -349,6 +349,13 @@ export const NAV: NavTop[] = [
             icon: CalendarDays,
             route: '/reports/daily',
           },
+          {
+            id: 'reports.shifts',
+            labelAr: 'سجل الورديات',
+            descAr: 'تقارير الورديات السابقة',
+            icon: Clock,
+            route: '/shifts',
+          },
         ],
       },
       {
@@ -461,7 +468,7 @@ const SECTION_ROUTE_PREFIXES: Record<SectionId, string[]> = {
   customers: ['/customers'],
   invoicesReturns: ['/invoices-returns', '/invoices', '/returns'],
   treasury: ['/treasury', '/cash', '/banks', '/expenses', '/reconcile'],
-  reports: ['/reports'],
+  reports: ['/reports', '/shifts'],
   hr: ['/hr'],
   settings: ['/settings'],
 };

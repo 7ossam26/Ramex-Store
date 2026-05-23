@@ -41,7 +41,7 @@ export function StartDayPanel({ onStaleShift }: Props) {
           </div>
           <h1 className="text-2xl font-bold text-foreground">{ar.shifts.startDay}</h1>
           <p className="text-sm text-foreground-muted">
-            الخزنة ستبدأ من صفر — جاهز للبدء؟
+            جاهز للبدء؟
           </p>
         </div>
 

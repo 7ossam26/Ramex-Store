@@ -584,7 +584,7 @@ export function POSPage() {
         <span className="text-foreground-muted">
           {ar.shifts.openedAt}:{' '}
           <span className="font-medium text-foreground tabular-num" dir="ltr">
-            {new Date(activeShift.opened_at).toLocaleString('ar-EG', { timeZone: 'Africa/Cairo' })}
+            {new Date(activeShift.opened_at).toLocaleString('en-GB', { timeZone: 'Africa/Cairo', hour12: false })}
           </span>
         </span>
         <button

@@ -64,42 +64,25 @@ export async function openShift(actorUserId: number, notesAr?: string | null): P
       throw new Error('STALE_OPEN_SHIFT');
     }
 
-    // Opening balance is always 0 — daily reset model
+    // Snapshot the current cash drawer balance — the drawer is cumulative
+    // and is not reset by shift open/close. This snapshot is used by the
+    // shift report to compute the closing balance baseline.
+    const drawer = await trx('cash_drawer').where({ id: 1 }).first();
+    const openingBalance = Number(drawer?.current_balance_egp ?? 0);
+
     const [{ id: shiftId }] = await trx('shifts').insert({
       opened_by_user_id: actorUserId,
-      opening_cash_balance_egp: 0,
+      opening_cash_balance_egp: openingBalance,
       status: 'open',
       notes_ar: notesAr ?? null,
     }).returning('id');
-
-    // Reset the cash drawer to 0 — record the zeroing movement if balance > 0
-    const drawer = await trx('cash_drawer').where({ id: 1 }).forUpdate().first();
-    const currentBalance = Number(drawer?.current_balance_egp ?? 0);
-
-    if (currentBalance !== 0) {
-      const direction = currentBalance > 0 ? 'out' : 'in';
-      const amount = Math.abs(currentBalance);
-      await trx('cash_drawer').where({ id: 1 }).update({
-        current_balance_egp: 0,
-        last_movement_at: trx.fn.now(),
-      });
-      await trx('cash_movements').insert({
-        direction,
-        event_type: 'shift_open',
-        amount_egp: amount,
-        balance_after_egp: 0,
-        notes_ar: 'إعادة تصفير الخزنة عند بداية الوردية',
-        actor_user_id: actorUserId,
-        shift_id: shiftId,
-      });
-    }
 
     await auditFromService(trx, {
       actorUserId,
       action: 'shift_opened',
       entity: 'shifts',
       entityId: shiftId,
-      after: { status: 'open', opening_cash_balance_egp: 0 },
+      after: { status: 'open', opening_cash_balance_egp: openingBalance },
       severity: 'low',
     });
 
@@ -127,28 +110,9 @@ export async function closeShift(actorUserId: number, notesAr?: string | null): 
 
     const shiftId = Number(openShift.id);
 
-    // Snapshot current drawer balance
-    const drawer = await trx('cash_drawer').where({ id: 1 }).forUpdate().first();
+    // Snapshot current drawer balance — drawer remains cumulative, no reset.
+    const drawer = await trx('cash_drawer').where({ id: 1 }).first();
     const closingBalance = Number(drawer?.current_balance_egp ?? 0);
-
-    // Reset drawer to 0
-    if (closingBalance !== 0) {
-      const direction = closingBalance > 0 ? 'out' : 'in';
-      const amount = Math.abs(closingBalance);
-      await trx('cash_drawer').where({ id: 1 }).update({
-        current_balance_egp: 0,
-        last_movement_at: trx.fn.now(),
-      });
-      await trx('cash_movements').insert({
-        direction,
-        event_type: 'shift_close',
-        amount_egp: amount,
-        balance_after_egp: 0,
-        notes_ar: 'إعادة تصفير الخزنة عند نهاية الوردية',
-        actor_user_id: actorUserId,
-        shift_id: shiftId,
-      });
-    }
 
     await trx('shifts').where({ id: shiftId }).update({
       closed_at: trx.fn.now(),
