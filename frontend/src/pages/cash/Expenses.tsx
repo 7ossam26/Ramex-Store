@@ -323,8 +323,8 @@ export function ExpensesPage() {
               <Input
                 type="number"
                 inputMode="decimal"
-                step="0.01"
-                min="0.01"
+                step="1"
+                min="1"
                 {...form.register('amount_egp', { required: true })}
               />
             </div>

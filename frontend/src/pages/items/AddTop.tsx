@@ -187,7 +187,7 @@ function FabricCreateDialog({
             </div>
             <div className="space-y-1">
               <Label>{ar.addTop.widthCm}</Label>
-              <Input type="number" inputMode="decimal" step="0.5" value={draft.width_cm} onChange={(e) => setDraft({ ...draft, width_cm: e.target.value })} dir="ltr" />
+              <Input type="number" inputMode="numeric" step="1" value={draft.width_cm} onChange={(e) => setDraft({ ...draft, width_cm: e.target.value })} dir="ltr" />
             </div>
             <div className="space-y-1 col-span-2">
               <Label>{ar.fabrics.unit}</Label>
@@ -209,7 +209,7 @@ function FabricCreateDialog({
                 <div key={idx} className="grid grid-cols-[1fr_100px_auto] gap-2">
                   <Input value={c.material} onChange={(e) => { const next = [...draft.composition]; next[idx] = { ...c, material: e.target.value }; setDraft({ ...draft, composition: next }); }} placeholder={ar.addTop.material} />
                   <div className="flex items-center gap-1">
-                    <Input type="number" inputMode="decimal" step="0.1" value={c.percent} onChange={(e) => {
+                    <Input type="number" inputMode="numeric" step="1" value={c.percent} onChange={(e) => {
                       const next = [...draft.composition];
                       next[idx] = { ...c, percent: e.target.value };
                       if (idx + 1 < next.length) {

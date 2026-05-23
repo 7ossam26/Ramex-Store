@@ -520,7 +520,7 @@ function CompositionsTab({ isOwner }: { isOwner: boolean }) {
             <input type="text" dir="rtl" value={item.material} placeholder={ar.codes.material}
               onChange={(e) => { const n = [...items]; n[i] = { ...item, material: e.target.value }; onChange(n); }}
               className="border border-border rounded px-2 py-0.5 text-xs bg-canvas w-28 focus:outline-none focus:ring-1 focus:ring-primary" />
-            <input type="number" value={item.percent} min={0} max={100}
+            <input type="number" value={item.percent} min={0} max={100} step={1}
               onChange={(e) => { const n = [...items]; n[i] = { ...item, percent: Number(e.target.value) }; onChange(n); }}
               className="border border-border rounded px-2 py-0.5 text-xs bg-canvas w-14 focus:outline-none focus:ring-1 focus:ring-primary" />
             <span className="text-xs text-muted-foreground">%</span>

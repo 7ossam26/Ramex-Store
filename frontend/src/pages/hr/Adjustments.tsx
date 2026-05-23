@@ -155,8 +155,8 @@ function CreateAdjustmentDialog({
               <label className="text-sm font-medium text-foreground">{ar.hr.adjustment.amount}</label>
               <input
                 type="number"
-                min={0.01}
-                step={0.01}
+                min={1}
+                step={1}
                 className={cn(inputCls, 'w-44')}
                 style={{ unicodeBidi: 'plaintext' }}
                 value={form.amount_egp}

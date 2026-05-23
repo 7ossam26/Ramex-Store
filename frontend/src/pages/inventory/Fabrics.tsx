@@ -300,8 +300,8 @@ export function FabricsPage() {
                 <Label>{ar.addTop.widthCm}</Label>
                 <Input
                   type="number"
-                  inputMode="decimal"
-                  step="0.5"
+                  inputMode="numeric"
+                  step="1"
                   value={form.width_cm}
                   onChange={(e) => setForm({ ...form, width_cm: e.target.value })}
                   dir="ltr"
@@ -365,8 +365,8 @@ export function FabricsPage() {
                     <div className="flex items-center gap-1">
                       <Input
                         type="number"
-                        inputMode="decimal"
-                        step="0.1"
+                        inputMode="numeric"
+                        step="1"
                         value={c.percent}
                         onChange={(e) => {
                           const next = [...form.composition];

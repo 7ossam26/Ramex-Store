@@ -419,7 +419,7 @@ export function CashReconcilePage() {
                     <Input
                       type="number"
                       inputMode="decimal"
-                      step="0.01"
+                      step="1"
                       min="0"
                       {...bankForm.register('actual_balance_egp', { required: true })}
                     />

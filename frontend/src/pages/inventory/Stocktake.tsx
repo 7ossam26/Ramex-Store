@@ -221,7 +221,8 @@ function AggregateGrid({
               <td>{l.expected_count ?? '—'} / {l.expected_weight_kg ?? '—'}</td>
               <td className="flex gap-1">
                 <Input
-                  type="number" inputMode="decimal"
+                  type="number" inputMode="numeric"
+                  step="1"
                   className="w-20"
                   defaultValue={l.actual_count ?? ''}
                   onChange={(e) => setDraft((s) => ({ ...s, [l.id]: { ...s[l.id], count: e.target.value } }))}

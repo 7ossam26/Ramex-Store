@@ -106,7 +106,7 @@ function EmployeeForm({
           <input
             type="number"
             min={0}
-            step={0.01}
+            step={1}
             className={cn(inputCls, 'w-40')}
             style={{ unicodeBidi: 'plaintext' }}
             value={form.base_salary_egp}

@@ -157,7 +157,7 @@ export function ReviewShipmentPage() {
                       id={`price-${fabricId}`}
                       type="number"
                       inputMode="decimal"
-                      step="0.01"
+                      step="1"
                       min="0"
                       value={rawPrice}
                       onChange={(e) =>

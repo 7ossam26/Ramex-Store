@@ -779,7 +779,8 @@ export function SecondaryReportPage() {
             </Label>
             <Input
               type="number"
-              inputMode="decimal"
+              inputMode="numeric"
+              step="1"
               value={customerId}
               onChange={(e) => setCustomerId(e.target.value)}
               placeholder="رقم العميل"

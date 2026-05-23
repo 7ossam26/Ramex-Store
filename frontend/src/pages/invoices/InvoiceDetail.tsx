@@ -1316,14 +1316,14 @@ function ReturnModal({
                         <td className="px-2 py-2 tabular-num" dir="ltr">{Number(l.weight_kg).toFixed(3)}</td>
                         <td className="px-2 py-2">
                           <input
-                            type="number" inputMode="decimal"
+                            type="number" inputMode="numeric"
                             className="h-8 w-24 border border-border-default rounded-md px-2 text-sm bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75 disabled:opacity-50"
                             value={s.refundAmount}
                             disabled={!s.checked}
                             onChange={(e) => updateLine(l.id, { refundAmount: e.target.value })}
                             dir="ltr"
                             min="0"
-                            step="0.01"
+                            step="1"
                           />
                         </td>
                         <td className="px-2 py-2">

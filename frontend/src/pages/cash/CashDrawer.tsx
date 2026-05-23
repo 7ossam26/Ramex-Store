@@ -396,7 +396,7 @@ export function CashDrawerPage() {
               <Input
                 type="number"
                 inputMode="decimal"
-                step="0.01"
+                step="1"
                 min="0"
                 {...openingForm.register('amount', { required: true })}
               />
@@ -432,8 +432,8 @@ export function CashDrawerPage() {
               <Input
                 type="number"
                 inputMode="decimal"
-                step="0.01"
-                min="0.01"
+                step="1"
+                min="1"
                 {...depositForm.register('amount', { required: true })}
               />
             </div>
@@ -530,8 +530,8 @@ export function CashDrawerPage() {
               <Input
                 type="number"
                 inputMode="decimal"
-                step="0.01"
-                min="0.01"
+                step="1"
+                min="1"
                 {...withdrawalForm.register('amount', { required: true })}
               />
             </div>
