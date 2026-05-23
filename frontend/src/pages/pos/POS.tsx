@@ -531,6 +531,21 @@ export function POSPage() {
     );
   }
 
+  if (shiftQ.isError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center flex-col gap-4 px-4" dir="rtl">
+        <p className="text-sm text-danger-foreground">{ar.common.error}</p>
+        <button
+          type="button"
+          onClick={() => shiftQ.refetch()}
+          className="text-sm text-accent hover:underline"
+        >
+          {ar.common.refresh}
+        </button>
+      </div>
+    );
+  }
+
   if (!shiftQ.data) {
     return (
       <StartDayPanel
