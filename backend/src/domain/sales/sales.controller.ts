@@ -66,7 +66,7 @@ function actorId(req: Request): number {
 export async function createSale(req: Request, res: Response): Promise<void> {
   const data = CreateSaleSchema.parse(req.body);
   try {
-    const invoice = await svc.createSale(actorId(req), data);
+    const invoice = await svc.createSale(actorId(req), data, req.shiftId ?? null);
     res.status(201).json(invoice);
   } catch (e) {
     if (handleDomainError(e, res)) return;
@@ -95,6 +95,7 @@ export async function voidInvoice(req: Request, res: Response): Promise<void> {
       String(req.user!.role),
       data.reason_ar,
       data.approved_by_owner ?? false,
+      req.shiftId ?? null,
     );
     res.json(result);
   } catch (e) {
@@ -122,7 +123,7 @@ export async function addFinalPayment(req: Request, res: Response): Promise<void
   const id = Number(req.params.id);
   const data = FinalPaymentSchema.parse(req.body);
   try {
-    const result = await openSvc.addFinalPayment(id, actorId(req), data.payments);
+    const result = await openSvc.addFinalPayment(id, actorId(req), data.payments, req.shiftId ?? null);
     res.json(result);
   } catch (e) {
     if (handleDomainError(e, res)) return;
@@ -154,6 +155,7 @@ export async function cancelOpenInvoice(req: Request, res: Response): Promise<vo
       reference: data.reference ?? null,
       chequeDetails: data.cheque_details ?? null,
       notesAr: data.notes_ar,
+      shiftId: req.shiftId ?? null,
     });
     res.json(result);
   } catch (e) {

@@ -31,9 +31,6 @@ export const financeApi = {
   ownerWithdrawal: (body: { amount: number; notes_ar?: string | null }) =>
     api.post<{ ok: boolean }>('/cash/owner-withdrawal', body).then((r) => r.data),
 
-  closeCashDrawer: () =>
-    api.post<{ last_closed_at: string }>('/cash/close').then((r) => r.data),
-
   // ── Banks ────────────────────────────────────────────────────────────────
   listBanks: () =>
     api.get<BankAccount[]>('/banks').then((r) => r.data),

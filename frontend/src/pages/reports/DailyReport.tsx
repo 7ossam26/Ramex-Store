@@ -76,7 +76,7 @@ function SummaryStat({
   );
 }
 
-function DailyReportContent({ report }: { report: DailyReport }) {
+export function DailyReportContent({ report }: { report: DailyReport }) {
   const ss = report.sales_summary;
 
   return (

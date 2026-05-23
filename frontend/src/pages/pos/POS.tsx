@@ -61,6 +61,9 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { ScannerInput } from '@/components/ScannerInput';
+import { shiftsApi, type Shift } from '@/lib/shifts-api';
+import { StartDayPanel } from './StartDayPanel';
+import { EndDayDialog } from './EndDayDialog';
 
 type CartLine = {
   roll: RollLookup;
@@ -156,6 +159,15 @@ function rollMatchesDestination(r: RollLookup, dest: FulfillmentDestination): bo
 
 export function POSPage() {
   const qc = useQueryClient();
+
+  const shiftQ = useQuery<Shift | null>({
+    queryKey: ['shift-current'],
+    queryFn: () => shiftsApi.current(),
+    refetchInterval: 60_000,
+  });
+
+  const [endDayOpen, setEndDayOpen] = useState(false);
+  const [staleShiftOpen, setStaleShiftOpen] = useState(false);
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -510,11 +522,65 @@ export function POSPage() {
     setPendingDestination(null);
   }
 
+  // --- Shift gate ---
+  if (shiftQ.isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-foreground-muted text-sm">
+        {ar.loading}
+      </div>
+    );
+  }
+
+  if (!shiftQ.data) {
+    return (
+      <StartDayPanel
+        onStaleShift={() => {
+          // A stale open shift exists — refetch so we can show it in EndDayDialog
+          qc.invalidateQueries({ queryKey: ['shift-current'] }).then(() => {
+            setStaleShiftOpen(true);
+          });
+        }}
+      />
+    );
+  }
+
+  const activeShift = shiftQ.data;
+
   return (
+    <>
+      {/* End Day Dialog */}
+      <EndDayDialog
+        open={endDayOpen || staleShiftOpen}
+        shift={activeShift}
+        onClose={() => {
+          setEndDayOpen(false);
+          setStaleShiftOpen(false);
+          qc.invalidateQueries({ queryKey: ['shift-current'] });
+          qc.invalidateQueries({ queryKey: ['cash-balance'] });
+        }}
+      />
+
     <div
       data-motion="reduced"
       className="flex flex-col gap-4 max-w-[1600px] mx-auto pb-24 lg:pb-4"
     >
+      {/* Shift strip */}
+      <div className="flex items-center justify-between rounded-lg border border-border-subtle bg-surface-elevated px-4 py-2 text-sm" dir="rtl">
+        <span className="text-foreground-muted">
+          {ar.shifts.openedAt}:{' '}
+          <span className="font-medium text-foreground tabular-num" dir="ltr">
+            {new Date(activeShift.opened_at).toLocaleString('ar-EG', { timeZone: 'Africa/Cairo' })}
+          </span>
+        </span>
+        <button
+          type="button"
+          onClick={() => setEndDayOpen(true)}
+          className="rounded-md bg-danger px-3 py-1.5 text-xs font-medium text-danger-foreground hover:opacity-90 transition-opacity"
+        >
+          {ar.shifts.endDay}
+        </button>
+      </div>
+
       {/* Top bar — customer + discount + open invoice + cart pill (mobile) */}
       <TopBar
         customer={customer}
@@ -928,6 +994,7 @@ export function POSPage() {
         }}
       />
     </div>
+    </>
   );
 }
 

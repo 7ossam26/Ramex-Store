@@ -19,7 +19,6 @@ export type CashDrawerRow = {
   opening_balance_egp: string;
   opening_set_at: string | null;
   last_movement_at: string | null;
-  last_closed_at: string | null;
 };
 
 export async function getBalance(): Promise<{
@@ -27,7 +26,6 @@ export async function getBalance(): Promise<{
   opening_balance_egp: number;
   opening_set_at: string | null;
   last_movement_at: string | null;
-  last_closed_at: string | null;
 }> {
   const row = (await db('cash_drawer').where({ id: 1 }).first()) as CashDrawerRow;
   return {
@@ -35,7 +33,6 @@ export async function getBalance(): Promise<{
     opening_balance_egp: Number(row.opening_balance_egp),
     opening_set_at: row.opening_set_at,
     last_movement_at: row.last_movement_at,
-    last_closed_at: row.last_closed_at,
   };
 }
 
@@ -75,6 +72,7 @@ export async function recordMovement(
   refType?: string | null,
   refId?: number | null,
   notesAr?: string | null,
+  shiftId?: number | null,
 ): Promise<number> {
   const row = (await trx('cash_drawer').where({ id: 1 }).forUpdate().first()) as CashDrawerRow;
   const current = Number(row.current_balance_egp);
@@ -94,6 +92,7 @@ export async function recordMovement(
     balance_after_egp: newBalance,
     notes_ar: notesAr ?? null,
     actor_user_id: actorUserId,
+    shift_id: shiftId ?? null,
   }).returning('id');
 
   return Number(movementId);
@@ -191,21 +190,3 @@ export async function listMovements(params: {
   };
 }
 
-export async function closeCashDrawer(actorUserId: number): Promise<{ last_closed_at: string }> {
-  return db.transaction(async (trx) => {
-    const closedAt = new Date().toISOString();
-    await trx('cash_drawer').where({ id: 1 }).update({ last_closed_at: trx.fn.now() });
-    const row = (await trx('cash_drawer').where({ id: 1 }).first()) as CashDrawerRow;
-
-    await auditFromService(trx, {
-      actorUserId,
-      action: 'cash_drawer_closed',
-      entity: 'cash_drawer',
-      entityId: 1,
-      after: { last_closed_at: closedAt, balance_egp: row.current_balance_egp },
-      severity: 'medium',
-    });
-
-    return { last_closed_at: row.last_closed_at ?? closedAt };
-  });
-}

@@ -42,6 +42,8 @@ import { HrHubPage } from './pages/hr/HrHub';
 import { EmployeesPage } from './pages/hr/Employees';
 import { SalariesPage } from './pages/hr/Salaries';
 import { AdjustmentsPage as HrAdjustmentsPage } from './pages/hr/Adjustments';
+import { ShiftHistoryPage } from './pages/shifts/ShiftHistory';
+import { ShiftReportPage } from './pages/shifts/ShiftReport';
 
 /* Chart-heavy report routes are lazy-loaded so Recharts is only fetched
  * when the user navigates into Reports. Saves ~250kb gzipped from the
@@ -130,6 +132,9 @@ export function App() {
                 <Route path="/hr/adjustments" element={<HrAdjustmentsPage />} />
 
                 <Route path="/settings" element={<SettingsPage />} />
+
+                <Route path="/shifts" element={<ShiftHistoryPage />} />
+                <Route path="/shifts/:id" element={<ShiftReportPage />} />
               </Routes>
               </Suspense>
             </AppShell>

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
-import { CheckCircle2, ChevronLeft, Receipt } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, Receipt, Sun } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { StatusPill } from '@/components/StatusPill';
 import { DashboardShell } from './DashboardShell';
@@ -11,12 +12,19 @@ import { DashboardCardSkeleton, WidgetCard, WidgetError } from './states';
 import { QuietEmpty } from './QuietEmpty';
 import { EGP, fmtMoney, num } from './format';
 import { useSellerDashboardQueries } from './useSellerQueries';
+import { shiftsApi, type Shift } from '@/lib/shifts-api';
 import type { OpenInvoiceRow } from '@/lib/sales-types';
 
 /* Seller-only landing — uses /reports/daily, /cash/balance, /invoices/open,
  * /notifications. Never calls any /owner/* endpoint. */
 export function SellerDashboard() {
   const q = useSellerDashboardQueries();
+
+  const shiftQ = useQuery<Shift | null>({
+    queryKey: ['shift-current'],
+    queryFn: () => shiftsApi.current(),
+    refetchInterval: 60_000,
+  });
 
   const daily = q.daily.data;
   const drawer = q.drawer.data;
@@ -41,7 +49,16 @@ export function SellerDashboard() {
         divider={false}
       >
         <Slot colSpan="lg:col-span-12">
-          {q.daily.isLoading && !daily ? (
+          {shiftQ.isLoading ? (
+            <KpiGrid>
+              <DashboardCardSkeleton />
+              <DashboardCardSkeleton />
+              <DashboardCardSkeleton />
+              <DashboardCardSkeleton />
+            </KpiGrid>
+          ) : !shiftQ.data ? (
+            <NoShiftCta />
+          ) : q.daily.isLoading && !daily ? (
             <KpiGrid>
               <DashboardCardSkeleton />
               <DashboardCardSkeleton />
@@ -127,6 +144,28 @@ export function SellerDashboard() {
         </Slot>
       </FoldSection>
     </DashboardShell>
+  );
+}
+
+function NoShiftCta() {
+  return (
+    <div className="rounded-lg border border-border-subtle bg-surface-elevated shadow-sm p-6 flex flex-col items-center gap-4 text-center col-span-12">
+      <div className="rounded-full bg-accent-subtle p-3">
+        <Sun className="size-8 text-accent-foreground" aria-hidden />
+      </div>
+      <div>
+        <p className="font-medium text-foreground">{ar.shifts.startDay}</p>
+        <p className="text-sm text-foreground-muted mt-1">
+          ابدأ الوردية من نقطة البيع للحصول على إحصائيات اليوم
+        </p>
+      </div>
+      <Link
+        to="/pos"
+        className="inline-flex items-center gap-1.5 rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 transition-opacity"
+      >
+        {ar.shifts.startShiftCta}
+      </Link>
+    </div>
   );
 }
 

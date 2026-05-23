@@ -127,13 +127,6 @@ export const ownerWithdrawal: RequestHandler = async (req, res) => {
   } catch (e) { handleErr(res, e); }
 };
 
-export const closeCashDrawer: RequestHandler = async (req, res) => {
-  try {
-    const result = await cashDrawer.closeCashDrawer(req.user!.sub);
-    res.json(result);
-  } catch (e) { handleErr(res, e); }
-};
-
 // ─── Bank Accounts ────────────────────────────────────────────────────────────
 
 export const listBanks: RequestHandler = async (_req, res) => {
@@ -233,6 +226,7 @@ export const createExpense: RequestHandler = async (req, res) => {
       bankAccountId: body.bank_account_id,
       notesAr: body.notes_ar,
       actorUserId: req.user!.sub,
+      shiftId: req.shiftId ?? null,
     });
     res.status(201).json(row);
   } catch (e) { handleErr(res, e); }

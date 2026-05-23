@@ -54,6 +54,7 @@ export async function processReturn(req: Request, res: Response): Promise<void> 
       actorUserId: actorId(req),
       actorRole: String(req.user!.role),
       ownerWindowOverride: data.ownerWindowOverride,
+      shiftId: req.shiftId ?? null,
     });
     res.status(201).json(ret);
   } catch (e) {
@@ -142,6 +143,7 @@ export async function createScanReturn(req: Request, res: Response): Promise<voi
       reference: data.reference ?? null,
       chequeDetails: data.chequeDetails ?? null,
       actorUserId: actorId(req),
+      shiftId: req.shiftId ?? null,
     });
     res.status(201).json(result);
   } catch (e) {

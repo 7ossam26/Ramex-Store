@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
 import { requireActiveSession } from '../../middleware/concurrent-session.js';
+import { requireOpenShift } from '../../middleware/requireOpenShift.js';
 import * as ctl from './finance.controller.js';
 
 export const financeRouter = Router();
@@ -15,10 +16,10 @@ financeRouter.post('/cash/reconcile', requireRole('owner', 'shop_seller'), ctl.r
 financeRouter.post(
   '/cash/deposit-to-bank',
   requireRole('owner', 'shop_seller'),
+  requireOpenShift,
   ctl.depositToBank,
 );
 financeRouter.post('/cash/owner-withdrawal', requireRole('owner'), ctl.ownerWithdrawal);
-financeRouter.post('/cash/close', requireRole('owner', 'shop_seller'), ctl.closeCashDrawer);
 
 // ─── Bank Accounts ────────────────────────────────────────────────────────────
 financeRouter.get('/banks', ctl.listBanks);
@@ -32,6 +33,6 @@ financeRouter.get('/treasuries-overview', requireRole('owner'), ctl.getTreasurie
 
 // ─── Expenses ─────────────────────────────────────────────────────────────────
 financeRouter.get('/expenses', ctl.listExpenses);
-financeRouter.post('/expenses', requireRole('owner', 'shop_seller'), ctl.createExpense);
+financeRouter.post('/expenses', requireRole('owner', 'shop_seller'), requireOpenShift, ctl.createExpense);
 financeRouter.post('/expenses/:id/approve', requireRole('owner'), ctl.approveExpense);
 financeRouter.post('/expenses/:id/reject', requireRole('owner'), ctl.rejectExpense);
