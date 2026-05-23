@@ -374,7 +374,7 @@ export async function getDailyReport(targetDate: string): Promise<DailyReport> {
 
 /** Convert a DailyReport into the generic ReportPdfOptions format for export. */
 export function dailyReportToExportSections(report: DailyReport) {
-  const { sales_summary: ss, discounts, refunds_voids: rv, cash, bank_movements, sales_by_fabric, open_invoices_summary: ois, stock_movements } = report;
+  const { sales_summary: ss, discounts, refunds_voids: rv, cash, sales_by_fabric, open_invoices_summary: ois, stock_movements } = report;
 
   return {
     titleAr: 'التقرير اليومي',
@@ -436,19 +436,7 @@ export function dailyReportToExportSections(report: DailyReport) {
         emptyAr: 'لا توجد حركات كاش اليوم',
       },
       {
-        titleAr: '5. حركات البنوك',
-        columns: [
-          { label: 'البنك', key: 'bank_name_ar', width: '*' },
-          { label: 'الاتجاه', key: 'dir_ar', width: 'auto' },
-          { label: 'النوع', key: 'event_type', width: 'auto' },
-          { label: 'المبلغ (ج.م)', key: 'amount_egp', width: 'auto' },
-          { label: 'الوقت', key: 'created_at', width: 'auto' },
-        ],
-        rows: bank_movements.map((m) => ({ ...m, dir_ar: m.direction === 'in' ? '↑ داخل' : '↓ خارج' })),
-        emptyAr: 'لا توجد حركات بنكية اليوم',
-      },
-      {
-        titleAr: '6. المبيعات حسب الخامة واللون',
+        titleAr: '5. المبيعات حسب الخامة واللون',
         columns: [
           { label: 'الخامة', key: 'fabric_name_ar', width: '*' },
           { label: 'اللون', key: 'color_name_ar', width: 'auto' },
@@ -460,7 +448,7 @@ export function dailyReportToExportSections(report: DailyReport) {
         emptyAr: 'لا توجد مبيعات اليوم',
       },
       {
-        titleAr: '7. الفواتير المفتوحة',
+        titleAr: '6. الفواتير المفتوحة',
         columns: [
           { label: 'البيان', key: 'label', width: '*' },
           { label: 'العدد', key: 'count', width: 'auto' },
@@ -472,7 +460,7 @@ export function dailyReportToExportSections(report: DailyReport) {
         ],
       },
       {
-        titleAr: '8. حركات المخزون',
+        titleAr: '7. حركات المخزون',
         columns: [
           { label: 'نوع الحركة', key: 'event_type', width: '*' },
           { label: 'العدد', key: 'count', width: 'auto' },
