@@ -15,7 +15,6 @@ import { StocktakePage } from './pages/inventory/Stocktake';
 import { AdjustmentsPage } from './pages/inventory/Adjustments';
 import { DamagePage } from './pages/inventory/Damage';
 import { InventoryHubPage } from './pages/inventory/InventoryHub';
-import { CodesPage } from './pages/inventory/CodesPage';
 import { CustomersListPage } from './pages/customers/CustomersList';
 import { CustomerDetailPage } from './pages/customers/CustomerDetail';
 import { POSPage } from './pages/pos/POS';
@@ -85,7 +84,6 @@ export function App() {
 
                 <Route path="/inventory" element={<InventoryHubPage />} />
                 <Route path="/inventory/stock" element={<StockViewPage />} />
-                <Route path="/codes" element={<CodesPage />} />
                 <Route path="/inventory/stock-movements" element={<StockMovementsPage />} />
                 <Route path="/inventory/stocktake" element={<StocktakePage />} />
                 <Route path="/inventory/adjustments" element={<AdjustmentsPage />} />

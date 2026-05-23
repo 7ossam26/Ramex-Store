@@ -96,7 +96,7 @@ export function stockByWarehouseToExport(
         columns: [
           { label: 'المخزن', key: 'warehouse', width: 'auto' },
           { label: 'الحالة', key: 'status', width: 'auto' },
-          { label: 'عدد التوبات', key: 'roll_count', width: 'auto' },
+          { label: 'عدد الاتواب', key: 'roll_count', width: 'auto' },
           { label: 'الوزن الإجمالي (كجم)', key: 'total_weight_kg', width: 'auto' },
           { label: 'الطول الإجمالي (م)', key: 'total_length_m', width: 'auto' },
         ],
@@ -106,7 +106,7 @@ export function stockByWarehouseToExport(
           roll_count: String(data.grand_total_rolls),
           total_weight_kg: data.grand_total_weight_kg,
         },
-        emptyAr: 'لا توجد توبات',
+        emptyAr: 'لا توجد اتواب',
       },
     ],
   };

@@ -1,5 +1,4 @@
 import { db } from '../../db/connection.js';
-import { getSetting } from '../settings/settings.service.js';
 import { cairoDayWindow, formatCairo } from '../../lib/datetime/cairo.js';
 
 export type DailySalesSummary = {
@@ -97,8 +96,7 @@ function fmtEgp(n: number | string | null | undefined): string {
 }
 
 export async function getDailyReport(targetDate: string): Promise<DailyReport> {
-  const rolloverTime = await getSetting<string>(undefined, 'day_rollover_time', '00:00');
-  const { startUtc, endUtc } = cairoDayWindow(targetDate, rolloverTime);
+  const { startUtc, endUtc } = cairoDayWindow(targetDate);
 
   const startIso = startUtc.toISOString();
   const endIso = endUtc.toISOString();

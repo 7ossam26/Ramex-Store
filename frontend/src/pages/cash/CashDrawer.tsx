@@ -50,10 +50,8 @@ export function CashDrawerPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [showOpeningDlg, setShowOpeningDlg] = useState(false);
-  const [showDepositDlg, setShowDepositDlg] = useState(false);
   const [showWithdrawalDlg, setShowWithdrawalDlg] = useState(false);
   const [openingError, setOpeningError] = useState<string | null>(null);
-  const [depositError, setDepositError] = useState<string | null>(null);
   const [withdrawalError, setWithdrawalError] = useState<string | null>(null);
 
   const balanceQ = useQuery({
@@ -66,17 +64,8 @@ export function CashDrawerPage() {
     queryFn: () => financeApi.getCashMovements({ from: from || undefined, to: to || undefined, page, limit: PAGE_SIZE }),
   });
 
-  const banksQ = useQuery({
-    queryKey: ['banks'],
-    queryFn: financeApi.listBanks,
-    enabled: showDepositDlg,
-  });
-
   const openingForm = useForm<{ amount: string; override: boolean }>({
     defaultValues: { amount: '', override: false },
-  });
-  const depositForm = useForm<{ amount: string; bank_account_id: string; notes_ar: string }>({
-    defaultValues: { amount: '', bank_account_id: '', notes_ar: '' },
   });
   const withdrawalForm = useForm<{ amount: string; notes_ar: string }>({
     defaultValues: { amount: '', notes_ar: '' },
@@ -93,24 +82,6 @@ export function CashDrawerPage() {
       setOpeningError(null);
     },
     onError: (e) => setOpeningError(extractApiError(e)),
-  });
-
-  const depositMut = useMutation({
-    mutationFn: (d: { amount: string; bank_account_id: string; notes_ar: string }) =>
-      financeApi.depositToBank({
-        amount: Number(d.amount),
-        bank_account_id: Number(d.bank_account_id),
-        notes_ar: d.notes_ar || null,
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['cash-balance'] });
-      qc.invalidateQueries({ queryKey: ['cash-movements'] });
-      qc.invalidateQueries({ queryKey: ['banks'] });
-      setShowDepositDlg(false);
-      depositForm.reset();
-      setDepositError(null);
-    },
-    onError: (e) => setDepositError(extractApiError(e)),
   });
 
   const withdrawalMut = useMutation({
@@ -218,9 +189,6 @@ export function CashDrawerPage() {
                 {ar.cash.setOpening}
               </Button>
             )}
-            <Button variant="outline" onClick={() => setShowDepositDlg(true)}>
-              {ar.cash.depositToBank}
-            </Button>
             {isOwner && (
               <Button variant="outline" onClick={() => setShowWithdrawalDlg(true)}>
                 {ar.cash.ownerWithdrawal}
@@ -384,60 +352,6 @@ export function CashDrawerPage() {
               </DialogClose>
               <Button type="submit" variant="accent" disabled={openingMut.isPending}>
                 {openingMut.isPending ? 'جاري الحفظ...' : 'حفظ'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Deposit to Bank Dialog */}
-      <Dialog open={showDepositDlg} onOpenChange={setShowDepositDlg}>
-        <DialogContent dir="rtl">
-          <DialogHeader>
-            <DialogTitle>إيداع في البنك</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={depositForm.handleSubmit((d) => depositMut.mutate(d))} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>المبلغ (ج.م)</Label>
-              <Input
-                type="number"
-                inputMode="decimal"
-                step="1"
-                min="1"
-                {...depositForm.register('amount', { required: true })}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>الحساب البنكي</Label>
-              <select
-                className="w-full rounded-md border border-border-default bg-surface-elevated h-10 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                {...depositForm.register('bank_account_id', { required: true })}
-              >
-                <option value="">-- اختر حساب --</option>
-                {(banksQ.data ?? [])
-                  .filter((b) => b.is_active)
-                  .map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name_ar} {b.bank_name_ar ? `(${b.bank_name_ar})` : ''}
-                    </option>
-                  ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>ملاحظات</Label>
-              <Input {...depositForm.register('notes_ar')} />
-            </div>
-            {depositError && (
-              <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">{depositError}</p>
-            )}
-            <div className="flex justify-end gap-2">
-              <DialogClose asChild>
-                <Button type="button" variant="outline">
-                  إلغاء
-                </Button>
-              </DialogClose>
-              <Button type="submit" variant="accent" disabled={depositMut.isPending}>
-                {depositMut.isPending ? 'جاري التنفيذ...' : 'تأكيد الإيداع'}
               </Button>
             </div>
           </form>

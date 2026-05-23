@@ -70,7 +70,7 @@ export function stocktakeInventoryToExport(
     generatedAt,
     sections: [
       {
-        titleAr: 'قائمة التوبات المتاحة',
+        titleAr: 'قائمة الاتواب المتاحة',
         columns: [
           { label: 'المخزن', key: 'warehouse', width: 'auto' },
           { label: 'الخامة', key: 'fabric_name_ar', width: '*' },
@@ -88,7 +88,7 @@ export function stocktakeInventoryToExport(
           weight_kg: summary.total_weight_kg,
           valuation_egp: summary.total_valuation_egp,
         },
-        emptyAr: 'لا توجد توبات في المخزون',
+        emptyAr: 'لا توجد اتواب في المخزون',
       },
     ],
   };

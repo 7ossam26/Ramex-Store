@@ -29,7 +29,6 @@ import {
   Coins,
   CreditCard,
   FileText,
-  Hash,
   Home,
   History,
   Landmark,
@@ -65,7 +64,6 @@ export type SectionId =
   | 'pos'
   | 'items'
   | 'inventory'
-  | 'codes'
   | 'shipments'
   | 'customers'
   | 'invoicesReturns'
@@ -120,7 +118,7 @@ export const NAV: NavTop[] = [
   {
     id: 'items',
     labelAr: 'الأصناف',
-    descAr: 'إدارة التوبات والملصقات',
+    descAr: 'إدارة الاتواب والملصقات',
     icon: Package,
     route: '/items',
     children: [
@@ -135,8 +133,8 @@ export const NAV: NavTop[] = [
           },
           {
             id: 'items.rolls',
-            labelAr: 'التوبات',
-            descAr: 'بحث وتصفية كل التوبات',
+            labelAr: 'الاتواب',
+            descAr: 'بحث وتصفية كل الاتواب',
             icon: Layers,
             route: '/items/rolls',
           },
@@ -150,7 +148,7 @@ export const NAV: NavTop[] = [
           {
             id: 'items.labels',
             labelAr: 'الملصقات',
-            descAr: 'إعادة طباعة ملصقات التوبات',
+            descAr: 'إعادة طباعة ملصقات الاتواب',
             icon: Tag,
             route: '/items/labels',
           },
@@ -177,7 +175,7 @@ export const NAV: NavTop[] = [
           {
             id: 'inventory.movements',
             labelAr: 'حركات المخزون',
-            descAr: 'سجل دخول وخروج التوبات',
+            descAr: 'سجل دخول وخروج الاتواب',
             icon: ArrowLeftRight,
             route: '/inventory/stock-movements',
           },
@@ -205,13 +203,6 @@ export const NAV: NavTop[] = [
         ],
       },
     ],
-  },
-  {
-    id: 'codes',
-    labelAr: 'التكويدات',
-    descAr: 'الجودات والتركيبات والماركات والموردين',
-    icon: Hash,
-    route: '/codes',
   },
   {
     id: 'shipments',
@@ -369,7 +360,7 @@ export const NAV: NavTop[] = [
           },
           {
             id: 'reports.agingInventory',
-            labelAr: 'التوبات الراكدة',
+            labelAr: 'الاتواب الراكدة',
             icon: Clock,
             route: '/reports/secondary/agingInventory',
           },
@@ -463,7 +454,6 @@ const SECTION_ROUTE_PREFIXES: Record<SectionId, string[]> = {
   pos: ['/pos'],
   items: ['/items'],
   inventory: ['/inventory'],
-  codes: ['/codes'],
   shipments: ['/shipments'],
   customers: ['/customers'],
   invoicesReturns: ['/invoices-returns', '/invoices', '/returns'],

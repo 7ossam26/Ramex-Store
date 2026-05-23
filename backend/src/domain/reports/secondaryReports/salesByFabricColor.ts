@@ -63,7 +63,7 @@ export function salesByFabricColorToExport(
         columns: [
           { label: 'الخامة', key: 'fabric_name_ar', width: '*' },
           { label: 'اللون', key: 'color_name_ar', width: 'auto' },
-          { label: 'عدد التوبات', key: 'roll_count', width: 'auto' },
+          { label: 'عدد الاتواب', key: 'roll_count', width: 'auto' },
           { label: 'الوزن الإجمالي (كجم)', key: 'total_weight_kg', width: 'auto' },
           { label: 'الإيراد الإجمالي (ج.م)', key: 'total_revenue_egp', width: 'auto' },
           { label: 'متوسط السعر/كجم', key: 'avg_price_per_kg', width: 'auto' },

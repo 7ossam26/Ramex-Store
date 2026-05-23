@@ -25,9 +25,6 @@ export const financeApi = {
   reconcileCash: (body: { date: string; actual_balance_egp: number; notes_ar?: string | null }) =>
     api.post<ReconciliationResult>('/cash/reconcile', body).then((r) => r.data),
 
-  depositToBank: (body: { amount: number; bank_account_id: number; notes_ar?: string | null }) =>
-    api.post<{ ok: boolean }>('/cash/deposit-to-bank', body).then((r) => r.data),
-
   ownerWithdrawal: (body: { amount: number; notes_ar?: string | null }) =>
     api.post<{ ok: boolean }>('/cash/owner-withdrawal', body).then((r) => r.data),
 

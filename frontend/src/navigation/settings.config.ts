@@ -10,10 +10,7 @@
  * keys under `ar.settings.sections.*` in src/i18n/ar.ts.
  * ============================================================= */
 import {
-  Banknote,
-  Building2,
   ClipboardList,
-  Database,
   Hash,
   Info,
   ShieldCheck,
@@ -22,11 +19,8 @@ import {
 
 export type SettingsSectionId =
   | 'general'
-  | 'cashDrawer'
   | 'usersPermissions'
   | 'reasonCodes'
-  | 'dayRollover'
-  | 'system'
   | 'fabricCodes';
 
 export type SettingsSection = {
@@ -44,12 +38,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Info,
   },
   {
-    id: 'cashDrawer',
-    labelAr: 'خزنة الكاش',
-    descAr: 'الرصيد الافتتاحي لخزنة الكاش (للعرض فقط بعد الإعداد)',
-    icon: Banknote,
-  },
-  {
     id: 'usersPermissions',
     labelAr: 'المستخدمون والصلاحيات',
     descAr: 'إضافة المستخدمين وتحديد صلاحيات كل دور',
@@ -62,21 +50,9 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: ClipboardList,
   },
   {
-    id: 'dayRollover',
-    labelAr: 'وقت تجديد اليوم',
-    descAr: 'وقت بداية اليوم المحاسبي (HH:MM)',
-    icon: Building2,
-  },
-  {
-    id: 'system',
-    labelAr: 'النظام',
-    descAr: 'إعدادات النظام المركزية ومعلومات الاحتفاظ بالسجلات',
-    icon: Database,
-  },
-  {
     id: 'fabricCodes',
     labelAr: 'كودات الملصقات',
-    descAr: 'الدرجات، التركيبات، الماركات والموردين على ملصقات التوبات',
+    descAr: 'الدرجات، التركيبات، الماركات والموردين على ملصقات الاتواب',
     icon: Hash,
   },
 ];
