@@ -5,7 +5,7 @@ import { inventoryApi } from '@/lib/inventory-api';
 import type { StockEventType } from '@/lib/inventory-types';
 import { Button } from '@/components/ui/button';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 
 const PAGE_SIZE = 50;
 
@@ -91,35 +91,35 @@ export function StockMovementsPage() {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4">
-      <PageHeader
-        title={ar.stockMovements.title}
-        description={ar.hubs.inventoryMovementsDesc}
-        backTo="/inventory"
-        actions={
-          <select
-            value={event}
-            onChange={(e) => { setEvent(e.target.value as StockEventType | ''); setOffset(0); }}
-            className="h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
-          >
-            <option value="">{ar.common.none}</option>
-            {ALL_EVENTS.map((ev) => (
-              <option key={ev} value={ev}>{ar.stockMovements.events[ev]}</option>
-            ))}
-          </select>
-        }
-      />
-
-      <ResponsiveTable
-        columns={columns}
-        rows={rows}
-        rowKey={(m) => String(m.id)}
-        empty={ar.common.none}
-        isLoading={q.isLoading}
-        isError={q.isError}
-        onRetry={() => q.refetch()}
-        resetKey={`${event}|${offset}`}
-      />
+    <PageShell
+      title={ar.stockMovements.title}
+      description={ar.hubs.inventoryMovementsDesc}
+      backTo="/inventory"
+      actions={
+        <select
+          value={event}
+          onChange={(e) => { setEvent(e.target.value as StockEventType | ''); setOffset(0); }}
+          className="h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
+        >
+          <option value="">{ar.common.none}</option>
+          {ALL_EVENTS.map((ev) => (
+            <option key={ev} value={ev}>{ar.stockMovements.events[ev]}</option>
+          ))}
+        </select>
+      }
+    >
+      <SectionCard noPadding>
+        <ResponsiveTable
+          columns={columns}
+          rows={rows}
+          rowKey={(m) => String(m.id)}
+          empty={ar.common.none}
+          isLoading={q.isLoading}
+          isError={q.isError}
+          onRetry={() => q.refetch()}
+          resetKey={`${event}|${offset}`}
+        />
+      </SectionCard>
 
       <div className="flex items-center justify-between text-xs text-foreground-muted">
         <span className="tabular-num" dir="ltr">{rows.length} / {total}</span>
@@ -134,6 +134,6 @@ export function StockMovementsPage() {
           </Button>
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }

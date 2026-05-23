@@ -18,7 +18,7 @@ import {
   DialogClose,
 } from '@/components/ResponsiveDialog';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { FilterChip } from '@/components/FilterChip';
 import { StatusPill, type StatusTone } from '@/components/StatusPill';
 
@@ -205,18 +205,17 @@ export function ExpensesPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={ar.cash.expenses}
-        description={ar.hubs.expensesDesc}
-        backTo="/treasury"
-        actions={
-          <Button variant="accent" onClick={() => setShowCreate(true)} className="gap-1.5">
-            <Plus className="size-4" aria-hidden />
-            تسجيل مصروف
-          </Button>
-        }
-      />
+    <PageShell
+      title={ar.cash.expenses}
+      description={ar.hubs.expensesDesc}
+      backTo="/treasury"
+      actions={
+        <Button variant="accent" onClick={() => setShowCreate(true)} className="gap-1.5">
+          <Plus className="size-4" aria-hidden />
+          تسجيل مصروف
+        </Button>
+      }
+    >
 
       {/* Filter chips */}
       <div className="flex gap-2 overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0">
@@ -234,6 +233,7 @@ export function ExpensesPage() {
         ))}
       </div>
 
+      <SectionCard noPadding>
       <ResponsiveTable
         columns={columns}
         rows={expenseRows}
@@ -274,6 +274,7 @@ export function ExpensesPage() {
           );
         }}
       />
+      </SectionCard>
 
       {totalPages > 1 && (
         <div className="flex justify-center items-center gap-3">
@@ -438,6 +439,6 @@ export function ExpensesPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

@@ -20,7 +20,7 @@ import {
   DialogTitle,
 } from '@/components/ResponsiveDialog';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/Layout/PageShell';
 import { StatusPill } from '@/components/StatusPill';
 import { useAuth } from '@/lib/auth';
 import { extractApiError } from '@/lib/api-error';
@@ -229,17 +229,16 @@ export function FabricsPage() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4" dir="rtl">
-      <PageHeader
-        title={ar.fabrics.title}
-        description={ar.hubs.inventoryFabricsDesc}
-        backTo="/items"
-        actions={
-          isOwner && (
-            <Button onClick={openCreate}>+ {ar.fabrics.addFabric}</Button>
-          )
-        }
-      />
+    <PageShell
+      title={ar.fabrics.title}
+      description={ar.hubs.inventoryFabricsDesc}
+      backTo="/items"
+      actions={
+        isOwner && (
+          <Button onClick={openCreate}>+ {ar.fabrics.addFabric}</Button>
+        )
+      }
+    >
 
       <div className="text-sm text-foreground-muted">
         {ar.fabrics.hint}{' '}
@@ -507,7 +506,7 @@ export function FabricsPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }
 

@@ -8,7 +8,7 @@ import { extractApiError } from '@/lib/api-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/Layout/PageShell';
 import { cn } from '@/lib/utils';
 
 const fmt = (n: string | number) =>
@@ -277,8 +277,7 @@ export function CashReconcilePage() {
   };
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      <PageHeader title={ar.cash.reconcile} description={ar.hubs.reconcileDesc} backTo="/treasury" />
+    <PageShell title={ar.cash.reconcile} description={ar.hubs.reconcileDesc} backTo="/treasury" className="max-w-3xl">
 
       {/* Tab selector — sliding indicator */}
       <div className="flex gap-1 border-b border-border-subtle">
@@ -446,6 +445,6 @@ export function CashReconcilePage() {
           )}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

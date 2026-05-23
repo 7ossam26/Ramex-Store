@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { KpiGrid } from '@/components/dashboard/KpiGrid';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { StatusPill } from '@/components/StatusPill';
@@ -166,9 +166,7 @@ export function ReturnsListPage() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4">
-      <PageHeader title={ar.returns.title} description={ar.hubs.returnsDesc} backTo="/invoices-returns" />
-
+    <PageShell title={ar.returns.title} description={ar.hubs.returnsDesc} backTo="/invoices-returns">
       <KpiGrid className="lg:grid-cols-3">
         <MetricCard
           label="إجمالي المرتجعات"
@@ -200,17 +198,19 @@ export function ReturnsListPage() {
         {filterControls}
       </MobileFilterSheet>
 
-      <ResponsiveTable
-        columns={columns}
-        rows={rows}
-        rowKey={(r) => String(r.id)}
-        onRowClick={(r) => { window.location.href = `/returns/${r.id}`; }}
-        empty={ar.returns.empty}
-        isLoading={q.isLoading}
-        isError={q.isError}
-        onRetry={() => q.refetch()}
-        resetKey={`${dateFrom}|${dateTo}|${page}`}
-      />
+      <SectionCard noPadding>
+        <ResponsiveTable
+          columns={columns}
+          rows={rows}
+          rowKey={(r) => String(r.id)}
+          onRowClick={(r) => { window.location.href = `/returns/${r.id}`; }}
+          empty={ar.returns.empty}
+          isLoading={q.isLoading}
+          isError={q.isError}
+          onRetry={() => q.refetch()}
+          resetKey={`${dateFrom}|${dateTo}|${page}`}
+        />
+      </SectionCard>
 
       {/* Pagination */}
       {totalPages > 1 && (
@@ -224,6 +224,6 @@ export function ReturnsListPage() {
           </Button>
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

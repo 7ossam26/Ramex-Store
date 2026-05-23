@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { KpiGrid } from '@/components/dashboard/KpiGrid';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { FilterChip } from '@/components/FilterChip';
@@ -56,9 +56,7 @@ export function InvoicesListPage() {
   const [tab, setTab] = useState<TabKey>('all');
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4">
-      <PageHeader title={ar.invoices.title} backTo="/invoices-returns" />
-
+    <PageShell title={ar.invoices.title} backTo="/invoices-returns">
       {/* Filter chip row */}
       <div className="flex gap-2 overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0 pb-1">
         {TAB_ORDER.map((k) => (
@@ -75,7 +73,7 @@ export function InvoicesListPage() {
       ) : (
         <DefaultTab status={TAB_TO_STATUS[tab]} />
       )}
-    </div>
+    </PageShell>
   );
 }
 
@@ -287,17 +285,19 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
 
       <MobileFilterSheet activeCount={activeFilters}>{filterControls}</MobileFilterSheet>
 
-      <ResponsiveTable
-        columns={columns}
-        rows={rows}
-        rowKey={(r) => String(r.id)}
-        onRowClick={(r) => { window.location.href = `/invoices/${r.id}`; }}
-        empty={ar.invoices.empty}
-        isLoading={q.isLoading}
-        isError={q.isError}
-        onRetry={() => q.refetch()}
-        resetKey={`${status ?? ''}|${destination}|${dateFrom}|${dateTo}|${page}`}
-      />
+      <SectionCard noPadding>
+        <ResponsiveTable
+          columns={columns}
+          rows={rows}
+          rowKey={(r) => String(r.id)}
+          onRowClick={(r) => { window.location.href = `/invoices/${r.id}`; }}
+          empty={ar.invoices.empty}
+          isLoading={q.isLoading}
+          isError={q.isError}
+          onRetry={() => q.refetch()}
+          resetKey={`${status ?? ''}|${destination}|${dateFrom}|${dateTo}|${page}`}
+        />
+      </SectionCard>
 
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
@@ -396,17 +396,19 @@ function OpenInvoicesTab() {
   ];
 
   return (
-    <ResponsiveTable
-      columns={columns}
-      rows={rows}
-      rowKey={(r) => String(r.id)}
-      onRowClick={(r) => { window.location.href = `/invoices/${r.id}`; }}
-      empty={ar.invoices.empty}
-      isLoading={q.isLoading}
-      isError={q.isError}
-      onRetry={() => q.refetch()}
-      rowClassName={(r) => (r.is_stale ? 'border-s-2 border-s-warning' : '')}
-    />
+    <SectionCard noPadding>
+      <ResponsiveTable
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => String(r.id)}
+        onRowClick={(r) => { window.location.href = `/invoices/${r.id}`; }}
+        empty={ar.invoices.empty}
+        isLoading={q.isLoading}
+        isError={q.isError}
+        onRetry={() => q.refetch()}
+        rowClassName={(r) => (r.is_stale ? 'border-s-2 border-s-warning' : '')}
+      />
+    </SectionCard>
   );
 }
 
@@ -471,24 +473,26 @@ function PendingPickupTab() {
 
   return (
     <>
-      <ResponsiveTable
-        columns={columns}
-        rows={rows}
-        rowKey={(r) => String(r.id)}
-        empty={ar.invoices.empty}
-        isLoading={q.isLoading}
-        isError={q.isError}
-        onRetry={() => q.refetch()}
-        actions={(r) => (
-          <Button
-            size="sm"
-            onClick={() => setPendingDeliverId(r.id)}
-            disabled={deliverMut.isPending}
-          >
-            {ar.invoices.markDelivered}
-          </Button>
-        )}
-      />
+      <SectionCard noPadding>
+        <ResponsiveTable
+          columns={columns}
+          rows={rows}
+          rowKey={(r) => String(r.id)}
+          empty={ar.invoices.empty}
+          isLoading={q.isLoading}
+          isError={q.isError}
+          onRetry={() => q.refetch()}
+          actions={(r) => (
+            <Button
+              size="sm"
+              onClick={() => setPendingDeliverId(r.id)}
+              disabled={deliverMut.isPending}
+            >
+              {ar.invoices.markDelivered}
+            </Button>
+          )}
+        />
+      </SectionCard>
       <ConfirmDialog
         open={pendingDeliverId !== null}
         message={ar.invoices.markDeliveredConfirm}

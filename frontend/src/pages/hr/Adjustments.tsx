@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { hrApi, type HrSalaryAdjustment } from '@/lib/hr-api';
 import { Button } from '@/components/ui/button';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/Layout/PageShell';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { Skeleton } from '@/components/Skeleton';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
@@ -226,9 +226,7 @@ export function AdjustmentsPage() {
   const rows: HrSalaryAdjustment[] = data?.rows ?? [];
 
   return (
-    <div dir="rtl" className="space-y-4">
-      <PageHeader title={ar.hr.adjustments} description={ar.hr.title} backTo="/hr" />
-
+    <PageShell title={ar.hr.adjustments} description={ar.hr.title} backTo="/hr">
       {/* Toolbar */}
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <div className="flex gap-2 flex-wrap">
@@ -321,6 +319,6 @@ export function AdjustmentsPage() {
           onDone={() => setShowCreate(false)}
         />
       )}
-    </div>
+    </PageShell>
   );
 }

@@ -15,7 +15,7 @@ import {
 } from '@/components/ResponsiveDialog';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { RollStatusPill } from '@/components/items/RollStatusPill';
 
 // ── Label card helpers ──────────────────────────────────────────────────────
@@ -272,11 +272,10 @@ export function RollsPage() {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4">
-      <PageHeader title={ar.labels.rollsTitle} description={ar.hubs.itemsRollsDesc} backTo="/items" />
-
+    <PageShell title={ar.labels.rollsTitle} description={ar.hubs.itemsRollsDesc} backTo="/items">
       <MobileFilterSheet activeCount={activeFilters}>{filterControls}</MobileFilterSheet>
 
+      <SectionCard noPadding>
       <ResponsiveTable
         columns={columns}
         rows={rolls}
@@ -298,6 +297,7 @@ export function RollsPage() {
           </Button>
         )}
       />
+      </SectionCard>
 
       {/* Roll detail drawer */}
       <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
@@ -362,6 +362,6 @@ export function RollsPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

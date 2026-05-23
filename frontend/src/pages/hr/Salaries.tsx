@@ -4,7 +4,7 @@ import { ar } from '@/i18n/ar';
 import { hrApi, type HrSalaryPreview } from '@/lib/hr-api';
 import { bankAccountsApi } from '@/lib/settings-api';
 import { Button } from '@/components/ui/button';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/Layout/PageShell';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { Skeleton } from '@/components/Skeleton';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
@@ -201,9 +201,7 @@ export function SalariesPage() {
   const pendingCount = rows.filter((r) => !r.already_disbursed).length;
 
   return (
-    <div dir="rtl" className="space-y-4">
-      <PageHeader title={ar.hr.salaries} description={ar.hr.salary.previewHint} backTo="/hr" />
-
+    <PageShell title={ar.hr.salaries} description={ar.hr.salary.previewHint} backTo="/hr">
       {/* Month picker */}
       <div className="flex flex-wrap gap-3 items-center">
         <div className="space-y-0.5">
@@ -303,6 +301,6 @@ export function SalariesPage() {
           onDone={() => setDisbursingPreview(null)}
         />
       )}
-    </div>
+    </PageShell>
   );
 }

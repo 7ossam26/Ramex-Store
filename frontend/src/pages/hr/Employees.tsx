@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { hrApi, type HrEmployee, type HrEmployeeDetail } from '@/lib/hr-api';
 import { Button } from '@/components/ui/button';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/Layout/PageShell';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { Skeleton } from '@/components/Skeleton';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
@@ -366,9 +366,7 @@ export function EmployeesPage() {
   ];
 
   return (
-    <div dir="rtl" className="space-y-4">
-      <PageHeader title={ar.hr.employees} description={ar.hr.title} backTo="/hr" />
-
+    <PageShell title={ar.hr.employees} description={ar.hr.title} backTo="/hr">
       {/* Toolbar */}
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <div className="flex gap-2 items-center flex-wrap">
@@ -464,6 +462,6 @@ export function EmployeesPage() {
           />
         </>
       )}
-    </div>
+    </PageShell>
   );
 }

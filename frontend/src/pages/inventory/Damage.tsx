@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/Layout/PageShell';
 import { StatusPill } from '@/components/StatusPill';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { EmptyState } from '@/components/EmptyState';
@@ -64,9 +64,7 @@ export function DamagePage() {
   const isLoss = LOSS_REASONS.includes(reason);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-4">
-      <PageHeader title={ar.damage.title} description={ar.hubs.inventoryDamageDesc} backTo="/inventory" />
-
+    <PageShell title={ar.damage.title} description={ar.hubs.inventoryDamageDesc} backTo="/inventory">
       <Card>
         <CardHeader><CardTitle>{ar.damage.record}</CardTitle></CardHeader>
         <CardContent>
@@ -166,6 +164,6 @@ export function DamagePage() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </PageShell>
   );
 }

@@ -24,7 +24,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Code128 } from '@/components/Code128';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/Layout/PageShell';
 
 // ---------- helpers ----------
 
@@ -869,8 +869,7 @@ export function AddTopPage() {
   if (results.length > 0) {
     const allRolls = results.flatMap((r) => r.rolls);
     return (
-      <div className="max-w-5xl mx-auto space-y-4" dir="rtl">
-        <PageHeader title={ar.addTop.navTitle} description={ar.hubs.itemsAddTopDesc} backTo="/items" />
+      <PageShell title={ar.addTop.navTitle} description={ar.hubs.itemsAddTopDesc} backTo="/items" className="max-w-5xl">
         <Card className="border-success/40 bg-success-subtle">
           <CardHeader>
             <CardTitle className="text-success-foreground">
@@ -931,20 +930,24 @@ export function AddTopPage() {
             )}
           </CardContent>
         </Card>
-      </div>
+      </PageShell>
     );
   }
 
   // ----- Main form -----
 
   return (
-    <div className="max-w-5xl mx-auto space-y-4" dir="rtl">
-      <div className="flex items-center gap-3">
-        <PageHeader title={ar.addTop.navTitle} description={ar.hubs.itemsAddTopDesc} backTo="/items" />
+    <PageShell
+      title={ar.addTop.navTitle}
+      description={ar.hubs.itemsAddTopDesc}
+      backTo="/items"
+      className="max-w-5xl"
+      actions={
         <span className="shrink-0 text-xs font-medium px-2 py-0.5 rounded-full bg-accent text-accent-foreground">
           {ar.addTop.factoryBadge}
         </span>
-      </div>
+      }
+    >
 
       {/* Fabric dialogs */}
       <FabricCreateDialog
@@ -1024,6 +1027,6 @@ export function AddTopPage() {
           {submitMut.isPending ? ar.loading : ar.addTop.saveAndPrint}
         </Button>
       </div>
-    </div>
+    </PageShell>
   );
 }

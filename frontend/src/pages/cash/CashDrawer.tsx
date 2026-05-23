@@ -17,7 +17,7 @@ import {
   DialogClose,
 } from '@/components/ResponsiveDialog';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { TableFilterBar } from '@/components/TableFilterBar';
 import { Skeleton } from '@/components/Skeleton';
 import { cn } from '@/lib/utils';
@@ -177,26 +177,25 @@ export function CashDrawerPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={ar.cash.drawer}
-        description={ar.hubs.cashDesc}
-        backTo="/treasury"
-        actions={
-          <>
-            {isOwner && !balanceQ.data?.opening_set_at && (
-              <Button variant="accent" onClick={() => setShowOpeningDlg(true)}>
-                {ar.cash.setOpening}
-              </Button>
-            )}
-            {isOwner && (
-              <Button variant="outline" onClick={() => setShowWithdrawalDlg(true)}>
-                {ar.cash.ownerWithdrawal}
-              </Button>
-            )}
-          </>
-        }
-      />
+    <PageShell
+      title={ar.cash.drawer}
+      description={ar.hubs.cashDesc}
+      backTo="/treasury"
+      actions={
+        <>
+          {isOwner && !balanceQ.data?.opening_set_at && (
+            <Button variant="accent" onClick={() => setShowOpeningDlg(true)}>
+              {ar.cash.setOpening}
+            </Button>
+          )}
+          {isOwner && (
+            <Button variant="outline" onClick={() => setShowWithdrawalDlg(true)}>
+              {ar.cash.ownerWithdrawal}
+            </Button>
+          )}
+        </>
+      }
+    >
 
       {/* Day window info label */}
       <div className="flex items-center gap-2 rounded-md border border-border-subtle bg-surface-elevated px-3 py-2 text-sm text-foreground-muted w-fit">
@@ -292,16 +291,18 @@ export function CashDrawerPage() {
         resultCount={movementsQ.data?.total}
       />
 
-      <ResponsiveTable
-        columns={columns}
-        rows={movementRows}
-        rowKey={(m) => String(m.id)}
-        empty="لا توجد حركات"
-        isLoading={movementsQ.isLoading}
-        isError={movementsQ.isError}
-        onRetry={() => movementsQ.refetch()}
-        resetKey={`${from}-${to}`}
-      />
+      <SectionCard noPadding>
+        <ResponsiveTable
+          columns={columns}
+          rows={movementRows}
+          rowKey={(m) => String(m.id)}
+          empty="لا توجد حركات"
+          isLoading={movementsQ.isLoading}
+          isError={movementsQ.isError}
+          onRetry={() => movementsQ.refetch()}
+          resetKey={`${from}-${to}`}
+        />
+      </SectionCard>
 
       {totalPages > 1 && (
         <div className="flex justify-center items-center gap-3">
@@ -398,6 +399,6 @@ export function CashDrawerPage() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

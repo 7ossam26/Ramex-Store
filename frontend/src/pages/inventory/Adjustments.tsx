@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/Layout/PageShell';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorBanner } from '@/components/ErrorBanner';
@@ -48,9 +48,7 @@ export function AdjustmentsPage() {
   const form = useForm<FormVals>();
 
   return (
-    <div className="max-w-5xl mx-auto space-y-4">
-      <PageHeader title={ar.adjustments.title} description={ar.hubs.inventoryAdjustmentsDesc} backTo="/inventory" />
-
+    <PageShell title={ar.adjustments.title} description={ar.hubs.inventoryAdjustmentsDesc} backTo="/inventory">
       <Card>
         <CardHeader><CardTitle>{ar.adjustments.create}</CardTitle></CardHeader>
         <CardContent>
@@ -139,6 +137,6 @@ export function AdjustmentsPage() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </PageShell>
   );
 }

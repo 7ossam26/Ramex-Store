@@ -15,7 +15,7 @@ import {
 } from '@/components/ResponsiveDialog';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/Layout/PageShell';
 import { RollStatusPill } from '@/components/items/RollStatusPill';
 
 export function LabelsPage() {
@@ -189,9 +189,7 @@ export function LabelsPage() {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4">
-      <PageHeader title={ar.labels.title} description={ar.hubs.itemsLabelsDesc} backTo="/items" />
-
+    <PageShell title={ar.labels.title} description={ar.hubs.itemsLabelsDesc} backTo="/items">
       <MobileFilterSheet activeCount={activeFilters}>{filterControls}</MobileFilterSheet>
 
       {/* Results */}
@@ -300,6 +298,6 @@ export function LabelsPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

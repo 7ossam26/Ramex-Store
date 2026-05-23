@@ -5,7 +5,7 @@ import { inventoryApi } from '@/lib/inventory-api';
 import { salesApi } from '@/lib/sales-api';
 import type { StockSummaryRow, Warehouse } from '@/lib/inventory-types';
 import type { RollLookup } from '@/lib/sales-types';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/Layout/PageShell';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { StatusPill, type StatusTone } from '@/components/StatusPill';
 import { FilterChip } from '@/components/FilterChip';
@@ -299,13 +299,11 @@ export function StockViewPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="إدارة المخزون"
-        description="إدارة مستويات المخزون، الأسعار وتفاصيل المنتجات"
-        backTo="/inventory"
-      />
-
+    <PageShell
+      title="إدارة المخزون"
+      description="إدارة مستويات المخزون، الأسعار وتفاصيل المنتجات"
+      backTo="/inventory"
+    >
       <KpiGrid className="lg:grid-cols-5">
         <MetricCard
           label="إجمالي الأصناف"
@@ -461,6 +459,6 @@ export function StockViewPage() {
           ? 'البيانات مجمّعة من كل المخازن'
           : `البيانات من ${WAREHOUSE_OPTIONS.find((w) => w.value === warehouse)?.label}`}
       </div>
-    </div>
+    </PageShell>
   );
 }

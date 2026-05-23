@@ -6,7 +6,7 @@ import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
 import type { ShipmentStatus } from '@/lib/inventory-types';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { ShipmentStatusPill } from '@/components/shipments/ShipmentStatusPill';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -67,25 +67,24 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
   ];
 
   return (
-    <div className="space-y-4 max-w-5xl mx-auto">
-      <PageHeader
-        title={defaultStatus === 'pending_approval' ? ar.shipments.pending : ar.shipments.all}
-        backTo="/shipments"
-        actions={
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value as ShipmentStatus | '')}
-            className="h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
-          >
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s ? ar.shipments.status[s as ShipmentStatus] : ar.shipments.allStatuses}
-              </option>
-            ))}
-          </select>
-        }
-      />
-
+    <PageShell
+      title={defaultStatus === 'pending_approval' ? ar.shipments.pending : ar.shipments.all}
+      backTo="/shipments"
+      actions={
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value as ShipmentStatus | '')}
+          className="h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
+        >
+          {STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {s ? ar.shipments.status[s as ShipmentStatus] : ar.shipments.allStatuses}
+            </option>
+          ))}
+        </select>
+      }
+    >
+      <SectionCard noPadding>
       <ResponsiveTable
         columns={columns}
         rows={rows}
@@ -132,6 +131,7 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
           </div>
         )}
       />
+      </SectionCard>
 
       <ConfirmDialog
         open={!!pendingDelete}
@@ -143,6 +143,6 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
         onConfirm={() => pendingDelete && deleteDraft.mutate(pendingDelete.id)}
         onCancel={() => setPendingDelete(null)}
       />
-    </div>
+    </PageShell>
   );
 }

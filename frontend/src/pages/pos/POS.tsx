@@ -1061,7 +1061,7 @@ function TopBar({
   onOpenCart: () => void;
 }) {
   return (
-    <div className="sticky top-0 z-sticky bg-surface/95 backdrop-blur border-b border-border-subtle -mx-2 px-2 py-2 flex flex-wrap items-center gap-2">
+    <div className="bg-surface border-b border-border-subtle -mx-2 px-2 py-2 flex flex-wrap items-center gap-2">
       {/* Customer pill */}
       {customer ? (
         <div className="flex items-center gap-2 rounded-md border border-border-default bg-surface-elevated px-3 py-2 min-h-11">

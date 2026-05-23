@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { shiftsApi, type Shift } from '@/lib/shifts-api';
 import { ar } from '@/i18n/ar';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 
 function fmtDateTime(iso: string) {
@@ -60,19 +60,19 @@ export function ShiftHistoryPage() {
   });
 
   return (
-    <div className="space-y-6 p-4 lg:p-6" dir="rtl">
-      <PageHeader title={ar.shifts.history} />
-
-      <ResponsiveTable<Shift>
-        columns={columns}
-        rows={data?.rows ?? []}
-        rowKey={(r) => String(r.id)}
-        isLoading={isLoading}
-        isError={isError}
-        onRetry={() => refetch()}
-        empty={ar.shifts.noHistory}
-        onRowClick={(r) => navigate(`/shifts/${r.id}`)}
-      />
-    </div>
+    <PageShell title={ar.shifts.history}>
+      <SectionCard noPadding>
+        <ResponsiveTable<Shift>
+          columns={columns}
+          rows={data?.rows ?? []}
+          rowKey={(r) => String(r.id)}
+          isLoading={isLoading}
+          isError={isError}
+          onRetry={() => refetch()}
+          empty={ar.shifts.noHistory}
+          onRowClick={(r) => navigate(`/shifts/${r.id}`)}
+        />
+      </SectionCard>
+    </PageShell>
   );
 }
