@@ -95,14 +95,14 @@ export async function shiftReportService(shiftId: number): Promise<DailyReport> 
 
   // ─── 3. Refunds + Voids ──────────────────────────────────────────────────────
   const refundRows = await db('returns as r')
-    .join('invoices as i', 'r.invoice_id', 'i.id')
+    .join('invoices as i', 'r.original_invoice_id', 'i.id')
     .where('r.shift_id', shiftId)
     .where('r.kind', 'refund')
     .select(
       'i.invoice_no',
       'i.id as invoice_id',
       'r.total_refund_egp as amount_egp',
-      'r.created_at',
+      'r.processed_at as created_at',
       'r.notes_ar',
     );
 

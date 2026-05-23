@@ -117,7 +117,7 @@ export async function getDailyReport(targetDate: string): Promise<DailyReport> {
     .first() as Record<string, string>;
 
   const refundsAgg = await db('returns')
-    .whereBetween('created_at', [startIso, endIso])
+    .whereBetween('processed_at', [startIso, endIso])
     .where('kind', 'refund')
     .select(
       db.raw('COUNT(*) as refund_count'),
@@ -191,14 +191,14 @@ export async function getDailyReport(targetDate: string): Promise<DailyReport> {
 
   // ─── 3. Refunds + Voids ──────────────────────────────────────────────────────
   const refundRows = await db('returns as r')
-    .join('invoices as i', 'r.invoice_id', 'i.id')
-    .whereBetween('r.created_at', [startIso, endIso])
+    .join('invoices as i', 'r.original_invoice_id', 'i.id')
+    .whereBetween('r.processed_at', [startIso, endIso])
     .where('r.kind', 'refund')
     .select(
       'i.invoice_no',
       'i.id as invoice_id',
       'r.total_refund_egp as amount_egp',
-      'r.created_at',
+      'r.processed_at as created_at',
       'r.notes_ar',
     );
 
