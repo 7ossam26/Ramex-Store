@@ -43,12 +43,12 @@ describe('v2 — payment methods (Q&A #29-31)', () => {
     expect(r.success).toBe(true);
   });
 
-  it('Q&A #31 — invoice PDF builder does NOT include cheque-detail fields', async () => {
+  it('Q&A #31 — customer invoice print document does NOT include cheque-detail fields', async () => {
     const src = (await import('node:fs')).readFileSync(
-      new URL('../../src/lib/pdf/invoice.ts', import.meta.url),
+      new URL('../../../frontend/src/components/invoices/DraftInvoiceDocument.tsx', import.meta.url),
       'utf8',
     );
-    // Receipt must show generic «شيك» but never the cheque number/bank/due date.
+    // Customer-facing print must never show cheque number/bank/due date.
     expect(src).not.toMatch(/cheque_number|chequeNumber/);
     expect(src).not.toMatch(/due_date|dueDate/);
     expect(src).not.toMatch(/issuer_name|issuerName/);

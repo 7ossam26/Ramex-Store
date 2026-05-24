@@ -599,7 +599,7 @@ export const ar = {
     variance: 'الفرق',
     noVariance: 'تطابق مثالي — لا يوجد فرق',
     discrepancyNotified: 'تم إشعار المالك',
-    drawerWindowLabel: 'الرصيد التراكمي للخزنة النقدية',
+    drawerWindowLabel: 'اليوم يبدأ من 10:30 ص — إغلاق يدوي',
   },
   returns: {
     title: 'المرتجعات',
