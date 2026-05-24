@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import {
   AlertTriangle,
+  ArrowUpDown,
   ChevronDown,
   ChevronUp,
   Layers,
@@ -29,6 +30,8 @@ import {
 } from 'lucide-react';
 
 type WarehouseChoice = 'all' | Warehouse;
+type StatusFilter = 'all' | 'in_stock' | 'low' | 'out';
+type SortKey = 'name' | 'count_desc' | 'count_asc' | 'weight_desc' | 'price_desc';
 
 const WAREHOUSE_OPTIONS: ReadonlyArray<{ value: WarehouseChoice; label: string }> = [
   { value: 'all', label: 'كل المخازن' },
@@ -132,6 +135,8 @@ export function StockViewPage() {
   const [search, setSearch] = useState('');
   const [warehouse, setWarehouse] = useState<WarehouseChoice>('all');
   const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [sortKey, setSortKey] = useState<SortKey>('name');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const { data: rows = [], isLoading, isError, refetch } = useQuery<StockSummaryRow[]>({
@@ -170,17 +175,39 @@ export function StockViewPage() {
     return Array.from(map.entries()).map(([name, count]) => ({ name, count }));
   }, [rows]);
 
+  const statusCounts = useMemo(() => {
+    let inStock = 0, low = 0, out = 0;
+    for (const r of rows) {
+      if (r.count_in_stock === 0) out++;
+      else if (r.count_in_stock <= r.min_quantity_rolls) low++;
+      else inStock++;
+    }
+    return { inStock, low, out };
+  }, [rows]);
+
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return rows.filter((r) => {
+    let result = rows.filter((r) => {
       if (activeCategory !== 'all' && r.fabric_name_ar !== activeCategory) return false;
+      if (statusFilter === 'in_stock' && r.count_in_stock === 0) return false;
+      if (statusFilter === 'low' && (r.count_in_stock === 0 || r.count_in_stock > r.min_quantity_rolls)) return false;
+      if (statusFilter === 'out' && r.count_in_stock > 0) return false;
       if (q) {
         const haystack = `${r.fabric_name_ar} ${r.fabric_code} ${r.color_name_ar} ${r.color_code}`.toLowerCase();
         if (!haystack.includes(q)) return false;
       }
       return true;
     });
-  }, [rows, search, activeCategory]);
+
+    switch (sortKey) {
+      case 'count_desc': result = [...result].sort((a, b) => b.count_in_stock - a.count_in_stock); break;
+      case 'count_asc':  result = [...result].sort((a, b) => a.count_in_stock - b.count_in_stock); break;
+      case 'weight_desc': result = [...result].sort((a, b) => b.weight_kg_in_stock - a.weight_kg_in_stock); break;
+      case 'price_desc': result = [...result].sort((a, b) => b.selling_price_egp - a.selling_price_egp); break;
+    }
+
+    return result;
+  }, [rows, search, activeCategory, statusFilter, sortKey]);
 
   const toggleExpand = (key: string) => {
     setExpanded((prev) => {
@@ -378,7 +405,8 @@ export function StockViewPage() {
         transition={{ duration: 0.2 }}
         className="rounded-lg border border-border-subtle bg-surface-elevated shadow-sm p-4 space-y-4"
       >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-3">
+          {/* Row 1: category chips + status filter chips */}
           <div className="flex flex-wrap items-center gap-2">
             <FilterChip
               active={activeCategory === 'all'}
@@ -397,9 +425,53 @@ export function StockViewPage() {
                 {c.name}
               </FilterChip>
             ))}
+            <div className="h-5 w-px bg-border-subtle self-center" />
+            <FilterChip
+              active={statusFilter === 'in_stock'}
+              onClick={() => setStatusFilter(statusFilter === 'in_stock' ? 'all' : 'in_stock')}
+              count={statusCounts.inStock + statusCounts.low}
+            >
+              في المخزون
+            </FilterChip>
+            <FilterChip
+              active={statusFilter === 'low'}
+              onClick={() => setStatusFilter(statusFilter === 'low' ? 'all' : 'low')}
+              count={statusCounts.low}
+            >
+              منخفض
+            </FilterChip>
+            <FilterChip
+              active={statusFilter === 'out'}
+              onClick={() => setStatusFilter(statusFilter === 'out' ? 'all' : 'out')}
+              count={statusCounts.out}
+            >
+              نفد
+            </FilterChip>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Row 2: sort + warehouse + search */}
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+            <div className="relative inline-flex">
+              <ArrowUpDown className="absolute top-1/2 -translate-y-1/2 start-3 size-4 text-foreground-muted pointer-events-none" />
+              <select
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value as SortKey)}
+                className={cn(
+                  'h-10 rounded-md border border-border-default bg-surface ps-9 pe-8 text-sm text-foreground',
+                  'appearance-none cursor-pointer',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+                  'hover:bg-surface-hover transition-colors',
+                )}
+              >
+                <option value="name">ترتيب: الاسم</option>
+                <option value="count_desc">الأكثر توفراً</option>
+                <option value="count_asc">الأقل توفراً</option>
+                <option value="weight_desc">الأثقل وزناً</option>
+                <option value="price_desc">أعلى سعر بيع</option>
+              </select>
+              <ChevronDown className="absolute top-1/2 -translate-y-1/2 end-3 size-4 text-foreground-muted pointer-events-none" />
+            </div>
+
             <div className="relative inline-flex">
               <WarehouseIcon className="absolute top-1/2 -translate-y-1/2 start-3 size-4 text-foreground-muted pointer-events-none" />
               <select
@@ -407,7 +479,7 @@ export function StockViewPage() {
                 onChange={(e) => setWarehouse(e.target.value as WarehouseChoice)}
                 className={cn(
                   'h-10 rounded-md border border-border-default bg-surface ps-9 pe-8 text-sm text-foreground',
-                  'appearance-none cursor-pointer min-w-[160px]',
+                  'appearance-none cursor-pointer min-w-[140px]',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
                   'hover:bg-surface-hover transition-colors',
                 )}
@@ -421,7 +493,7 @@ export function StockViewPage() {
               <ChevronDown className="absolute top-1/2 -translate-y-1/2 end-3 size-4 text-foreground-muted pointer-events-none" />
             </div>
 
-            <div className="relative flex-1 sm:flex-none sm:w-72">
+            <div className="relative flex-1 sm:flex-none sm:w-64">
               <Search className="absolute top-1/2 -translate-y-1/2 start-3 size-4 text-foreground-muted pointer-events-none" />
               <Input
                 placeholder="ابحث بالاسم، الكود، أو التصنيف…"
@@ -447,7 +519,7 @@ export function StockViewPage() {
               لا توجد أصناف مطابقة لهذا البحث.
             </div>
           }
-          resetKey={`${warehouse}-${activeCategory}-${search}`}
+          resetKey={`${warehouse}-${activeCategory}-${statusFilter}-${sortKey}-${search}`}
           expandedKeys={expanded}
           expandedContent={(row) => <RollDetailsPanel row={row} />}
         />
