@@ -5,6 +5,7 @@ import { notify } from '../notifications/notificationsService.js';
 
 export type BankEventType =
   | 'instapay_payment'
+  | 'bank_transfer_payment'
   | 'cash_deposit'
   | 'refund'
   | 'reconciliation_adjustment'

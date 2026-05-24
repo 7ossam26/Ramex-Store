@@ -1,27 +1,22 @@
 import { db } from '../../db/connection.js';
 import type { Roll, RollWithDetails, RollWithLabelDetails } from './items.types.js';
-import type { CreateRollInput, UpdateRollInput } from './items.schemas.js';
-
-async function generateBarcode(): Promise<string> {
-  const result = await db.raw<{ rows: Array<{ n: number | string }> }>(
-    'UPDATE db_sequences SET last_value = last_value + 1 WHERE name = ? RETURNING last_value AS n',
-    ['roll_barcode_seq'],
-  );
-  return `RMX-R-${String(Number(result.rows[0].n)).padStart(6, '0')}`;
-}
+import type { UpdateRollInput } from './items.schemas.js';
 
 const ROLL_DETAIL_COLS = [
   'r.*',
   'f.code as fabric_code',
   'f.name_ar as fabric_name_ar',
+  'f.unit as fabric_unit',
   'c.name_ar as color_name_ar',
   'c.code as color_code',
+  'l.lot_no as lot_no',
 ] as const;
 
 function rollDetailQuery() {
   return db('rolls as r')
     .join('fabrics as f', 'r.fabric_id', 'f.id')
     .join('colors as c', 'r.color_id', 'c.id')
+    .leftJoin('lots as l', 'r.lot_id', 'l.id')
     .select(...ROLL_DETAIL_COLS);
 }
 
@@ -29,6 +24,7 @@ function rollLabelQuery() {
   return db('rolls as r')
     .join('fabrics as f', 'r.fabric_id', 'f.id')
     .join('colors as c', 'r.color_id', 'c.id')
+    .leftJoin('lots as l', 'r.lot_id', 'l.id')
     .leftJoin('fabric_grades as g', 'r.grade_id', 'g.id')
     .leftJoin('compositions as comp', 'r.composition_id', 'comp.id')
     .leftJoin('brands as br', 'r.brand_id', 'br.id')
@@ -37,8 +33,10 @@ function rollLabelQuery() {
       'r.*',
       'f.code as fabric_code',
       'f.name_ar as fabric_name_ar',
+      'f.unit as fabric_unit',
       'c.name_ar as color_name_ar',
       'c.code as color_code',
+      'l.lot_no as lot_no',
       'g.arabic_name as grade_arabic_name',
       'comp.description as composition_description',
       'br.arabic_name as brand_arabic_name',
@@ -51,6 +49,7 @@ function rollLabelQuery() {
 export async function listRolls(filters: {
   fabric_id?: number;
   color_id?: number;
+  lot_id?: number;
   status?: string;
   warehouse?: string;
   is_visible_at_pos?: boolean;
@@ -58,6 +57,7 @@ export async function listRolls(filters: {
   const q = rollDetailQuery().orderBy('r.id', 'desc');
   if (filters.fabric_id !== undefined) q.where('r.fabric_id', filters.fabric_id);
   if (filters.color_id !== undefined) q.where('r.color_id', filters.color_id);
+  if (filters.lot_id !== undefined) q.where('r.lot_id', filters.lot_id);
   if (filters.status !== undefined) q.where('r.status', filters.status);
   if (filters.warehouse !== undefined) q.where('r.warehouse', filters.warehouse);
   if (filters.is_visible_at_pos !== undefined) {
@@ -76,22 +76,6 @@ export async function getRollWithLabel(id: number): Promise<RollWithLabelDetails
 
 export async function getRollsWithLabel(ids: number[]): Promise<RollWithLabelDetails[]> {
   return rollLabelQuery().whereIn('r.id', ids);
-}
-
-export async function createRoll(data: CreateRollInput): Promise<Roll> {
-  let sellingPrice = data.selling_price_egp;
-
-  if (sellingPrice === undefined) {
-    const priceRow = await db('fabric_color_prices')
-      .where({ fabric_id: data.fabric_id, color_id: data.color_id })
-      .first();
-    if (!priceRow) throw new Error('NO_DEFAULT_PRICE');
-    sellingPrice = Number(priceRow.default_price_per_kg);
-  }
-
-  const internal_barcode = await generateBarcode();
-  const [{ id }] = await db('rolls').insert({ ...data, selling_price_egp: sellingPrice, internal_barcode }).returning('id');
-  return db('rolls').where({ id }).first() as Promise<Roll>;
 }
 
 export async function updateRoll(

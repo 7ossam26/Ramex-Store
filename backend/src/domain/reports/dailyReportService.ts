@@ -1,5 +1,4 @@
 import { db } from '../../db/connection.js';
-import { getSetting } from '../settings/settings.service.js';
 import { cairoDayWindow, formatCairo } from '../../lib/datetime/cairo.js';
 
 export type DailySalesSummary = {
@@ -97,8 +96,7 @@ function fmtEgp(n: number | string | null | undefined): string {
 }
 
 export async function getDailyReport(targetDate: string): Promise<DailyReport> {
-  const rolloverTime = await getSetting<string>(undefined, 'day_rollover_time', '00:00');
-  const { startUtc, endUtc } = cairoDayWindow(targetDate, rolloverTime);
+  const { startUtc, endUtc } = cairoDayWindow(targetDate);
 
   const startIso = startUtc.toISOString();
   const endIso = endUtc.toISOString();
@@ -117,7 +115,7 @@ export async function getDailyReport(targetDate: string): Promise<DailyReport> {
     .first() as Record<string, string>;
 
   const refundsAgg = await db('returns')
-    .whereBetween('created_at', [startIso, endIso])
+    .whereBetween('processed_at', [startIso, endIso])
     .where('kind', 'refund')
     .select(
       db.raw('COUNT(*) as refund_count'),
@@ -191,14 +189,14 @@ export async function getDailyReport(targetDate: string): Promise<DailyReport> {
 
   // ─── 3. Refunds + Voids ──────────────────────────────────────────────────────
   const refundRows = await db('returns as r')
-    .join('invoices as i', 'r.invoice_id', 'i.id')
-    .whereBetween('r.created_at', [startIso, endIso])
+    .join('invoices as i', 'r.original_invoice_id', 'i.id')
+    .whereBetween('r.processed_at', [startIso, endIso])
     .where('r.kind', 'refund')
     .select(
       'i.invoice_no',
       'i.id as invoice_id',
       'r.total_refund_egp as amount_egp',
-      'r.created_at',
+      'r.processed_at as created_at',
       'r.notes_ar',
     );
 
@@ -374,7 +372,7 @@ export async function getDailyReport(targetDate: string): Promise<DailyReport> {
 
 /** Convert a DailyReport into the generic ReportPdfOptions format for export. */
 export function dailyReportToExportSections(report: DailyReport) {
-  const { sales_summary: ss, discounts, refunds_voids: rv, cash, bank_movements, sales_by_fabric, open_invoices_summary: ois, stock_movements } = report;
+  const { sales_summary: ss, discounts, refunds_voids: rv, cash, sales_by_fabric, open_invoices_summary: ois, stock_movements } = report;
 
   return {
     titleAr: 'التقرير اليومي',
@@ -436,19 +434,7 @@ export function dailyReportToExportSections(report: DailyReport) {
         emptyAr: 'لا توجد حركات كاش اليوم',
       },
       {
-        titleAr: '5. حركات البنوك',
-        columns: [
-          { label: 'البنك', key: 'bank_name_ar', width: '*' },
-          { label: 'الاتجاه', key: 'dir_ar', width: 'auto' },
-          { label: 'النوع', key: 'event_type', width: 'auto' },
-          { label: 'المبلغ (ج.م)', key: 'amount_egp', width: 'auto' },
-          { label: 'الوقت', key: 'created_at', width: 'auto' },
-        ],
-        rows: bank_movements.map((m) => ({ ...m, dir_ar: m.direction === 'in' ? '↑ داخل' : '↓ خارج' })),
-        emptyAr: 'لا توجد حركات بنكية اليوم',
-      },
-      {
-        titleAr: '6. المبيعات حسب الخامة واللون',
+        titleAr: '5. المبيعات حسب الخامة واللون',
         columns: [
           { label: 'الخامة', key: 'fabric_name_ar', width: '*' },
           { label: 'اللون', key: 'color_name_ar', width: 'auto' },
@@ -460,7 +446,7 @@ export function dailyReportToExportSections(report: DailyReport) {
         emptyAr: 'لا توجد مبيعات اليوم',
       },
       {
-        titleAr: '7. الفواتير المفتوحة',
+        titleAr: '6. الفواتير المفتوحة',
         columns: [
           { label: 'البيان', key: 'label', width: '*' },
           { label: 'العدد', key: 'count', width: 'auto' },
@@ -472,7 +458,7 @@ export function dailyReportToExportSections(report: DailyReport) {
         ],
       },
       {
-        titleAr: '8. حركات المخزون',
+        titleAr: '7. حركات المخزون',
         columns: [
           { label: 'نوع الحركة', key: 'event_type', width: '*' },
           { label: 'العدد', key: 'count', width: 'auto' },

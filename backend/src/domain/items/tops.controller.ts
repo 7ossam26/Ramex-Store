@@ -27,10 +27,14 @@ export async function createTopBatch(req: Request, res: Response): Promise<void>
         });
         return;
       }
-      if (e.message === 'NO_DEFAULT_PRICE') {
-        res.status(422).json({
-          error: 'no_default_price',
-          message: 'لا يوجد سعر افتراضي لهذا اللون، يجب تحديد السعر يدوياً',
+      if (e.message === 'LOT_NOT_FOUND') {
+        res.status(404).json({ error: 'lot_not_found', message: 'الدفعة غير موجودة' });
+        return;
+      }
+      if (e.message === 'LOT_FABRIC_COLOR_MISMATCH') {
+        res.status(400).json({
+          error: 'lot_fabric_color_mismatch',
+          message: 'الدفعة المختارة لا تطابق الخامة واللون',
         });
         return;
       }

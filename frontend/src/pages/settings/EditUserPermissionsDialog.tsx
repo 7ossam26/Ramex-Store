@@ -1,0 +1,210 @@
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { ar } from '@/i18n/ar';
+import { usersApi, type UserRow } from '@/lib/settings-api';
+import { extractApiError } from '@/lib/api-error';
+import { Toast } from '@/components/Toast';
+import { cn } from '@/lib/utils';
+import { RESOURCE_GROUPS } from '@/lib/permissions-config';
+
+type Props = {
+  user: UserRow | null;
+  onClose: () => void;
+};
+
+type CellState = 'default' | 'allow' | 'deny';
+
+export function EditUserPermissionsDialog({ user, onClose }: Props) {
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  // dirty map: `${resource}:${action}` → boolean | null (null = revert to role default)
+  const [dirty, setDirty] = useState<Map<string, boolean | null>>(new Map());
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['user-permissions', user?.id],
+    queryFn: () => usersApi.getPermissions(user!.id),
+    enabled: !!user,
+  });
+
+  const saveMut = useMutation({
+    mutationFn: (updates: Array<{ resource: string; action: string; is_allowed: boolean | null }>) =>
+      usersApi.updatePermissions(user!.id, updates),
+    onSuccess: () => {
+      setSaved(true);
+      setDirty(new Map());
+    },
+    onError: (e) => setError(extractApiError(e)),
+  });
+
+  function getState(resource: string, action: string): CellState {
+    const key = `${resource}:${action}`;
+    if (dirty.has(key)) {
+      const v = dirty.get(key);
+      return v === null ? 'default' : v ? 'allow' : 'deny';
+    }
+    const override = data?.overrides.find((o) => o.resource === resource && o.action === action);
+    if (override === undefined) return 'default';
+    return override.is_allowed ? 'allow' : 'deny';
+  }
+
+  function getRoleDefault(resource: string, action: string): boolean {
+    if (!data) return false;
+    const row = data.roleMatrix.find(
+      (r) => r.role === data.role && r.resource === resource && r.action === action,
+    );
+    return row ? row.is_allowed : false;
+  }
+
+  function toggle(resource: string, action: string, next: CellState) {
+    const key = `${resource}:${action}`;
+    setDirty((prev) => {
+      const m = new Map(prev);
+      m.set(key, next === 'default' ? null : next === 'allow');
+      return m;
+    });
+  }
+
+  function handleSave() {
+    if (dirty.size === 0) { onClose(); return; }
+    const updates: Array<{ resource: string; action: string; is_allowed: boolean | null }> = [];
+    for (const [key, val] of dirty.entries()) {
+      const [resource, action] = key.split(':');
+      if (resource && action) updates.push({ resource, action, is_allowed: val });
+    }
+    saveMut.mutate(updates);
+  }
+
+  if (!user) return null;
+
+  return (
+    <>
+      <Dialog open={!!user} onOpenChange={(v) => { if (!v) onClose(); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>{ar.settings.users.editPermissions} — {user.username}</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground pb-1">{ar.settings.users.permissionsHint}</p>
+
+          {isLoading && (
+            <div className="py-8 text-center text-sm text-muted-foreground">جارٍ التحميل...</div>
+          )}
+
+          {!isLoading && data && (
+            <div className="space-y-2">
+              {/* Role context */}
+              <p className="text-xs text-muted-foreground">
+                الدور: {ar.settings.users.roles[data.role as keyof typeof ar.settings.users.roles] ?? data.role} — التعديلات أدناه تتجاوز افتراضي الدور
+              </p>
+
+              {RESOURCE_GROUPS.map((group) => (
+                <div key={group.groupKey} className="rounded-lg border border-border overflow-hidden">
+                  {/* Group header */}
+                  <div className="px-3 py-2 bg-muted/60 text-xs font-semibold text-muted-foreground">
+                    {ar.settings.permissions.groups[group.groupKey] ?? group.groupKey}
+                  </div>
+
+                  {/* Resource rows */}
+                  <div className="divide-y divide-border">
+                    {group.resources.map((def) => {
+                      const desc = (ar.settings.permissions.descriptions as Record<string, string>)[
+                        def.descriptionKey ?? def.key
+                      ];
+                      return (
+                        <div key={def.key} className="px-3 py-2.5 bg-background">
+                          <div className="flex items-start justify-between gap-3 flex-wrap">
+                            <div>
+                              <span className="text-xs font-medium text-foreground">
+                                {(ar.settings.permissions.resources as Record<string, string>)[def.key] ?? def.key}
+                              </span>
+                              {desc && (
+                                <div className="text-[10px] text-muted-foreground mt-0.5">{desc}</div>
+                              )}
+                            </div>
+                            <div className="flex gap-3 flex-wrap justify-end">
+                              {def.actions.map((action) => (
+                                <div key={action} className="flex items-center gap-1.5">
+                                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                    {(ar.settings.permissions.actions as Record<string, string>)[action] ?? action}
+                                  </span>
+                                  <TriStateControl
+                                    state={getState(def.key, action)}
+                                    roleDefault={getRoleDefault(def.key, action)}
+                                    onChange={(next) => toggle(def.key, action, next)}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {error && <p className="text-xs text-destructive mt-2">{error}</p>}
+
+          <div className="flex justify-end gap-2 pt-3">
+            <Button variant="outline" size="sm" onClick={onClose}>{ar.common.cancel}</Button>
+            <Button size="sm" onClick={handleSave} disabled={saveMut.isPending}>
+              {ar.common.save}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Toast
+        open={saved}
+        message={ar.settings.users.permissionsSaved}
+        tone="success"
+        autoDismissMs={2500}
+        onClose={() => setSaved(false)}
+      />
+    </>
+  );
+}
+
+function TriStateControl({
+  state,
+  roleDefault,
+  onChange,
+}: {
+  state: CellState;
+  roleDefault: boolean;
+  onChange: (next: CellState) => void;
+}) {
+  const options: Array<{ value: CellState; label: string }> = [
+    { value: 'default', label: ar.settings.users.useRoleDefault },
+    { value: 'allow',   label: ar.settings.users.allow },
+    { value: 'deny',    label: ar.settings.users.deny },
+  ];
+
+  return (
+    <div className="inline-flex rounded border border-border overflow-hidden text-[10px] font-medium">
+      {options.map(({ value, label }) => (
+        <button
+          key={value}
+          onClick={() => onChange(value)}
+          className={cn(
+            'px-1.5 py-0.5 transition-colors',
+            state === value
+              ? value === 'allow'
+                ? 'bg-success/20 text-success-foreground font-semibold'
+                : value === 'deny'
+                  ? 'bg-danger/20 text-danger-foreground font-semibold'
+                  : 'bg-accent/20 text-accent-foreground font-semibold'
+              : 'bg-background text-muted-foreground hover:bg-muted',
+          )}
+        >
+          {value === 'default'
+            ? `${label} (${roleDefault ? ar.settings.users.allow : ar.settings.users.deny})`
+            : label}
+        </button>
+      ))}
+    </div>
+  );
+}

@@ -1,43 +1,17 @@
-import {
-  forwardRef,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-} from 'react';
+import { useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/lib/auth';
-import { activeSectionForPath, hasFlyout, visibleNav } from '@/navigation/nav.config';
-import type { SectionId } from '@/navigation/nav.config';
+import { usePermissions } from '@/lib/permissions';
+import { activeSectionForPath, visibleNav } from '@/navigation/nav.config';
 import { cn } from '@/lib/utils';
 
-export type RailHandle = {
-  focusItem: (sectionId: SectionId) => void;
-};
-
-type Props = {
-  openFlyoutId: SectionId | null;
-  onOpenFlyout: (id: SectionId | null) => void;
-  onRegisterAnchor?: (id: SectionId, el: HTMLElement | null) => void;
-};
-
-export const Rail = forwardRef<RailHandle, Props>(function Rail(
-  { openFlyoutId, onOpenFlyout, onRegisterAnchor },
-  ref,
-) {
+export function Rail() {
   const { user } = useAuth();
+  const { can } = usePermissions();
   const location = useLocation();
-  const sections = useMemo(() => visibleNav(user?.role), [user?.role]);
+  const sections = useMemo(() => visibleNav(user?.role, can), [user?.role, can]);
   const activeId = activeSectionForPath(location.pathname);
-
-  const buttonRefs = useRef<Record<string, HTMLElement | null>>({});
-
-  useImperativeHandle(ref, () => ({
-    focusItem(sectionId) {
-      const el = buttonRefs.current[sectionId];
-      if (el) el.focus();
-    },
-  }));
 
   return (
     <aside
@@ -64,78 +38,42 @@ export const Rail = forwardRef<RailHandle, Props>(function Rail(
           .filter((s) => s.id !== 'home')
           .map((section) => {
             const isActive = activeId === section.id;
-            const isOpen = openFlyoutId === section.id;
-            const hasChildren = hasFlyout(section);
             const Icon = section.icon;
 
-            const setRef = (el: HTMLElement | null) => {
-              buttonRefs.current[section.id] = el;
-              onRegisterAnchor?.(section.id, el);
-            };
-
-            const indicator = isActive ? (
-              <motion.span
-                layoutId="rail-active-indicator"
-                aria-hidden
-                className="absolute inset-y-1 start-0 w-0.5 rounded-sm bg-accent"
-                transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
-              />
-            ) : null;
-
-            const baseClass = cn(
-              'relative flex flex-col items-center justify-center gap-0.5 w-full py-1.5 px-1 rounded-md',
-              'transition-colors duration-150',
-              isActive
-                ? 'bg-chrome-elevated text-chrome-text'
-                : 'text-chrome-text-muted hover:text-chrome-text hover:bg-chrome-elevated/70',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-chrome',
-            );
-
-            const inner = (
-              <>
-                {indicator}
-                <Icon className="size-5 shrink-0" aria-hidden />
-                <span className="text-[9px] leading-none text-center">{section.labelAr}</span>
-              </>
-            );
-
-            if (hasChildren) {
-              return (
-                <button
-                  key={section.id}
-                  type="button"
-                  ref={setRef}
-                  className={baseClass}
-                  onClick={() => onOpenFlyout(isOpen ? null : section.id)}
-                  aria-haspopup="menu"
-                  aria-expanded={isOpen}
-                  aria-controls={`flyout-${section.id}`}
+            return (
+              <div
+                key={section.id}
+                className="relative w-full"
+              >
+                <Link
+                  to={section.route}
                   aria-label={section.labelAr}
                   aria-current={isActive ? 'page' : undefined}
                   data-section={section.id}
+                  className={cn(
+                    'relative flex flex-col items-center justify-center gap-0.5 w-full py-1.5 px-1 rounded-md',
+                    'transition-colors duration-150',
+                    isActive
+                      ? 'bg-chrome-elevated text-chrome-text'
+                      : 'text-chrome-text-muted hover:text-chrome-text hover:bg-chrome-elevated/70',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-chrome',
+                  )}
                 >
-                  {inner}
-                </button>
-              );
-            }
-
-            return (
-              <Link
-                key={section.id}
-                to={section.route}
-                ref={setRef as (el: HTMLAnchorElement | null) => void}
-                className={baseClass}
-                aria-label={section.labelAr}
-                aria-current={isActive ? 'page' : undefined}
-                data-section={section.id}
-              >
-                {inner}
-              </Link>
+                  {isActive && (
+                    <motion.span
+                      layoutId="rail-active-indicator"
+                      aria-hidden
+                      className="absolute inset-y-1 start-0 w-0.5 rounded-sm bg-accent"
+                      transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+                    />
+                  )}
+                  <Icon className="size-5 shrink-0" aria-hidden />
+                  <span className="text-[9px] leading-none text-center">{section.labelAr}</span>
+                </Link>
+              </div>
             );
           })}
       </nav>
     </aside>
   );
-});
-
-
+}

@@ -58,7 +58,7 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
     columns: [
       { label: 'الخامة', key: 'fabric_name_ar' },
       { label: 'اللون', key: 'color_name_ar' },
-      { label: 'عدد التوبات', key: 'roll_count' },
+      { label: 'عدد الاتواب', key: 'roll_count' },
       { label: 'الوزن (كجم)', key: 'total_weight_kg' },
       { label: 'الإيراد (ج.م)', key: 'total_revenue_egp' },
       { label: 'متوسط السعر/كجم', key: 'avg_price_per_kg' },
@@ -399,6 +399,242 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
       },
     },
   },
+  returnsReport: {
+    titleAr: ar.reports.returnsReport,
+    needsDateRange: true,
+    columns: [
+      { label: 'رقم الإرجاع', key: 'return_no' },
+      { label: 'النوع', key: 'kind' },
+      { label: 'الفاتورة', key: 'invoice_no' },
+      { label: 'العميل', key: 'customer_name_ar' },
+      { label: 'الهاتف', key: 'customer_phone' },
+      { label: 'طريقة الاسترداد', key: 'refund_method' },
+      { label: 'المبلغ (ج.م)', key: 'total_refund_egp' },
+      { label: 'التاريخ', key: 'processed_at' },
+    ],
+    flatten: (d) => {
+      const res = d as { rows: Record<string, unknown>[] };
+      return res.rows.map((r) => ({
+        ...(r as Record<string, string | number>),
+        notes_ar: String((r as Record<string, unknown>)['notes_ar'] ?? ''),
+      }));
+    },
+    totals: (d) => {
+      const res = d as { total_refund_egp: string };
+      return { return_no: 'الإجمالي', total_refund_egp: fmt(res.total_refund_egp) };
+    },
+    chart: {
+      type: 'pie',
+      title: 'المرتجعات حسب طريقة الاسترداد',
+      seriesLabel: 'الإجمالي',
+      isCurrency: true,
+      derive: (raw) => {
+        const res = raw as { by_method: Array<{ refund_method: string; total_egp: string }> };
+        const METHOD_AR: Record<string, string> = { cash: 'نقدي', instapay: 'انستاباي', customer_credit: 'رصيد العميل' };
+        return res.by_method.map((r) => ({
+          name: METHOD_AR[r.refund_method] ?? r.refund_method,
+          value: Number(r.total_egp),
+        }));
+      },
+    },
+  },
+  stockByWarehouse: {
+    titleAr: ar.reports.stockByWarehouse,
+    needsDateRange: false,
+    columns: [
+      { label: 'المخزن', key: 'warehouse' },
+      { label: 'الحالة', key: 'status' },
+      { label: 'عدد الاتواب', key: 'roll_count' },
+      { label: 'الوزن (كجم)', key: 'total_weight_kg' },
+      { label: 'الطول (م)', key: 'total_length_m' },
+    ],
+    flatten: (d) => {
+      const res = d as { rows: Record<string, unknown>[] };
+      return res.rows.map((r) => ({
+        ...(r as Record<string, string | number>),
+        roll_count: String((r as Record<string, unknown>)['roll_count']),
+      }));
+    },
+    totals: (d) => {
+      const res = d as { grand_total_rolls: number; grand_total_weight_kg: string };
+      return { warehouse: 'الإجمالي', roll_count: String(res.grand_total_rolls), total_weight_kg: res.grand_total_weight_kg };
+    },
+    chart: {
+      type: 'bar',
+      title: 'توزيع الاتواب حسب المخزن',
+      seriesLabel: 'عدد الاتواب',
+      derive: (raw) => {
+        const res = raw as { by_warehouse: Array<{ warehouse: string; total_rolls: number }> };
+        return res.by_warehouse.map((r) => ({ name: r.warehouse, value: r.total_rolls }));
+      },
+    },
+  },
+  agingInventory: {
+    titleAr: ar.reports.agingInventory,
+    needsDateRange: false,
+    columns: [
+      { label: 'الخامة', key: 'fabric_name_ar' },
+      { label: 'اللون', key: 'color_name_ar' },
+      { label: 'المخزن', key: 'warehouse' },
+      { label: 'رقم التوب', key: 'roll_sr_no' },
+      { label: 'الوزن (كجم)', key: 'weight_kg' },
+      { label: 'الأيام', key: 'age_days' },
+      { label: 'الفترة', key: 'bucket' },
+    ],
+    flatten: (d) => {
+      const res = d as { rows: Record<string, unknown>[] };
+      return res.rows.map((r) => ({
+        ...(r as Record<string, string | number>),
+        age_days: String((r as Record<string, unknown>)['age_days']),
+        roll_sr_no: String((r as Record<string, unknown>)['roll_sr_no'] ?? ''),
+      }));
+    },
+    totals: (d) => {
+      const res = d as { grand_total_rolls: number; grand_total_weight_kg: string };
+      return { fabric_name_ar: 'الإجمالي', weight_kg: res.grand_total_weight_kg };
+    },
+    chart: {
+      type: 'bar',
+      title: 'الاتواب حسب فترة التخزين',
+      seriesLabel: 'عدد الاتواب',
+      derive: (raw) => {
+        const res = raw as { by_bucket: Array<{ bucket: string; roll_count: number }> };
+        return res.by_bucket.map((r) => ({ name: r.bucket, value: r.roll_count }));
+      },
+    },
+  },
+  shipmentsSummary: {
+    titleAr: ar.reports.shipmentsSummary,
+    needsDateRange: true,
+    columns: [
+      { label: 'رقم الطلبية', key: 'shipment_no' },
+      { label: 'الحالة', key: 'status' },
+      { label: 'عدد الاتواب', key: 'roll_count' },
+      { label: 'الوزن (كجم)', key: 'total_weight_kg' },
+      { label: 'التاريخ', key: 'created_at' },
+    ],
+    flatten: (d) => {
+      const res = d as { rows: Record<string, unknown>[] };
+      return res.rows.map((r) => ({
+        ...(r as Record<string, string | number>),
+        roll_count: String((r as Record<string, unknown>)['roll_count']),
+      }));
+    },
+    totals: (d) => {
+      const res = d as { total_rolls: number; total_weight_kg: string };
+      return { shipment_no: 'الإجمالي', roll_count: String(res.total_rolls), total_weight_kg: res.total_weight_kg };
+    },
+  },
+  outstandingCheques: {
+    titleAr: ar.reports.outstandingCheques,
+    needsDateRange: true,
+    columns: [
+      { label: 'رقم الفاتورة', key: 'invoice_no' },
+      { label: 'العميل', key: 'customer_name_ar' },
+      { label: 'الهاتف', key: 'customer_phone' },
+      { label: 'نوع الدفع', key: 'payment_kind' },
+      { label: 'المبلغ (ج.م)', key: 'amount_egp' },
+      { label: 'التاريخ', key: 'created_at' },
+    ],
+    flatten: (d) => {
+      const res = d as { rows: Record<string, unknown>[] };
+      return res.rows.map((r) => ({
+        ...(r as Record<string, string | number>),
+        amount_egp: fmt((r as Record<string, unknown>)['amount_egp'] as string),
+      }));
+    },
+    totals: (d) => {
+      const res = d as { total_egp: string; count: number };
+      return { invoice_no: `الإجمالي (${res.count})`, amount_egp: fmt(res.total_egp) };
+    },
+    chart: {
+      type: 'horizontalBar',
+      title: 'الشيكات حسب العميل (أعلى ٨)',
+      seriesLabel: 'المبلغ',
+      isCurrency: true,
+      topN: 8,
+      derive: (raw) => {
+        const res = raw as { rows: Array<{ customer_name_ar: string; amount_egp: string }> };
+        const byCustomer = new Map<string, number>();
+        for (const r of res.rows) {
+          byCustomer.set(r.customer_name_ar, (byCustomer.get(r.customer_name_ar) ?? 0) + Number(r.amount_egp));
+        }
+        return Array.from(byCustomer.entries()).map(([name, value]) => ({ name: truncate(name), value }));
+      },
+    },
+  },
+  payrollSummary: {
+    titleAr: ar.reports.payrollSummary,
+    needsDateRange: true,
+    columns: [
+      { label: 'الشهر', key: 'month' },
+      { label: 'الموظف', key: 'employee_name_ar' },
+      { label: 'الوظيفة', key: 'role_ar' },
+      { label: 'الراتب الأساسي (ج.م)', key: 'gross_egp' },
+      { label: 'التسويات (ج.م)', key: 'adjustments_egp' },
+      { label: 'الصافي (ج.م)', key: 'net_egp' },
+      { label: 'طريقة الصرف', key: 'paid_via' },
+    ],
+    flatten: (d) => {
+      const res = d as { rows: Record<string, unknown>[] };
+      return res.rows.map((r) => ({
+        ...(r as Record<string, string | number>),
+        gross_egp: fmt((r as Record<string, unknown>)['gross_egp'] as string),
+        adjustments_egp: fmt((r as Record<string, unknown>)['adjustments_egp'] as string),
+        net_egp: fmt((r as Record<string, unknown>)['net_egp'] as string),
+      }));
+    },
+    totals: (d) => {
+      const res = d as { total_gross_egp: string; total_net_egp: string };
+      return { month: 'الإجمالي', gross_egp: fmt(res.total_gross_egp), net_egp: fmt(res.total_net_egp) };
+    },
+    chart: {
+      type: 'bar',
+      title: 'الرواتب الصافية حسب الشهر',
+      seriesLabel: 'الصافي',
+      isCurrency: true,
+      derive: (raw) => {
+        const res = raw as { by_month: Array<{ month: string; total_net_egp: string }> };
+        return res.by_month.map((r) => ({ name: r.month, value: Number(r.total_net_egp) }));
+      },
+    },
+  },
+  hrAdjustments: {
+    titleAr: ar.reports.hrAdjustments,
+    needsDateRange: true,
+    columns: [
+      { label: 'الموظف', key: 'employee_name_ar' },
+      { label: 'الوظيفة', key: 'role_ar' },
+      { label: 'النوع', key: 'kind' },
+      { label: 'الشهر', key: 'salary_month' },
+      { label: 'المبلغ (ج.م)', key: 'amount_egp' },
+    ],
+    flatten: (d) => {
+      const res = d as { rows: Record<string, unknown>[] };
+      return res.rows.map((r) => ({
+        ...(r as Record<string, string | number>),
+        amount_egp: fmt((r as Record<string, unknown>)['amount_egp'] as string),
+      }));
+    },
+    totals: (d) => {
+      const res = d as { total_advances_egp: string; total_deductions_egp: string };
+      const total = (Number(res.total_advances_egp) + Number(res.total_deductions_egp)).toFixed(2);
+      return { employee_name_ar: 'الإجمالي', amount_egp: fmt(total) };
+    },
+    chart: {
+      type: 'bar',
+      title: 'السُّلف والخصومات حسب الموظف',
+      seriesLabel: 'إجمالي التسويات',
+      isCurrency: true,
+      derive: (raw) => {
+        const res = raw as { by_employee: Array<{ employee_name_ar: string; total_advances_egp: string; total_deductions_egp: string }> };
+        return res.by_employee.map((r) => ({
+          name: truncate(r.employee_name_ar),
+          value: Number(r.total_advances_egp) + Number(r.total_deductions_egp),
+        }));
+      },
+    },
+  },
   customerLedger: {
     titleAr: ar.reports.customerLedger,
     needsDateRange: true,
@@ -531,7 +767,8 @@ export function SecondaryReportPage() {
             </Label>
             <Input
               type="number"
-              inputMode="decimal"
+              inputMode="numeric"
+              step="1"
               value={customerId}
               onChange={(e) => setCustomerId(e.target.value)}
               placeholder="رقم العميل"

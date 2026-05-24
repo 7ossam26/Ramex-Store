@@ -29,7 +29,6 @@ import {
   Coins,
   CreditCard,
   FileText,
-  Hash,
   Home,
   History,
   Landmark,
@@ -53,7 +52,9 @@ import {
   Users,
   Wallet,
   Warehouse,
-  ClipboardCheck as ApprovalsIcon,
+  UserCheck,
+  DollarSign,
+  ArrowDownUp,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Role } from '@/lib/auth';
@@ -68,7 +69,7 @@ export type SectionId =
   | 'invoicesReturns'
   | 'treasury'
   | 'reports'
-  | 'approvals'
+  | 'hr'
   | 'settings';
 
 export type NavLeaf = {
@@ -78,6 +79,8 @@ export type NavLeaf = {
   icon: LucideIcon;
   route: string;
   visibleTo?: Role[];
+  /** If set, this item is hidden when the user lacks `read` access to this resource. */
+  permission?: string;
 };
 
 export type NavGroup = {
@@ -92,6 +95,8 @@ export type NavTop = {
   icon: LucideIcon;
   route: string;
   visibleTo?: Role[];
+  /** If set, this top-level section is hidden when the user lacks `read` access to this resource. */
+  permission?: string;
   /** When omitted, clicking the rail icon navigates directly to `route`. */
   children?: NavGroup[];
 };
@@ -117,9 +122,10 @@ export const NAV: NavTop[] = [
   {
     id: 'items',
     labelAr: 'الأصناف',
-    descAr: 'إدارة التوبات والملصقات',
+    descAr: 'إدارة الاتواب والملصقات',
     icon: Package,
     route: '/items',
+    permission: 'fabric_rolls',
     children: [
       {
         items: [
@@ -132,8 +138,8 @@ export const NAV: NavTop[] = [
           },
           {
             id: 'items.rolls',
-            labelAr: 'التوبات',
-            descAr: 'بحث وتصفية كل التوبات',
+            labelAr: 'الاتواب',
+            descAr: 'بحث وتصفية كل الاتواب',
             icon: Layers,
             route: '/items/rolls',
           },
@@ -147,7 +153,7 @@ export const NAV: NavTop[] = [
           {
             id: 'items.labels',
             labelAr: 'الملصقات',
-            descAr: 'إعادة طباعة ملصقات التوبات',
+            descAr: 'إعادة طباعة ملصقات الاتواب',
             icon: Tag,
             route: '/items/labels',
           },
@@ -161,13 +167,21 @@ export const NAV: NavTop[] = [
     descAr: 'الخامات والحركات والجرد',
     icon: Warehouse,
     route: '/inventory',
+    permission: 'inventory',
     children: [
       {
         items: [
           {
+            id: 'inventory.stock',
+            labelAr: 'نظرة عامة على المخزون',
+            descAr: 'مستويات المخزون والأسعار ومتابعة النواقص',
+            icon: Warehouse,
+            route: '/inventory/stock',
+          },
+          {
             id: 'inventory.movements',
             labelAr: 'حركات المخزون',
-            descAr: 'سجل دخول وخروج التوبات',
+            descAr: 'سجل دخول وخروج الاتواب',
             icon: ArrowLeftRight,
             route: '/inventory/stock-movements',
           },
@@ -192,13 +206,6 @@ export const NAV: NavTop[] = [
             icon: AlertTriangle,
             route: '/inventory/damage',
           },
-          {
-            id: 'inventory.codes',
-            labelAr: 'التكويدات',
-            descAr: 'الجودات والتركيبات والماركات',
-            icon: Hash,
-            route: '/inventory/codes',
-          },
         ],
       },
     ],
@@ -210,6 +217,7 @@ export const NAV: NavTop[] = [
     icon: Truck,
     route: '/shipments',
     visibleTo: ['owner', 'shop_seller', 'factory_sender'],
+    permission: 'shipments',
     children: [
       {
         items: [
@@ -234,7 +242,7 @@ export const NAV: NavTop[] = [
             labelAr: 'كل الطلبيات',
             descAr: 'عرض كل الطلبيات',
             icon: List,
-            route: '/shipments',
+            route: '/shipments/all',
           },
         ],
       },
@@ -246,6 +254,7 @@ export const NAV: NavTop[] = [
     descAr: 'سجل العملاء وأرصدتهم',
     icon: Users,
     route: '/customers',
+    permission: 'customers',
   },
   {
     id: 'invoicesReturns',
@@ -262,6 +271,7 @@ export const NAV: NavTop[] = [
             descAr: 'كل الفواتير: مفتوحة ومكتملة وملغاة',
             icon: FileText,
             route: '/invoices',
+            permission: 'invoices',
           },
           {
             id: 'invoicesReturns.returns',
@@ -269,6 +279,7 @@ export const NAV: NavTop[] = [
             descAr: 'تسجيل ومتابعة الإرجاع والاستبدال',
             icon: Undo2,
             route: '/returns',
+            permission: 'returns',
           },
         ],
       },
@@ -297,6 +308,7 @@ export const NAV: NavTop[] = [
             descAr: 'الرصيد والحركات اليومية للكاش',
             icon: Banknote,
             route: '/cash',
+            permission: 'cash_drawer',
           },
           {
             id: 'treasury.banks',
@@ -304,6 +316,7 @@ export const NAV: NavTop[] = [
             descAr: 'الحسابات البنكية وحركات الانستاباي',
             icon: Landmark,
             route: '/banks',
+            permission: 'cash_drawer',
           },
           {
             id: 'treasury.expenses',
@@ -311,6 +324,7 @@ export const NAV: NavTop[] = [
             descAr: 'تسجيل المصروفات والمراجعة',
             icon: TrendingDown,
             route: '/expenses',
+            permission: 'cash_drawer',
           },
           {
             id: 'treasury.reconcile',
@@ -318,6 +332,7 @@ export const NAV: NavTop[] = [
             descAr: 'إغلاق اليوم: المتوقع مقابل الفعلي',
             icon: Calculator,
             route: '/reconcile',
+            permission: 'cash_drawer',
           },
         ],
       },
@@ -338,83 +353,111 @@ export const NAV: NavTop[] = [
             descAr: 'ملخص اليوم: مبيعات وخصومات وحركات الخزنة',
             icon: CalendarDays,
             route: '/reports/daily',
+            permission: 'reports.daily',
+          },
+          {
+            id: 'reports.shifts',
+            labelAr: 'سجل الورديات',
+            descAr: 'تقارير الورديات السابقة',
+            icon: Clock,
+            route: '/shifts',
+            permission: 'reports.daily',
           },
         ],
       },
       {
-        groupLabelAr: 'تقارير فرعية',
+        groupLabelAr: 'المخزون والمستودع',
         items: [
           {
-            id: 'reports.salesByFabricColor',
-            labelAr: 'مبيعات حسب الخامة واللون',
-            icon: BarChart3,
-            route: '/reports/secondary/salesByFabricColor',
+            id: 'reports.stockByWarehouse',
+            labelAr: 'المخزون حسب المخزن',
+            icon: Warehouse,
+            route: '/reports/secondary/stockByWarehouse',
+            permission: 'reports.stocktakeInventory',
           },
           {
-            id: 'reports.customerLedger',
-            labelAr: 'كشف حساب العميل',
-            icon: User,
-            route: '/reports/secondary/customerLedger',
-          },
-          {
-            id: 'reports.outstandingOpenInvoices',
-            labelAr: 'الفواتير المفتوحة المتأخرة',
+            id: 'reports.agingInventory',
+            labelAr: 'الاتواب الراكدة',
             icon: Clock,
-            route: '/reports/secondary/outstandingOpenInvoices',
+            route: '/reports/secondary/agingInventory',
+            permission: 'reports.stocktakeInventory',
           },
           {
-            id: 'reports.stocktakeInventory',
-            labelAr: 'جرد المخزون',
-            icon: ClipboardList,
-            route: '/reports/secondary/stocktakeInventory',
-          },
-          {
-            id: 'reports.cashFlow',
-            labelAr: 'التدفق النقدي',
-            icon: Coins,
-            route: '/reports/secondary/cashFlow',
-          },
-          {
-            id: 'reports.bankReconciliation',
-            labelAr: 'التسوية البنكية',
-            icon: Scale,
-            route: '/reports/secondary/bankReconciliation',
-          },
-          {
-            id: 'reports.expenses',
-            labelAr: 'المصروفات',
-            icon: ScrollText,
-            route: '/reports/secondary/expenses',
+            id: 'reports.shipmentsSummary',
+            labelAr: 'ملخص الطلبيات',
+            icon: Truck,
+            route: '/reports/secondary/shipmentsSummary',
+            permission: 'shipments',
           },
           {
             id: 'reports.damageLoss',
             labelAr: 'التلف والفقد',
             icon: AlertTriangle,
             route: '/reports/secondary/damageLoss',
+            permission: 'reports.damageLoss',
           },
+        ],
+      },
+      {
+        groupLabelAr: 'مبيعات الخامات',
+        items: [
           {
-            id: 'reports.salesByPaymentMethod',
-            labelAr: 'المبيعات حسب طريقة الدفع',
-            icon: CreditCard,
-            route: '/reports/secondary/salesByPaymentMethod',
+            id: 'reports.salesByFabricColor',
+            labelAr: 'مبيعات حسب الخامة واللون',
+            icon: BarChart3,
+            route: '/reports/secondary/salesByFabricColor',
+            permission: 'reports.salesByFabricColor',
           },
+        ],
+      },
+      {
+        groupLabelAr: 'النظام',
+        items: [
           {
             id: 'reports.auditLog',
             labelAr: 'سجل المراجعة',
             icon: History,
             route: '/reports/secondary/auditLog',
+            permission: 'reports.auditLog',
           },
         ],
       },
     ],
   },
   {
-    id: 'approvals',
-    labelAr: 'الموافقات',
-    descAr: 'قائمة الإجراءات المعلقة',
-    icon: ApprovalsIcon,
-    route: '/approvals',
-    visibleTo: ['owner', 'shop_seller'],
+    id: 'hr',
+    labelAr: 'الموارد البشرية',
+    descAr: 'الموظفون، الرواتب، والتسويات',
+    icon: UserCheck,
+    route: '/hr',
+    visibleTo: ['owner'],
+    children: [
+      {
+        items: [
+          {
+            id: 'hr.employees',
+            labelAr: 'الموظفون',
+            descAr: 'إدارة بيانات الموظفين',
+            icon: Users,
+            route: '/hr/employees',
+          },
+          {
+            id: 'hr.salaries',
+            labelAr: 'الرواتب',
+            descAr: 'صرف الرواتب الشهرية',
+            icon: DollarSign,
+            route: '/hr/salaries',
+          },
+          {
+            id: 'hr.adjustments',
+            labelAr: 'التسويات',
+            descAr: 'السُّلف والخصومات',
+            icon: ArrowDownUp,
+            route: '/hr/adjustments',
+          },
+        ],
+      },
+    ],
   },
   {
     id: 'settings',
@@ -422,7 +465,7 @@ export const NAV: NavTop[] = [
     descAr: 'إعدادات النظام والمستخدمين',
     icon: SettingsIcon,
     route: '/settings',
-    visibleTo: ['owner'],
+    visibleTo: ['owner', 'super_admin'],
   },
 ];
 
@@ -437,8 +480,8 @@ const SECTION_ROUTE_PREFIXES: Record<SectionId, string[]> = {
   customers: ['/customers'],
   invoicesReturns: ['/invoices-returns', '/invoices', '/returns'],
   treasury: ['/treasury', '/cash', '/banks', '/expenses', '/reconcile'],
-  reports: ['/reports'],
-  approvals: ['/approvals'],
+  reports: ['/reports', '/shifts'],
+  hr: ['/hr'],
   settings: ['/settings'],
 };
 
@@ -454,23 +497,28 @@ export function activeSectionForPath(pathname: string): SectionId {
   return 'home';
 }
 
-export function visibleNav(role: Role | undefined): NavTop[] {
-  return NAV.filter((s) => !s.visibleTo || (role && s.visibleTo.includes(role))).map((section) => {
-    if (!section.children) return section;
-    const groups = section.children
-      .map((g) => ({
-        ...g,
-        items: g.items.filter((i) => !i.visibleTo || (role && i.visibleTo.includes(role))),
-      }))
-      .filter((g) => g.items.length > 0);
-    return { ...section, children: groups.length > 0 ? groups : undefined };
-  });
-}
+export function visibleNav(
+  role: Role | undefined,
+  can?: (resource: string) => boolean,
+): NavTop[] {
+  const checkRole = (vis?: Role[]) => !vis || (role && vis.includes(role));
+  const checkPerm = (perm?: string) => !perm || !can || can(perm);
 
-/** Whether clicking this section in the rail should open a flyout (vs navigate). */
-export function hasFlyout(section: NavTop): boolean {
-  if (section.id === 'settings') return false; // explicit settings exception
-  return Boolean(section.children && section.children.some((g) => g.items.length > 0));
+  return NAV
+    .filter((s) => checkRole(s.visibleTo) && checkPerm(s.permission))
+    .map((section) => {
+      if (!section.children) return section;
+      const groups = section.children
+        .map((g) => ({
+          ...g,
+          items: g.items.filter((i) => checkRole(i.visibleTo) && checkPerm(i.permission)),
+        }))
+        .filter((g) => g.items.length > 0);
+      // If a section had children but all were filtered out, drop the section entirely
+      if (groups.length === 0) return null;
+      return { ...section, children: groups };
+    })
+    .filter((s): s is NavTop => s !== null);
 }
 
 /** Flat list of all reachable leaves (for the command palette). */
@@ -496,8 +544,12 @@ export function allLeaves(role: Role | undefined): NavLeaf[] {
 }
 
 /** Resolve the breadcrumb-style page title for a given path. */
-export function pageTitleForPath(pathname: string, role: Role | undefined): string | null {
-  for (const section of visibleNav(role)) {
+export function pageTitleForPath(
+  pathname: string,
+  role: Role | undefined,
+  can?: (resource: string) => boolean,
+): string | null {
+  for (const section of visibleNav(role, can)) {
     if (section.children) {
       for (const group of section.children) {
         for (const leaf of group.items) {

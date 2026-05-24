@@ -1,20 +1,26 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
 import { ar } from '@/i18n/ar';
+import { extractApiError } from '@/lib/api-error';
 import { salesApi } from '@/lib/sales-api';
 import { returnsApi } from '@/lib/returns-api';
 import { useAuth } from '@/lib/auth';
+import { isOwnerOrAbove } from '@/lib/roles';
 import type {
+  AddOpenInvoiceLinesBody,
   BankAccount,
   CancelOpenInvoiceBody,
   DepositHandling,
+  DepositRefundBody,
   FinalPaymentBody,
+  FulfillmentDestination,
   InvoiceDetail,
   InvoiceLineDetail,
   InvoiceStatusHistoryEntry,
   PaymentMethod,
+  RollLookup,
+  SaleLineInput,
 } from '@/lib/sales-types';
 import type { RefundMethod, RollDisposition, ReturnLineInput } from '@/lib/returns-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -58,7 +64,7 @@ export function InvoiceDetailPage() {
   const idNum = Number(id);
   const qc = useQueryClient();
   const { user } = useAuth();
-  const isOwner = user?.role === 'owner';
+  const isOwner = isOwnerOrAbove(user?.role);
 
   const [voidOpen, setVoidOpen] = useState(false);
   const [voidReason, setVoidReason] = useState('');
@@ -68,6 +74,8 @@ export function InvoiceDetailPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [deliverConfirmOpen, setDeliverConfirmOpen] = useState(false);
+  const [refundOpen, setRefundOpen] = useState(false);
+  const [addLinesOpen, setAddLinesOpen] = useState(false);
 
   const invoiceQ = useQuery<InvoiceDetail>({
     queryKey: ['invoice', idNum],
@@ -93,8 +101,7 @@ export function InvoiceDetailPage() {
       }
     },
     onError: (e: unknown) => {
-      const data = axios.isAxiosError(e) ? (e.response?.data as { message?: string } | undefined) : undefined;
-      setVoidResult(data?.message ?? ar.common.error);
+      setVoidResult(extractApiError(e));
     },
   });
 
@@ -126,36 +133,58 @@ export function InvoiceDetailPage() {
     );
   }
   const inv = data;
-  const variant: 'original' | 'reprint' | 'open' =
-    inv.status === 'open' ? 'open' : 'original';
 
   const canVoid = inv.status === 'completed';
-  const canAddFinal = inv.status === 'open';
+  const canAddFinal =
+    inv.status === 'open' && Number(inv.total_egp) > Number(inv.paid_egp);
   const canDeliver = inv.status === 'closed_pending_pickup';
   const canCancelOpen = inv.status === 'open' || inv.status === 'closed_pending_pickup';
   const canReturn = inv.status === 'completed';
+  // v2 Phase 5: refund the over-deposit only on still-open invoices that have
+  // more paid than they're worth. Once `deposit_refunded`, further refunds /
+  // line edits are blocked.
+  const overDeposit = Number(inv.paid_egp) - Number(inv.total_egp);
+  const canRefundDeposit = inv.status === 'open' && overDeposit > 0.001;
+  // v2 Phase 5: attach rolls to a still-open invoice (covers the
+  // reopen-and-add-lines path after a no-lines deposit).
+  const canAddLines = inv.status === 'open';
 
   return (
     <div className="max-w-6xl mx-auto space-y-4">
       <PageHeader
         title={inv.invoice_no}
         description={`${fmtDate(inv.created_at)} · ${ar.invoices.cashier}: ${inv.cashier_username}`}
+        backTo="/invoices"
         actions={
           <div className="flex items-center gap-2 flex-wrap [&_button]:print:hidden [&_a]:print:hidden">
             <InvoiceStatusPill status={inv.status} />
-            <Button asChild variant="outline" size="sm">
-              <a href={salesApi.pdfUrl(inv.id, variant)} target="_blank" rel="noreferrer">
-                {ar.invoices.pdfDownload}
-              </a>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.open(`/invoices/${idNum}/draft`, '_blank', 'noopener')}
+            >
+              {ar.invoices.pdfDownload}
             </Button>
-            <Button asChild variant="outline" size="sm">
-              <a href={salesApi.pdfUrl(inv.id, 'reprint')} target="_blank" rel="noreferrer">
-                {ar.invoices.reprint}
-              </a>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.open(`/invoices/${idNum}/draft?variant=reprint`, '_blank', 'noopener')}
+            >
+              {ar.invoices.reprint}
             </Button>
             {canAddFinal && (
               <Button size="sm" onClick={() => setFinalPayOpen(true)}>
                 {ar.invoices.addFinalPayment}
+              </Button>
+            )}
+            {canRefundDeposit && (
+              <Button size="sm" onClick={() => setRefundOpen(true)}>
+                {ar.invoices.refundDeposit}
+              </Button>
+            )}
+            {canAddLines && (
+              <Button variant="outline" size="sm" onClick={() => setAddLinesOpen(true)}>
+                {ar.invoices.addLines}
               </Button>
             )}
             {canDeliver && (
@@ -404,6 +433,33 @@ export function InvoiceDetailPage() {
         onConfirm={() => { setDeliverConfirmOpen(false); deliverMut.mutate(); }}
         onCancel={() => setDeliverConfirmOpen(false)}
       />
+
+      {canRefundDeposit && (
+        <DepositRefundDialog
+          open={refundOpen}
+          onOpenChange={setRefundOpen}
+          invoiceId={inv.id}
+          maxAmount={overDeposit}
+          onSuccess={() => {
+            qc.invalidateQueries({ queryKey: ['invoice', inv.id] });
+            qc.invalidateQueries({ queryKey: ['invoice', inv.id, 'history'] });
+            qc.invalidateQueries({ queryKey: ['invoices'] });
+          }}
+        />
+      )}
+
+      {canAddLines && (
+        <AddLinesDialog
+          open={addLinesOpen}
+          onOpenChange={setAddLinesOpen}
+          invoice={inv}
+          onSuccess={() => {
+            qc.invalidateQueries({ queryKey: ['invoice', inv.id] });
+            qc.invalidateQueries({ queryKey: ['invoice', inv.id, 'history'] });
+            qc.invalidateQueries({ queryKey: ['invoices'] });
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -445,8 +501,7 @@ function FinalPaymentDialog({
       onOpenChange(false);
     },
     onError: (e: unknown) => {
-      const data = axios.isAxiosError(e) ? (e.response?.data as { message?: string } | undefined) : undefined;
-      setError(data?.message ?? ar.common.error);
+      setError(extractApiError(e));
     },
   });
 
@@ -584,8 +639,7 @@ function CancelOpenDialog({
       onOpenChange(false);
     },
     onError: (e: unknown) => {
-      const data = axios.isAxiosError(e) ? (e.response?.data as { message?: string } | undefined) : undefined;
-      setError(data?.message ?? ar.common.error);
+      setError(extractApiError(e));
     },
   });
 
@@ -685,6 +739,428 @@ function CancelOpenDialog({
   );
 }
 
+/**
+ * v2 Phase 5 — refund the over-deposit portion of an open invoice. Method
+ * picker mirrors POS: only `cash` and `instapay` are wired today; Phase 7
+ * unlocks `bank_transfer` and `cheque`.
+ */
+function DepositRefundDialog({
+  open,
+  onOpenChange,
+  invoiceId,
+  maxAmount,
+  onSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  invoiceId: number;
+  maxAmount: number;
+  onSuccess: () => void;
+}) {
+  const [amount, setAmount] = useState(maxAmount.toFixed(2));
+  const [method, setMethod] = useState<PaymentMethod>('cash');
+  const [bankAccountId, setBankAccountId] = useState<number | ''>('');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setAmount(maxAmount.toFixed(2));
+      setMethod('cash');
+      setBankAccountId('');
+      setError(null);
+    }
+  }, [open, maxAmount]);
+
+  const banks = useQuery<BankAccount[]>({
+    queryKey: ['bank-accounts'],
+    queryFn: salesApi.bankAccounts,
+    enabled: open && method === 'instapay',
+  });
+
+  const mut = useMutation({
+    mutationFn: (body: DepositRefundBody) => salesApi.depositRefund(invoiceId, body),
+    onSuccess: () => {
+      onSuccess();
+      onOpenChange(false);
+    },
+    onError: (e: unknown) => {
+      setError(extractApiError(e));
+    },
+  });
+
+  function submit() {
+    setError(null);
+    const v = parseAmount(amount);
+    if (v <= 0) { setError(ar.common.error); return; }
+    if (v > maxAmount + 0.01) {
+      setError(`${ar.invoices.refundDepositMaxHint}: ${maxAmount.toFixed(2)}`);
+      return;
+    }
+    mut.mutate({
+      amountEgp: v,
+      method,
+      bankAccountId:
+        method === 'instapay' && bankAccountId !== '' ? Number(bankAccountId) : null,
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{ar.invoices.refundDepositTitle}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="rounded-md border border-border-subtle bg-surface-row-alt p-2 text-sm flex justify-between">
+            <span className="text-foreground-muted">{ar.invoices.refundDepositMaxHint}:</span>
+            <span className="font-medium tabular-num text-foreground" dir="ltr">
+              {maxAmount.toFixed(2)}
+            </span>
+          </div>
+          <div className="space-y-1">
+            <Label>{ar.invoices.refundDepositAmount}</Label>
+            <Input
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              dir="ltr"
+              inputMode="decimal"
+              className="h-11 tabular-num"
+              autoFocus
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>{ar.invoices.refundMethod}</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {(['cash', 'instapay'] as const).map((m) => {
+                const active = method === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setMethod(m)}
+                    className={`cursor-pointer rounded-md border-2 p-2 text-sm font-medium transition-colors duration-150 min-h-11 ${
+                      active
+                        ? 'border-accent bg-accent-subtle text-accent'
+                        : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
+                    }`}
+                  >
+                    {ar.pos[m]}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-1">
+              {(['bank_transfer', 'cheque'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  disabled
+                  className="cursor-not-allowed rounded-md border border-dashed border-border-subtle bg-surface-row-alt p-2 text-xs text-foreground-tertiary leading-tight min-h-11"
+                  title={ar.invoices.methodComingPhase7}
+                >
+                  {m === 'bank_transfer' ? 'تحويل بنكي' : 'شيك'}
+                  <span className="block text-[10px]">{ar.invoices.methodComingPhase7}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          {method === 'instapay' && (
+            <div className="space-y-1">
+              <Label>{ar.pos.bankAccount}</Label>
+              <select
+                className="h-11 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground"
+                value={bankAccountId === '' ? '' : String(bankAccountId)}
+                onChange={(e) =>
+                  setBankAccountId(e.target.value === '' ? '' : Number(e.target.value))
+                }
+              >
+                <option value="">—</option>
+                {(banks.data ?? []).map((b) => (
+                  <option key={b.id} value={b.id}>{b.name_ar}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {error && (
+            <p
+              className="text-sm text-danger-foreground bg-danger-subtle border border-danger/30 rounded-md p-2"
+              role="alert"
+            >
+              {error}
+            </p>
+          )}
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+            <DialogClose asChild>
+              <Button variant="outline" className="h-11 cursor-pointer">
+                {ar.common.cancel}
+              </Button>
+            </DialogClose>
+            <Button
+              onClick={submit}
+              disabled={mut.isPending}
+              className="h-11 cursor-pointer"
+            >
+              {ar.invoices.refundDepositConfirm}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * v2 Phase 5 — attach rolls to a still-open invoice. Mirrors the POS cart
+ * row UX (reference + per-unit final price) but lives on InvoiceDetail so
+ * the cashier can extend a no-lines deposit without a separate POS session.
+ *
+ * On submit, calls POST /api/invoices/:id/lines which recomputes total/balance
+ * from sum(lines) − paid_egp. When balance lands at 0 the invoice closes; if
+ * paid still exceeds total, the cashier uses «استرجاع الدفعة» to refund.
+ */
+type StagedLine = {
+  roll: RollLookup;
+  perUnit: string;
+};
+
+function fmtPerUnit(roll: RollLookup): string {
+  return roll.fabric_unit === 'meter' ? ar.pos.finalPricePerMeter : ar.pos.finalPricePerKg;
+}
+
+function rollQty(roll: RollLookup): number {
+  if (roll.fabric_unit === 'meter') {
+    return roll.length_m == null ? 0 : Number(roll.length_m);
+  }
+  return Number(roll.weight_kg);
+}
+
+function lineTotal(line: StagedLine): number {
+  const perUnit = Number(line.perUnit);
+  if (!Number.isFinite(perUnit) || perUnit <= 0) return 0;
+  return perUnit * rollQty(line.roll);
+}
+
+function AddLinesDialog({
+  open,
+  onOpenChange,
+  invoice,
+  onSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  invoice: InvoiceDetail;
+  onSuccess: () => void;
+}) {
+  const [scanInput, setScanInput] = useState('');
+  const [lines, setLines] = useState<StagedLine[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setScanInput('');
+      setLines([]);
+      setError(null);
+    }
+  }, [open]);
+
+  const destination: FulfillmentDestination =
+    (invoice.fulfillment_destination as FulfillmentDestination) ?? 'shop';
+  const existingRollIds = new Set(invoice.lines.map((l) => l.roll_id));
+
+  async function tryAddByBarcode(barcode: string) {
+    setError(null);
+    const trimmed = barcode.trim();
+    if (!trimmed) return;
+    try {
+      const roll = await salesApi.rollByBarcode(trimmed);
+      if (roll.status !== 'in_stock') { setError(ar.pos.notFound); return; }
+      if (!roll.is_visible_at_pos) { setError(ar.pos.notVisible); return; }
+      if (existingRollIds.has(roll.id) || lines.some((l) => l.roll.id === roll.id)) {
+        setError(ar.invoices.rollAlreadyInInvoice);
+        return;
+      }
+      const matchesDestination =
+        destination === 'factory_direct'
+          ? roll.warehouse === 'factory'
+          : roll.warehouse === 'shop' || roll.warehouse === 'damaged_shop';
+      if (!matchesDestination) { setError(ar.invoices.rollWrongDestination); return; }
+      setLines((prev) => [...prev, { roll, perUnit: '' }]);
+      setScanInput('');
+    } catch (e) {
+      const status = (e as { response?: { status?: number } })?.response?.status;
+      setError(status === 404 ? ar.pos.notFound : extractApiError(e));
+    }
+  }
+
+  const total = lines.reduce((s, l) => s + lineTotal(l), 0);
+
+  const mut = useMutation({
+    mutationFn: (body: AddOpenInvoiceLinesBody) => salesApi.addOpenInvoiceLines(invoice.id, body),
+    onSuccess: () => { onSuccess(); onOpenChange(false); },
+    onError: (e: unknown) => {
+      setError(extractApiError(e));
+    },
+  });
+
+  function submit() {
+    setError(null);
+    if (lines.length === 0) { setError(ar.invoices.addLinesNoSelections); return; }
+    if (lines.some((l) => Number(l.perUnit) <= 0)) {
+      setError(ar.pos.finalPriceRequired);
+      return;
+    }
+    const body: AddOpenInvoiceLinesBody = {
+      lines: lines.map((l): SaleLineInput => ({
+        rollId: l.roll.id,
+        finalPricePerUnit: Number(l.perUnit),
+      })),
+    };
+    mut.mutate(body);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{ar.invoices.addLinesTitle}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="rounded-md border border-border-subtle bg-surface-row-alt p-2 text-sm flex justify-between gap-2 flex-wrap">
+            <span>
+              <span className="text-foreground-muted">{ar.invoices.depositSnapshot}:</span>{' '}
+              <span className="font-medium tabular-num text-foreground" dir="ltr">
+                {Number(invoice.paid_egp).toFixed(2)}
+              </span>
+            </span>
+            <span>
+              <span className="text-foreground-muted">{ar.pos.fulfillment}:</span>{' '}
+              <span className="font-medium text-foreground">
+                {destination === 'factory_direct'
+                  ? ar.invoices.fulfillmentFactoryDirect
+                  : ar.invoices.fulfillmentShop}
+              </span>
+            </span>
+          </div>
+
+          <div className="space-y-1">
+            <Label>{ar.invoices.addLinesScanPlaceholder}</Label>
+            <Input
+              value={scanInput}
+              onChange={(e) => setScanInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void tryAddByBarcode(scanInput);
+                }
+              }}
+              dir="ltr"
+              autoFocus
+              className="h-11"
+            />
+          </div>
+
+          {lines.length === 0 ? (
+            <p className="text-sm text-foreground-tertiary text-center py-6">
+              {ar.invoices.addLinesNoSelections}
+            </p>
+          ) : (
+            <div className="border border-border-subtle rounded-md divide-y divide-border-subtle">
+              {lines.map((l, idx) => {
+                const qty = rollQty(l.roll);
+                const ref = l.roll.reference_price_per_unit;
+                const unitLabel = l.roll.fabric_unit === 'meter' ? ar.pos.quantityM : ar.pos.quantityKg;
+                return (
+                  <div key={l.roll.id} className="p-3 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 space-y-1">
+                        <div className="font-medium text-sm text-foreground">
+                          {l.roll.fabric_name_ar}
+                          {l.roll.color_name_ar ? ` / ${l.roll.color_name_ar}` : ''}
+                        </div>
+                        <div className="text-xs font-mono tabular-num text-foreground-tertiary" dir="ltr">
+                          {l.roll.roll_sr_no ?? l.roll.internal_barcode} · {qty.toFixed(3)} {unitLabel}
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="cursor-pointer h-8 px-2 text-foreground-tertiary hover:text-danger"
+                        onClick={() => setLines((ls) => ls.filter((_, i) => i !== idx))}
+                      >
+                        ✕
+                      </Button>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-foreground-muted">
+                      <span>
+                        {ar.pos.referencePrice}{' '}
+                        <span className="text-foreground-tertiary">({unitLabel})</span>
+                      </span>
+                      <span className="tabular-num text-foreground" dir="ltr">
+                        {ref != null && Number(ref) > 0 ? Number(ref).toFixed(2) : ar.pos.referenceUnset}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 items-end">
+                      <div className="space-y-1">
+                        <Label className="text-xs">{fmtPerUnit(l.roll)}</Label>
+                        <Input
+                          value={l.perUnit}
+                          onChange={(e) =>
+                            setLines((ls) =>
+                              ls.map((s, i) => (i === idx ? { ...s, perUnit: e.target.value } : s)),
+                            )
+                          }
+                          dir="ltr"
+                          inputMode="decimal"
+                          className="h-9 tabular-num"
+                        />
+                      </div>
+                      <div className="text-end">
+                        <Label className="text-xs">{ar.pos.lineTotal}</Label>
+                        <div className="h-9 flex items-center justify-end font-semibold text-foreground tabular-num" dir="ltr">
+                          {lineTotal(l).toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {lines.length > 0 && (
+            <div className="flex justify-between text-sm font-medium border-t border-border-subtle pt-2">
+              <span className="text-foreground-muted">{ar.invoices.addLinesSummary}</span>
+              <span className="tabular-num text-foreground" dir="ltr">{total.toFixed(2)}</span>
+            </div>
+          )}
+
+          {error && (
+            <p
+              className="text-sm text-danger-foreground bg-danger-subtle border border-danger/30 rounded-md p-2"
+              role="alert"
+            >
+              {error}
+            </p>
+          )}
+
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+            <DialogClose asChild>
+              <Button variant="outline" className="h-11 cursor-pointer">{ar.common.cancel}</Button>
+            </DialogClose>
+            <Button
+              onClick={submit}
+              disabled={mut.isPending || lines.length === 0}
+              className="h-11 cursor-pointer"
+            >
+              {ar.invoices.addLinesSubmit}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function Row({ label, value, bold = false }: { label: string; value: string; bold?: boolean }) {
   return (
     <div className={`flex justify-between ${bold ? 'font-semibold text-base border-t border-border-subtle pt-2 mt-2 text-foreground' : 'text-foreground-muted'}`}>
@@ -762,8 +1238,7 @@ function ReturnModal({
       onOpenChange(false);
     },
     onError: (e: unknown) => {
-      const d = axios.isAxiosError(e) ? (e.response?.data as { message?: string } | undefined) : undefined;
-      setError(d?.message ?? ar.common.error);
+      setError(extractApiError(e));
     },
   });
 
@@ -832,14 +1307,14 @@ function ReturnModal({
                         <td className="px-2 py-2 tabular-num" dir="ltr">{Number(l.weight_kg).toFixed(3)}</td>
                         <td className="px-2 py-2">
                           <input
-                            type="number" inputMode="decimal"
+                            type="number" inputMode="numeric"
                             className="h-8 w-24 border border-border-default rounded-md px-2 text-sm bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75 disabled:opacity-50"
                             value={s.refundAmount}
                             disabled={!s.checked}
                             onChange={(e) => updateLine(l.id, { refundAmount: e.target.value })}
                             dir="ltr"
                             min="0"
-                            step="0.01"
+                            step="1"
                           />
                         </td>
                         <td className="px-2 py-2">

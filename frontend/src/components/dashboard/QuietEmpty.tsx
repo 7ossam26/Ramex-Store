@@ -45,7 +45,7 @@ export function QuietEmpty({
               style={{ height: '8%' }}
             />
           ))}
-          <div className="absolute inset-x-0 bottom-0 h-px bg-border-default" />
+          <div className="absolute inset-x-0 bottom-0 h-px bg-border" />
         </div>
         <p className="text-xs text-foreground-tertiary pt-3 text-center">
           {caption}

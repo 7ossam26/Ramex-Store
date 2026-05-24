@@ -1,16 +1,18 @@
 import type { Request, Response } from 'express';
 import {
+  AddLinesSchema,
   CancelOpenInvoiceSchema,
   CreateSaleSchema,
+  DepositRefundSchema,
   FinalPaymentSchema,
+  ListChequesQuerySchema,
   ListInvoicesQuerySchema,
-  PdfVariantSchema,
   SalePreviewSchema,
   VoidInvoiceSchema,
 } from './sales.schemas.js';
 import * as svc from './invoices.service.js';
 import * as openSvc from './openInvoices.service.js';
-import { buildInvoicePdf } from '../../lib/pdf/invoice.js';
+import { auditLog } from '../../middleware/audit.js';
 
 const ERR_MAP: Record<string, { status: number; message: string }> = {
   CUSTOMER_NOT_FOUND: { status: 404, message: 'العميل غير موجود' },
@@ -19,6 +21,7 @@ const ERR_MAP: Record<string, { status: number; message: string }> = {
   ROLL_NOT_AVAILABLE: { status: 409, message: 'هذا التوب غير متاح للبيع' },
   ROLL_NOT_VISIBLE_AT_POS: { status: 409, message: 'التوب مخفي عن نقطة البيع' },
   ROLL_NOT_AT_SHOP: { status: 409, message: 'التوب ليس داخل مخزن المحل' },
+  ROLL_NOT_AT_FACTORY: { status: 409, message: 'هذا التوب ليس داخل مخزن المصنع' },
   DUPLICATE_ROLL_IN_CART: { status: 400, message: 'لا يمكن تكرار نفس التوب في الفاتورة' },
   LINE_DISCOUNT_EXCEEDS_PRICE: { status: 400, message: 'الخصم أكبر من سعر التوب' },
   TARGET_FINAL_GREATER_THAN_SUBTOTAL: {
@@ -38,6 +41,12 @@ const ERR_MAP: Record<string, { status: number; message: string }> = {
   PARTIAL_REFUND_INVALID: { status: 400, message: 'مبلغ الاسترجاع الجزئي غير صحيح' },
   PARTIAL_REFUND_EXCEEDS_PAID: { status: 400, message: 'مبلغ الاسترجاع أكبر من المدفوع' },
   REFUND_METHOD_REQUIRED: { status: 400, message: 'طريقة الاسترجاع مطلوبة' },
+  NO_LINES_PROVIDED: { status: 400, message: 'يجب اختيار توب واحد على الأقل' },
+  ROLL_LENGTH_MISSING: { status: 400, message: 'الطول بالمتر مفقود لهذا التوب' },
+  LINE_PRICE_REQUIRED: { status: 400, message: 'سعر البيع النهائي مطلوب' },
+  REFUND_AMOUNT_INVALID: { status: 400, message: 'مبلغ الاسترجاع غير صحيح' },
+  NO_OVER_DEPOSIT: { status: 400, message: 'لا توجد دفعة زائدة لاستردادها' },
+  REFUND_EXCEEDS_OVER_DEPOSIT: { status: 400, message: 'مبلغ الاسترجاع أكبر من فرق الدفعة المقدمة' },
 };
 
 function handleDomainError(e: unknown, res: Response): boolean {
@@ -56,7 +65,7 @@ function actorId(req: Request): number {
 export async function createSale(req: Request, res: Response): Promise<void> {
   const data = CreateSaleSchema.parse(req.body);
   try {
-    const invoice = await svc.createSale(actorId(req), data);
+    const invoice = await svc.createSale(actorId(req), data, req.shiftId ?? null);
     res.status(201).json(invoice);
   } catch (e) {
     if (handleDomainError(e, res)) return;
@@ -85,6 +94,7 @@ export async function voidInvoice(req: Request, res: Response): Promise<void> {
       String(req.user!.role),
       data.reason_ar,
       data.approved_by_owner ?? false,
+      req.shiftId ?? null,
     );
     res.json(result);
   } catch (e) {
@@ -112,7 +122,7 @@ export async function addFinalPayment(req: Request, res: Response): Promise<void
   const id = Number(req.params.id);
   const data = FinalPaymentSchema.parse(req.body);
   try {
-    const result = await openSvc.addFinalPayment(id, actorId(req), data.payments);
+    const result = await openSvc.addFinalPayment(id, actorId(req), data.payments, req.shiftId ?? null);
     res.json(result);
   } catch (e) {
     if (handleDomainError(e, res)) return;
@@ -141,7 +151,48 @@ export async function cancelOpenInvoice(req: Request, res: Response): Promise<vo
       partialRefundAmount:
         data.partial_refund_amount == null ? null : Number(data.partial_refund_amount),
       bankAccountId: data.bank_account_id ?? null,
+      reference: data.reference ?? null,
+      chequeDetails: data.cheque_details ?? null,
       notesAr: data.notes_ar,
+      shiftId: req.shiftId ?? null,
+    });
+    res.json(result);
+  } catch (e) {
+    if (handleDomainError(e, res)) return;
+    throw e;
+  }
+}
+
+export async function addOpenInvoiceLines(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  const data = AddLinesSchema.parse(req.body);
+  try {
+    const result = await openSvc.addLinesToOpenInvoice(id, actorId(req), {
+      lines: data.lines.map((l) => ({
+        rollId: l.rollId,
+        sellingPriceOverride: l.sellingPriceOverride ?? null,
+        finalPricePerUnit: l.finalPricePerUnit ?? null,
+        lineDiscountEgp: l.lineDiscountEgp ?? null,
+      })),
+      cartTargetFinal: data.cartTargetFinal ?? null,
+    });
+    res.json(result);
+  } catch (e) {
+    if (handleDomainError(e, res)) return;
+    throw e;
+  }
+}
+
+export async function depositRefund(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  const data = DepositRefundSchema.parse(req.body);
+  try {
+    const result = await openSvc.depositRefund(id, actorId(req), {
+      amountEgp: Number(data.amountEgp),
+      method: data.method,
+      bankAccountId: data.bankAccountId ?? null,
+      reference: data.reference ?? null,
+      chequeDetails: data.chequeDetails ?? null,
     });
     res.json(result);
   } catch (e) {
@@ -163,16 +214,18 @@ export async function listPendingPickup(_req: Request, res: Response): Promise<v
   res.json(await openSvc.listPendingPickup());
 }
 
-export async function getInvoicePdf(req: Request, res: Response): Promise<void> {
+export async function listCheques(req: Request, res: Response): Promise<void> {
+  const q = ListChequesQuerySchema.parse(req.query);
+  res.json(await svc.listCheques(q));
+}
+
+export async function auditReprint(req: Request, res: Response): Promise<void> {
   const id = Number(req.params.id);
-  const { variant } = PdfVariantSchema.parse(req.query);
   const detail = await svc.getInvoiceDetail(id);
   if (!detail) {
     res.status(404).json({ error: 'INVOICE_NOT_FOUND', message: 'الفاتورة غير موجودة' });
     return;
   }
-  const buf = await buildInvoicePdf(detail, variant);
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `inline; filename="${detail.invoice_no}.pdf"`);
-  res.end(buf);
+  await auditLog(req, 'invoice.reprint', 'invoice', id, null, { invoice_no: detail.invoice_no });
+  res.status(204).end();
 }

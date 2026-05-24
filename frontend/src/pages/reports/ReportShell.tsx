@@ -95,6 +95,7 @@ export function ReportShell({
     <div className="space-y-6 max-w-6xl mx-auto">
       <PageHeader
         title={title}
+        backTo="/reports"
         actions={
           <span className="contents [&_a]:print:hidden [&_button]:print:hidden">
             {exportPdfUrl && (

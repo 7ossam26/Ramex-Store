@@ -14,7 +14,7 @@ export type ExpenseRow = {
   requires_approval: boolean;
   approved_by_user_id: number | null;
   approved_at: string | null;
-  paid_from: 'cash' | 'bank';
+  paid_from: 'cash' | 'bank' | 'instapay';
   bank_account_id: number | null;
   actor_user_id: number;
   actor_username: string | null;
@@ -25,12 +25,17 @@ export type ExpenseRow = {
 export async function recordExpense(params: {
   category: string;
   amount: number;
-  paidFrom: 'cash' | 'bank';
+  paidFrom: 'cash' | 'bank' | 'instapay';
   bankAccountId?: number | null;
   notesAr?: string | null;
   photoPath?: string | null;
   actorUserId: number;
+  shiftId?: number | null;
 }): Promise<ExpenseRow> {
+  if ((params.paidFrom === 'bank' || params.paidFrom === 'instapay') && !params.bankAccountId) {
+    throw new Error('INSTAPAY_REQUIRES_BANK_ACCOUNT');
+  }
+
   const threshold = await getSetting<number>(undefined, 'approval_threshold_egp', 0);
   const requiresApproval = threshold > 0 && params.amount > threshold;
 
@@ -44,6 +49,7 @@ export async function recordExpense(params: {
       paid_from: params.paidFrom,
       bank_account_id: params.bankAccountId ?? null,
       actor_user_id: params.actorUserId,
+      shift_id: params.shiftId ?? null,
     }).returning('id');
     const expense = await trx('expenses').where({ id }).first() as ExpenseRow;
 
@@ -67,7 +73,7 @@ export async function recordExpense(params: {
     } else {
       if (params.paidFrom === 'cash') {
         await cashRecordMovement(trx, 'out', 'expense', params.amount, params.actorUserId, 'expense', expense.id, params.notesAr);
-      } else if (params.paidFrom === 'bank' && params.bankAccountId) {
+      } else if ((params.paidFrom === 'bank' || params.paidFrom === 'instapay') && params.bankAccountId) {
         await bankRecordMovement(trx, params.bankAccountId, 'out', 'other_out', params.amount, params.actorUserId, 'expense', expense.id, params.notesAr);
       }
     }
@@ -97,7 +103,7 @@ export async function approveExpense(expenseId: number, actorUserId: number): Pr
 
     if (upd.paid_from === 'cash') {
       await cashRecordMovement(trx, 'out', 'expense', Number(upd.amount_egp), actorUserId, 'expense', expenseId, upd.notes_ar);
-    } else if (upd.paid_from === 'bank' && upd.bank_account_id) {
+    } else if ((upd.paid_from === 'bank' || upd.paid_from === 'instapay') && upd.bank_account_id) {
       await bankRecordMovement(trx, upd.bank_account_id, 'out', 'other_out', Number(upd.amount_egp), actorUserId, 'expense', expenseId, upd.notes_ar);
     }
 
@@ -143,7 +149,7 @@ export async function rejectExpense(expenseId: number, reasonAr: string, actorUs
 
 export async function listExpenses(params: {
   category?: string;
-  paidFrom?: 'cash' | 'bank';
+  paidFrom?: 'cash' | 'bank' | 'instapay';
   status?: 'pending' | 'approved' | 'all';
   from?: string;
   to?: string;

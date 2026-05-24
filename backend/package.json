@@ -12,7 +12,8 @@
     "db:migrate": "tsx ../node_modules/knex/bin/cli.js --knexfile src/db/knexfile.ts migrate:latest",
     "db:migrate:rollback": "tsx ../node_modules/knex/bin/cli.js --knexfile src/db/knexfile.ts migrate:rollback",
     "db:seed": "tsx ../node_modules/knex/bin/cli.js --knexfile src/db/knexfile.ts seed:run",
-    "lint": "eslint 'src/**/*.ts'"
+    "db:wipe-inventory": "tsx src/db/scripts/wipe-inventory.ts",
+    "lint": "eslint \"src/**/*.ts\""
   },
   "dependencies": {
     "@types/pdfmake": "^0.3.2",

@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import {
-  CreateRollSchema, UpdateRollSchema, ListRollsQuerySchema,
+  UpdateRollSchema, ListRollsQuerySchema,
   FabricLabelQuerySchema, BatchFabricLabelSchema,
 } from './items.schemas.js';
 import * as svc from './rolls.service.js';
@@ -12,24 +12,6 @@ import { auditLabelReprinted } from '../../lib/barcode/audit.js';
 export async function listRolls(req: Request, res: Response): Promise<void> {
   const filters = ListRollsQuerySchema.parse(req.query);
   res.json(await svc.listRolls(filters));
-}
-
-export async function createRoll(req: Request, res: Response): Promise<void> {
-  const data = CreateRollSchema.parse(req.body);
-  let roll;
-  try {
-    roll = await svc.createRoll(data);
-  } catch (e: unknown) {
-    if (e instanceof Error && e.message === 'NO_DEFAULT_PRICE') {
-      res.status(422).json({
-        error: 'لا يوجد سعر افتراضي لهذا الصنف واللون، يجب تحديد السعر يدوياً',
-      });
-      return;
-    }
-    throw e;
-  }
-  await auditLog(req, 'create_roll', 'roll', roll.id, null, roll, { severity: 'medium' });
-  res.status(201).json(roll);
 }
 
 export async function updateRoll(req: Request, res: Response): Promise<void> {

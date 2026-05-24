@@ -10,29 +10,18 @@
  * keys under `ar.settings.sections.*` in src/i18n/ar.ts.
  * ============================================================= */
 import {
-  Banknote,
-  Building2,
   ClipboardList,
-  Database,
   Hash,
   Info,
-  Landmark,
-  Percent,
   ShieldCheck,
-  ShoppingCart,
   type LucideIcon,
 } from 'lucide-react';
+import type { Role } from '@/lib/auth';
 
 export type SettingsSectionId =
   | 'general'
-  | 'tax'
-  | 'pos'
-  | 'cashDrawer'
-  | 'banks'
   | 'usersPermissions'
   | 'reasonCodes'
-  | 'dayRollover'
-  | 'system'
   | 'fabricCodes';
 
 export type SettingsSection = {
@@ -40,6 +29,8 @@ export type SettingsSection = {
   labelAr: string;
   descAr: string;
   icon: LucideIcon;
+  /** If set, only users whose role is in this list can see this section. */
+  visibleTo?: Role[];
 };
 
 export const SETTINGS_SECTIONS: SettingsSection[] = [
@@ -50,34 +41,11 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Info,
   },
   {
-    id: 'tax',
-    labelAr: 'الضرائب',
-    descAr: 'تفعيل الضريبة ونسبتها وتسميتها على الإيصال',
-    icon: Percent,
-  },
-  {
-    id: 'pos',
-    labelAr: 'نقطة البيع',
-    descAr: 'حدود العربون والإلغاء والموافقة ونوافذ الإرجاع والفواتير المتأخرة',
-    icon: ShoppingCart,
-  },
-  {
-    id: 'cashDrawer',
-    labelAr: 'خزنة الكاش',
-    descAr: 'الرصيد الافتتاحي لخزنة الكاش (للعرض فقط بعد الإعداد)',
-    icon: Banknote,
-  },
-  {
-    id: 'banks',
-    labelAr: 'البنوك',
-    descAr: 'إدارة الحسابات البنكية وتفعيلها',
-    icon: Landmark,
-  },
-  {
     id: 'usersPermissions',
     labelAr: 'المستخدمون والصلاحيات',
     descAr: 'إضافة المستخدمين وتحديد صلاحيات كل دور',
     icon: ShieldCheck,
+    visibleTo: ['super_admin'],
   },
   {
     id: 'reasonCodes',
@@ -86,21 +54,9 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: ClipboardList,
   },
   {
-    id: 'dayRollover',
-    labelAr: 'وقت تجديد اليوم',
-    descAr: 'وقت بداية اليوم المحاسبي (HH:MM)',
-    icon: Building2,
-  },
-  {
-    id: 'system',
-    labelAr: 'النظام',
-    descAr: 'إعدادات النظام المركزية ومعلومات الاحتفاظ بالسجلات',
-    icon: Database,
-  },
-  {
     id: 'fabricCodes',
     labelAr: 'كودات الملصقات',
-    descAr: 'الدرجات، التركيبات، الماركات والموردين على ملصقات التوبات',
+    descAr: 'الدرجات، التركيبات، الماركات والموردين على ملصقات الاتواب',
     icon: Hash,
   },
 ];
@@ -108,6 +64,10 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 export const SETTINGS_SECTION_IDS: SettingsSectionId[] = SETTINGS_SECTIONS.map((s) => s.id);
 
 export function settingsSectionById(id: SettingsSectionId): SettingsSection {
-  // Tuple guarantees a hit; non-null assertion safe by construction.
   return SETTINGS_SECTIONS.find((s) => s.id === id)!;
+}
+
+/** Returns only the sections visible to the given role. */
+export function visibleSettingsSections(role: Role | undefined): SettingsSection[] {
+  return SETTINGS_SECTIONS.filter((s) => !s.visibleTo || (role && s.visibleTo.includes(role)));
 }

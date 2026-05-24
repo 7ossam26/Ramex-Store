@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Menu, Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { usePermissions } from '@/lib/permissions';
 import { NotificationBell } from '@/components/NotificationBell';
 import { UserMenu } from '@/components/Layout/UserMenu';
 import { pageTitleForPath } from '@/navigation/nav.config';
@@ -21,6 +22,7 @@ type Props = {
 
 export function TopBar({ onOpenCommandPalette, onOpenMobileDrawer }: Props) {
   const { user } = useAuth();
+  const { can } = usePermissions();
   const location = useLocation();
   const [isMac, setIsMac] = useState(false);
 
@@ -28,7 +30,7 @@ export function TopBar({ onOpenCommandPalette, onOpenMobileDrawer }: Props) {
     setIsMac(detectIsMac());
   }, []);
 
-  const title = pageTitleForPath(location.pathname, user?.role);
+  const title = pageTitleForPath(location.pathname, user?.role, can);
   const shortcut = isMac ? '⌘K' : 'Ctrl+K';
 
   return (

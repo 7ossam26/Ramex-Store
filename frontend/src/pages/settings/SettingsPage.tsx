@@ -13,22 +13,33 @@ import type { ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { ar } from '@/i18n/ar';
-import { settingsApi, permissionsApi, usersApi, bankAccountsApi } from '@/lib/settings-api';
+import { settingsApi, permissionsApi, usersApi } from '@/lib/settings-api';
 import { codesApi, type CodeGrade, type CodeComposition, type CodeBrand, type CodeSupplier } from '@/lib/codes-api';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
+import { isOwnerOrAbove, isSuperAdmin } from '@/lib/roles';
 import { useIsDesktop } from '@/hooks/useMediaQuery';
 import { PageHeader } from '@/components/PageHeader';
+import { Toggle as SharedToggle } from '@/components/Toggle';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { Toast } from '@/components/Toast';
 import { Skeleton } from '@/components/Skeleton';
 import { cn } from '@/lib/utils';
+import { extractApiError } from '@/lib/api-error';
 import {
-  SETTINGS_SECTIONS,
   SETTINGS_SECTION_IDS,
   settingsSectionById,
+  visibleSettingsSections,
+  type SettingsSection,
   type SettingsSectionId,
 } from '@/navigation/settings.config';
+import { EditUserDialog } from './EditUserDialog';
+import { ResetPasswordDialog } from './ResetPasswordDialog';
+import { EditUserPermissionsDialog } from './EditUserPermissionsDialog';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import type { UserRow } from '@/lib/settings-api';
+import { RESOURCE_GROUPS } from '@/lib/permissions-config';
+
 
 type Section = SettingsSectionId;
 
@@ -106,6 +117,8 @@ function NumInput({
   );
 }
 
+// Toggle is imported from @/components/Toggle
+// This local stub keeps existing call-sites working without touching them.
 function Toggle({
   checked,
   onChange,
@@ -115,28 +128,7 @@ function Toggle({
   onChange: (v: boolean) => void;
   disabled?: boolean;
 }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={cn(
-        'relative inline-flex h-6 w-11 items-center rounded-pill transition-colors duration-150 ease-standard',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-elevated',
-        'disabled:opacity-60 disabled:cursor-not-allowed',
-        checked ? 'bg-accent' : 'bg-border-default',
-      )}
-    >
-      <span
-        className={cn(
-          'inline-block size-4 rounded-full bg-surface-elevated shadow-sm transition-transform duration-200 ease-emphasized',
-          checked ? 'translate-x-6' : 'translate-x-1',
-        )}
-      />
-    </button>
-  );
+  return <SharedToggle checked={checked} onChange={onChange} disabled={disabled} />;
 }
 
 function SelectInput({
@@ -206,14 +198,6 @@ function SaveErrorBanner({ message, onDismiss }: { message: string; onDismiss?: 
   );
 }
 
-function extractApiError(e: unknown, fallback = ar.common.error): string {
-  const msg =
-    (e as { response?: { data?: { message?: string; error?: string } } })?.response?.data?.message ??
-    (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-    (e as { message?: string })?.message;
-  return msg ?? fallback;
-}
-
 // ─── Section: General ────────────────────────────────────────────────────────
 
 type SectionProps = {
@@ -227,7 +211,6 @@ function GeneralSection({ settings, onSave, notifySaved }: SectionProps) {
     logoPath: String(settings['shop.logo_path'] ?? ''),
     addressAr: String(settings['shop.address_ar'] ?? ''),
     phone: String(settings['shop.phone'] ?? ''),
-    taxNo: String(settings['shop.tax_no'] ?? ''),
     warningTextAr: String(settings['receipt.warning_text_ar'] ?? ''),
   });
   const [saving, setSaving] = useState(false);
@@ -241,7 +224,6 @@ function GeneralSection({ settings, onSave, notifySaved }: SectionProps) {
         onSave('shop.logo_path', form.logoPath || null),
         onSave('shop.address_ar', form.addressAr),
         onSave('shop.phone', form.phone),
-        onSave('shop.tax_no', form.taxNo),
         onSave('receipt.warning_text_ar', form.warningTextAr),
       ]);
       notifySaved();
@@ -264,9 +246,6 @@ function GeneralSection({ settings, onSave, notifySaved }: SectionProps) {
       <FieldRow label={ar.settings.general.phone}>
         <TextInput value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} placeholder="01XXXXXXXXX" />
       </FieldRow>
-      <FieldRow label={ar.settings.general.taxNo}>
-        <TextInput value={form.taxNo} onChange={(v) => setForm({ ...form, taxNo: v })} />
-      </FieldRow>
       <FieldRow label={ar.settings.general.warningTextAr}>
         <textarea
           dir="rtl"
@@ -284,228 +263,12 @@ function GeneralSection({ settings, onSave, notifySaved }: SectionProps) {
   );
 }
 
-// ─── Section: Tax ────────────────────────────────────────────────────────────
-
-function TaxSection({ settings, onSave, notifySaved }: SectionProps) {
-  const [enabled, setEnabled] = useState(Boolean(settings['tax.enabled'] ?? false));
-  const [rate, setRate] = useState(Number(settings['tax.rate'] ?? 0.14));
-  const [labelAr, setLabelAr] = useState(String(settings['tax.label_ar'] ?? 'ضريبة'));
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function save() {
-    setError(null);
-    setSaving(true);
-    try {
-      await Promise.all([
-        onSave('tax.enabled', enabled),
-        onSave('tax.rate', rate),
-        onSave('tax.label_ar', labelAr),
-      ]);
-      notifySaved();
-    } catch (e) {
-      setError(extractApiError(e));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className={cn('space-y-5', saving && 'opacity-70 pointer-events-none')}>
-      {error && <SaveErrorBanner message={error} onDismiss={() => setError(null)} />}
-      <FieldRow label={ar.settings.tax.enabled}>
-        <Toggle checked={enabled} onChange={setEnabled} />
-      </FieldRow>
-      <FieldRow label={ar.settings.tax.rate}>
-        <NumInput value={rate} onChange={setRate} step={0.01} min={0} max={1} />
-      </FieldRow>
-      <FieldRow label={ar.settings.tax.labelAr}>
-        <TextInput value={labelAr} onChange={setLabelAr} />
-      </FieldRow>
-      <StickySaveBar onSave={save} saving={saving} />
-    </div>
-  );
-}
-
-// ─── Section: POS ────────────────────────────────────────────────────────────
-
-function PosSection({ settings, onSave, notifySaved }: SectionProps) {
-  const [form, setForm] = useState({
-    minDepositPct: Number(settings['pos.min_deposit_pct'] ?? 0.25),
-    voidTimeLimitHours: Number(settings['pos.void_time_limit_hours'] ?? 24),
-    approvalThreshold: Number(settings['pos.approval_threshold_egp'] ?? 5000),
-    staleInvoiceDays: Number(settings['pos.stale_invoice_days'] ?? 7),
-    returnWindowDays: Number(settings['pos.return_window_days'] ?? 14),
-  });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function save() {
-    setError(null);
-    setSaving(true);
-    try {
-      await Promise.all([
-        onSave('pos.min_deposit_pct', form.minDepositPct),
-        onSave('pos.void_time_limit_hours', form.voidTimeLimitHours),
-        onSave('pos.approval_threshold_egp', form.approvalThreshold),
-        onSave('pos.stale_invoice_days', form.staleInvoiceDays),
-        onSave('pos.return_window_days', form.returnWindowDays),
-      ]);
-      notifySaved();
-    } catch (e) {
-      setError(extractApiError(e));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className={cn('space-y-5', saving && 'opacity-70 pointer-events-none')}>
-      {error && <SaveErrorBanner message={error} onDismiss={() => setError(null)} />}
-      <FieldRow label={ar.settings.pos.minDepositPct}>
-        <NumInput value={form.minDepositPct} onChange={(v) => setForm({ ...form, minDepositPct: v })} step={0.01} min={0} max={1} />
-      </FieldRow>
-      <FieldRow label={ar.settings.pos.voidTimeLimitHours}>
-        <NumInput value={form.voidTimeLimitHours} onChange={(v) => setForm({ ...form, voidTimeLimitHours: v })} min={0} />
-      </FieldRow>
-      <FieldRow label={ar.settings.pos.approvalThresholdEgp}>
-        <NumInput value={form.approvalThreshold} onChange={(v) => setForm({ ...form, approvalThreshold: v })} step={100} min={0} />
-      </FieldRow>
-      <FieldRow label={ar.settings.pos.staleInvoiceDays}>
-        <NumInput value={form.staleInvoiceDays} onChange={(v) => setForm({ ...form, staleInvoiceDays: v })} min={1} />
-      </FieldRow>
-      <FieldRow label={ar.settings.pos.returnWindowDays}>
-        <NumInput value={form.returnWindowDays} onChange={(v) => setForm({ ...form, returnWindowDays: v })} min={0} />
-      </FieldRow>
-      <StickySaveBar onSave={save} saving={saving} />
-    </div>
-  );
-}
-
-// ─── Section: Cash Drawer (read-only) ───────────────────────────────────────
-
-function CashDrawerSection() {
-  return (
-    <div className="rounded-lg border border-border-subtle bg-surface p-4">
-      <p className="text-sm text-foreground-muted mb-2">{ar.settings.cashDrawer.openingBalance}</p>
-      <p className="text-sm text-foreground">{ar.settings.system.auditRetentionValue}</p>
-    </div>
-  );
-}
-
-// ─── Section: Banks ─────────────────────────────────────────────────────────
-
-function BanksSection({ notifySaved }: { notifySaved: () => void }) {
-  const qc = useQueryClient();
-  const { data: banks = [] } = useQuery({
-    queryKey: ['settings-banks'],
-    queryFn: bankAccountsApi.list,
-  });
-
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ name_ar: '', bank_name_ar: '', account_number: '' });
-  const [error, setError] = useState<string | null>(null);
-
-  const createMut = useMutation({
-    mutationFn: () =>
-      bankAccountsApi.create({
-        name_ar: form.name_ar,
-        bank_name_ar: form.bank_name_ar,
-        account_number: form.account_number,
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['settings-banks'] });
-      setShowAdd(false);
-      setForm({ name_ar: '', bank_name_ar: '', account_number: '' });
-      notifySaved();
-    },
-    onError: (e) => setError(extractApiError(e)),
-  });
-
-  const toggleMut = useMutation({
-    mutationFn: ({ id, is_active }: { id: number; is_active: boolean }) =>
-      bankAccountsApi.update(id, { is_active }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['settings-banks'] });
-      notifySaved();
-    },
-    onError: (e) => setError(extractApiError(e)),
-  });
-
-  return (
-    <div className="space-y-4">
-      {error && <SaveErrorBanner message={error} onDismiss={() => setError(null)} />}
-      <Button size="sm" variant="outline" onClick={() => setShowAdd(!showAdd)}>
-        {ar.settings.banks.addBank}
-      </Button>
-      {showAdd && (
-        <div className="rounded-lg border border-border-subtle bg-surface p-4 space-y-3">
-          <FieldRow label={ar.settings.banks.nameAr}>
-            <TextInput value={form.name_ar} onChange={(v) => setForm({ ...form, name_ar: v })} />
-          </FieldRow>
-          <FieldRow label={ar.settings.banks.bankNameAr}>
-            <TextInput value={form.bank_name_ar} onChange={(v) => setForm({ ...form, bank_name_ar: v })} />
-          </FieldRow>
-          <div className="flex gap-2 pt-1">
-            <Button
-              size="sm"
-              onClick={() => createMut.mutate()}
-              disabled={!form.name_ar || createMut.isPending}
-            >
-              {ar.common.save}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setShowAdd(false)}>
-              {ar.common.cancel}
-            </Button>
-          </div>
-        </div>
-      )}
-      <div className="rounded-lg border border-border-subtle overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-surface-row-alt text-foreground-muted">
-            <tr>
-              <th className="py-2.5 px-3 text-start font-medium">{ar.settings.banks.nameAr}</th>
-              <th className="py-2.5 px-3 text-start font-medium">{ar.settings.banks.bankNameAr}</th>
-              <th className="py-2.5 px-3 text-start font-medium">{ar.settings.banks.isActive}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border-subtle bg-surface-elevated">
-            {banks.map((b, i) => (
-              <tr key={b.id} className={cn('hover:bg-surface-hover transition-colors duration-150', i % 2 === 1 && 'bg-surface-row-alt/40')}>
-                <td className="py-2.5 px-3 text-foreground">{b.name_ar}</td>
-                <td className="py-2.5 px-3 text-foreground-muted">{b.bank_name_ar ?? '—'}</td>
-                <td className="py-2.5 px-3">
-                  <Toggle
-                    checked={b.is_active}
-                    onChange={(v) => toggleMut.mutate({ id: b.id, is_active: v })}
-                  />
-                </td>
-              </tr>
-            ))}
-            {banks.length === 0 && (
-              <tr>
-                <td colSpan={3} className="py-8 px-3 text-center text-foreground-tertiary">
-                  {ar.codes.noResults}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 // ─── Section: Users & Permissions ───────────────────────────────────────────
 
-const RESOURCES = [
-  'customers', 'invoices', 'inventory', 'shipments', 'cash_drawer', 'returns',
-  'reports.daily', 'reports.salesByFabricColor', 'reports.customerLedger',
-  'reports.outstandingOpenInvoices', 'reports.stocktakeInventory', 'reports.cashFlow',
-  'reports.bankReconciliation', 'reports.expenses', 'reports.damageLoss',
-  'reports.salesByPaymentMethod', 'reports.auditLog',
-  'settings', 'users',
-];
+// RESOURCE_GROUPS is the single source of truth — imported from @/lib/permissions-config
+
+const MATRIX_ROLES = ['owner', 'shop_seller', 'factory_sender'] as const;
+type MatrixRole = (typeof MATRIX_ROLES)[number];
 
 function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
   const qc = useQueryClient();
@@ -516,6 +279,21 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
   const [userForm, setUserForm] = useState({ username: '', full_name_ar: '', role: 'shop_seller', password: '' });
   const [matrixDirty, setMatrixDirty] = useState<Map<string, boolean>>(new Map());
   const [error, setError] = useState<string | null>(null);
+  const [editingUser, setEditingUser] = useState<UserRow | null>(null);
+  const [resettingUser, setResettingUser] = useState<UserRow | null>(null);
+  const [permsUser, setPermsUser] = useState<UserRow | null>(null);
+  const [deletingUser, setDeletingUser] = useState<UserRow | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const deleteUserMut = useMutation({
+    mutationFn: (id: number) => usersApi.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['settings-users'] });
+      setDeletingUser(null);
+      notifySaved();
+    },
+    onError: (e) => { setDeleteError(extractApiError(e)); setDeletingUser(null); },
+  });
 
   const createUser = useMutation({
     mutationFn: () => usersApi.create(userForm),
@@ -630,6 +408,7 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
                 <th className="py-2.5 px-3 text-start font-medium">{ar.settings.users.fullNameAr}</th>
                 <th className="py-2.5 px-3 text-start font-medium">{ar.settings.users.role}</th>
                 <th className="py-2.5 px-3 text-start font-medium">{ar.settings.users.isActive}</th>
+                <th className="py-2.5 px-3 text-start font-medium">{ar.settings.users.actions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle bg-surface-elevated">
@@ -643,79 +422,204 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
                   <td className="py-2.5 px-3">
                     <Toggle checked={u.is_active} onChange={(v) => toggleUser.mutate({ id: u.id, is_active: v })} />
                   </td>
+                  <td className="py-2.5 px-3">
+                    {u.role !== 'super_admin' && (
+                      <div className="flex gap-1.5 flex-wrap">
+                        <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => setEditingUser(u)}>
+                          {ar.settings.users.edit}
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => setPermsUser(u)}>
+                          {ar.settings.users.editPermissions}
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs px-2 border-destructive/40 text-destructive hover:bg-destructive/10" onClick={() => setResettingUser(u)}>
+                          {ar.settings.users.resetPassword}
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs px-2 border-red-400 text-red-600 hover:bg-red-50" onClick={() => setDeletingUser(u)}>
+                          {ar.settings.users.deleteUser}
+                        </Button>
+                      </div>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+
+        <EditUserDialog user={editingUser} onClose={() => setEditingUser(null)} />
+        <ResetPasswordDialog user={resettingUser} onClose={() => setResettingUser(null)} />
+        <EditUserPermissionsDialog user={permsUser} onClose={() => setPermsUser(null)} />
+        <ConfirmDialog
+          open={!!deletingUser}
+          title={ar.settings.users.deleteUser}
+          message={ar.settings.users.deleteUserConfirm}
+          onConfirm={() => deletingUser && deleteUserMut.mutate(deletingUser.id)}
+          onCancel={() => setDeletingUser(null)}
+        />
+        {deleteError && <p className="text-xs text-red-600 mt-1">{deleteError}</p>}
       </section>
 
-      {/* Permissions matrix block */}
+      {/* Role Permissions */}
       <section className="space-y-3">
         <h3 className="text-base font-semibold text-foreground">{ar.settings.permissions.title}</h3>
-        <div className="rounded-lg border border-border-subtle bg-surface-elevated overflow-x-auto">
-          <table className="text-xs min-w-max">
-            <thead>
-              <tr className="bg-surface-row-alt text-foreground-muted">
-                <th className="py-2.5 px-3 text-start font-medium min-w-48 sticky start-0 bg-surface-row-alt z-10 border-e border-border-subtle">
-                  {ar.settings.permissions.resource}
-                </th>
-                {(['read', 'write', 'approve'] as const).flatMap((action) => [
-                  <th key={`seller-${action}`} className="py-2.5 px-3 text-center font-medium whitespace-nowrap">
-                    {ar.settings.permissions.shopSeller} / {ar.settings.permissions[action]}
-                  </th>,
-                  <th key={`factory-${action}`} className="py-2.5 px-3 text-center font-medium whitespace-nowrap">
-                    {ar.settings.permissions.factorySender} / {ar.settings.permissions[action]}
-                  </th>,
-                ])}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {RESOURCES.map((resource, ri) => (
-                <tr
-                  key={resource}
-                  className={cn(
-                    'hover:bg-surface-hover transition-colors duration-150',
-                    ri % 2 === 1 ? 'bg-surface-row-alt/40' : 'bg-surface-elevated',
-                  )}
-                >
-                  <td
-                    className={cn(
-                      'py-2 px-3 font-mono text-foreground-muted sticky start-0 z-10 border-e border-border-subtle',
-                      ri % 2 === 1 ? 'bg-surface-row-alt' : 'bg-surface-elevated',
-                    )}
-                  >
-                    {resource}
-                  </td>
-                  {(['read', 'write', 'approve'] as const).flatMap((action) => [
-                    <td key={`seller-${action}`} className="py-2 px-3 text-center">
-                      <input
-                        type="checkbox"
-                        className="size-4 accent-accent rounded cursor-pointer"
-                        checked={isAllowed('shop_seller', resource, action)}
-                        onChange={() => togglePerm('shop_seller', resource, action)}
-                      />
-                    </td>,
-                    <td key={`factory-${action}`} className="py-2 px-3 text-center">
-                      <input
-                        type="checkbox"
-                        className="size-4 accent-accent rounded cursor-pointer"
-                        checked={isAllowed('factory_sender', resource, action)}
-                        onChange={() => togglePerm('factory_sender', resource, action)}
-                      />
-                    </td>,
-                  ])}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <StickySaveBar
+        <RolePermissionsPanel
+          isAllowed={isAllowed}
+          onToggle={togglePerm}
+          dirty={matrixDirty}
           onSave={savePerms}
           saving={savePermsMut.isPending}
-          disabled={matrixDirty.size === 0}
         />
       </section>
+    </div>
+  );
+}
+
+// ─── Role Permissions Panel ──────────────────────────────────────────────────
+
+const ROLE_LABELS: Record<MatrixRole, string> = {
+  owner:          ar.settings.permissions.owner,
+  shop_seller:    ar.settings.permissions.shopSeller,
+  factory_sender: ar.settings.permissions.factorySender,
+};
+
+function RolePermissionsPanel({
+  isAllowed,
+  onToggle,
+  dirty,
+  onSave,
+  saving,
+}: {
+  isAllowed: (role: string, resource: string, action: string) => boolean;
+  onToggle: (role: string, resource: string, action: string) => void;
+  dirty: Map<string, boolean>;
+  onSave: () => void;
+  saving: boolean;
+}) {
+  const [activeRole, setActiveRole] = useState<MatrixRole>('owner');
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
+    new Set(['core', 'admin', 'hr']),
+  );
+
+  function toggleGroup(groupKey: string) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) next.delete(groupKey);
+      else next.add(groupKey);
+      return next;
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Role tab selector */}
+      <div className="relative flex border-b border-border-subtle">
+        {MATRIX_ROLES.map((role) => (
+          <button
+            key={role}
+            type="button"
+            onClick={() => setActiveRole(role)}
+            className={cn(
+              'relative px-4 py-2.5 text-sm transition-colors duration-150 ease-standard',
+              activeRole === role
+                ? 'text-foreground font-semibold'
+                : 'text-foreground-muted hover:text-foreground',
+            )}
+          >
+            {activeRole === role && (
+              <motion.span
+                layoutId="role-permissions-tab"
+                className="absolute -bottom-px inset-x-2 h-0.5 bg-accent rounded-full"
+                transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+              />
+            )}
+            <span className="relative">{ROLE_LABELS[role]}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Legend */}
+      <p className="text-xs text-foreground-muted">{ar.settings.permissions.legend}</p>
+
+      {/* Module groups */}
+      <div className="space-y-2">
+        {RESOURCE_GROUPS.map((group) => {
+          const isExpanded = expandedGroups.has(group.groupKey);
+          const isReports = group.groupKey === 'reports';
+          const allowedReportsCount = isReports
+            ? group.resources.filter((r) => isAllowed(activeRole, r.key, 'read')).length
+            : 0;
+
+          return (
+            <div key={group.groupKey} className="rounded-lg border border-border-subtle overflow-hidden">
+              {/* Group header */}
+              <button
+                type="button"
+                className="w-full flex items-center justify-between px-3 py-2.5 bg-surface-row-alt hover:bg-surface-hover transition-colors duration-150"
+                onClick={() => toggleGroup(group.groupKey)}
+              >
+                <span className="text-sm font-semibold text-foreground-muted">
+                  {ar.settings.permissions.groups[group.groupKey] ?? group.groupKey}
+                  {isReports && (
+                    <span className="ms-2 text-xs font-normal text-foreground-muted/70">
+                      ({allowedReportsCount}/{group.resources.length} مسموح)
+                    </span>
+                  )}
+                </span>
+                <span className="text-foreground-muted/60 text-xs">{isExpanded ? '▲' : '▼'}</span>
+              </button>
+
+              {/* Resource rows */}
+              {isExpanded && (
+                <div className="divide-y divide-border-subtle">
+                  {group.resources.map((def) => {
+                    const desc = (ar.settings.permissions.descriptions as Record<string, string>)[
+                      def.descriptionKey ?? def.key
+                    ];
+                    return (
+                      <div
+                        key={def.key}
+                        className="px-3 py-2.5 flex items-center justify-between gap-4 bg-surface-elevated hover:bg-surface-hover/50 transition-colors duration-150"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-foreground">
+                            {(ar.settings.permissions.resources as Record<string, string>)[def.key] ?? def.key}
+                          </div>
+                          {desc && (
+                            <div className="text-xs text-foreground-muted/70 mt-0.5">{desc}</div>
+                          )}
+                        </div>
+                        <div className="flex gap-1.5 flex-shrink-0 flex-wrap justify-end">
+                          {def.actions.map((action) => {
+                            const allowed = isAllowed(activeRole, def.key, action);
+                            return (
+                              <button
+                                key={action}
+                                type="button"
+                                onClick={() => onToggle(activeRole, def.key, action)}
+                                className={cn(
+                                  'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-150 whitespace-nowrap border',
+                                  allowed
+                                    ? 'bg-accent/10 text-accent border-accent/30 hover:bg-accent/20'
+                                    : 'bg-surface-elevated text-foreground-muted border-border-default hover:border-foreground-muted/40',
+                                )}
+                              >
+                                <span className="text-[10px]">{allowed ? '✓' : '✕'}</span>
+                                {(ar.settings.permissions.actions as Record<string, string>)[action] ?? action}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <StickySaveBar onSave={onSave} saving={saving} disabled={dirty.size === 0} />
     </div>
   );
 }
@@ -843,45 +747,6 @@ function ReasonCodesSection({ settings, onSave, notifySaved }: SectionProps) {
         <h3 className="text-base font-semibold text-foreground">{ar.settings.reasonCodes.cancellation}</h3>
         <ReasonCodeList items={cancel} onChange={setCancel} />
       </section>
-      <StickySaveBar onSave={save} saving={saving} />
-    </div>
-  );
-}
-
-// ─── Section: Day rollover ──────────────────────────────────────────────────
-
-function DayRolloverSection({ settings, onSave, notifySaved }: SectionProps) {
-  const [time, setTime] = useState(String(settings['day_rollover.time'] ?? '00:00'));
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function save() {
-    setError(null);
-    setSaving(true);
-    try {
-      await onSave('day_rollover.time', time);
-      notifySaved();
-    } catch (e) {
-      setError(extractApiError(e));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className={cn('space-y-5', saving && 'opacity-70 pointer-events-none')}>
-      {error && <SaveErrorBanner message={error} onDismiss={() => setError(null)} />}
-      <FieldRow label={ar.settings.dayRollover.time}>
-        <input
-          type="time"
-          className={cn(
-            'h-10 w-40 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground tabular-num',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:border-accent transition-colors duration-75',
-          )}
-          value={time}
-          onChange={(e) => setTime(e.target.value)}
-        />
-      </FieldRow>
       <StickySaveBar onSave={save} saving={saving} />
     </div>
   );
@@ -1328,27 +1193,16 @@ function FabricCodesSection({ notifySaved }: { notifySaved: () => void }) {
   );
 }
 
-// ─── Section: System (read-only) ────────────────────────────────────────────
-
-function SystemSection() {
-  return (
-    <div className="rounded-lg border border-border-subtle bg-surface-elevated overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle last:border-b-0">
-        <span className="text-sm text-foreground-muted">{ar.settings.system.auditRetention}</span>
-        <span className="text-sm font-medium text-foreground">{ar.settings.system.auditRetentionValue}</span>
-      </div>
-    </div>
-  );
-}
-
 // ─── Sub-nav (desktop) ──────────────────────────────────────────────────────
 
 function DesktopSubNav({
   active,
   onChange,
+  sections,
 }: {
   active: Section;
   onChange: (s: Section) => void;
+  sections: SettingsSection[];
 }) {
   return (
     <aside
@@ -1356,7 +1210,7 @@ function DesktopSubNav({
       aria-label="Settings sections"
     >
       <nav className="rounded-lg border border-border-subtle bg-surface-elevated p-2 space-y-0.5 shadow-sm">
-        {SETTINGS_SECTIONS.map((s) => {
+        {sections.map((s) => {
           const Icon = s.icon;
           const isActive = active === s.id;
           return (
@@ -1403,9 +1257,11 @@ function DesktopSubNav({
 function MobileChipRow({
   active,
   onChange,
+  sections,
 }: {
   active: Section;
   onChange: (s: Section) => void;
+  sections: SettingsSection[];
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
 
@@ -1423,7 +1279,7 @@ function MobileChipRow({
     <div className="md:hidden sticky top-[52px] z-sticky -mx-3 px-3 py-2 bg-surface/95 backdrop-blur border-b border-border-subtle">
       <div ref={scrollerRef} className="overflow-x-auto -mx-1 px-1 no-scrollbar">
         <div className="flex gap-2 w-max">
-          {SETTINGS_SECTIONS.map((s) => {
+          {sections.map((s) => {
             const isActive = active === s.id;
             return (
               <button
@@ -1507,7 +1363,7 @@ export function SettingsPage() {
     requestAnimationFrame(() => setToastOpen(true));
   }
 
-  if (user?.role !== 'owner') {
+  if (!isOwnerOrAbove(user?.role)) {
     return (
       <div dir="rtl" className="max-w-2xl mx-auto py-12">
         <ErrorBanner title={ar.common.error} description={ar.common.error} />
@@ -1515,6 +1371,7 @@ export function SettingsPage() {
     );
   }
 
+  const sections = visibleSettingsSections(user?.role);
   const sectionMeta = settingsSectionById(activeSection);
 
   function renderSection() {
@@ -1531,29 +1388,18 @@ export function SettingsPage() {
     switch (activeSection) {
       case 'general':
         return <GeneralSection settings={settings} onSave={handleSave} notifySaved={notifySaved} />;
-      case 'tax':
-        return <TaxSection settings={settings} onSave={handleSave} notifySaved={notifySaved} />;
-      case 'pos':
-        return <PosSection settings={settings} onSave={handleSave} notifySaved={notifySaved} />;
-      case 'cashDrawer':
-        return <CashDrawerSection />;
-      case 'banks':
-        return <BanksSection notifySaved={notifySaved} />;
       case 'usersPermissions':
+        if (!isSuperAdmin(user?.role)) return null;
         return <UsersPermissionsSection notifySaved={notifySaved} />;
       case 'reasonCodes':
         return <ReasonCodesSection settings={settings} onSave={handleSave} notifySaved={notifySaved} />;
-      case 'dayRollover':
-        return <DayRolloverSection settings={settings} onSave={handleSave} notifySaved={notifySaved} />;
-      case 'system':
-        return <SystemSection />;
       case 'fabricCodes':
         return <FabricCodesSection notifySaved={notifySaved} />;
     }
   }
 
-  // Ensure mobile chip row's active state stays in sync if SECTION_IDS shrinks.
-  if (!SETTINGS_SECTION_IDS.includes(activeSection)) {
+  // Ensure active section is within the visible set for this user.
+  if (!SETTINGS_SECTION_IDS.includes(activeSection) || !sections.some((s) => s.id === activeSection)) {
     return null;
   }
 
@@ -1562,10 +1408,10 @@ export function SettingsPage() {
       <PageHeader title={ar.settings.title} description={sectionMeta.descAr} />
 
       {/* Mobile sub-nav: horizontal scroll chip row sticky under the TopBar. */}
-      <MobileChipRow active={activeSection} onChange={setActiveSection} />
+      <MobileChipRow active={activeSection} onChange={setActiveSection} sections={sections} />
 
       <div className="flex gap-6 items-start">
-        {isDesktop && <DesktopSubNav active={activeSection} onChange={setActiveSection} />}
+        {isDesktop && <DesktopSubNav active={activeSection} onChange={setActiveSection} sections={sections} />}
 
         <main className="flex-1 min-w-0">
           <div className="rounded-lg border border-border-subtle bg-surface-elevated shadow-sm">

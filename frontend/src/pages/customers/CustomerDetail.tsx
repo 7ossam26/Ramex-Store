@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { ChevronRight } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { customersApi } from '@/lib/customers-api';
+import { extractApiError } from '@/lib/api-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -58,6 +59,7 @@ export function CustomerDetailPage() {
   const [tab, setTab] = useState<Tab>('ledger');
   const [ledgerPage, setLedgerPage] = useState(1);
   const [editOpen, setEditOpen] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
   const qc = useQueryClient();
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -82,7 +84,9 @@ export function CustomerDetailPage() {
       qc.invalidateQueries({ queryKey: ['customer', customerId] });
       qc.invalidateQueries({ queryKey: ['customers'] });
       setEditOpen(false);
+      setUpdateError(null);
     },
+    onError: (e) => setUpdateError(extractApiError(e)),
   });
 
   const openEdit = () => {
@@ -336,9 +340,9 @@ export function CustomerDetailPage() {
                 <Input {...form.register('notes_ar')} dir="rtl" />
               </div>
             </div>
-            {update.error && (
+            {updateError && (
               <p className="text-sm text-danger transition-opacity duration-75 ease-standard" role="alert">
-                {(update.error as { response?: { data?: { message?: string } } })?.response?.data?.message ?? ar.common.error}
+                {updateError}
               </p>
             )}
             <div className="flex gap-2 justify-end">

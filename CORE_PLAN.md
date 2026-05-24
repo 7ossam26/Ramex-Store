@@ -100,12 +100,15 @@ This repo exposes **Owner read-only API endpoints** (Module 13) for the Dashboar
 
 | Role | Purpose | Access |
 |---|---|---|
-| **Owner** | Business owner | Full admin: see + edit everything |
+| **Super Admin** | Platform bootstrap account | Everything Owner can do, PLUS user CRUD and role-permissions matrix |
+| **Owner** | Business owner | Full admin for ops: see + edit settings, items, finance, inventory, reports — but NOT user management or permissions |
 | **Shop Seller** (Ziad) | Daily POS operator | POS + customers + receive shipments + cash drawer |
 | **Factory Sender** (Ahmed) | Factory side | Create outbound shipments only; sees Factory Warehouse stock |
 
-- User CRUD: Owner only.
-- Password reset: Owner only (no self-service "forgot password").
+> **Amendment 2026-05-24**: A 4th role `super_admin` was introduced above Owner at the explicit request of the business owner. Owner remains the business-side full admin for day-to-day ops. User CRUD and the role-permissions matrix moved from Owner to Super Admin exclusively. The Settings → "المستخدمون والصلاحيات" sub-section is hidden from Owner entirely and only visible to Super Admin. Super Admin is seeded once at install (`username: superadmin`, default password `ChangeMe123!` — must be changed on first login).
+
+- User CRUD: Super Admin only.
+- Password reset: Super Admin only (no self-service "forgot password").
 - Concurrent sessions: blocked (same user cannot be logged into 2 devices simultaneously).
 - No auto-logout on inactivity.
 - Online-only (no offline mode); notify user if connectivity lost.
@@ -138,7 +141,7 @@ This repo exposes **Owner read-only API endpoints** (Module 13) for the Dashboar
 - Required fields per master fabric: Grade, Width (cm), Composition (% breakdown).
 - Required fields per roll: Roll SR# (factory), Color, Color code, Order #, Weight (kg), Status.
 - Roll status: `in_stock | reserved | sold | damaged | sample | returned | written_off`.
-- Pricing: stored per roll; **default from fabric+color, override per roll allowed**.
+- Pricing: **set per روول at shipment receive time by the shop seller** (NOT by the factory user, NOT at AddTop time). Reports compare POS sale price vs receive-time price to track per-invoice discount/diff. `fabric_color_prices` table exists for a future "suggested defaults" feature but is not consulted in the v1 flow.
 - Single price tier (no B2B/B2C distinction).
 - Sample flag = boolean on roll record (toggle hide/show from POS).
 - "Roll" = الطوب in Arabic. Rename "لفات" → "توب" everywhere.
@@ -282,7 +285,7 @@ This repo exposes **Owner read-only API endpoints** (Module 13) for the Dashboar
 | Cash Drawer | Initial opening balance (set once) |
 | Bank Accounts | CRUD + active flag |
 | Receipt | Logo, header field toggles, warning text, A4 layout |
-| Users & Roles | User CRUD, role permissions matrix |
+| Users & Roles | User CRUD, role permissions matrix **(super admin only — hidden from Owner)** |
 | Reason Codes | Damage/loss codes (editable), expense categories (editable), cancellation reasons (editable) |
 | Day Rollover | Time of day for daily report cutoff |
 | System | Audit retention=forever (read-only display) |
@@ -299,17 +302,18 @@ This repo exposes **Owner read-only API endpoints** (Module 13) for the Dashboar
 
 ---
 
-## 8. Factory Shipment Flow (cross-cutting)
+## 8. Factory Shipment Flow (cross-cutting) — THE ONLY entry path for رولات
 
-1. Ahmed creates shipment, adds rolls **one by one** (scan or manual entry).
+0. Ahmed (Factory Sender) first **adds رولات via the AddTop wizard** — رولات land in Factory Warehouse with `status='in_stock'`, no selling price. Barcodes printed at this step.
+1. Ahmed creates a shipment and **picks from existing factory رولات** (scan or table picker). No inline roll creation from CreateShipment.
 2. Whole shipment = single transaction unit.
-3. On submit → rolls deducted from Factory Warehouse, shipment marked `Pending Approval`.
+3. On submit → shipment marked `Pending Approval` (رولات remain in Factory Warehouse, locked into the shipment line).
 4. Ziad receives notification.
-5. Ziad reviews; can **partial-approve** (subset of rolls accepted) or full-reject.
-6. Approved rolls → added to Shop Warehouse (status `in_stock`).
-7. Rejected rolls → returned to Factory Warehouse + audit + Owner notification.
+5. Ziad reviews; for each accepted روول he **enters the selling price (ج.م/كجم)** before accepting. Can **partial-approve** (subset of rolls accepted) or full-reject.
+6. Finalize: accepted رولات → Shop Warehouse with `selling_price_egp` set, `received_at` stamped, `status` stays `in_stock`. Audit event `set_selling_price_at_receive` per accepted line.
+7. Rejected رولات → stay in Factory Warehouse + audit + Owner notification.
 8. **Ziad books the purchase invoice manually** after approval (separate transaction).
-9. Purchase price field = **optional**; Ahmed *can* pre-fill from factory invoice for reference; Ziad sets/edits final value at booking.
+9. Purchase price field = **optional** on the روول (can be entered at AddTop time as factory cost reference); Ziad sets/edits final value at booking.
 
 ---
 
@@ -317,7 +321,7 @@ This repo exposes **Owner read-only API endpoints** (Module 13) for the Dashboar
 
 - **Manual entry only** (no bulk Excel import in v1).
 - Owner creates: users, fabric masters, colors, initial bank accounts, opening cash drawer balance, settings.
-- Initial roll inventory: entered through a "system seeding" mode (admin-only) that creates `in_stock` rolls without going through factory shipment flow.
+- Initial roll inventory: **goes through the same factory shipment flow** as everything else — Ahmed (or Owner acting as factory) adds رولات in AddTop (lands in Factory Warehouse), creates a shipment, Ziad receives and prices. There is no longer a "system seeding" backdoor that places رولات directly into the Shop Warehouse.
 
 ---
 

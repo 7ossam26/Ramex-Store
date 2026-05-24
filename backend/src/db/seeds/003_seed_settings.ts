@@ -2,7 +2,6 @@ import type { Knex } from 'knex';
 
 const PHASE_2_DEFAULTS: Array<{ key: string; value: unknown }> = [
   { key: 'approval_threshold_egp', value: 5000 },
-  { key: 'day_rollover_time', value: '00:00' },
   {
     key: 'damage_reason_codes',
     value: [

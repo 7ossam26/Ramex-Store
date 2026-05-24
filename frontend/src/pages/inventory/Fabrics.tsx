@@ -7,6 +7,7 @@ import { codesApi } from '@/lib/codes-api';
 import type {
   CreateFabricInput,
   FabricFull,
+  FabricUnit,
   UpdateFabricInput,
 } from '@/lib/inventory-types';
 import { Button } from '@/components/ui/button';
@@ -19,16 +20,18 @@ import {
   DialogTitle,
 } from '@/components/ResponsiveDialog';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/Layout/PageShell';
 import { StatusPill } from '@/components/StatusPill';
 import { useAuth } from '@/lib/auth';
+import { isOwnerOrAbove } from '@/lib/roles';
+import { extractApiError } from '@/lib/api-error';
 
 type CompositionRow = { material: string; percent: string };
 
 type FormState = {
   name_ar: string;
   width_cm: string;
-  grade: string;
+  unit: FabricUnit;
   notes: string;
   composition: CompositionRow[];
   is_active: boolean;
@@ -40,7 +43,7 @@ type FormState = {
 const blank = (): FormState => ({
   name_ar: '',
   width_cm: '',
-  grade: 'A',
+  unit: 'kg',
   notes: '',
   composition: [{ material: '', percent: '100' }],
   is_active: true,
@@ -53,7 +56,7 @@ function fromFabric(f: FabricFull & { default_grade_id?: number | null; default_
   return {
     name_ar: f.name_ar,
     width_cm: String(f.width_cm),
-    grade: f.grade,
+    unit: f.unit,
     notes: f.notes ?? '',
     composition:
       f.composition.length > 0
@@ -73,7 +76,7 @@ function compositionSummary(items: FabricFull['composition']): string {
 export function FabricsPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const isOwner = user?.role === 'owner';
+  const isOwner = isOwnerOrAbove(user?.role);
 
   const fabricsQ = useQuery({
     queryKey: ['fabrics-full'],
@@ -118,7 +121,7 @@ export function FabricsPage() {
       qc.invalidateQueries({ queryKey: ['fabrics'] });
       close();
     },
-    onError: (e: unknown) => setErrorMsg(extractErr(e)),
+    onError: (e: unknown) => setErrorMsg(extractApiError(e)),
   });
 
   const updateMut = useMutation({
@@ -129,7 +132,7 @@ export function FabricsPage() {
       qc.invalidateQueries({ queryKey: ['fabrics'] });
       close();
     },
-    onError: (e: unknown) => setErrorMsg(extractErr(e)),
+    onError: (e: unknown) => setErrorMsg(extractApiError(e)),
   });
 
   function buildPayload(): CreateFabricInput | null {
@@ -151,16 +154,17 @@ export function FabricsPage() {
       setErrorMsg(ar.addTop.errors.widthRequired);
       return null;
     }
-    if (!form.name_ar.trim() || !form.grade.trim()) {
+    if (!form.name_ar.trim()) {
       setErrorMsg(ar.addTop.errors.fabricFieldsRequired);
       return null;
     }
     return {
       name_ar: form.name_ar.trim(),
       width_cm: widthCm,
-      grade: form.grade.trim(),
+      grade: 'A',
       composition,
       notes: form.notes.trim() || null,
+      unit: form.unit,
     };
   }
 
@@ -201,9 +205,9 @@ export function FabricsPage() {
         cell: (f) => <span dir="ltr">{Number(f.width_cm).toFixed(2)} cm</span>,
       },
       {
-        key: 'grade',
-        header: ar.fabrics.grade,
-        cell: (f) => f.grade,
+        key: 'unit',
+        header: ar.fabrics.unit,
+        cell: (f) => (f.unit === 'meter' ? ar.fabrics.unitMeter : ar.fabrics.unitKg),
       },
       {
         key: 'composition',
@@ -226,16 +230,16 @@ export function FabricsPage() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4" dir="rtl">
-      <PageHeader
-        title={ar.fabrics.title}
-        description={ar.hubs.inventoryFabricsDesc}
-        actions={
-          isOwner && (
-            <Button onClick={openCreate}>+ {ar.fabrics.addFabric}</Button>
-          )
-        }
-      />
+    <PageShell
+      title={ar.fabrics.title}
+      description={ar.hubs.inventoryFabricsDesc}
+      backTo="/items"
+      actions={
+        isOwner && (
+          <Button onClick={openCreate}>+ {ar.fabrics.addFabric}</Button>
+        )
+      }
+    >
 
       <div className="text-sm text-foreground-muted">
         {ar.fabrics.hint}{' '}
@@ -296,25 +300,50 @@ export function FabricsPage() {
                 <Label>{ar.addTop.widthCm}</Label>
                 <Input
                   type="number"
-                  inputMode="decimal"
-                  step="0.5"
+                  inputMode="numeric"
+                  step="1"
                   value={form.width_cm}
                   onChange={(e) => setForm({ ...form, width_cm: e.target.value })}
                   dir="ltr"
                   className="h-11 md:h-10"
                 />
               </div>
-              <div className="space-y-1">
-                <Label>{ar.addTop.grade}</Label>
-                <select
-                  className="w-full h-11 md:h-10 rounded border border-border bg-canvas px-3 text-sm"
-                  value={form.grade}
-                  onChange={(e) => setForm({ ...form, grade: e.target.value })}
+              <div className="space-y-1 md:col-span-2">
+                <Label>{ar.fabrics.unit}</Label>
+                <div
+                  className="inline-flex rounded border border-border bg-canvas p-0.5 h-11 md:h-10"
+                  role="radiogroup"
+                  aria-label={ar.fabrics.unit}
                 >
-                  <option value="A">A</option>
-                  <option value="B">B</option>
-                  <option value="C">C</option>
-                </select>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={form.unit === 'kg'}
+                    onClick={() => setForm({ ...form, unit: 'kg' })}
+                    className={
+                      'cursor-pointer px-4 rounded-sm text-sm transition-colors ' +
+                      (form.unit === 'kg'
+                        ? 'bg-accent text-accent-foreground'
+                        : 'text-foreground-muted hover:text-foreground')
+                    }
+                  >
+                    {ar.fabrics.unitKg}
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={form.unit === 'meter'}
+                    onClick={() => setForm({ ...form, unit: 'meter' })}
+                    className={
+                      'cursor-pointer px-4 rounded-sm text-sm transition-colors ' +
+                      (form.unit === 'meter'
+                        ? 'bg-accent text-accent-foreground'
+                        : 'text-foreground-muted hover:text-foreground')
+                    }
+                  >
+                    {ar.fabrics.unitMeter}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -336,12 +365,16 @@ export function FabricsPage() {
                     <div className="flex items-center gap-1">
                       <Input
                         type="number"
-                        inputMode="decimal"
-                        step="0.1"
+                        inputMode="numeric"
+                        step="1"
                         value={c.percent}
                         onChange={(e) => {
                           const next = [...form.composition];
                           next[idx] = { ...c, percent: e.target.value };
+                          if (idx + 1 < next.length) {
+                            const sumExceptNext = next.reduce((s, row, i) => i !== idx + 1 ? s + (Number(row.percent) || 0) : s, 0);
+                            next[idx + 1] = { ...next[idx + 1], percent: String(Math.max(0, 100 - sumExceptNext)) };
+                          }
                           setForm({ ...form, composition: next });
                         }}
                         dir="ltr"
@@ -369,12 +402,11 @@ export function FabricsPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() =>
-                    setForm({
-                      ...form,
-                      composition: [...form.composition, { material: '', percent: '' }],
-                    })
-                  }
+                  onClick={() => {
+                    const used = form.composition.reduce((s, c) => s + (Number(c.percent) || 0), 0);
+                    const remaining = Math.max(0, 100 - used);
+                    setForm({ ...form, composition: [...form.composition, { material: '', percent: String(remaining) }] });
+                  }}
                 >
                   + {ar.addTop.addMaterial}
                 </Button>
@@ -475,15 +507,7 @@ export function FabricsPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }
 
-function extractErr(e: unknown): string {
-  return (
-    (e as { response?: { data?: { message?: string; error?: string } } })?.response?.data
-      ?.message ??
-    (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-    ar.common.error
-  );
-}

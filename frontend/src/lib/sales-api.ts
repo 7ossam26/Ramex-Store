@@ -1,8 +1,12 @@
 import { api } from './api';
 import type {
+  AddOpenInvoiceLinesBody,
   BankAccount,
   CancelOpenInvoiceBody,
+  Cheque,
+  ChequeDetails,
   CreateSaleBody,
+  DepositRefundBody,
   FinalPaymentBody,
   Invoice,
   InvoiceDetail,
@@ -10,9 +14,11 @@ import type {
   InvoiceStatusHistoryEntry,
   OpenInvoiceRow,
   PendingPickupRow,
+  ReturnScanMeta,
   RollLookup,
   SaleLineInput,
   SalePreview,
+  ScanReturnResult,
 } from './sales-types';
 
 export const salesApi = {
@@ -27,6 +33,7 @@ export const salesApi = {
   list: (params?: {
     status?: string;
     customer_id?: number;
+    fulfillment_destination?: 'shop' | 'factory_direct';
     date_from?: string;
     date_to?: string;
     page?: number;
@@ -65,8 +72,14 @@ export const salesApi = {
   cancelOpenInvoice: (id: number, body: CancelOpenInvoiceBody) =>
     api.post<{ invoice: Invoice }>(`/invoices/${id}/cancel`, body).then((r) => r.data),
 
-  pdfUrl: (id: number, variant: 'original' | 'reprint' | 'open' = 'original') =>
-    `/api/invoices/${id}/pdf?variant=${variant}`,
+  addOpenInvoiceLines: (id: number, body: AddOpenInvoiceLinesBody) =>
+    api.post<{ invoice: Invoice }>(`/invoices/${id}/lines`, body).then((r) => r.data),
+
+  depositRefund: (id: number, body: DepositRefundBody) =>
+    api.post<{ invoice: Invoice }>(`/invoices/${id}/deposit-refund`, body).then((r) => r.data),
+
+  auditReprint: (id: number) =>
+    api.post<void>(`/invoices/${id}/audit-reprint`).then(() => undefined),
 
   bankAccounts: () =>
     api.get<BankAccount[]>('/bank-accounts').then((r) => r.data),
@@ -81,4 +94,29 @@ export const salesApi = {
     warehouse?: string;
     is_visible_at_pos?: boolean;
   }) => api.get<RollLookup[]>('/rolls', { params }).then((r) => r.data),
+
+  // Phase 6 — Return on Scan
+  scanPreview: (rollId: number) =>
+    api.get<ReturnScanMeta>(`/returns/scan-preview/${rollId}`).then((r) => r.data),
+
+  scanReturn: (body: {
+    rollId: number;
+    refundMethod: 'cash' | 'instapay' | 'bank_transfer' | 'cheque';
+    bankAccountId?: number | null;
+    reference?: string | null;
+    chequeDetails?: ChequeDetails | null;
+  }) => api.post<ScanReturnResult>('/returns/from-scan', body).then((r) => r.data),
+
+  // Phase 7 — Cheques admin list
+  listCheques: (params?: {
+    status?: 'pending' | 'cleared' | 'bounced' | 'cancelled';
+    bank_name_ar?: string;
+    due_date_from?: string;
+    due_date_to?: string;
+    page?: number;
+    limit?: number;
+  }) =>
+    api
+      .get<{ rows: Cheque[]; total: number }>('/cheques', { params })
+      .then((r) => r.data),
 };

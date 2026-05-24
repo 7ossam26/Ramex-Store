@@ -1,6 +1,40 @@
-export type InvoiceStatus = 'open' | 'closed_pending_pickup' | 'completed' | 'cancelled';
-export type PaymentMethod = 'cash' | 'instapay';
+export type InvoiceStatus =
+  | 'open'
+  | 'closed_pending_pickup'
+  | 'completed'
+  | 'cancelled'
+  | 'deposit_refunded';
+export type PaymentMethod = 'cash' | 'instapay' | 'bank_transfer' | 'cheque';
 export type PaymentKind = 'deposit' | 'final' | 'refund';
+
+export type ChequeDetails = {
+  chequeNumber: string;
+  bankNameAr: string;
+  branchAr?: string | null;
+  issuerNameAr?: string | null;
+  issueDate: string;
+  dueDate: string;
+  notesAr?: string | null;
+};
+
+export type Cheque = {
+  id: number;
+  payment_id: number;
+  cheque_number: string;
+  bank_name_ar: string;
+  branch_ar: string | null;
+  issuer_name_ar: string | null;
+  amount_egp: string;
+  issue_date: string;
+  due_date: string;
+  status: 'pending' | 'cleared' | 'bounced' | 'cancelled';
+  notes_ar: string | null;
+  created_at: string;
+  updated_at: string;
+  invoice_no: string | null;
+  customer_name_ar: string | null;
+};
+export type FulfillmentDestination = 'shop' | 'factory_direct';
 
 export type Invoice = {
   id: number;
@@ -8,6 +42,7 @@ export type Invoice = {
   customer_id: number;
   cashier_user_id: number;
   status: InvoiceStatus;
+  fulfillment_destination: FulfillmentDestination;
   subtotal_egp: string;
   cart_discount_egp: string;
   tax_egp: string;
@@ -28,6 +63,7 @@ export type OpenInvoiceRow = InvoiceListRow & {
   age_days: number;
   is_stale: boolean;
   stale_threshold_days: number;
+  line_count: number;
 };
 export type PendingPickupRow = InvoiceListRow & { customer_phone: string };
 
@@ -49,6 +85,8 @@ export type FinalPaymentBody = {
     method: PaymentMethod;
     amount: number;
     bankAccountId?: number | null;
+    reference?: string | null;
+    chequeDetails?: ChequeDetails | null;
   }>;
 };
 
@@ -57,7 +95,22 @@ export type CancelOpenInvoiceBody = {
   refund_method?: PaymentMethod | null;
   partial_refund_amount?: number | null;
   bank_account_id?: number | null;
+  reference?: string | null;
+  cheque_details?: ChequeDetails | null;
   notes_ar: string;
+};
+
+export type AddOpenInvoiceLinesBody = {
+  lines: SaleLineInput[];
+  cartTargetFinal?: number | null;
+};
+
+export type DepositRefundBody = {
+  amountEgp: number;
+  method: PaymentMethod;
+  bankAccountId?: number | null;
+  reference?: string | null;
+  chequeDetails?: ChequeDetails | null;
 };
 
 export type InvoiceLineDetail = {
@@ -67,11 +120,15 @@ export type InvoiceLineDetail = {
   selling_price_egp: string;
   line_discount_egp: string;
   line_total_egp: string;
+  final_price_per_unit: string | null;
   fabric_name_ar: string;
+  fabric_unit: 'kg' | 'meter';
   color_name_ar: string;
   color_code: string | null;
   roll_sr_no: string | null;
   weight_kg: string;
+  length_m: string | null;
+  reference_price_per_unit: string | null;
   internal_barcode: string;
 };
 
@@ -82,6 +139,7 @@ export type Payment = {
   amount_egp: string;
   payment_kind: PaymentKind;
   bank_account_id: number | null;
+  reference: string | null;
   notes_ar: string | null;
   actor_user_id: number;
   created_at: string;
@@ -110,6 +168,7 @@ export type SalePreview = {
 export type SaleLineInput = {
   rollId: number;
   sellingPriceOverride?: number | null;
+  finalPricePerUnit?: number | null;
   lineDiscountEgp?: number | null;
 };
 
@@ -117,10 +176,13 @@ export type SalePaymentInput = {
   method: PaymentMethod;
   amount: number;
   bankAccountId?: number | null;
+  reference?: string | null;
+  chequeDetails?: ChequeDetails | null;
 };
 
 export type CreateSaleBody = {
   customerId: number;
+  fulfillmentDestination?: FulfillmentDestination;
   lines: SaleLineInput[];
   cartTargetFinal?: number | null;
   payments: SalePaymentInput[];
@@ -136,6 +198,30 @@ export type BankAccount = {
   current_balance_egp: string;
 };
 
+// Phase 6 — Return on Scan
+export type ReturnScanMeta = {
+  rollId: number;
+  rollInternalBarcode: string;
+  rollSrNo: string | null;
+  fabricNameAr: string;
+  colorNameAr: string;
+  colorCode: string | null;
+  refundEgp: number;
+  originalInvoiceId: number;
+  originalInvoiceNo: string;
+  customerNameAr: string;
+  customerPhone: string;
+  saleDate: string;
+};
+
+export type ScanReturnResult = {
+  id: number;
+  return_no: string;
+  total_refund_egp: string;
+  refundEgp: number;
+  originalInvoiceNo: string;
+};
+
 export type RollLookup = {
   id: number;
   internal_barcode: string;
@@ -144,11 +230,14 @@ export type RollLookup = {
   color_id: number;
   fabric_code: string;
   fabric_name_ar: string;
+  fabric_unit: 'kg' | 'meter';
   color_name_ar: string;
   color_code: string;
   roll_sr_no: string | null;
   weight_kg: string;
-  selling_price_egp: string;
+  length_m: string | null;
+  reference_price_per_unit: string | null;
+  selling_price_egp: string | null;
   status: string;
   warehouse: string;
   is_visible_at_pos: boolean;

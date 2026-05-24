@@ -1,5 +1,6 @@
 import type { Knex } from 'knex';
 import { db } from '../../db/connection.js';
+import { auditFromService } from '../inventory/audit.helper.js';
 import { notify } from '../notifications/notificationsService.js';
 
 export type CashEventType =
@@ -71,6 +72,7 @@ export async function recordMovement(
   refType?: string | null,
   refId?: number | null,
   notesAr?: string | null,
+  shiftId?: number | null,
 ): Promise<number> {
   const row = (await trx('cash_drawer').where({ id: 1 }).forUpdate().first()) as CashDrawerRow;
   const current = Number(row.current_balance_egp);
@@ -90,6 +92,7 @@ export async function recordMovement(
     balance_after_egp: newBalance,
     notes_ar: notesAr ?? null,
     actor_user_id: actorUserId,
+    shift_id: shiftId ?? null,
   }).returning('id');
 
   return Number(movementId);
@@ -186,3 +189,4 @@ export async function listMovements(params: {
     total: Number((countRow as { count: string }).count),
   };
 }
+

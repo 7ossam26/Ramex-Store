@@ -23,21 +23,26 @@ export type ShipmentLine = {
   id: number;
   shipment_id: number;
   roll_id: number;
-  factory_purchase_price_egp: string | null;
   status: ShipmentLineStatus;
   reject_reason_ar: string | null;
   created_at: Date;
   updated_at: Date;
 };
 
+export type ShipmentLineDetail = ShipmentLine & {
+  fabric_id: number;
+  fabric_name_ar: string;
+  fabric_unit: 'kg' | 'meter';
+  color_name_ar: string;
+  color_code: string;
+  weight_kg: string;
+  length_m: string | null;
+  reference_price_per_unit: string | null;
+  internal_barcode: string;
+};
+
 export type ShipmentWithLines = Shipment & {
-  lines: Array<ShipmentLine & {
-    fabric_name_ar: string;
-    color_name_ar: string;
-    color_code: string;
-    weight_kg: string;
-    internal_barcode: string;
-  }>;
+  lines: ShipmentLineDetail[];
 };
 
 export type DamageReasonCode =

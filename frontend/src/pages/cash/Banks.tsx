@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { Landmark, Plus, TrendingUp, TrendingDown, Star, Pencil } from 'lucide-react';
 import { financeApi } from '@/lib/finance-api';
 import { useAuth } from '@/lib/auth';
+import { isOwnerOrAbove } from '@/lib/roles';
 import { ar } from '@/i18n/ar';
 import type { BankAccount, BankMovement } from '@/lib/finance-types';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,7 @@ import {
   DialogClose,
 } from '@/components/ResponsiveDialog';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/Layout/PageShell';
 import { TableFilterBar } from '@/components/TableFilterBar';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorBanner } from '@/components/ErrorBanner';
@@ -56,7 +57,7 @@ type BankFormValues = {
 export function BanksPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const isOwner = user?.role === 'owner';
+  const isOwner = isOwnerOrAbove(user?.role);
 
   const [selectedBank, setSelectedBank] = useState<BankAccount | null>(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -217,19 +218,19 @@ export function BanksPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={ar.cash.banks}
-        description={ar.hubs.banksDesc}
-        actions={
-          isOwner ? (
-            <Button variant="accent" onClick={() => setShowCreate(true)} className="gap-1.5">
-              <Plus className="size-4" aria-hidden />
-              إضافة حساب بنكي
-            </Button>
-          ) : null
-        }
-      />
+    <PageShell
+      title={ar.cash.banks}
+      description={ar.hubs.banksDesc}
+      backTo="/treasury"
+      actions={
+        isOwner ? (
+          <Button variant="accent" onClick={() => setShowCreate(true)} className="gap-1.5">
+            <Plus className="size-4" aria-hidden />
+            إضافة حساب بنكي
+          </Button>
+        ) : null
+      }
+    >
 
       {/* Bank account cards */}
       {banksQ.isLoading ? (
@@ -553,6 +554,6 @@ export function BanksPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

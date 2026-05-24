@@ -11,7 +11,8 @@
     "test": "npm run test -w backend && npm run test -w frontend",
     "db:migrate": "npm run db:migrate -w backend",
     "db:migrate:rollback": "npm run db:migrate:rollback -w backend",
-    "db:seed": "npm run db:seed -w backend"
+    "db:seed": "npm run db:seed -w backend",
+    "db:wipe-inventory": "npm run db:wipe-inventory -w backend"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"

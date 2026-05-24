@@ -4,8 +4,8 @@ import { PDF_FONTS } from '../pdf/fonts.js';
 import type { RollWithLabelDetails } from '../../domain/items/items.types.js';
 
 const MM_TO_PT = 2.8346;
-const THERMAL_W = 80 * MM_TO_PT;   // 226.77pt
-const THERMAL_H = 120 * MM_TO_PT;  // 340.16pt
+const THERMAL_W = 100 * MM_TO_PT;  // 283.46pt
+const THERMAL_H = 150 * MM_TO_PT;  // 425.19pt
 const MARGIN = 6;
 
 let fontsReady = false;

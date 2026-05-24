@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScannerInput } from '@/components/ScannerInput';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/Layout/PageShell';
 import { StatusPill } from '@/components/StatusPill';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { EmptyState } from '@/components/EmptyState';
@@ -19,11 +19,10 @@ export function StocktakePage() {
   const [active, setActive] = useState<Stocktake | null>(null);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-4">
-      <PageHeader title={ar.stocktake.title} description={ar.hubs.inventoryStocktakeDesc} />
+    <PageShell title={ar.stocktake.title} description={ar.hubs.inventoryStocktakeDesc} backTo="/inventory">
       {!active ? <StartCard onStarted={setActive} /> : <RunStocktake stocktake={active} onComplete={() => setActive(null)} />}
       <PastStocktakes />
-    </div>
+    </PageShell>
   );
 }
 
@@ -221,7 +220,8 @@ function AggregateGrid({
               <td>{l.expected_count ?? '—'} / {l.expected_weight_kg ?? '—'}</td>
               <td className="flex gap-1">
                 <Input
-                  type="number" inputMode="decimal"
+                  type="number" inputMode="numeric"
+                  step="1"
                   className="w-20"
                   defaultValue={l.actual_count ?? ''}
                   onChange={(e) => setDraft((s) => ({ ...s, [l.id]: { ...s[l.id], count: e.target.value } }))}

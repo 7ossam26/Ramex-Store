@@ -226,6 +226,7 @@ export const createExpense: RequestHandler = async (req, res) => {
       bankAccountId: body.bank_account_id,
       notesAr: body.notes_ar,
       actorUserId: req.user!.sub,
+      shiftId: req.shiftId ?? null,
     });
     res.status(201).json(row);
   } catch (e) { handleErr(res, e); }

@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { extractApiError } from '@/lib/api-error';
 import { useForm } from 'react-hook-form';
 import { Inbox } from 'lucide-react';
 import { ar } from '@/i18n/ar';
@@ -8,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/Layout/PageShell';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorBanner } from '@/components/ErrorBanner';
@@ -23,6 +25,7 @@ type FormVals = {
 
 export function AdjustmentsPage() {
   const qc = useQueryClient();
+  const [createError, setCreateError] = useState<string | null>(null);
   const list = useQuery({ queryKey: ['adjustments'], queryFn: inventoryApi.listAdjustments });
 
   const create = useMutation({
@@ -36,16 +39,16 @@ export function AdjustmentsPage() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['adjustments'] });
+      setCreateError(null);
       form.reset();
     },
+    onError: (e) => setCreateError(extractApiError(e)),
   });
 
   const form = useForm<FormVals>();
 
   return (
-    <div className="max-w-5xl mx-auto space-y-4">
-      <PageHeader title={ar.adjustments.title} description={ar.hubs.inventoryAdjustmentsDesc} />
-
+    <PageShell title={ar.adjustments.title} description={ar.hubs.inventoryAdjustmentsDesc} backTo="/inventory">
       <Card>
         <CardHeader><CardTitle>{ar.adjustments.create}</CardTitle></CardHeader>
         <CardContent>
@@ -85,9 +88,9 @@ export function AdjustmentsPage() {
             </div>
             <div className="col-span-full flex items-center gap-3 flex-wrap">
               <Button type="submit" disabled={create.isPending}>{ar.adjustments.create}</Button>
-              {create.error && (
+              {createError && (
                 <span className="text-sm text-danger transition-opacity duration-75 ease-standard" role="alert">
-                  {(create.error as { response?: { data?: { message?: string } } })?.response?.data?.message ?? ar.common.error}
+                  {createError}
                 </span>
               )}
             </div>
@@ -134,6 +137,6 @@ export function AdjustmentsPage() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </PageShell>
   );
 }

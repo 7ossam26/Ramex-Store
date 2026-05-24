@@ -76,7 +76,7 @@ function SummaryStat({
   );
 }
 
-function DailyReportContent({ report }: { report: DailyReport }) {
+export function DailyReportContent({ report }: { report: DailyReport }) {
   const ss = report.sales_summary;
 
   return (
@@ -173,27 +173,9 @@ function DailyReportContent({ report }: { report: DailyReport }) {
         />
       </div>
 
-      {/* 5. Bank movements */}
+      {/* 5. Sales by fabric */}
       <ReportTable
-        title="5. حركات البنوك"
-        columns={[
-          { label: 'البنك', key: 'bank_name_ar' },
-          { label: 'الاتجاه', key: 'dir_ar' },
-          { label: 'النوع', key: 'event_type' },
-          { label: 'المبلغ (ج.م)', key: 'amount_egp' },
-          { label: 'الوقت', key: 'created_at' },
-        ]}
-        rows={report.bank_movements.map((m) => ({
-          ...m,
-          dir_ar: m.direction === 'in' ? '↑ داخل' : '↓ خارج',
-          amount_egp: fmt(m.amount_egp),
-        }))}
-        emptyText="لا توجد حركات بنكية اليوم"
-      />
-
-      {/* 6. Sales by fabric */}
-      <ReportTable
-        title="6. المبيعات حسب الخامة واللون"
+        title="5. المبيعات حسب الخامة واللون"
         columns={[
           { label: 'الخامة', key: 'fabric_name_ar' },
           { label: 'اللون', key: 'color_name_ar' },
@@ -209,9 +191,9 @@ function DailyReportContent({ report }: { report: DailyReport }) {
         emptyText="لا توجد مبيعات اليوم"
       />
 
-      {/* 7. Open invoices summary */}
+      {/* 6. Open invoices summary */}
       <ReportTable
-        title="7. الفواتير المفتوحة"
+        title="6. الفواتير المفتوحة"
         columns={[
           { label: 'البيان', key: 'label' },
           { label: 'العدد', key: 'count' },
@@ -231,9 +213,9 @@ function DailyReportContent({ report }: { report: DailyReport }) {
         ]}
       />
 
-      {/* 8. Stock movements */}
+      {/* 7. Stock movements */}
       <ReportTable
-        title="8. حركات المخزون"
+        title="7. حركات المخزون"
         columns={[
           { label: 'نوع الحركة', key: 'event_type' },
           { label: 'العدد', key: 'count' },

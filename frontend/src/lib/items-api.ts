@@ -15,10 +15,15 @@ export const itemsApi = {
   getRollDetail: (rollId: number) =>
     api.get<RollWithLabelDetails>(`/rolls/${rollId}`).then((r) => r.data),
 
-  labelPdfUrl: (rollId: number) => `/api/rolls/${rollId}/label-pdf`,
+  labelPdfBlob: (rollId: number) =>
+    api
+      .get<Blob>(`/rolls/${rollId}/label-pdf`, { responseType: 'blob' })
+      .then((r) => r.data),
 
-  fabricLabelUrl: (rollId: number, format: 'thermal' | 'a4' = 'thermal') =>
-    `/api/rolls/${rollId}/fabric-label?format=${format}`,
+  fabricLabelBlob: (rollId: number, format: 'thermal' | 'a4' = 'thermal') =>
+    api
+      .get<Blob>(`/rolls/${rollId}/fabric-label`, { params: { format }, responseType: 'blob' })
+      .then((r) => r.data),
 
   reprintLabel: (rollId: number, reason: string) =>
     api

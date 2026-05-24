@@ -1,0 +1,323 @@
+/* ============================================================
+ * DraftInvoiceDocument.css — RMX Draft Invoice print layout
+ * @page is at the top level (spec-compliant).
+ * Scoped under .rmx-draft-* so nothing leaks to other pages.
+ * ============================================================ */
+
+@page {
+  size: A4;
+  margin: 15mm;
+}
+
+/* ---- On-screen: A4 paper on gray backdrop ------------------- */
+@media screen {
+  .rmx-draft-doc-route {
+    min-height: 100vh;
+    background: #e5e7eb;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-bottom: 40px;
+  }
+
+  .rmx-draft-doc {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 15mm;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+    margin-top: 8px;
+    box-sizing: border-box;
+  }
+
+  .rmx-draft-page-break {
+    height: 12px;
+    width: 210mm;
+  }
+}
+
+/* ---- Print --------------------------------------------------- */
+@media print {
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  .rmx-draft-doc {
+    width: 100% !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    min-height: unset !important;
+  }
+
+  .rmx-draft-doc-toolbar {
+    display: none !important;
+  }
+
+  .rmx-draft-page-break {
+    height: 0;
+    break-after: page;
+    page-break-after: always;
+  }
+}
+
+/* ---- Document base ------------------------------------------ */
+.rmx-draft-doc {
+  background: #fff;
+  color: #000;
+  font-family: 'Cairo', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 9pt;
+  line-height: 1.35;
+  direction: rtl;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  box-sizing: border-box;
+}
+
+/* ---- Header band: ONLY the brand name (RMX). No other content. ---- */
+.rmx-draft-header {
+  border-bottom: 0.5pt solid #ccc;
+  padding-bottom: 3mm;
+  margin-bottom: 4mm;
+}
+
+.rmx-draft-brand {
+  font-size: 32pt;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #000;
+  line-height: 1;
+}
+
+/* ---- Masthead: document title, right-aligned, large gray ---- */
+.rmx-draft-masthead {
+  direction: rtl;
+  text-align: right;
+  margin-bottom: 6mm;
+}
+
+.rmx-draft-title {
+  font-size: 24pt;
+  font-weight: 400;
+  color: #9ca3af;
+  margin: 0;
+  line-height: 1.1;
+}
+
+/* ---- Info grid (2–3 columns; count set via inline style) ---- */
+.rmx-draft-info-grid {
+  display: grid;
+  direction: rtl;
+  margin-bottom: 4mm;
+  border: 0.5pt solid #bbb;
+}
+
+.rmx-draft-info-cell {
+  padding: 2.5mm 3mm;
+  text-align: center;
+  border-right: 0.5pt solid #bbb;
+}
+
+.rmx-draft-info-cell:last-child {
+  border-right: none;
+}
+
+.rmx-draft-info-label {
+  display: block;
+  font-size: 7.5pt;
+  font-weight: 500;
+  color: #666;
+  margin-bottom: 1mm;
+  text-align: center;
+}
+
+.rmx-draft-info-value {
+  display: block;
+  font-size: 10pt;
+  font-weight: 600;
+  color: #000;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Customer block: stacked label-above-value grid --------- */
+/* direction:rtl + DOM order [name][code] → name lands right, code left.
+ * No colon anywhere — sidesteps Arabic bidi ambiguity entirely.       */
+.rmx-draft-cust-block {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(40mm, max-content));
+  gap: 0 14mm;
+  direction: rtl;
+  border: 0.5pt solid #bbb;
+  padding: 3mm 4mm;
+  margin-bottom: 5mm;
+}
+
+.rmx-draft-cust-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5mm;
+}
+
+.rmx-draft-cust-label {
+  font-size: 8pt;
+  font-weight: 600;
+  color: #666;
+}
+
+.rmx-draft-cust-value {
+  font-size: 11pt;
+  font-weight: 700;
+  color: #000;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Line items table --------------------------------------- */
+.rmx-draft-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin-bottom: 5mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  direction: rtl;
+  clear: both;
+}
+
+.rmx-draft-table thead th {
+  font-size: 8.5pt;
+  font-weight: 700;
+  background: #f3f3f3;
+  padding: 2mm 2.5mm;
+  border-top: 0.5pt solid #000;
+  border-bottom: 0.5pt solid #000;
+  text-align: center;
+}
+
+.rmx-draft-table thead th:first-child {
+  text-align: right;
+}
+
+.rmx-draft-table tbody td {
+  font-size: 9pt;
+  padding: 2mm 2.5mm;
+  border-bottom: 0.25pt solid #ccc;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.rmx-draft-table tbody td:first-child {
+  text-align: right;
+}
+
+.rmx-draft-table tbody tr:last-child td {
+  border-bottom: 0.5pt solid #000;
+}
+
+/* Column widths (6 columns — tax column removed) */
+.rmx-draft-col-desc  { width: 38%; }
+.rmx-draft-col-bolts { width: 9%; }
+.rmx-draft-col-qty   { width: 14%; }
+.rmx-draft-col-price { width: 14%; }
+.rmx-draft-col-disc  { width: 9%; }
+.rmx-draft-col-amt   { width: 16%; }
+
+/* ---- Totals box: anchored LEFT in the RTL document ---------- */
+/* In an RTL flex parent, flex-end resolves to the physical LEFT edge.
+ * (flex-start would push it to the right, which we don't want.)      */
+.rmx-draft-totals-wrap {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+.rmx-draft-totals {
+  width: 48%;
+  border: 0.5pt solid #bbb;
+}
+
+.rmx-draft-totals-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  direction: rtl;
+  padding: 2mm 3mm;
+  border-bottom: 0.25pt solid #eee;
+}
+
+.rmx-draft-totals-row:last-child {
+  border-bottom: none;
+  background: #f5f5f5;
+}
+
+.rmx-draft-totals-label {
+  font-size: 9pt;
+  font-weight: 500;
+  color: #333;
+}
+
+.rmx-draft-totals-value {
+  font-size: 9pt;
+  font-weight: 600;
+  color: #000;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.rmx-draft-totals-row--total .rmx-draft-totals-label,
+.rmx-draft-totals-row--total .rmx-draft-totals-value {
+  font-size: 11pt;
+  font-weight: 700;
+}
+
+/* ---- Notes section ------------------------------------------ */
+.rmx-draft-notes {
+  margin-bottom: 5mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  direction: rtl;
+}
+
+.rmx-draft-notes-heading {
+  font-size: 9pt;
+  font-weight: 700;
+  text-decoration: underline;
+  margin-bottom: 2.5mm;
+}
+
+.rmx-draft-notes-list {
+  margin: 0;
+  padding-right: 5mm;
+  padding-left: 0;
+  list-style: decimal;
+}
+
+.rmx-draft-notes-list li {
+  font-size: 7.5pt;
+  line-height: 1.4;
+  margin-bottom: 1.5mm;
+}
+
+/* ---- Footer warning ----------------------------------------- */
+.rmx-draft-footer {
+  font-size: 8pt;
+  font-weight: 600;
+  color: #333;
+  text-align: center;
+  border-top: 0.5pt solid #ccc;
+  padding-top: 3mm;
+  direction: rtl;
+  margin-top: auto;
+}
+
+/* ---- Page indicator (bottom-right, multi-page only) --------- */
+.rmx-draft-page-num {
+  direction: ltr;
+  text-align: right;
+  font-size: 7.5pt;
+  color: #888;
+  margin-top: 3mm;
+}

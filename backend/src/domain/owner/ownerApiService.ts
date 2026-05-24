@@ -137,7 +137,7 @@ export async function openInvoices() {
     .where('i.status', 'open')
     .select(
       'i.id', 'i.invoice_no', 'i.total_egp', 'i.paid_egp', 'i.balance_egp',
-      'i.created_at', 'c.full_name_ar as customer_name', 'c.phone as customer_phone',
+      'i.created_at', 'c.name_ar as customer_name', 'c.phone as customer_phone',
     )
     .orderBy('i.created_at', 'asc') as Array<Record<string, unknown>>;
 
@@ -209,13 +209,12 @@ export async function topFabrics(period: '7d' | '30d' | '90d' = '7d', limit = 10
 export async function ownerNotifications(includeArchived = false, page = 1, limit = 20) {
   const offset = (page - 1) * limit;
   const q = db('notifications')
-    .where('recipient_role', 'owner')
-    .orderBy('created_at', 'desc');
+    .where('recipient_role', 'owner');
 
   if (!includeArchived) q.whereNull('archived_at');
 
   const [countRow] = await q.clone().clearSelect().count<Array<{ count: string }>>('id as count');
-  const rows = await q.clone().select('*').limit(limit).offset(offset);
+  const rows = await q.clone().select('*').orderBy('created_at', 'desc').limit(limit).offset(offset);
 
   return { rows, total: Number((countRow as { count: string }).count) };
 }
@@ -317,7 +316,7 @@ export async function dailyTotals(from: string, to: string) {
       DATE(created_at AT TIME ZONE 'Africa/Cairo') AS date,
       COALESCE(SUM(CASE WHEN status NOT IN ('cancelled') THEN total_egp END), 0) AS revenue_egp,
       COALESCE(SUM(CASE WHEN status NOT IN ('cancelled') THEN
-        (SELECT COALESCE(SUM(r.purchase_price_egp * il2.line_total_egp / NULLIF(il2.selling_price_egp, 0)), 0)
+        (SELECT COALESCE(SUM(r.reference_price_per_unit * il2.line_total_egp / NULLIF(il2.selling_price_egp, 0)), 0)
          FROM invoice_lines il2
          JOIN rolls r ON il2.roll_id = r.id
          WHERE il2.invoice_id = invoices.id) END), 0) AS cost_egp

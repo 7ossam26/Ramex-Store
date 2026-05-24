@@ -1,6 +1,22 @@
-export type InvoiceStatus = 'open' | 'closed_pending_pickup' | 'completed' | 'cancelled';
-export type PaymentMethod = 'cash' | 'instapay';
+export type InvoiceStatus =
+  | 'open'
+  | 'closed_pending_pickup'
+  | 'completed'
+  | 'cancelled'
+  | 'deposit_refunded';
+export type PaymentMethod = 'cash' | 'instapay' | 'bank_transfer' | 'cheque';
+
+export type ChequeDetails = {
+  chequeNumber: string;
+  bankNameAr: string;
+  branchAr?: string | null;
+  issuerNameAr?: string | null;
+  issueDate: string; // YYYY-MM-DD
+  dueDate: string;   // YYYY-MM-DD
+  notesAr?: string | null;
+};
 export type PaymentKind = 'deposit' | 'final' | 'refund';
+export type FulfillmentDestination = 'shop' | 'factory_direct';
 
 export type Invoice = {
   id: number;
@@ -8,6 +24,7 @@ export type Invoice = {
   customer_id: number;
   cashier_user_id: number;
   status: InvoiceStatus;
+  fulfillment_destination: FulfillmentDestination;
   subtotal_egp: string;
   cart_discount_egp: string;
   tax_egp: string;
@@ -30,6 +47,7 @@ export type InvoiceLine = {
   selling_price_egp: string;
   line_discount_egp: string;
   line_total_egp: string;
+  final_price_per_unit: string | null;
 };
 
 export type Payment = {
@@ -39,6 +57,7 @@ export type Payment = {
   amount_egp: string;
   payment_kind: PaymentKind;
   bank_account_id: number | null;
+  reference: string | null;
   notes_ar: string | null;
   actor_user_id: number;
   created_at: string;
@@ -56,10 +75,13 @@ export type SalePreview = {
 
 export type InvoiceLineWithDetail = InvoiceLine & {
   fabric_name_ar: string;
+  fabric_unit: 'kg' | 'meter';
   color_name_ar: string;
   color_code: string | null;
   roll_sr_no: string | null;
   weight_kg: string;
+  length_m: string | null;
+  reference_price_per_unit: string | null;
   internal_barcode: string;
 };
 
@@ -75,9 +97,11 @@ export type InvoiceDetail = Invoice & {
 
 export type CreateSaleInput = {
   customerId: number;
+  fulfillmentDestination?: FulfillmentDestination;
   lines: Array<{
     rollId: number;
     sellingPriceOverride?: number | null;
+    finalPricePerUnit?: number | null;
     lineDiscountEgp?: number | null;
   }>;
   cartTargetFinal?: number | null;
@@ -85,6 +109,42 @@ export type CreateSaleInput = {
     method: PaymentMethod;
     amount: number;
     bankAccountId?: number | null;
+    reference?: string | null;
+    chequeDetails?: ChequeDetails | null;
   }>;
   notesAr?: string | null;
+};
+
+export type AddLinesInput = {
+  lines: Array<{
+    rollId: number;
+    sellingPriceOverride?: number | null;
+    finalPricePerUnit?: number | null;
+    lineDiscountEgp?: number | null;
+  }>;
+  cartTargetFinal?: number | null;
+};
+
+export type DepositRefundInput = {
+  amountEgp: number;
+  method: PaymentMethod;
+  bankAccountId?: number | null;
+  reference?: string | null;
+  chequeDetails?: ChequeDetails | null;
+};
+
+export type Cheque = {
+  id: number;
+  payment_id: number;
+  cheque_number: string;
+  bank_name_ar: string;
+  branch_ar: string | null;
+  issuer_name_ar: string | null;
+  amount_egp: string;
+  issue_date: string;
+  due_date: string;
+  status: 'pending' | 'cleared' | 'bounced' | 'cancelled';
+  notes_ar: string | null;
+  created_at: string;
+  updated_at: string;
 };

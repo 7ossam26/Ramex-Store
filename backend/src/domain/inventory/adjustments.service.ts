@@ -13,6 +13,16 @@ export async function createAdjustment(
     if (!roll) throw new Error('ROLL_NOT_FOUND');
 
     const fromWarehouse = roll.warehouse;
+
+    // Factory رولات may only leave the factory via the shipment review flow.
+    if (
+      input.new_warehouse !== undefined &&
+      input.new_warehouse !== fromWarehouse &&
+      fromWarehouse === 'factory'
+    ) {
+      throw new Error('FACTORY_EXIT_REQUIRES_SHIPMENT');
+    }
+
     const patch: Record<string, unknown> = { updated_at: trx.fn.now() };
     if (input.new_warehouse !== undefined) patch.warehouse = input.new_warehouse;
     if (input.new_status !== undefined) patch.status = input.new_status;

@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { itemsApi } from '@/lib/items-api';
+import { openPdfBlob } from '@/lib/pdf';
 import type { RollWithDetails } from '@/lib/items-types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +15,7 @@ import {
 } from '@/components/ResponsiveDialog';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { RollStatusPill } from '@/components/items/RollStatusPill';
 
 // ── Label card helpers ──────────────────────────────────────────────────────
@@ -35,6 +36,11 @@ function FabricLabelCard({ rollId }: { rollId: number }) {
   });
 
   const [printOpen, setPrintOpen] = useState(false);
+
+  const fabricLabelMut = useMutation({
+    mutationFn: (format: 'thermal' | 'a4') => itemsApi.fabricLabelBlob(rollId, format),
+    onSuccess: (blob) => openPdfBlob(blob),
+  });
 
   if (isLoading) {
     return <p className="text-sm text-foreground-muted py-2">{ar.loading}</p>;
@@ -57,7 +63,7 @@ function FabricLabelCard({ rollId }: { rollId: number }) {
   }
 
   function openLabel(format: 'thermal' | 'a4') {
-    window.open(itemsApi.fabricLabelUrl(rollId, format), '_blank');
+    fabricLabelMut.mutate(format);
     setPrintOpen(false);
   }
 
@@ -168,6 +174,11 @@ export function RollsPage() {
   const activeFilters = Object.values(applied).filter((v) => v.trim()).length;
   const resetKey = JSON.stringify(applied);
 
+  const labelPdfMut = useMutation({
+    mutationFn: (rollId: number) => itemsApi.labelPdfBlob(rollId),
+    onSuccess: (blob) => openPdfBlob(blob),
+  });
+
   const filterControls = (
     <div className="rounded-lg border border-border-subtle bg-surface-elevated p-3 space-y-3">
       <h2 className="text-base font-semibold text-foreground">{ar.labels.rollsTitle}</h2>
@@ -261,11 +272,10 @@ export function RollsPage() {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4">
-      <PageHeader title={ar.labels.rollsTitle} description={ar.hubs.itemsRollsDesc} />
-
+    <PageShell title={ar.labels.rollsTitle} description={ar.hubs.itemsRollsDesc} backTo="/items">
       <MobileFilterSheet activeCount={activeFilters}>{filterControls}</MobileFilterSheet>
 
+      <SectionCard noPadding>
       <ResponsiveTable
         columns={columns}
         rows={rolls}
@@ -277,13 +287,17 @@ export function RollsPage() {
         onRetry={() => q.refetch()}
         resetKey={resetKey}
         actions={(r) => (
-          <Button size="sm" variant="outline" asChild>
-            <a href={itemsApi.labelPdfUrl(r.id)} target="_blank" rel="noreferrer">
-              {ar.labels.print}
-            </a>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={labelPdfMut.isPending && labelPdfMut.variables === r.id}
+            onClick={(e) => { e.stopPropagation(); labelPdfMut.mutate(r.id); }}
+          >
+            {ar.labels.print}
           </Button>
         )}
       />
+      </SectionCard>
 
       {/* Roll detail drawer */}
       <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
@@ -330,10 +344,12 @@ export function RollsPage() {
                 </div>
               </div>
               <div className="pt-2 border-t border-border-subtle">
-                <Button asChild className="w-full h-11">
-                  <a href={itemsApi.labelPdfUrl(detail.id)} target="_blank" rel="noreferrer">
-                    {ar.labels.printLabel}
-                  </a>
+                <Button
+                  className="w-full h-11"
+                  disabled={labelPdfMut.isPending && labelPdfMut.variables === detail.id}
+                  onClick={() => labelPdfMut.mutate(detail.id)}
+                >
+                  {ar.labels.printLabel}
                 </Button>
               </div>
 
@@ -346,6 +362,6 @@ export function RollsPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

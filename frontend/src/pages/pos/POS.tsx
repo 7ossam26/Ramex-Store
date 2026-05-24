@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import { extractApiError } from '@/lib/api-error';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   X,
@@ -17,6 +17,14 @@ import {
   Banknote,
   AlertTriangle,
   MoreVertical,
+  Store,
+  Factory,
+  RotateCcw,
+  Loader2,
+  Landmark,
+  FileText,
+  ArrowLeftRight,
+  ChevronRight,
 } from 'lucide-react';
 import { Toast } from '@/components/Toast';
 import { Tooltip } from '@/components/Tooltip';
@@ -25,7 +33,15 @@ import { salesApi } from '@/lib/sales-api';
 import { customersApi } from '@/lib/customers-api';
 import { itemsApi } from '@/lib/items-api';
 import type { Customer } from '@/lib/customers-types';
-import type { BankAccount, Invoice, RollLookup, SalePreview } from '@/lib/sales-types';
+import type {
+  BankAccount,
+  ChequeDetails,
+  FulfillmentDestination,
+  Invoice,
+  ReturnScanMeta,
+  RollLookup,
+  SalePreview,
+} from '@/lib/sales-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,6 +60,9 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { ScannerInput } from '@/components/ScannerInput';
+import { shiftsApi, type Shift } from '@/lib/shifts-api';
+import { StartDayPanel } from './StartDayPanel';
+import { EndDayDialog } from './EndDayDialog';
 
 type CartLine = {
   roll: RollLookup;
@@ -51,7 +70,34 @@ type CartLine = {
   lineDiscount: string;
 };
 
-type PaymentMode = 'cash' | 'instapay' | 'both';
+type PaymentMode = 'cash' | 'instapay' | 'bank_transfer' | 'cheque' | 'split';
+
+type ChequeFormState = {
+  chequeNumber: string;
+  bankNameAr: string;
+  branchAr: string;
+  issuerNameAr: string;
+  issueDate: string;
+  dueDate: string;
+  notesAr: string;
+};
+
+function emptyCheque(): ChequeFormState {
+  return { chequeNumber: '', bankNameAr: '', branchAr: '', issuerNameAr: '', issueDate: '', dueDate: '', notesAr: '' };
+}
+
+function chequeStateToDetails(s: ChequeFormState): ChequeDetails | null {
+  if (!s.chequeNumber || !s.bankNameAr || !s.issueDate || !s.dueDate) return null;
+  return {
+    chequeNumber: s.chequeNumber,
+    bankNameAr: s.bankNameAr,
+    branchAr: s.branchAr || null,
+    issuerNameAr: s.issuerNameAr || null,
+    issueDate: s.issueDate,
+    dueDate: s.dueDate,
+    notesAr: s.notesAr || null,
+  };
+}
 
 type ScannerFeedback = 'idle' | 'success' | 'danger';
 
@@ -66,13 +112,28 @@ function parseAmount(s: string): number {
   return Number.isFinite(v) ? v : 0;
 }
 
-function effectivePrice(line: CartLine): number {
-  const ov = parseAmount(line.priceOverride);
-  return ov > 0 ? ov : Number(line.roll.selling_price_egp);
+// v2 Phase 5 — POS price is per-unit, kg or meter. The cashier always types a
+// per-unit price; the line's absolute amount = perUnit × qty. `priceOverride`
+// holds the per-unit cashier input (raw string for free typing).
+function rollQuantity(roll: RollLookup): number {
+  if (roll.fabric_unit === 'meter') {
+    return roll.length_m == null ? 0 : Number(roll.length_m);
+  }
+  return Number(roll.weight_kg);
+}
+
+function effectivePerUnit(line: CartLine): number {
+  const v = parseAmount(line.priceOverride);
+  return v > 0 ? v : 0;
+}
+
+function lineAbsolute(line: CartLine): number {
+  const qty = rollQuantity(line.roll);
+  return effectivePerUnit(line) * qty;
 }
 
 function lineSubtotal(line: CartLine): number {
-  const price = effectivePrice(line);
+  const price = lineAbsolute(line);
   const disc = Math.min(parseAmount(line.lineDiscount), price);
   return Math.max(0, price - disc);
 }
@@ -83,12 +144,40 @@ function isFabricRoll(r: RollLookup): boolean {
   );
 }
 
+function isFactoryRoll(r: RollLookup): boolean {
+  return r.warehouse === 'factory';
+}
+
+function isShopRoll(r: RollLookup): boolean {
+  return r.warehouse === 'shop' || r.warehouse === 'damaged_shop';
+}
+
+function rollMatchesDestination(r: RollLookup, dest: FulfillmentDestination): boolean {
+  return dest === 'factory_direct' ? isFactoryRoll(r) : isShopRoll(r);
+}
+
 export function POSPage() {
   const qc = useQueryClient();
+
+  const [endDayShift, setEndDayShift] = useState<Shift | null>(null);
+
+  const shiftQ = useQuery<Shift | null>({
+    queryKey: ['shift-current'],
+    queryFn: () => shiftsApi.current(),
+    // Pause refetch while the End Day dialog is showing the report —
+    // otherwise the auto-refetch would set shiftQ.data=null, the gate would
+    // re-render to StartDayPanel, and the dialog would unmount mid-report.
+    refetchInterval: endDayShift ? false : 60_000,
+    refetchOnWindowFocus: !endDayShift,
+  });
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanFlash, setScanFlash] = useState<RollLookup | null>(null);
+
+  // Phase 4 — fulfillment destination (per invoice). Default: shop.
+  const [destination, setDestination] = useState<FulfillmentDestination>('shop');
+  const [pendingDestination, setPendingDestination] = useState<FulfillmentDestination | null>(null);
 
   /* Functional-motion feedback state — local UI only, no impact on scanning logic. */
   const [scannerFeedback, setScannerFeedback] = useState<ScannerFeedback>('idle');
@@ -106,6 +195,8 @@ export function POSPage() {
   const [cashAmount, setCashAmount] = useState('');
   const [instaAmount, setInstaAmount] = useState('');
   const [bankAccountId, setBankAccountId] = useState<number | ''>('');
+  const [reference, setReference] = useState('');
+  const [chequeState, setChequeState] = useState<ChequeFormState>(emptyCheque());
   const [saveAsOpen, setSaveAsOpen] = useState(false);
   const [notesAr, setNotesAr] = useState('');
 
@@ -115,6 +206,19 @@ export function POSPage() {
 
   const [completed, setCompleted] = useState<Invoice | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // v2 Phase 5 — no-lines deposit dialog state.
+  const [depositOpen, setDepositOpen] = useState(false);
+
+  // v2 Phase 6 — return on scan state.
+  const [returnDrawerRoll, setReturnDrawerRoll] = useState<RollLookup | null>(null);
+  const [returnMeta, setReturnMeta] = useState<ReturnScanMeta | null>(null);
+  const [returnMetaLoading, setReturnMetaLoading] = useState(false);
+  const [returnMethod, setReturnMethod] = useState<'cash' | 'instapay' | 'bank_transfer' | 'cheque'>('cash');
+  const [returnBankId, setReturnBankId] = useState<number | ''>('');
+  const [returnReference, setReturnReference] = useState('');
+  const [returnChequeState, setReturnChequeState] = useState<ChequeFormState>(emptyCheque());
+  const [returnConfirming, setReturnConfirming] = useState(false);
 
   /* Bottom toast (functional error feedback). */
   type ToastState = { id: number; message: string };
@@ -175,7 +279,7 @@ export function POSPage() {
     () =>
       cart.map((l) => ({
         rollId: l.roll.id,
-        sellingPriceOverride: parseAmount(l.priceOverride) || null,
+        finalPricePerUnit: parseAmount(l.priceOverride) || null,
         lineDiscountEgp: parseAmount(l.lineDiscount) || null,
       })),
     [cart],
@@ -190,23 +294,39 @@ export function POSPage() {
     enabled: cart.length > 0,
   });
 
-  useEffect(() => {
-    if (preview && !saveAsOpen && paymentMode === 'cash' && cashAmount === '') {
-      setCashAmount(preview.total_egp.toFixed(2));
-    }
-  }, [preview, paymentMode, saveAsOpen, cashAmount]);
 
   async function handleScanEnter(barcode: string) {
     setScanError(null);
     if (!barcode.trim()) return;
     try {
       const roll = await salesApi.rollByBarcode(barcode.trim());
+
+      // Phase 6 — sold roll triggers return drawer, not cart addition.
+      if (roll.status === 'sold') {
+        if (returnDrawerRoll?.id === roll.id) {
+          // Re-scan of the roll already in the open return panel — silent no-op.
+          showToast(ar.pos.returnAlreadyOpen);
+          return;
+        }
+        await openReturnDrawer(roll);
+        return;
+      }
+
+      if (roll.status === 'damaged') {
+        flagScanFailure(ar.pos.returnDamagedRoll);
+        return;
+      }
+
       if (roll.status !== 'in_stock') {
         flagScanFailure(ar.pos.notFound);
       } else if (!roll.is_visible_at_pos) {
         flagScanFailure(ar.pos.notVisible);
-      } else if (roll.warehouse !== 'shop' && roll.warehouse !== 'damaged_shop') {
-        flagScanFailure(ar.pos.notAtShop);
+      } else if (!rollMatchesDestination(roll, destination)) {
+        flagScanFailure(
+          destination === 'shop'
+            ? ar.pos.factoryRollInShopMode
+            : ar.pos.shopRollInFactoryMode,
+        );
       } else if (cart.find((l) => l.roll.id === roll.id)) {
         flagScanFailure(ar.pos.alreadyInCart);
       } else {
@@ -216,9 +336,68 @@ export function POSPage() {
         setFlashRowId(roll.id);
       }
     } catch (e) {
-      const status = axios.isAxiosError(e) ? e.response?.status : 0;
-      flagScanFailure(status === 404 ? ar.pos.notFound : ar.common.error);
+      const status = (e as { response?: { status?: number } })?.response?.status;
+      flagScanFailure(status === 404 ? ar.pos.notFound : extractApiError(e));
     }
+  }
+
+  async function openReturnDrawer(roll: RollLookup) {
+    setReturnDrawerRoll(roll);
+    setReturnMeta(null);
+    setReturnMetaLoading(true);
+    setReturnMethod('cash');
+    setReturnBankId(typeof bankAccountId === 'number' ? bankAccountId : '');
+    try {
+      const meta = await salesApi.scanPreview(roll.id);
+      setReturnMeta(meta);
+    } catch {
+      setReturnDrawerRoll(null);
+      showToast(ar.common.error);
+    } finally {
+      setReturnMetaLoading(false);
+    }
+  }
+
+  async function confirmScanReturn() {
+    if (!returnMeta || returnConfirming) return;
+    setReturnConfirming(true);
+    try {
+      const result = await salesApi.scanReturn({
+        rollId: returnMeta.rollId,
+        refundMethod: returnMethod,
+        bankAccountId: (returnMethod === 'instapay' || returnMethod === 'bank_transfer') ? (returnBankId || null) : null,
+        reference: returnMethod === 'bank_transfer' ? (returnReference || null) : null,
+        chequeDetails: returnMethod === 'cheque' ? chequeStateToDetails(returnChequeState) : null,
+      });
+      setReturnDrawerRoll(null);
+      setReturnMeta(null);
+      qc.invalidateQueries({ queryKey: ['invoices'] });
+      qc.invalidateQueries({ queryKey: ['pos-rolls'] });
+      showToast(`${ar.pos.returnSuccess} — ${result.return_no}`);
+    } catch (e) {
+      showToast(extractApiError(e));
+    } finally {
+      setReturnConfirming(false);
+    }
+  }
+
+  function requestDestinationChange(next: FulfillmentDestination) {
+    if (next === destination) return;
+    const incompatible = cart.some((l) => !rollMatchesDestination(l.roll, next));
+    if (incompatible) {
+      setPendingDestination(next);
+      return;
+    }
+    setDestination(next);
+  }
+
+  function confirmDestinationChange() {
+    if (!pendingDestination) return;
+    const next = pendingDestination;
+    setCart((c) => c.filter((l) => rollMatchesDestination(l.roll, next)));
+    setDestination(next);
+    setPendingDestination(null);
+    setScanFlash(null);
   }
 
   function flagScanFailure(message: string) {
@@ -246,37 +425,47 @@ export function POSPage() {
   const cashNum = parseAmount(cashAmount);
   const instaNum = parseAmount(instaAmount);
   const paymentSum =
-    paymentMode === 'cash'
+    paymentMode === 'cash' || paymentMode === 'cheque'
       ? cashNum
-      : paymentMode === 'instapay'
+      : paymentMode === 'instapay' || paymentMode === 'bank_transfer'
         ? instaNum
-        : cashNum + instaNum;
+        : cashNum + instaNum; // split
+
 
   const submit = useMutation({
     mutationFn: () => {
       if (!customer) throw new Error('NO_CUSTOMER');
       const payments: Array<{
-        method: 'cash' | 'instapay';
+        method: 'cash' | 'instapay' | 'bank_transfer' | 'cheque';
         amount: number;
         bankAccountId?: number | null;
+        reference?: string | null;
+        chequeDetails?: ChequeDetails | null;
       }> = [];
-      if (paymentMode === 'cash' || paymentMode === 'both') {
+      if (paymentMode === 'cash' || paymentMode === 'split') {
         if (cashNum > 0) payments.push({ method: 'cash', amount: cashNum });
       }
-      if (paymentMode === 'instapay' || paymentMode === 'both') {
+      if (paymentMode === 'instapay' || paymentMode === 'split') {
         if (instaNum > 0) {
-          payments.push({
-            method: 'instapay',
-            amount: instaNum,
-            bankAccountId: bankAccountId || null,
-          });
+          payments.push({ method: 'instapay', amount: instaNum, bankAccountId: bankAccountId || null });
+        }
+      }
+      if (paymentMode === 'bank_transfer') {
+        if (instaNum > 0) {
+          payments.push({ method: 'bank_transfer', amount: instaNum, bankAccountId: bankAccountId || null, reference: reference || null });
+        }
+      }
+      if (paymentMode === 'cheque') {
+        if (cashNum > 0) {
+          payments.push({ method: 'cheque', amount: cashNum, chequeDetails: chequeStateToDetails(chequeState) });
         }
       }
       return salesApi.create({
         customerId: customer.id,
+        fulfillmentDestination: destination,
         lines: cart.map((l) => ({
           rollId: l.roll.id,
-          sellingPriceOverride: parseAmount(l.priceOverride) || null,
+          finalPricePerUnit: parseAmount(l.priceOverride) || null,
           lineDiscountEgp: parseAmount(l.lineDiscount) || null,
         })),
         cartTargetFinal: useCartDiscount ? targetFinalNum : null,
@@ -291,12 +480,7 @@ export function POSPage() {
       setSubmitError(null);
     },
     onError: (e: unknown) => {
-      const msg =
-        axios.isAxiosError(e) &&
-        e.response?.data &&
-        (e.response.data as { message?: string }).message
-          ? (e.response.data as { message: string }).message
-          : ar.common.error;
+      const msg = extractApiError(e);
       setSubmitError(msg);
       showToast(msg);
     },
@@ -305,6 +489,8 @@ export function POSPage() {
   const validation = (() => {
     if (cart.length === 0) return ar.pos.cartEmpty;
     if (!customer) return ar.pos.customerRequired;
+    // v2 Phase 5: every cart line must carry a per-unit final price.
+    if (cart.some((l) => effectivePerUnit(l) <= 0)) return ar.pos.finalPriceRequired;
     if (paymentSum <= 0) return ar.pos.payment;
     if (saveAsOpen) return null;
     if (Math.abs(paymentSum - total) > 0.01) return ar.pos.sumMustEqualTotal;
@@ -321,19 +507,108 @@ export function POSPage() {
     setPaymentMode('cash');
     setCashAmount('');
     setInstaAmount('');
+    setReference('');
+    setChequeState(emptyCheque());
     setSaveAsOpen(false);
     setNotesAr('');
     setCompleted(null);
     setSubmitError(null);
     setPaymentSheetOpen(false);
     setCartSheetOpen(false);
+    setDestination('shop');
+    setPendingDestination(null);
   }
 
+  // Render the End Day dialog whenever it's been opened — it captures its own
+  // shift snapshot so it stays mounted even after shiftQ.data becomes null
+  // (i.e., right after the user closes the shift). The user must explicitly
+  // click "تم" to dismiss it.
+  const endDayDialog = endDayShift ? (
+    <EndDayDialog
+      open
+      shift={endDayShift}
+      onClose={() => {
+        setEndDayShift(null);
+        qc.invalidateQueries({ queryKey: ['shift-current'] });
+        qc.invalidateQueries({ queryKey: ['cash-balance'] });
+      }}
+    />
+  ) : null;
+
+  // --- Shift gate ---
+  if (shiftQ.isLoading) {
+    return (
+      <>
+        {endDayDialog}
+        <div className="flex min-h-screen items-center justify-center text-foreground-muted text-sm">
+          {ar.loading}
+        </div>
+      </>
+    );
+  }
+
+  if (shiftQ.isError) {
+    return (
+      <>
+        {endDayDialog}
+        <div className="flex min-h-screen items-center justify-center flex-col gap-4 px-4" dir="rtl">
+          <p className="text-sm text-danger-foreground">{ar.common.error}</p>
+          <button
+            type="button"
+            onClick={() => shiftQ.refetch()}
+            className="text-sm text-accent hover:underline"
+          >
+            {ar.common.refresh}
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  if (!shiftQ.data) {
+    return (
+      <>
+        {endDayDialog}
+        <StartDayPanel
+          onStaleShift={async () => {
+            // A stale open shift exists — fetch it and surface in EndDayDialog
+            const stale = await shiftsApi.current();
+            if (stale) {
+              setEndDayShift(stale);
+            }
+          }}
+        />
+      </>
+    );
+  }
+
+  const activeShift = shiftQ.data;
+
   return (
+    <>
+      {endDayDialog}
+
     <div
       data-motion="reduced"
       className="flex flex-col gap-4 max-w-[1600px] mx-auto pb-24 lg:pb-4"
     >
+      {/* Shift strip */}
+      <div className="flex items-center justify-between rounded-lg border border-border-subtle bg-surface-elevated px-4 py-2 text-sm" dir="rtl">
+        <span className="text-foreground-muted">
+          {ar.shifts.openedAt}:{' '}
+          <span className="font-medium text-foreground tabular-num" dir="ltr">
+            {new Date(activeShift.opened_at).toLocaleString('en-GB', { timeZone: 'Africa/Cairo', hour12: false })}
+          </span>
+        </span>
+        <button
+          type="button"
+          onClick={() => setEndDayShift(activeShift)}
+          className="rounded-md bg-danger px-3 py-1.5 text-xs font-medium text-danger-foreground hover:opacity-90 transition-opacity"
+        >
+          {ar.shifts.endDay}
+        </button>
+      </div>
+
       {/* Top bar — customer + discount + open invoice + cart pill (mobile) */}
       <TopBar
         customer={customer}
@@ -351,14 +626,24 @@ export function POSPage() {
 
       {/* Main two-column grid (lg+): scan area | cart */}
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(380px,2fr)] gap-4">
-        {/* LEFT: scan + manual search + flash */}
+        {/* LEFT: scan + product grid + flash */}
         <ScanColumn
           onScan={handleScanEnter}
           error={scanError}
           flash={scanFlash}
           feedback={scannerFeedback}
           shakeNonce={shakeNonce}
+          cart={cart}
+          destination={destination}
           onPickManual={(roll) => {
+            if (!rollMatchesDestination(roll, destination)) {
+              flagScanFailure(
+                destination === 'shop'
+                  ? ar.pos.factoryRollInShopMode
+                  : ar.pos.shopRollInFactoryMode,
+              );
+              return;
+            }
             if (!cart.find((l) => l.roll.id === roll.id)) {
               setCart((c) => [...c, { roll, priceOverride: '', lineDiscount: '' }]);
               setScanFlash(roll);
@@ -369,20 +654,91 @@ export function POSPage() {
           onShowLabel={setLabelRoll}
         />
 
-        {/* RIGHT: cart (visible on lg+) */}
+        {/* RIGHT: cart → payment inline flip (lg+) */}
         <div className="hidden lg:block">
-          <CartPanel
-            cart={cart}
-            preview={preview}
-            subtotal={subtotal}
-            useCartDiscount={useCartDiscount}
-            updateLine={updateLine}
-            removeLine={removeLine}
-            flashRowId={flashRowId}
-            onShowLabel={setLabelRoll}
-            onPay={() => setPaymentSheetOpen(true)}
-            disabled={cart.length === 0}
-          />
+          <AnimatePresence mode="wait" initial={false}>
+            {paymentSheetOpen ? (
+              <motion.div
+                key="payment-inline"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18, ease: [0, 0, 0.2, 1] }}
+              >
+                <Card className="lg:sticky lg:top-20">
+                  <CardHeader className="pb-3 border-b border-border-subtle">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentSheetOpen(false)}
+                        className="inline-flex items-center gap-1 text-sm font-normal text-foreground-muted hover:text-foreground transition-colors cursor-pointer"
+                        aria-label={ar.pos.cart}
+                      >
+                        <ChevronRight className="size-4" />
+                        {ar.pos.cart}
+                      </button>
+                      <span className="text-foreground-tertiary text-xs">•</span>
+                      <span>{ar.pos.paymentSheetTitle}</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="overflow-y-auto max-h-[calc(100vh-9rem)] pt-4 pb-6">
+                    <PaymentForm
+                      compact
+                      banks={banks}
+                      paymentMode={paymentMode}
+                      setPaymentMode={setPaymentMode}
+                      cashAmount={cashAmount}
+                      setCashAmount={setCashAmount}
+                      instaAmount={instaAmount}
+                      setInstaAmount={setInstaAmount}
+                      bankAccountId={bankAccountId}
+                      setBankAccountId={setBankAccountId}
+                      reference={reference}
+                      setReference={setReference}
+                      chequeState={chequeState}
+                      setChequeState={setChequeState}
+                      saveAsOpen={saveAsOpen}
+                      setSaveAsOpen={setSaveAsOpen}
+                      notesAr={notesAr}
+                      setNotesAr={setNotesAr}
+                      preview={preview}
+                      paymentSum={paymentSum}
+                      validation={validation}
+                      submitError={submitError}
+                      submitting={submit.isPending}
+                      onSubmit={() => submit.mutate()}
+                      total={total}
+                    />
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="cart-panel"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18, ease: [0, 0, 0.2, 1] }}
+              >
+                <CartPanel
+                  cart={cart}
+                  preview={preview}
+                  subtotal={subtotal}
+                  useCartDiscount={useCartDiscount}
+                  updateLine={updateLine}
+                  removeLine={removeLine}
+                  flashRowId={flashRowId}
+                  onShowLabel={setLabelRoll}
+                  onPay={() => setPaymentSheetOpen(true)}
+                  disabled={cart.length === 0}
+                  destination={destination}
+                  onChangeDestination={requestDestinationChange}
+                  customer={customer}
+                  onOpenDeposit={() => setDepositOpen(true)}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
@@ -408,43 +764,56 @@ export function POSPage() {
               }}
               disabled={cart.length === 0}
               embedded
+              destination={destination}
+              onChangeDestination={requestDestinationChange}
+              customer={customer}
+              onOpenDeposit={() => {
+                setCartSheetOpen(false);
+                setDepositOpen(true);
+              }}
             />
           </div>
         </SheetContent>
       </Sheet>
 
-      {/* Payment bottom sheet */}
-      <Sheet open={paymentSheetOpen} onOpenChange={setPaymentSheetOpen}>
-        <SheetContent side="bottom" className="max-h-[92vh]">
-          <SheetHeader>
-            <SheetTitle>{ar.pos.paymentSheetTitle}</SheetTitle>
-          </SheetHeader>
-          <div className="mt-3 flex-1 overflow-y-auto">
-            <PaymentForm
-              banks={banks}
-              paymentMode={paymentMode}
-              setPaymentMode={setPaymentMode}
-              cashAmount={cashAmount}
-              setCashAmount={setCashAmount}
-              instaAmount={instaAmount}
-              setInstaAmount={setInstaAmount}
-              bankAccountId={bankAccountId}
-              setBankAccountId={setBankAccountId}
-              saveAsOpen={saveAsOpen}
-              setSaveAsOpen={setSaveAsOpen}
-              notesAr={notesAr}
-              setNotesAr={setNotesAr}
-              preview={preview}
-              paymentSum={paymentSum}
-              validation={validation}
-              submitError={submitError}
-              submitting={submit.isPending}
-              onSubmit={() => submit.mutate()}
-              total={total}
-            />
-          </div>
-        </SheetContent>
-      </Sheet>
+      {/* Payment bottom sheet — mobile/tablet only (lg+ uses inline panel above) */}
+      <div className="lg:hidden">
+        <Sheet open={paymentSheetOpen} onOpenChange={setPaymentSheetOpen}>
+          <SheetContent side="bottom" className="max-h-[92vh] flex flex-col">
+            <SheetHeader>
+              <SheetTitle>{ar.pos.paymentSheetTitle}</SheetTitle>
+            </SheetHeader>
+            <div className="mt-3 flex-1 overflow-y-auto pb-4">
+              <PaymentForm
+                banks={banks}
+                paymentMode={paymentMode}
+                setPaymentMode={setPaymentMode}
+                cashAmount={cashAmount}
+                setCashAmount={setCashAmount}
+                instaAmount={instaAmount}
+                setInstaAmount={setInstaAmount}
+                bankAccountId={bankAccountId}
+                setBankAccountId={setBankAccountId}
+                reference={reference}
+                setReference={setReference}
+                chequeState={chequeState}
+                setChequeState={setChequeState}
+                saveAsOpen={saveAsOpen}
+                setSaveAsOpen={setSaveAsOpen}
+                notesAr={notesAr}
+                setNotesAr={setNotesAr}
+                preview={preview}
+                paymentSum={paymentSum}
+                validation={validation}
+                submitError={submitError}
+                submitting={submit.isPending}
+                onSubmit={() => submit.mutate()}
+                total={total}
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
+      </div>
 
       {/* Mobile sticky bottom bar — cart count + pay */}
       {cart.length > 0 && (
@@ -541,14 +910,12 @@ export function POSPage() {
                 ج.م
               </p>
               <div className="flex flex-col sm:flex-row gap-2 pt-2">
-                <Button asChild variant="outline" className="flex-1 h-12 cursor-pointer">
-                  <a
-                    href={salesApi.pdfUrl(completed.id, 'original')}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {ar.pos.print}
-                  </a>
+                <Button
+                  variant="outline"
+                  className="flex-1 h-12 cursor-pointer"
+                  onClick={() => window.open(`/invoices/${completed.id}/draft`, '_blank', 'noopener')}
+                >
+                  {ar.pos.print}
                 </Button>
                 <Button onClick={resetSale} className="flex-1 h-12 cursor-pointer">
                   {ar.pos.newSale}
@@ -577,7 +944,84 @@ export function POSPage() {
         onClose={() => setToast(null)}
         className="bottom-20 lg:bottom-6"
       />
+
+      {/* Phase 4 — confirm switching destination when cart has incompatible rolls. */}
+      <Dialog
+        open={pendingDestination !== null}
+        onOpenChange={(o) => {
+          if (!o) setPendingDestination(null);
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{ar.pos.switchDestinationTitle}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-foreground">
+            {pendingDestination === 'factory_direct'
+              ? ar.pos.switchDestinationToFactoryBody
+              : ar.pos.switchDestinationToShopBody}
+          </p>
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPendingDestination(null)}
+              className="cursor-pointer"
+            >
+              {ar.common.cancel}
+            </Button>
+            <Button
+              size="sm"
+              onClick={confirmDestinationChange}
+              className="cursor-pointer"
+            >
+              {ar.pos.switchDestinationConfirm}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Phase 6 — return on scan: side drawer opens when a sold roll is scanned. */}
+      <ReturnDrawer
+        roll={returnDrawerRoll}
+        meta={returnMeta}
+        metaLoading={returnMetaLoading}
+        banks={banks}
+        method={returnMethod}
+        setMethod={setReturnMethod}
+        bankId={returnBankId}
+        setBankId={setReturnBankId}
+        reference={returnReference}
+        setReference={setReturnReference}
+        chequeState={returnChequeState}
+        setChequeState={setReturnChequeState}
+        confirming={returnConfirming}
+        onConfirm={() => void confirmScanReturn()}
+        onClose={() => {
+          if (!returnConfirming) {
+            setReturnDrawerRoll(null);
+            setReturnMeta(null);
+          }
+        }}
+      />
+
+      {/* Phase 5 — save a no-lines deposit invoice. Enabled when the cart is
+          empty and a customer is selected. */}
+      <NoLinesDepositDialog
+        open={depositOpen}
+        onOpenChange={setDepositOpen}
+        customer={customer}
+        destination={destination}
+        banks={banks}
+        defaultBankId={typeof bankAccountId === 'number' ? bankAccountId : null}
+        onCreated={(invoice) => {
+          qc.invalidateQueries({ queryKey: ['invoices'] });
+          setDepositOpen(false);
+          setCompleted(invoice);
+        }}
+      />
     </div>
+    </>
   );
 }
 
@@ -610,7 +1054,7 @@ function TopBar({
   onOpenCart: () => void;
 }) {
   return (
-    <div className="sticky top-0 z-sticky bg-surface/95 backdrop-blur border-b border-border-subtle -mx-2 px-2 py-2 flex flex-wrap items-center gap-2">
+    <div className="bg-surface border-b border-border-subtle -mx-2 px-2 py-2 flex flex-wrap items-center gap-2">
       {/* Customer pill */}
       {customer ? (
         <div className="flex items-center gap-2 rounded-md border border-border-default bg-surface-elevated px-3 py-2 min-h-11">
@@ -707,6 +1151,8 @@ function ScanColumn({
   flash,
   feedback,
   shakeNonce,
+  cart,
+  destination,
   onPickManual,
   onShowLabel,
 }: {
@@ -715,6 +1161,8 @@ function ScanColumn({
   flash: RollLookup | null;
   feedback: ScannerFeedback;
   shakeNonce: number;
+  cart: CartLine[];
+  destination: FulfillmentDestination;
   onPickManual: (r: RollLookup) => void;
   onShowLabel: (r: RollLookup) => void;
 }) {
@@ -771,7 +1219,12 @@ function ScanColumn({
           </p>
         )}
 
-        <ManualSearchBlock onPick={onPickManual} />
+        <ProductsGrid
+          cart={cart}
+          destination={destination}
+          onPick={onPickManual}
+          onShowLabel={onShowLabel}
+        />
       </CardContent>
     </Card>
   );
@@ -817,6 +1270,35 @@ function FlashCard({ roll, onShowLabel }: { roll: RollLookup; onShowLabel: () =>
 /* ────────────────────────────────────────────────────────────────────────── *
  * CART PANEL + ENRICHED CART LINE
  * ────────────────────────────────────────────────────────────────────────── */
+
+function CartPanelWrap({
+  embedded,
+  cartLength,
+  children,
+}: {
+  embedded?: boolean;
+  cartLength: number;
+  children: React.ReactNode;
+}) {
+  if (embedded) return <div className="space-y-3">{children}</div>;
+  return (
+    <Card className="lg:sticky lg:top-20">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <ShoppingCart className="size-5 text-accent" />
+          {ar.pos.cart}
+          {cartLength > 0 && (
+            <span className="inline-flex items-center justify-center rounded-pill bg-accent-subtle text-accent-foreground bg-accent px-2 py-0.5 text-xs font-medium min-w-[1.5rem]">
+              {cartLength}
+            </span>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">{children}</CardContent>
+    </Card>
+  );
+}
+
 function CartPanel({
   cart,
   preview,
@@ -829,6 +1311,10 @@ function CartPanel({
   onPay,
   disabled,
   embedded = false,
+  destination,
+  onChangeDestination,
+  customer,
+  onOpenDeposit,
 }: {
   cart: CartLine[];
   preview: SalePreview | null | undefined;
@@ -841,38 +1327,39 @@ function CartPanel({
   onPay: () => void;
   disabled: boolean;
   embedded?: boolean;
+  destination: FulfillmentDestination;
+  onChangeDestination: (d: FulfillmentDestination) => void;
+  customer: Customer | null;
+  onOpenDeposit: () => void;
 }) {
-  const Wrap: React.FC<{ children: React.ReactNode }> = ({ children }) =>
-    embedded ? (
-      <div className="space-y-3">{children}</div>
-    ) : (
-      <Card className="lg:sticky lg:top-20">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <ShoppingCart className="size-5 text-accent" />
-            {ar.pos.cart}
-            {cart.length > 0 && (
-              <span className="inline-flex items-center justify-center rounded-pill bg-accent-subtle text-accent-foreground bg-accent px-2 py-0.5 text-xs font-medium min-w-[1.5rem]">
-                {cart.length}
-              </span>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">{children}</CardContent>
-      </Card>
-    );
-
   return (
-    <Wrap>
+    <CartPanelWrap embedded={embedded} cartLength={cart.length}>
+      <DestinationToggle value={destination} onChange={onChangeDestination} />
+
       {cart.length === 0 ? (
-        <div className="text-center py-12">
+        <div className="text-center py-10 space-y-4">
           <div
-            className="size-12 mx-auto mb-3 rounded-full bg-surface-hover flex items-center justify-center"
+            className="size-12 mx-auto rounded-full bg-surface-hover flex items-center justify-center"
             aria-hidden
           >
             <ShoppingCart className="size-6 text-foreground-tertiary" />
           </div>
           <p className="text-foreground-muted text-sm">{ar.pos.cartEmpty}</p>
+          <div className="px-3 space-y-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full h-11 cursor-pointer gap-2 disabled:cursor-not-allowed"
+              disabled={!customer}
+              onClick={onOpenDeposit}
+            >
+              <Receipt className="size-4" />
+              {ar.pos.saveAsDeposit}
+            </Button>
+            <p className="text-[11px] text-foreground-tertiary leading-snug">
+              {customer ? ar.pos.saveAsDepositHint : ar.pos.customerRequired}
+            </p>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pe-1 -me-1">
@@ -931,7 +1418,7 @@ function CartPanel({
         <CreditCard className="size-5" />
         {ar.pos.payment}
       </Button>
-    </Wrap>
+    </CartPanelWrap>
   );
 }
 
@@ -950,6 +1437,12 @@ function EnrichedCartLine({
 }) {
   const r = line.roll;
   const fabric = isFabricRoll(r);
+  const isMeter = r.fabric_unit === 'meter';
+  const qty = rollQuantity(r);
+  const qtyLabel = isMeter ? ar.pos.quantityM : ar.pos.quantityKg;
+  const finalPriceLabel = isMeter ? ar.pos.finalPricePerMeter : ar.pos.finalPricePerKg;
+  const referenceUnit = r.reference_price_per_unit;
+  const hasReference = referenceUnit != null && Number(referenceUnit) > 0;
 
   return (
     <div
@@ -971,7 +1464,7 @@ function EnrichedCartLine({
           )}
           {fabric && <ChipRow roll={r} />}
           <div className="text-xs text-foreground-tertiary font-mono tabular-num" dir="ltr">
-            {r.roll_sr_no ?? r.internal_barcode} · {Number(r.weight_kg).toFixed(3)} kg
+            {r.roll_sr_no ?? r.internal_barcode} · {qty.toFixed(3)} {qtyLabel}
           </div>
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">
@@ -1009,17 +1502,29 @@ function EnrichedCartLine({
         </div>
       </div>
 
-      {/* Inline price + line discount + total */}
+      {/* Reference price — read-only hint from shipment receive time (Phase 3). */}
+      <div className="flex items-center justify-between text-[11px] text-foreground-muted">
+        <span>
+          {ar.pos.referencePrice}{' '}
+          <span className="text-foreground-tertiary">({qtyLabel})</span>
+        </span>
+        <span className="tabular-num text-foreground" dir="ltr">
+          {hasReference ? fmtMoney(referenceUnit!) : ar.pos.referenceUnset}
+        </span>
+      </div>
+
+      {/* Inline per-unit final price + line discount + total */}
       <div className="grid grid-cols-3 gap-2 items-end">
         <div className="space-y-1">
-          <Label className="text-xs text-foreground-muted">{ar.pos.pricePerKg}</Label>
+          <Label className="text-xs text-foreground-muted">{finalPriceLabel}</Label>
           <Input
             value={line.priceOverride}
             onChange={(e) => onUpdate({ priceOverride: e.target.value })}
-            placeholder={fmtMoney(r.selling_price_egp)}
+            placeholder={hasReference ? fmtMoney(referenceUnit!) : '0.00'}
             dir="ltr"
             inputMode="decimal"
             className="h-9 tabular-num"
+            aria-label={finalPriceLabel}
           />
         </div>
         <div className="space-y-1">
@@ -1078,6 +1583,72 @@ function ChipRow({ roll }: { roll: RollLookup }) {
 /* ────────────────────────────────────────────────────────────────────────── *
  * PAYMENT FORM (rendered inside bottom sheet)
  * ────────────────────────────────────────────────────────────────────────── */
+function ChequeDetailsForm({
+  state,
+  onChange,
+  className,
+}: {
+  state: ChequeFormState;
+  onChange: (s: ChequeFormState) => void;
+  className?: string;
+}) {
+  const set = (k: keyof ChequeFormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    onChange({ ...state, [k]: e.target.value });
+  return (
+    <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${className ?? ''}`}>
+      <div className="space-y-1">
+        <Label>{ar.pos.chequeNumber}</Label>
+        <Input value={state.chequeNumber} onChange={set('chequeNumber')} dir="ltr" className="h-11" />
+      </div>
+      <div className="space-y-1">
+        <Label>{ar.pos.chequeBank}</Label>
+        <Input value={state.bankNameAr} onChange={set('bankNameAr')} dir="rtl" className="h-11" />
+      </div>
+      <div className="space-y-1">
+        <Label>{ar.pos.chequeBranch}</Label>
+        <Input value={state.branchAr} onChange={set('branchAr')} dir="rtl" className="h-11" placeholder="اختياري" />
+      </div>
+      <div className="space-y-1">
+        <Label>{ar.pos.chequeIssuer}</Label>
+        <Input value={state.issuerNameAr} onChange={set('issuerNameAr')} dir="rtl" className="h-11" placeholder="اختياري" />
+      </div>
+      <div className="space-y-1">
+        <Label>{ar.pos.chequeIssueDate}</Label>
+        <Input type="date" value={state.issueDate} onChange={set('issueDate')} dir="ltr" className="h-11" />
+      </div>
+      <div className="space-y-1">
+        <Label>{ar.pos.chequeDueDate}</Label>
+        <Input type="date" value={state.dueDate} onChange={set('dueDate')} dir="ltr" className="h-11" />
+      </div>
+    </div>
+  );
+}
+
+function BankAccountSelect({
+  banks,
+  value,
+  onChange,
+}: {
+  banks: BankAccount[];
+  value: number | '';
+  onChange: (n: number | '') => void;
+}) {
+  return (
+    <select
+      className="h-11 w-full border border-border-default rounded-md px-2 bg-surface-elevated text-foreground cursor-pointer"
+      value={value}
+      onChange={(e) => onChange(e.target.value ? Number(e.target.value) : '')}
+    >
+      <option value="">—</option>
+      {banks.map((b) => (
+        <option key={b.id} value={b.id}>
+          {b.name_ar}{b.is_default ? ' (افتراضي)' : ''}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function PaymentForm({
   banks,
   paymentMode,
@@ -1088,6 +1659,10 @@ function PaymentForm({
   setInstaAmount,
   bankAccountId,
   setBankAccountId,
+  reference,
+  setReference,
+  chequeState,
+  setChequeState,
   saveAsOpen,
   setSaveAsOpen,
   notesAr,
@@ -1099,6 +1674,7 @@ function PaymentForm({
   submitting,
   onSubmit,
   total,
+  compact = false,
 }: {
   banks: BankAccount[];
   paymentMode: PaymentMode;
@@ -1109,6 +1685,10 @@ function PaymentForm({
   setInstaAmount: (s: string) => void;
   bankAccountId: number | '';
   setBankAccountId: (n: number | '') => void;
+  reference: string;
+  setReference: (s: string) => void;
+  chequeState: ChequeFormState;
+  setChequeState: (s: ChequeFormState) => void;
   saveAsOpen: boolean;
   setSaveAsOpen: (b: boolean) => void;
   notesAr: string;
@@ -1120,100 +1700,134 @@ function PaymentForm({
   submitting: boolean;
   onSubmit: () => void;
   total: number;
+  compact?: boolean;
 }) {
-  return (
-    <div className="space-y-4 max-w-2xl mx-auto">
-      {/* Method tile grid */}
-      <div className="grid grid-cols-3 gap-2">
-        {(['cash', 'instapay', 'both'] as const).map((m) => {
-          const active = paymentMode === m;
-          const Icon = m === 'cash' ? Banknote : m === 'instapay' ? CreditCard : Receipt;
-          return (
-            <button
-              key={m}
-              type="button"
-              onClick={() => setPaymentMode(m)}
-              className={`cursor-pointer rounded-lg border-2 p-3 flex flex-col items-center justify-center gap-1 transition-colors duration-150 min-h-[80px] ${
-                active
-                  ? 'border-accent bg-accent-subtle text-accent'
-                  : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
-              }`}
-            >
-              <Icon className="size-6" />
-              <span className="text-sm font-medium">{ar.pos[m]}</span>
-            </button>
-          );
-        })}
-      </div>
+  const ALL_TILES: { value: PaymentMode; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
+    { value: 'cash', label: ar.pos.cash, Icon: Banknote },
+    { value: 'instapay', label: ar.pos.instapay, Icon: CreditCard },
+    { value: 'bank_transfer', label: ar.pos.bank_transfer, Icon: Landmark },
+    { value: 'cheque', label: ar.pos.cheque, Icon: FileText },
+    { value: 'split', label: 'كاش + انستاباي', Icon: ArrowLeftRight },
+  ];
 
-      {/* Amounts */}
+  return (
+    <div className={compact ? 'space-y-4' : 'space-y-4 max-w-2xl mx-auto'}>
+      {/* Payment method selector */}
+      {compact ? (
+        /* Inline panel: 5 methods in a clean 2-col grid */
+        <div className="grid grid-cols-2 gap-2">
+          {ALL_TILES.map(({ value: m, label, Icon }) => {
+            const active = paymentMode === m;
+            return (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setPaymentMode(m)}
+                className={`cursor-pointer rounded-lg border-2 px-3 py-3 flex items-center gap-3 transition-colors duration-150 ${
+                  active
+                    ? 'border-accent bg-accent-subtle text-accent'
+                    : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
+                }`}
+              >
+                <Icon className="size-5 shrink-0" />
+                <span className="text-sm font-medium leading-snug">{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        /* Bottom sheet: 4 tile cols + separate split row */
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {ALL_TILES.filter((t) => t.value !== 'split').map(({ value: m, label, Icon }) => {
+              const active = paymentMode === m;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setPaymentMode(m)}
+                  className={`cursor-pointer rounded-lg border-2 p-3 flex flex-col items-center justify-center gap-1 transition-colors duration-150 min-h-[72px] ${
+                    active
+                      ? 'border-accent bg-accent-subtle text-accent'
+                      : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
+                  }`}
+                >
+                  <Icon className="size-5" />
+                  <span className="text-xs font-medium text-center leading-snug">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() => setPaymentMode('split')}
+            className={`w-full cursor-pointer rounded-lg border-2 p-2.5 flex items-center justify-center gap-2 transition-colors duration-150 ${
+              paymentMode === 'split'
+                ? 'border-accent bg-accent-subtle text-accent'
+                : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
+            }`}
+          >
+            <ArrowLeftRight className="size-4" />
+            <span className="text-sm font-medium">كاش + انستاباي</span>
+          </button>
+        </>
+      )}
+
+      {/* Amounts / method-specific fields */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {(paymentMode === 'cash' || paymentMode === 'both') && (
+        {/* Cash: standalone or split */}
+        {(paymentMode === 'cash' || paymentMode === 'split') && (
           <div className="space-y-1">
             <Label>{ar.pos.cashAmount}</Label>
-            <Input
-              value={cashAmount}
-              onChange={(e) => setCashAmount(e.target.value)}
-              dir="ltr"
-              inputMode="decimal"
-              className="h-11 tabular-num"
-            />
+            <Input value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} dir="ltr" inputMode="decimal" className="h-11 tabular-num" />
           </div>
         )}
-        {(paymentMode === 'instapay' || paymentMode === 'both') && (
-          <>
-            <div className="space-y-1">
-              <Label>{ar.pos.instapayAmount}</Label>
-              <Input
-                value={instaAmount}
-                onChange={(e) => setInstaAmount(e.target.value)}
-                dir="ltr"
-                inputMode="decimal"
-                className="h-11 tabular-num"
-              />
-            </div>
-            <div className="space-y-1 sm:col-span-2">
-              <Label>{ar.pos.bankAccount}</Label>
-              <select
-                className="h-11 w-full border border-border-default rounded-md px-2 bg-surface-elevated text-foreground cursor-pointer"
-                value={bankAccountId}
-                onChange={(e) =>
-                  setBankAccountId(e.target.value ? Number(e.target.value) : '')
-                }
-              >
-                <option value="">—</option>
-                {banks.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name_ar}
-                    {b.is_default ? ' (افتراضي)' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </>
+        {/* Cheque: standalone amount field */}
+        {paymentMode === 'cheque' && (
+          <div className="space-y-1 sm:col-span-2">
+            <Label>{ar.pos.chequeAmount}</Label>
+            <Input value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} dir="ltr" inputMode="decimal" className="h-11 tabular-num" />
+          </div>
+        )}
+        {/* Instapay / bank_transfer / split: bank-channel amount */}
+        {(paymentMode === 'instapay' || paymentMode === 'bank_transfer' || paymentMode === 'split') && (
+          <div className="space-y-1">
+            <Label>
+              {paymentMode === 'bank_transfer' ? ar.pos.bankTransferAmount : ar.pos.instapayAmount}
+            </Label>
+            <Input value={instaAmount} onChange={(e) => setInstaAmount(e.target.value)} dir="ltr" inputMode="decimal" className="h-11 tabular-num" />
+          </div>
+        )}
+        {/* Bank account selector */}
+        {(paymentMode === 'instapay' || paymentMode === 'bank_transfer' || paymentMode === 'split') && (
+          <div className="space-y-1 sm:col-span-2">
+            <Label>{ar.pos.bankAccount}</Label>
+            <BankAccountSelect banks={banks} value={bankAccountId} onChange={setBankAccountId} />
+          </div>
+        )}
+        {/* Reference for bank_transfer */}
+        {paymentMode === 'bank_transfer' && (
+          <div className="space-y-1 sm:col-span-2">
+            <Label>{ar.pos.reference}</Label>
+            <Input value={reference} onChange={(e) => setReference(e.target.value)} dir="ltr" maxLength={64} className="h-11" placeholder="اختياري" />
+          </div>
+        )}
+        {/* Cheque details form */}
+        {paymentMode === 'cheque' && (
+          <ChequeDetailsForm state={chequeState} onChange={setChequeState} className="sm:col-span-2" />
         )}
       </div>
 
-      {/* Save as open toggle (also surfaced in top bar; mirrored here for convenience) */}
+      {/* Save as open toggle */}
       <label className="flex items-center gap-2 text-sm cursor-pointer min-h-11 text-foreground">
-        <input
-          type="checkbox"
-          checked={saveAsOpen}
-          onChange={(e) => setSaveAsOpen(e.target.checked)}
-          className="size-5 cursor-pointer accent-accent"
-        />
+        <input type="checkbox" checked={saveAsOpen} onChange={(e) => setSaveAsOpen(e.target.checked)} className="size-5 cursor-pointer accent-accent" />
         {ar.pos.saveAsOpen}
       </label>
 
       {/* Notes */}
       <div className="space-y-1">
         <Label>{ar.pos.notes}</Label>
-        <Input
-          value={notesAr}
-          onChange={(e) => setNotesAr(e.target.value)}
-          dir="rtl"
-          className="h-11"
-        />
+        <Input value={notesAr} onChange={(e) => setNotesAr(e.target.value)} dir="rtl" className="h-11" />
       </div>
 
       {/* Summary */}
@@ -1221,24 +1835,13 @@ function PaymentForm({
         <div className="rounded-md border border-border-subtle bg-surface-row-alt p-3 space-y-1 text-sm tabular-num">
           <Row label={ar.pos.subtotal} value={fmtMoney(preview.subtotal_egp)} />
           {preview.cart_discount_egp > 0 && (
-            <Row
-              label={ar.pos.discount}
-              value={`- ${fmtMoney(preview.cart_discount_egp)}`}
-              tone="success"
-            />
+            <Row label={ar.pos.discount} value={`- ${fmtMoney(preview.cart_discount_egp)}`} tone="success" />
           )}
-          {preview.tax_enabled && (
-            <Row label={ar.pos.tax} value={fmtMoney(preview.tax_egp)} />
-          )}
-          {preview.rounding_egp !== 0 && (
-            <Row label={ar.pos.rounding} value={fmtMoney(preview.rounding_egp)} />
-          )}
+          {preview.tax_enabled && <Row label={ar.pos.tax} value={fmtMoney(preview.tax_egp)} />}
+          {preview.rounding_egp !== 0 && <Row label={ar.pos.rounding} value={fmtMoney(preview.rounding_egp)} />}
           <Row label={ar.pos.total} value={fmtMoney(preview.total_egp)} size="lg" />
           <Row label={ar.pos.paid} value={fmtMoney(paymentSum)} />
-          <Row
-            label={ar.pos.balance}
-            value={fmtMoney(Math.max(0, total - paymentSum))}
-          />
+          <Row label={ar.pos.balance} value={fmtMoney(Math.max(0, total - paymentSum))} />
         </div>
       )}
 
@@ -1255,12 +1858,7 @@ function PaymentForm({
         </div>
       )}
 
-      <Button
-        className="w-full h-12 cursor-pointer"
-        size="lg"
-        disabled={!!validation || submitting}
-        onClick={onSubmit}
-      >
+      <Button className="w-full h-12 cursor-pointer" size="lg" disabled={!!validation || submitting} onClick={onSubmit}>
         {ar.pos.submit}
       </Button>
     </div>
@@ -1268,85 +1866,597 @@ function PaymentForm({
 }
 
 /* ────────────────────────────────────────────────────────────────────────── *
- * MANUAL SEARCH BLOCK
+ * PRODUCTS GRID — all available rolls displayed as inline cards
  * ────────────────────────────────────────────────────────────────────────── */
-function ManualSearchBlock({ onPick }: { onPick: (r: RollLookup) => void }) {
-  const [open, setOpen] = useState(false);
+function ProductsGrid({
+  cart,
+  destination,
+  onPick,
+  onShowLabel,
+}: {
+  cart: CartLine[];
+  destination: FulfillmentDestination;
+  onPick: (r: RollLookup) => void;
+  onShowLabel: (r: RollLookup) => void;
+}) {
   const [search, setSearch] = useState('');
 
-  const { data: rolls = [] } = useQuery<RollLookup[]>({
-    queryKey: ['pos-rolls', search],
+  const { data: rolls = [], isLoading } = useQuery<RollLookup[]>({
+    queryKey: ['pos-rolls'],
     queryFn: () =>
       salesApi.searchRolls({ status: 'in_stock', is_visible_at_pos: true }),
-    enabled: open,
   });
 
-  const filtered = rolls.filter((r) =>
-    `${r.fabric_name_ar} ${r.color_name_ar} ${r.roll_sr_no ?? ''} ${r.internal_barcode}`
-      .toLowerCase()
-      .includes(search.toLowerCase()),
-  );
+  const cartIds = useMemo(() => new Set(cart.map((l) => l.roll.id)), [cart]);
+
+  const filtered = useMemo(() => {
+    const visible =
+      destination === 'factory_direct'
+        ? // Hide shop rolls entirely when picking from the factory.
+          rolls.filter((r) => isFactoryRoll(r))
+        : rolls;
+    const q = search.trim().toLowerCase();
+    if (!q) return visible;
+    return visible.filter((r) =>
+      `${r.fabric_name_ar} ${r.color_name_ar} ${r.color_code ?? ''} ${r.roll_sr_no ?? ''} ${r.internal_barcode} ${r.brand_arabic_name ?? ''}`
+        .toLowerCase()
+        .includes(q),
+    );
+  }, [rolls, search, destination]);
 
   return (
-    <>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setOpen(true)}
-        className="h-10 cursor-pointer gap-2"
-      >
-        <Search className="size-4" />
-        {ar.pos.manualSearch}
-      </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{ar.pos.manualSearch}</DialogTitle>
-          </DialogHeader>
+    <div className="space-y-3 border-t border-border-subtle pt-3">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <h3 className="text-base font-semibold text-foreground">
+            {ar.pos.allProducts}
+          </h3>
+          {!isLoading && (
+            <span className="inline-flex items-center justify-center rounded-pill bg-surface-row-alt px-2 py-0.5 text-xs text-foreground-muted tabular-num">
+              {filtered.length}
+            </span>
+          )}
+        </div>
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 size-4 text-foreground-tertiary pointer-events-none" />
           <Input
-            placeholder={ar.pos.manualSearch}
+            placeholder={ar.pos.searchProducts}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             dir="rtl"
-            className="h-11 md:h-10"
+            className="h-10 ps-8"
           />
-          <div className="max-h-96 overflow-auto border border-border-subtle rounded-md">
-            {filtered.map((r) => (
-              <button
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="rounded-md border border-border-subtle bg-surface-elevated p-3 h-32 animate-pulse"
+            />
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-8 text-sm text-foreground-tertiary">
+          {ar.common.none}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2 max-h-[60vh] overflow-y-auto pe-1 -me-1">
+          {filtered.map((r) => {
+            const inCart = cartIds.has(r.id);
+            const fabric = isFabricRoll(r);
+            const wrongWarehouse = !rollMatchesDestination(r, destination);
+            const factoryInShopMode = destination === 'shop' && isFactoryRoll(r);
+            return (
+              <div
                 key={r.id}
-                onClick={() => {
-                  onPick(r);
-                  setOpen(false);
-                  setSearch('');
-                }}
-                className="w-full text-start p-3 hover:bg-surface-hover border-b border-border-subtle last:border-0 text-sm min-h-12 cursor-pointer transition-colors duration-150"
+                aria-disabled={wrongWarehouse || undefined}
+                className={`group rounded-md border bg-surface-elevated p-3 flex flex-col gap-2 transition-colors duration-150 ${
+                  inCart
+                    ? 'border-success/40 bg-success-subtle'
+                    : wrongWarehouse
+                      ? 'border-border-subtle opacity-60'
+                      : 'border-border-subtle hover:border-accent hover:bg-surface-hover'
+                }`}
               >
-                <div className="flex justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="font-medium truncate text-foreground">
-                      {r.fabric_name_ar} / {r.color_name_ar}
-                    </div>
-                    <div className="text-xs text-foreground-tertiary tabular-num" dir="ltr">
-                      {r.roll_sr_no ?? r.internal_barcode} ·{' '}
-                      {Number(r.weight_kg).toFixed(3)} كجم
-                    </div>
+                {inCart && (
+                  <span className="self-start inline-flex items-center gap-1 rounded-pill bg-success text-white px-2 py-0.5 text-[10px] font-medium">
+                    <CheckCircle2 className="size-3" />
+                    {ar.pos.inCart}
+                  </span>
+                )}
+                {!inCart && factoryInShopMode && (
+                  <span className="self-start inline-flex items-center gap-1 rounded-pill bg-surface-row-alt text-foreground-muted border border-border-default px-2 py-0.5 text-[10px] font-medium">
+                    <Factory className="size-3" />
+                    {ar.pos.factoryRollBadge}
+                  </span>
+                )}
+
+                <div className="min-w-0 space-y-1">
+                  <div className="font-medium text-sm truncate text-foreground">
+                    {r.fabric_name_ar}
                   </div>
-                  <div className="text-end shrink-0 tabular-num text-foreground">
-                    <div dir="ltr">{fmtMoney(r.selling_price_egp)}</div>
+                  {r.color_name_ar && (
+                    <div className="text-xs text-foreground-muted truncate">
+                      {r.color_code ? `${r.color_name_ar} · ${r.color_code}` : r.color_name_ar}
+                    </div>
+                  )}
+                  <div
+                    className="text-[11px] text-foreground-tertiary font-mono tabular-num truncate"
+                    dir="ltr"
+                  >
+                    {r.roll_sr_no ?? r.internal_barcode}
                   </div>
                 </div>
-              </button>
-            ))}
-            {filtered.length === 0 && (
-              <p className="p-4 text-center text-foreground-tertiary text-sm">
-                {ar.common.none}
-              </p>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-foreground-muted tabular-num" dir="ltr">
+                    {rollQuantity(r).toFixed(3)}{' '}
+                    {r.fabric_unit === 'meter' ? ar.pos.quantityM : ar.pos.quantityKg}
+                  </span>
+                  <span className="font-semibold text-foreground tabular-num" dir="ltr">
+                    {r.reference_price_per_unit != null
+                      ? fmtMoney(r.reference_price_per_unit)
+                      : '—'}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1 mt-auto">
+                  <Button
+                    size="sm"
+                    variant={inCart ? 'outline' : 'default'}
+                    disabled={inCart || wrongWarehouse}
+                    onClick={() => onPick(r)}
+                    className="h-9 flex-1 cursor-pointer gap-1 disabled:cursor-not-allowed"
+                    title={factoryInShopMode ? ar.pos.factoryRollBadge : undefined}
+                  >
+                    {inCart ? (
+                      <>
+                        <CheckCircle2 className="size-4" />
+                        {ar.pos.inCart}
+                      </>
+                    ) : factoryInShopMode ? (
+                      <>
+                        <Factory className="size-4" />
+                        {ar.pos.factoryRollBadge}
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingCart className="size-4" />
+                        {ar.pos.addToCart}
+                      </>
+                    )}
+                  </Button>
+                  {fabric && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onShowLabel(r)}
+                      className="h-9 size-9 p-0 cursor-pointer text-foreground-tertiary hover:text-accent"
+                      aria-label={ar.pos.label}
+                      title={ar.pos.label}
+                    >
+                      <Tag className="size-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── *
+ * NO-LINES DEPOSIT DIALOG — v2 Phase 5
+ * Creates an open invoice with `lines: []` and a single deposit payment.
+ * Cashier later attaches rolls via the standard POS flow.
+ * ────────────────────────────────────────────────────────────────────────── */
+function NoLinesDepositDialog({
+  open,
+  onOpenChange,
+  customer,
+  destination,
+  banks,
+  defaultBankId,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  customer: Customer | null;
+  destination: FulfillmentDestination;
+  banks: BankAccount[];
+  defaultBankId: number | null;
+  onCreated: (invoice: Invoice) => void;
+}) {
+  const [amount, setAmount] = useState('');
+  const [method, setMethod] = useState<'cash' | 'instapay' | 'bank_transfer' | 'cheque'>('cash');
+  const [bankAccountId, setBankAccountId] = useState<number | ''>(defaultBankId ?? '');
+  const [reference, setReference] = useState('');
+  const [chequeState, setChequeState] = useState<ChequeFormState>(emptyCheque());
+  const [notes, setNotes] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  // Reset state on each open.
+  useEffect(() => {
+    if (open) {
+      setAmount('');
+      setMethod('cash');
+      setBankAccountId(defaultBankId ?? '');
+      setReference('');
+      setChequeState(emptyCheque());
+      setNotes('');
+      setError(null);
+    }
+  }, [open, defaultBankId]);
+
+  const mut = useMutation({
+    mutationFn: () => {
+      if (!customer) throw new Error('NO_CUSTOMER');
+      const value = Number(amount);
+      if (!Number.isFinite(value) || value <= 0) throw new Error('AMOUNT_INVALID');
+      const bankId = (method === 'instapay' || method === 'bank_transfer')
+        ? (bankAccountId === '' ? null : Number(bankAccountId))
+        : null;
+      return salesApi.create({
+        customerId: customer.id,
+        fulfillmentDestination: destination,
+        lines: [],
+        cartTargetFinal: null,
+        payments: [{
+          method,
+          amount: value,
+          bankAccountId: bankId,
+          reference: method === 'bank_transfer' ? (reference || null) : null,
+          chequeDetails: method === 'cheque' ? chequeStateToDetails(chequeState) : null,
+        }],
+        notesAr: notes || null,
+      });
+    },
+    onSuccess: onCreated,
+    onError: (e: unknown) => {
+      if (e instanceof Error && e.message === 'AMOUNT_INVALID') {
+        setError(ar.pos.depositRequired);
+        return;
+      }
+      setError(extractApiError(e));
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Receipt className="size-5 text-accent" />
+            {ar.pos.saveAsDeposit}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          {customer ? (
+            <div className="rounded-md border border-border-subtle bg-surface-row-alt p-2 text-sm">
+              <span className="text-foreground-muted">{ar.pos.customer}: </span>
+              <span className="font-medium text-foreground">{customer.name_ar}</span>
+              <span className="text-xs text-foreground-tertiary mx-2 font-mono" dir="ltr">
+                {customer.phone}
+              </span>
+            </div>
+          ) : (
+            <p className="text-sm text-danger-foreground">{ar.pos.customerRequired}</p>
+          )}
+
+          <div className="space-y-1">
+            <Label>{ar.pos.depositAmount}</Label>
+            <Input
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
+              dir="ltr"
+              inputMode="decimal"
+              className="h-11 tabular-num"
+              aria-label={ar.pos.depositAmount}
+              autoFocus
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>{ar.pos.paymentMethod}</Label>
+            <div className="grid grid-cols-4 gap-2">
+              {([
+                { v: 'cash' as const, label: ar.pos.cash, Icon: Banknote },
+                { v: 'instapay' as const, label: ar.pos.instapay, Icon: CreditCard },
+                { v: 'bank_transfer' as const, label: ar.pos.bank_transfer, Icon: Landmark },
+                { v: 'cheque' as const, label: ar.pos.cheque, Icon: FileText },
+              ]).map(({ v: m, label, Icon }) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMethod(m)}
+                  className={`cursor-pointer rounded-lg border-2 p-2 flex flex-col items-center justify-center gap-1 transition-colors duration-150 min-h-[64px] ${
+                    method === m
+                      ? 'border-accent bg-accent-subtle text-accent'
+                      : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
+                  }`}
+                >
+                  <Icon className="size-4" />
+                  <span className="text-xs font-medium text-center leading-snug">{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {(method === 'instapay' || method === 'bank_transfer') && (
+            <div className="space-y-1">
+              <Label>{ar.pos.bankAccount}</Label>
+              <BankAccountSelect banks={banks} value={bankAccountId} onChange={setBankAccountId} />
+            </div>
+          )}
+          {method === 'bank_transfer' && (
+            <div className="space-y-1">
+              <Label>{ar.pos.reference}</Label>
+              <Input value={reference} onChange={(e) => setReference(e.target.value)} dir="ltr" maxLength={64} className="h-11" placeholder="اختياري" />
+            </div>
+          )}
+          {method === 'cheque' && (
+            <ChequeDetailsForm state={chequeState} onChange={setChequeState} />
+          )}
+
+          <div className="space-y-1">
+            <Label>{ar.pos.notes}</Label>
+            <Input
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              dir="rtl"
+              className="h-11"
+            />
+          </div>
+
+          {error && (
+            <p
+              className="text-sm text-danger-foreground bg-danger-subtle border border-danger/30 rounded-md p-2 flex items-center gap-2"
+              role="alert"
+            >
+              <AlertTriangle className="size-4 shrink-0 text-danger" />
+              {error}
+            </p>
+          )}
+
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+            <DialogClose asChild>
+              <Button variant="outline" className="h-11 cursor-pointer">
+                {ar.common.cancel}
+              </Button>
+            </DialogClose>
+            <Button
+              className="h-11 cursor-pointer gap-2"
+              disabled={!customer || mut.isPending || Number(amount) <= 0}
+              onClick={() => mut.mutate()}
+            >
+              <Receipt className="size-4" />
+              {ar.common.save}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── *
+ * RETURN DRAWER — v2 Phase 6
+ * Opens from the right edge (RTL) when a sold roll is scanned.
+ * ────────────────────────────────────────────────────────────────────────── */
+function ReturnDrawer({
+  roll,
+  meta,
+  metaLoading,
+  banks,
+  method,
+  setMethod,
+  bankId,
+  setBankId,
+  reference,
+  setReference,
+  chequeState,
+  setChequeState,
+  confirming,
+  onConfirm,
+  onClose,
+}: {
+  roll: RollLookup | null;
+  meta: ReturnScanMeta | null;
+  metaLoading: boolean;
+  banks: BankAccount[];
+  method: 'cash' | 'instapay' | 'bank_transfer' | 'cheque';
+  setMethod: (m: 'cash' | 'instapay' | 'bank_transfer' | 'cheque') => void;
+  bankId: number | '';
+  setBankId: (n: number | '') => void;
+  reference: string;
+  setReference: (s: string) => void;
+  chequeState: ChequeFormState;
+  setChequeState: (s: ChequeFormState) => void;
+  confirming: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Sheet open={!!roll} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent side="right" className="w-full sm:max-w-md flex flex-col p-0 gap-0">
+        {/* Header */}
+        <SheetHeader className="px-4 py-3 border-b border-border-subtle shrink-0">
+          <SheetTitle className="flex items-center gap-2 text-lg">
+            <RotateCcw className="size-5 text-accent" />
+            {ar.pos.returnDrawerTitle}
+          </SheetTitle>
+        </SheetHeader>
+
+        {/* Body — scrollable */}
+        <div className="flex-1 overflow-y-auto px-4 py-5 space-y-4">
+          {metaLoading ? (
+            <div className="space-y-3 animate-pulse">
+              <div className="h-28 rounded-xl bg-surface-hover" />
+              <div className="h-5 rounded bg-surface-hover w-3/4" />
+              <div className="h-5 rounded bg-surface-hover w-1/2" />
+              <div className="h-5 rounded bg-surface-hover w-2/3" />
+              <div className="h-24 rounded-md bg-surface-hover" />
+              <div className="h-20 rounded-lg bg-surface-hover" />
+            </div>
+          ) : meta ? (
+            <>
+              {/* Refund amount — prominent hero block */}
+              <div className="rounded-xl border-2 border-success/40 bg-success-subtle p-6 text-center space-y-1">
+                <p className="text-sm text-foreground-muted">{ar.pos.returnDrawerRefundAmount}</p>
+                <p
+                  className="text-5xl font-bold text-success-foreground tabular-num leading-none"
+                  dir="ltr"
+                >
+                  {fmtMoney(meta.refundEgp)}
+                </p>
+                <p className="text-base font-medium text-success-foreground">ج.م</p>
+              </div>
+
+              {/* Sale meta */}
+              <div className="rounded-md border border-border-subtle bg-surface-elevated divide-y divide-border-subtle text-sm">
+                <ReturnMetaRow label={ar.pos.returnDrawerOriginalInvoice} value={meta.originalInvoiceNo} mono />
+                <ReturnMetaRow
+                  label={ar.pos.returnDrawerCustomer}
+                  value={`${meta.customerNameAr}`}
+                  sub={meta.customerPhone}
+                />
+                <ReturnMetaRow label={ar.pos.returnDrawerSaleDate} value={fmtReturnDate(meta.saleDate)} />
+              </div>
+
+              {/* Roll info */}
+              <div className="rounded-md border border-border-subtle bg-surface-elevated p-3 space-y-1 text-sm">
+                <p className="text-xs font-medium text-foreground-muted uppercase tracking-wide">
+                  {ar.pos.returnDrawerRollInfo}
+                </p>
+                <p className="font-medium text-foreground">{meta.fabricNameAr}</p>
+                <p className="text-foreground-muted">
+                  {meta.colorNameAr}
+                  {meta.colorCode ? ` · ${meta.colorCode}` : ''}
+                </p>
+                <p className="text-xs font-mono text-foreground-tertiary" dir="ltr">
+                  {meta.rollInternalBarcode}
+                  {meta.rollSrNo ? ` · ${meta.rollSrNo}` : ''}
+                </p>
+              </div>
+
+              {/* Method picker — 4 tiles */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-foreground">
+                  {ar.pos.paymentMethod}
+                </Label>
+                <div className="grid grid-cols-4 gap-2">
+                  {([
+                    { v: 'cash' as const, label: ar.pos.cash, Icon: Banknote },
+                    { v: 'instapay' as const, label: ar.pos.instapay, Icon: CreditCard },
+                    { v: 'bank_transfer' as const, label: ar.pos.bank_transfer, Icon: Landmark },
+                    { v: 'cheque' as const, label: ar.pos.cheque, Icon: FileText },
+                  ]).map(({ v: m, label, Icon }) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setMethod(m)}
+                      className={`cursor-pointer rounded-lg border-2 p-2.5 flex flex-col items-center justify-center gap-1 transition-colors duration-150 min-h-[68px] ${
+                        method === m
+                          ? 'border-accent bg-accent-subtle text-accent'
+                          : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
+                      }`}
+                    >
+                      <Icon className="size-4" />
+                      <span className="text-xs font-medium text-center leading-snug">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {(method === 'instapay' || method === 'bank_transfer') && (
+                <div className="space-y-1">
+                  <Label>{ar.pos.bankAccount}</Label>
+                  <BankAccountSelect banks={banks} value={bankId} onChange={setBankId} />
+                </div>
+              )}
+              {method === 'bank_transfer' && (
+                <div className="space-y-1">
+                  <Label>{ar.pos.reference}</Label>
+                  <Input value={reference} onChange={(e) => setReference(e.target.value)} dir="ltr" maxLength={64} className="h-11" placeholder="اختياري" />
+                </div>
+              )}
+              {method === 'cheque' && (
+                <ChequeDetailsForm state={chequeState} onChange={setChequeState} />
+              )}
+            </>
+          ) : null}
+        </div>
+
+        {/* Sticky footer */}
+        <div className="border-t border-border-subtle px-4 py-4 space-y-2 shrink-0 bg-surface">
+          <Button
+            className="w-full h-12 cursor-pointer gap-2"
+            size="lg"
+            disabled={!meta || confirming || metaLoading}
+            onClick={onConfirm}
+          >
+            {confirming ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <RotateCcw className="size-4" />
+            )}
+            {ar.pos.returnDrawerConfirm}
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full h-11 cursor-pointer"
+            onClick={onClose}
+            disabled={confirming}
+          >
+            {ar.common.cancel}
+          </Button>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function ReturnMetaRow({
+  label,
+  value,
+  sub,
+  mono,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 px-3 py-2.5">
+      <span className="text-foreground-muted text-sm shrink-0">{label}</span>
+      <div className="text-end">
+        <span className={`text-sm font-medium text-foreground ${mono ? 'font-mono' : ''}`}>
+          {value}
+        </span>
+        {sub && (
+          <p className="text-xs text-foreground-tertiary font-mono" dir="ltr">
+            {sub}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function fmtReturnDate(s: string): string {
+  return new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(s));
 }
 
 /* ────────────────────────────────────────────────────────────────────────── *
@@ -1361,11 +2471,26 @@ function LabelPreviewModal({
 }) {
   const open = !!roll;
   const [format, setFormat] = useState<'thermal' | 'a4'>('thermal');
-  const url = roll ? itemsApi.fabricLabelUrl(roll.id, format) : '';
+  const [blobUrl, setBlobUrl] = useState<string>('');
 
   useEffect(() => {
     if (!open) setFormat('thermal');
   }, [open]);
+
+  useEffect(() => {
+    if (!roll) { setBlobUrl(''); return; }
+    let created: string | null = null;
+    let cancelled = false;
+    itemsApi.fabricLabelBlob(roll.id, format).then((blob) => {
+      if (cancelled) return;
+      created = URL.createObjectURL(blob);
+      setBlobUrl(created);
+    });
+    return () => {
+      cancelled = true;
+      if (created) URL.revokeObjectURL(created);
+    };
+  }, [roll, format]);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -1402,22 +2527,30 @@ function LabelPreviewModal({
                 A4
               </Button>
             </div>
-            <iframe
-              src={url}
-              title={ar.pos.labelPreview}
-              className="w-full h-[60vh] border border-border-subtle rounded-md"
-            />
+            {blobUrl ? (
+              <iframe
+                src={blobUrl}
+                title={ar.pos.labelPreview}
+                className="w-full h-[60vh] border border-border-subtle rounded-md"
+              />
+            ) : (
+              <div className="w-full h-[60vh] border border-border-subtle rounded-md grid place-items-center text-sm text-foreground-tertiary">
+                {ar.loading}
+              </div>
+            )}
             <div className="flex justify-end gap-2">
               <DialogClose asChild>
                 <Button variant="outline" className="cursor-pointer">
                   {ar.common.cancel}
                 </Button>
               </DialogClose>
-              <Button asChild className="cursor-pointer gap-2">
-                <a href={url} target="_blank" rel="noreferrer">
-                  <Tag className="size-4" />
-                  {ar.pos.print}
-                </a>
+              <Button
+                disabled={!blobUrl}
+                className="cursor-pointer gap-2"
+                onClick={() => { if (blobUrl) window.open(blobUrl, '_blank'); }}
+              >
+                <Tag className="size-4" />
+                {ar.pos.print}
               </Button>
             </div>
           </div>
@@ -1451,13 +2584,7 @@ function QuickCustomerDialog({
       setError(null);
     },
     onError: (e: unknown) => {
-      const msg =
-        axios.isAxiosError(e) &&
-        e.response?.data &&
-        (e.response.data as { message?: string }).message
-          ? (e.response.data as { message: string }).message
-          : ar.common.error;
-      setError(msg);
+      setError(extractApiError(e));
     },
   });
 
@@ -1507,6 +2634,53 @@ function QuickCustomerDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── *
+ * DESTINATION TOGGLE — Phase 4
+ * ────────────────────────────────────────────────────────────────────────── */
+function DestinationToggle({
+  value,
+  onChange,
+}: {
+  value: FulfillmentDestination;
+  onChange: (d: FulfillmentDestination) => void;
+}) {
+  const options: Array<{ key: FulfillmentDestination; label: string; Icon: typeof Store }> = [
+    { key: 'shop', label: ar.pos.fulfillmentShop, Icon: Store },
+    { key: 'factory_direct', label: ar.pos.fulfillmentFactoryDirect, Icon: Factory },
+  ];
+  return (
+    <div className="space-y-1.5">
+      <div className="text-xs font-medium text-foreground-muted">{ar.pos.fulfillment}</div>
+      <div
+        role="radiogroup"
+        aria-label={ar.pos.fulfillment}
+        className="grid grid-cols-2 gap-1 rounded-md border border-border-subtle bg-surface-row-alt p-1"
+      >
+        {options.map(({ key, label, Icon }) => {
+          const active = value === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => onChange(key)}
+              className={`cursor-pointer rounded-sm px-3 py-2 text-xs sm:text-sm font-medium inline-flex items-center justify-center gap-1.5 transition-colors duration-150 ${
+                active
+                  ? 'bg-accent text-white shadow-sm'
+                  : 'bg-transparent text-foreground hover:bg-surface-hover'
+              }`}
+            >
+              <Icon className="size-4" />
+              <span className="truncate">{label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

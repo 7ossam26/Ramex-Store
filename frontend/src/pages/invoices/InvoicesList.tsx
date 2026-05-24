@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { salesApi } from '@/lib/sales-api';
 import type {
+  FulfillmentDestination,
   InvoiceListRow,
   InvoiceStatus,
   OpenInvoiceRow,
@@ -15,7 +16,9 @@ import { Label } from '@/components/ui/label';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell, SectionCard } from '@/components/Layout/PageShell';
+import { KpiGrid } from '@/components/dashboard/KpiGrid';
+import { MetricCard } from '@/components/dashboard/MetricCard';
 import { FilterChip } from '@/components/FilterChip';
 import { InvoiceStatusPill } from '@/components/invoices/InvoiceStatusPill';
 import { StatusPill } from '@/components/StatusPill';
@@ -52,9 +55,7 @@ export function InvoicesListPage() {
   const [tab, setTab] = useState<TabKey>('all');
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4">
-      <PageHeader title={ar.invoices.title} />
-
+    <PageShell title={ar.invoices.title} backTo="/invoices-returns">
       {/* Filter chip row */}
       <div className="flex gap-2 overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0 pb-1">
         {TAB_ORDER.map((k) => (
@@ -71,20 +72,22 @@ export function InvoicesListPage() {
       ) : (
         <DefaultTab status={TAB_TO_STATUS[tab]} />
       )}
-    </div>
+    </PageShell>
   );
 }
 
 function DefaultTab({ status }: { status?: InvoiceStatus }) {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [destination, setDestination] = useState<FulfillmentDestination | 'all'>('all');
   const [page, setPage] = useState(1);
 
   const q = useQuery({
-    queryKey: ['invoices', status, dateFrom, dateTo, page],
+    queryKey: ['invoices', status, destination, dateFrom, dateTo, page],
     queryFn: () =>
       salesApi.list({
         status: status || undefined,
+        fulfillment_destination: destination === 'all' ? undefined : destination,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
         page,
@@ -95,7 +98,21 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
   const rows: InvoiceListRow[] = q.data?.rows ?? [];
   const total = q.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const activeFilters = (dateFrom ? 1 : 0) + (dateTo ? 1 : 0);
+  const activeFilters =
+    (dateFrom ? 1 : 0) + (dateTo ? 1 : 0) + (destination !== 'all' ? 1 : 0);
+
+  const kpis = useMemo(() => {
+    let revenue = 0;
+    let totalPaid = 0;
+    let totalBalance = 0;
+    for (const r of rows) {
+      revenue += Number(r.total_egp);
+      totalPaid += Number(r.paid_egp);
+      totalBalance += Number(r.balance_egp);
+    }
+    return { revenue, totalPaid, totalBalance };
+  }, [rows]);
+
 
   const filterControls = (
     <div className="rounded-lg border border-border-subtle bg-surface-elevated p-3 space-y-3">
@@ -121,6 +138,29 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
           />
         </div>
       </div>
+      <div className="space-y-1">
+        <Label className="text-sm font-medium text-foreground">{ar.invoices.filterFulfillment}</Label>
+        <div className="flex gap-2 flex-wrap">
+          <FilterChip
+            active={destination === 'all'}
+            onClick={() => { setDestination('all'); setPage(1); }}
+          >
+            {ar.invoices.filterAll}
+          </FilterChip>
+          <FilterChip
+            active={destination === 'shop'}
+            onClick={() => { setDestination('shop'); setPage(1); }}
+          >
+            {ar.invoices.fulfillmentShop}
+          </FilterChip>
+          <FilterChip
+            active={destination === 'factory_direct'}
+            onClick={() => { setDestination('factory_direct'); setPage(1); }}
+          >
+            {ar.invoices.fulfillmentFactoryDirect}
+          </FilterChip>
+        </div>
+      </div>
     </div>
   );
 
@@ -134,54 +174,124 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
         </Link>
       ),
       primary: true,
+      align: 'center',
+      width: '110px',
     },
-    { key: 'date', header: ar.invoices.date, cell: (r) => <span className="text-foreground-muted" dir="ltr">{fmtDate(r.created_at)}</span>, secondary: true },
-    { key: 'customer', header: ar.invoices.customer, cell: (r) => r.customer_name_ar, secondary: true },
+    {
+      key: 'date',
+      header: ar.invoices.date,
+      cell: (r) => <span className="text-foreground-muted whitespace-nowrap" dir="ltr">{fmtDate(r.created_at)}</span>,
+      secondary: true,
+      align: 'center',
+      width: '150px',
+    },
+    {
+      key: 'customer',
+      header: ar.invoices.customer,
+      cell: (r) => <span className="block truncate">{r.customer_name_ar}</span>,
+      secondary: true,
+      align: 'center',
+    },
     {
       key: 'total',
       header: ar.invoices.total,
       cell: (r) => <span className="font-medium tabular-num" dir="ltr">{fmtMoney(r.total_egp)}</span>,
+      align: 'center',
+      width: '110px',
     },
-    { key: 'paid', header: ar.invoices.paid, cell: (r) => <span className="tabular-num" dir="ltr">{fmtMoney(r.paid_egp)}</span> },
-    { key: 'balance', header: ar.invoices.balance, cell: (r) => <span className="tabular-num" dir="ltr">{fmtMoney(r.balance_egp)}</span> },
-    { key: 'status', header: ar.invoices.status, cell: (r) => <InvoiceStatusPill status={r.status} /> },
+    {
+      key: 'paid',
+      header: ar.invoices.paid,
+      cell: (r) => <span className="tabular-num" dir="ltr">{fmtMoney(r.paid_egp)}</span>,
+      align: 'center',
+      width: '110px',
+    },
+    {
+      key: 'balance',
+      header: ar.invoices.balance,
+      cell: (r) => <span className="tabular-num" dir="ltr">{fmtMoney(r.balance_egp)}</span>,
+      align: 'center',
+      width: '110px',
+    },
+    {
+      key: 'status',
+      header: ar.invoices.status,
+      cell: (r) => <InvoiceStatusPill status={r.status} />,
+      align: 'center',
+      width: '130px',
+    },
     {
       key: 'actions',
       header: ar.invoices.actions,
       cell: (r) => (
-        <div className="flex gap-3">
+        <div className="flex gap-3 justify-center whitespace-nowrap">
           <Link to={`/invoices/${r.id}`} className="text-xs text-accent hover:text-accent-hover hover:underline underline-offset-2">
             {ar.invoices.view}
           </Link>
-          <a
-            className="text-xs text-accent hover:text-accent-hover hover:underline underline-offset-2"
-            href={salesApi.pdfUrl(r.id, 'reprint')}
-            target="_blank"
-            rel="noreferrer"
+          <button
+            type="button"
+            className="text-xs text-accent hover:text-accent-hover hover:underline underline-offset-2 cursor-pointer"
+            onClick={(e) => { e.stopPropagation(); window.open(`/invoices/${r.id}/draft?variant=reprint`, '_blank', 'noopener'); }}
           >
             {ar.invoices.reprint}
-          </a>
+          </button>
         </div>
       ),
       hideOnMobile: true,
+      align: 'center',
+      width: '140px',
     },
   ];
 
   return (
     <>
+      <KpiGrid>
+        <MetricCard
+          label="إجمالي الفواتير"
+          value={q.isLoading ? null : total}
+          format="int"
+          tone="accent"
+          emDashOnZero={false}
+          meta="عدد الفواتير"
+        />
+        <MetricCard
+          label="إجمالي الإيرادات"
+          value={q.isLoading ? null : kpis.revenue}
+          format="money"
+          tone="success"
+          meta="إجمالي الفواتير الظاهرة"
+        />
+        <MetricCard
+          label="المحصّل"
+          value={q.isLoading ? null : kpis.totalPaid}
+          format="money"
+          tone="info"
+          meta="إجمالي المدفوع"
+        />
+        <MetricCard
+          label="المتبقي"
+          value={q.isLoading ? null : kpis.totalBalance}
+          format="money"
+          tone={kpis.totalBalance > 0 ? 'warning' : 'default'}
+          meta="رصيد غير محصّل"
+        />
+      </KpiGrid>
+
       <MobileFilterSheet activeCount={activeFilters}>{filterControls}</MobileFilterSheet>
 
-      <ResponsiveTable
-        columns={columns}
-        rows={rows}
-        rowKey={(r) => String(r.id)}
-        onRowClick={(r) => { window.location.href = `/invoices/${r.id}`; }}
-        empty={ar.invoices.empty}
-        isLoading={q.isLoading}
-        isError={q.isError}
-        onRetry={() => q.refetch()}
-        resetKey={`${status ?? ''}|${dateFrom}|${dateTo}|${page}`}
-      />
+      <SectionCard noPadding>
+        <ResponsiveTable
+          columns={columns}
+          rows={rows}
+          rowKey={(r) => String(r.id)}
+          onRowClick={(r) => { window.location.href = `/invoices/${r.id}`; }}
+          empty={ar.invoices.empty}
+          isLoading={q.isLoading}
+          isError={q.isError}
+          onRetry={() => q.refetch()}
+          resetKey={`${status ?? ''}|${destination}|${dateFrom}|${dateTo}|${page}`}
+        />
+      </SectionCard>
 
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
@@ -213,21 +323,57 @@ function OpenInvoicesTab() {
         </Link>
       ),
       primary: true,
+      align: 'center',
+      width: '110px',
     },
-    { key: 'date', header: ar.invoices.date, cell: (r) => <span className="text-foreground-muted" dir="ltr">{fmtDate(r.created_at)}</span>, secondary: true },
-    { key: 'customer', header: ar.invoices.customer, cell: (r) => r.customer_name_ar, secondary: true },
-    { key: 'total', header: ar.invoices.total, cell: (r) => <span className="font-medium tabular-num" dir="ltr">{fmtMoney(r.total_egp)}</span> },
-    { key: 'balance', header: ar.invoices.balance, cell: (r) => <span className="tabular-num" dir="ltr">{fmtMoney(r.balance_egp)}</span> },
+    {
+      key: 'date',
+      header: ar.invoices.date,
+      cell: (r) => <span className="text-foreground-muted whitespace-nowrap" dir="ltr">{fmtDate(r.created_at)}</span>,
+      secondary: true,
+      align: 'center',
+      width: '150px',
+    },
+    {
+      key: 'customer',
+      header: ar.invoices.customer,
+      cell: (r) => (
+        <span className="inline-flex items-center gap-2 min-w-0">
+          <span className="block truncate">{r.customer_name_ar}</span>
+          {r.line_count === 0 && (
+            <StatusPill tone="info">{ar.invoices.noLinesDepositBadge}</StatusPill>
+          )}
+        </span>
+      ),
+      secondary: true,
+      align: 'center',
+    },
+    {
+      key: 'total',
+      header: ar.invoices.total,
+      cell: (r) => <span className="font-medium tabular-num" dir="ltr">{fmtMoney(r.total_egp)}</span>,
+      align: 'center',
+      width: '120px',
+    },
+    {
+      key: 'balance',
+      header: ar.invoices.balance,
+      cell: (r) => <span className="tabular-num" dir="ltr">{fmtMoney(r.balance_egp)}</span>,
+      align: 'center',
+      width: '120px',
+    },
     {
       key: 'age',
       header: ar.invoices.age,
       cell: (r) => (
-        <span className="inline-flex items-center gap-2">
+        <span className="inline-flex items-center gap-2 whitespace-nowrap">
           <span className="tabular-num" dir="ltr">{r.age_days}</span>
           <span className="text-foreground-muted text-xs">{ar.invoices.days}</span>
           {r.is_stale && <StatusPill tone="warning">{ar.invoices.staleBadge}</StatusPill>}
         </span>
       ),
+      align: 'center',
+      width: '160px',
     },
     {
       key: 'actions',
@@ -238,21 +384,25 @@ function OpenInvoicesTab() {
         </Link>
       ),
       hideOnMobile: true,
+      align: 'center',
+      width: '80px',
     },
   ];
 
   return (
-    <ResponsiveTable
-      columns={columns}
-      rows={rows}
-      rowKey={(r) => String(r.id)}
-      onRowClick={(r) => { window.location.href = `/invoices/${r.id}`; }}
-      empty={ar.invoices.empty}
-      isLoading={q.isLoading}
-      isError={q.isError}
-      onRetry={() => q.refetch()}
-      rowClassName={(r) => (r.is_stale ? 'border-s-2 border-s-warning' : '')}
-    />
+    <SectionCard noPadding>
+      <ResponsiveTable
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => String(r.id)}
+        onRowClick={(r) => { window.location.href = `/invoices/${r.id}`; }}
+        empty={ar.invoices.empty}
+        isLoading={q.isLoading}
+        isError={q.isError}
+        onRetry={() => q.refetch()}
+        rowClassName={(r) => (r.is_stale ? 'border-s-2 border-s-warning' : '')}
+      />
+    </SectionCard>
   );
 }
 
@@ -281,33 +431,62 @@ function PendingPickupTab() {
         </Link>
       ),
       primary: true,
+      align: 'center',
+      width: '110px',
     },
-    { key: 'date', header: ar.invoices.date, cell: (r) => <span className="text-foreground-muted" dir="ltr">{fmtDate(r.created_at)}</span>, secondary: true },
-    { key: 'customer', header: ar.invoices.customer, cell: (r) => r.customer_name_ar, secondary: true },
-    { key: 'phone', header: ar.customers.phone, cell: (r) => <span className="font-mono tabular-num" dir="ltr">{r.customer_phone}</span> },
-    { key: 'total', header: ar.invoices.total, cell: (r) => <span className="font-medium tabular-num" dir="ltr">{fmtMoney(r.total_egp)}</span> },
+    {
+      key: 'date',
+      header: ar.invoices.date,
+      cell: (r) => <span className="text-foreground-muted whitespace-nowrap" dir="ltr">{fmtDate(r.created_at)}</span>,
+      secondary: true,
+      align: 'center',
+      width: '150px',
+    },
+    {
+      key: 'customer',
+      header: ar.invoices.customer,
+      cell: (r) => <span className="block truncate">{r.customer_name_ar}</span>,
+      secondary: true,
+      align: 'center',
+    },
+    {
+      key: 'phone',
+      header: ar.customers.phone,
+      cell: (r) => <span className="font-mono tabular-num whitespace-nowrap" dir="ltr">{r.customer_phone}</span>,
+      align: 'center',
+      width: '140px',
+    },
+    {
+      key: 'total',
+      header: ar.invoices.total,
+      cell: (r) => <span className="font-medium tabular-num" dir="ltr">{fmtMoney(r.total_egp)}</span>,
+      align: 'center',
+      width: '120px',
+    },
   ];
 
   return (
     <>
-      <ResponsiveTable
-        columns={columns}
-        rows={rows}
-        rowKey={(r) => String(r.id)}
-        empty={ar.invoices.empty}
-        isLoading={q.isLoading}
-        isError={q.isError}
-        onRetry={() => q.refetch()}
-        actions={(r) => (
-          <Button
-            size="sm"
-            onClick={() => setPendingDeliverId(r.id)}
-            disabled={deliverMut.isPending}
-          >
-            {ar.invoices.markDelivered}
-          </Button>
-        )}
-      />
+      <SectionCard noPadding>
+        <ResponsiveTable
+          columns={columns}
+          rows={rows}
+          rowKey={(r) => String(r.id)}
+          empty={ar.invoices.empty}
+          isLoading={q.isLoading}
+          isError={q.isError}
+          onRetry={() => q.refetch()}
+          actions={(r) => (
+            <Button
+              size="sm"
+              onClick={() => setPendingDeliverId(r.id)}
+              disabled={deliverMut.isPending}
+            >
+              {ar.invoices.markDelivered}
+            </Button>
+          )}
+        />
+      </SectionCard>
       <ConfirmDialog
         open={pendingDeliverId !== null}
         message={ar.invoices.markDeliveredConfirm}

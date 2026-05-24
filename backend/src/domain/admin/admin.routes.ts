@@ -11,7 +11,7 @@ adminRouter.use(requireAuth, requireActiveSession);
 
 adminRouter.post(
   '/trigger-stale-check',
-  requireRole('owner'),
+  requireRole('owner', 'super_admin'),
   async (req, res, next) => {
     try {
       const result = await runStaleInvoiceCheck();

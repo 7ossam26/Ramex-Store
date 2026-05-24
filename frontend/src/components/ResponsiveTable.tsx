@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { motion } from 'framer-motion';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { ErrorBanner } from '@/components/ErrorBanner';
@@ -15,7 +15,7 @@ export type Column<T> = {
   secondary?: boolean;
   /** Hide entirely on mobile. */
   hideOnMobile?: boolean;
-  align?: 'start' | 'end';
+  align?: 'start' | 'center' | 'end';
   className?: string;
   /** Fixed width / min width on desktop. */
   width?: string;
@@ -42,6 +42,10 @@ type Props<T> = {
   errorDescription?: string;
   /** When this value changes, rows fade in fresh (150ms). Use for filter changes. */
   resetKey?: string | number;
+  /** Renders inline below an expanded row (desktop tr/colSpan, mobile card append). */
+  expandedContent?: (row: T) => ReactNode;
+  /** Keys currently expanded. Required when `expandedContent` is set. */
+  expandedKeys?: Set<string>;
 };
 
 export function ResponsiveTable<T>({
@@ -59,6 +63,8 @@ export function ResponsiveTable<T>({
   errorTitle,
   errorDescription,
   resetKey,
+  expandedContent,
+  expandedKeys,
 }: Props<T>) {
   const visibleCols = columns;
   // Stagger only on the very first paint. Subsequent resetKey flips (filter
@@ -122,6 +128,7 @@ export function ResponsiveTable<T>({
                   className={cn(
                     'px-3 py-3 font-medium uppercase tracking-wide',
                     c.align === 'end' && 'text-end',
+                    c.align === 'center' && 'text-center',
                     c.className,
                   )}
                   style={c.width ? { width: c.width } : undefined}
@@ -143,45 +150,71 @@ export function ResponsiveTable<T>({
                 </td>
               </tr>
             ) : (
-              rows.map((row, i) => (
-                <motion.tr
-                  key={rowKey(row)}
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    duration: 0.15,
-                    ease: [0, 0, 0.2, 1],
-                    delay: rowDelay(i),
-                  }}
-                  onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  className={cn(
-                    'border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150',
-                    onRowClick && 'cursor-pointer',
-                    rowClassName?.(row),
-                  )}
-                >
-                  {visibleCols.map((c) => (
-                    <td
-                      key={c.key}
+              rows.map((row, i) => {
+                const key = rowKey(row);
+                const isExpanded = expandedKeys?.has(key) ?? false;
+                const colSpan = visibleCols.length + (actions ? 1 : 0);
+                return (
+                  <Fragment key={key}>
+                    <motion.tr
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{
+                        duration: 0.15,
+                        ease: [0, 0, 0.2, 1],
+                        delay: rowDelay(i),
+                      }}
+                      onClick={onRowClick ? () => onRowClick(row) : undefined}
                       className={cn(
-                        'px-3 py-2.5 align-middle text-foreground',
-                        c.align === 'end' && 'text-end',
-                        c.className,
+                        'border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150',
+                        onRowClick && 'cursor-pointer',
+                        isExpanded && 'bg-surface-hover',
+                        rowClassName?.(row),
                       )}
                     >
-                      {c.cell(row)}
-                    </td>
-                  ))}
-                  {actions && (
-                    <td
-                      className="px-3 py-2.5 align-middle text-end whitespace-nowrap"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {actions(row)}
-                    </td>
-                  )}
-                </motion.tr>
-              ))
+                      {visibleCols.map((c) => (
+                        <td
+                          key={c.key}
+                          className={cn(
+                            'px-3 py-2.5 align-middle text-foreground',
+                            c.align === 'end' && 'text-end',
+                            c.align === 'center' && 'text-center',
+                            c.className,
+                          )}
+                        >
+                          {c.cell(row)}
+                        </td>
+                      ))}
+                      {actions && (
+                        <td
+                          className="px-3 py-2.5 align-middle text-end whitespace-nowrap"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {actions(row)}
+                        </td>
+                      )}
+                    </motion.tr>
+                    {expandedContent && (
+                      <AnimatePresence initial={false}>
+                        {isExpanded && (
+                          <motion.tr
+                            key={`${key}-expand`}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.15 }}
+                            className="bg-surface-row-alt/40 border-b border-border-subtle"
+                          >
+                            <td colSpan={colSpan} className="px-3 py-3">
+                              {expandedContent(row)}
+                            </td>
+                          </motion.tr>
+                        )}
+                      </AnimatePresence>
+                    )}
+                  </Fragment>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -198,9 +231,11 @@ export function ResponsiveTable<T>({
             const restCols = visibleCols.filter(
               (c) => !c.primary && !c.secondary && !c.hideOnMobile,
             );
+            const key = rowKey(row);
+            const isExpanded = expandedKeys?.has(key) ?? false;
             return (
               <motion.div
-                key={rowKey(row)}
+                key={key}
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{
@@ -245,6 +280,11 @@ export function ResponsiveTable<T>({
                       </div>
                     ))}
                   </dl>
+                )}
+                {expandedContent && isExpanded && (
+                  <div className="pt-2 mt-1 border-t border-border-subtle">
+                    {expandedContent(row)}
+                  </div>
                 )}
               </motion.div>
             );
