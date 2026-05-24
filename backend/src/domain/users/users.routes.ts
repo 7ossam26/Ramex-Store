@@ -88,6 +88,19 @@ usersRouter.post('/:id/reset-password', requireRole('super_admin'), async (req, 
   }
 });
 
+// GET /users/me/permissions — effective permissions for the logged-in user (any role)
+usersRouter.get('/me/permissions', async (req, res, next) => {
+  try {
+    const { sub: userId, role } = req.user!;
+    if (role === 'owner' || role === 'super_admin') {
+      res.json({ all: true });
+      return;
+    }
+    const permissions = await permSvc.getEffectivePermissionsForUser(userId, role);
+    res.json({ all: false, permissions });
+  } catch (e) { next(e); }
+});
+
 // GET /users/:id/permissions — get role matrix + user overrides (super_admin only)
 usersRouter.get('/:id/permissions', requireRole('super_admin'), async (req, res, next) => {
   try {

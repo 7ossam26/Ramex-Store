@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -7,24 +7,20 @@ import { usersApi, type UserRow } from '@/lib/settings-api';
 import { extractApiError } from '@/lib/api-error';
 import { Toast } from '@/components/Toast';
 import { cn } from '@/lib/utils';
+import { RESOURCE_GROUPS } from '@/lib/permissions-config';
+import type { PermAction } from '@/lib/permissions-config';
 
 type Props = {
   user: UserRow | null;
   onClose: () => void;
 };
 
-// Effective state for one (resource, action) cell
 type CellState = 'default' | 'allow' | 'deny';
-
-function stateFromOverride(isAllowed: boolean | undefined): CellState {
-  if (isAllowed === undefined) return 'default';
-  return isAllowed ? 'allow' : 'deny';
-}
 
 export function EditUserPermissionsDialog({ user, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  // dirty map: `${resource}:${action}` → boolean | null (null = revert to default)
+  // dirty map: `${resource}:${action}` → boolean | null (null = revert to role default)
   const [dirty, setDirty] = useState<Map<string, boolean | null>>(new Map());
 
   const { data, isLoading } = useQuery({
@@ -43,32 +39,30 @@ export function EditUserPermissionsDialog({ user, onClose }: Props) {
     onError: (e) => setError(extractApiError(e)),
   });
 
-  // All unique (resource, action) pairs from the role matrix, filtered to the user's role
-  const entries = useMemo(() => {
-    if (!data) return [];
-    const role = data.role;
-    return data.roleMatrix
-      .filter((r) => r.role === role)
-      .sort((a, b) => a.resource.localeCompare(b.resource) || a.action.localeCompare(b.action));
-  }, [data]);
-
   function getState(resource: string, action: string): CellState {
     const key = `${resource}:${action}`;
     if (dirty.has(key)) {
       const v = dirty.get(key);
-      if (v === null) return 'default';
-      return v ? 'allow' : 'deny';
+      return v === null ? 'default' : v ? 'allow' : 'deny';
     }
     const override = data?.overrides.find((o) => o.resource === resource && o.action === action);
-    return stateFromOverride(override?.is_allowed);
+    if (override === undefined) return 'default';
+    return override.is_allowed ? 'allow' : 'deny';
+  }
+
+  function getRoleDefault(resource: string, action: string): boolean {
+    if (!data) return false;
+    const row = data.roleMatrix.find(
+      (r) => r.role === data.role && r.resource === resource && r.action === action,
+    );
+    return row ? row.is_allowed : false;
   }
 
   function toggle(resource: string, action: string, next: CellState) {
     const key = `${resource}:${action}`;
     setDirty((prev) => {
       const m = new Map(prev);
-      if (next === 'default') m.set(key, null);
-      else m.set(key, next === 'allow');
+      m.set(key, next === 'default' ? null : next === 'allow');
       return m;
     });
   }
@@ -82,12 +76,6 @@ export function EditUserPermissionsDialog({ user, onClose }: Props) {
     }
     saveMut.mutate(updates);
   }
-
-  const actionLabels: Record<string, string> = {
-    read: ar.settings.permissions.read,
-    write: ar.settings.permissions.write,
-    approve: ar.settings.permissions.approve,
-  };
 
   if (!user) return null;
 
@@ -104,7 +92,7 @@ export function EditUserPermissionsDialog({ user, onClose }: Props) {
             <div className="py-8 text-center text-sm text-muted-foreground">جارٍ التحميل...</div>
           )}
 
-          {!isLoading && entries.length > 0 && (
+          {!isLoading && data && (
             <div className="rounded-lg border border-border overflow-hidden">
               <table className="w-full text-xs">
                 <thead className="bg-muted text-muted-foreground">
@@ -118,29 +106,42 @@ export function EditUserPermissionsDialog({ user, onClose }: Props) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {/* Group by resource */}
-                  {Array.from(new Set(entries.map((e) => e.resource))).map((resource) => (
-                    <tr key={resource} className="hover:bg-muted/30 transition-colors">
-                      <td className="py-2 px-3 font-medium sticky start-0 bg-background border-e border-border">
-                        {ar.settings.permissions.resources[resource] ?? resource}
-                      </td>
-                      {(['read', 'write', 'approve'] as const).map((action) => {
-                        const entry = entries.find((e) => e.resource === resource && e.action === action);
-                        if (!entry) {
-                          return <td key={action} className="py-2 px-3 text-center text-muted-foreground">—</td>;
-                        }
-                        const state = getState(resource, action);
-                        return (
-                          <td key={action} className="py-2 px-3 text-center">
-                            <TriStateControl
-                              state={state}
-                              roleDefault={entry.is_allowed}
-                              onChange={(next) => toggle(resource, action, next)}
-                            />
+                  {RESOURCE_GROUPS.map((group) => (
+                    <>
+                      {/* Group header */}
+                      <tr key={`group-${group.groupKey}`} className="bg-muted/60">
+                        <td
+                          colSpan={4}
+                          className="py-1.5 px-3 text-xs font-semibold text-muted-foreground tracking-wide sticky start-0 bg-muted/60"
+                        >
+                          {ar.settings.permissions.groups[group.groupKey] ?? group.groupKey}
+                        </td>
+                      </tr>
+                      {/* Resource rows */}
+                      {group.resources.map((def, ri) => (
+                        <tr key={def.key} className={cn('hover:bg-muted/30 transition-colors', ri % 2 === 1 && 'bg-muted/10')}>
+                          <td className="py-2 px-3 font-medium sticky start-0 bg-background border-e border-border">
+                            {ar.settings.permissions.resources[def.key] ?? def.key}
                           </td>
-                        );
-                      })}
-                    </tr>
+                          {(['read', 'write', 'approve'] as const).map((action) => {
+                            const supported = def.actions.includes(action as PermAction);
+                            return (
+                              <td key={action} className="py-2 px-3 text-center">
+                                {supported ? (
+                                  <TriStateControl
+                                    state={getState(def.key, action)}
+                                    roleDefault={getRoleDefault(def.key, action)}
+                                    onChange={(next) => toggle(def.key, action, next)}
+                                  />
+                                ) : (
+                                  <span className="text-muted-foreground/40">—</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </>
                   ))}
                 </tbody>
               </table>
@@ -151,11 +152,7 @@ export function EditUserPermissionsDialog({ user, onClose }: Props) {
 
           <div className="flex justify-end gap-2 pt-3">
             <Button variant="outline" size="sm" onClick={onClose}>{ar.common.cancel}</Button>
-            <Button
-              size="sm"
-              onClick={handleSave}
-              disabled={saveMut.isPending}
-            >
+            <Button size="sm" onClick={handleSave} disabled={saveMut.isPending}>
               {ar.common.save}
             </Button>
           </div>
@@ -173,7 +170,6 @@ export function EditUserPermissionsDialog({ user, onClose }: Props) {
   );
 }
 
-// 3-way control: Default (inherits role) / Allow / Deny
 function TriStateControl({
   state,
   roleDefault,
@@ -185,8 +181,8 @@ function TriStateControl({
 }) {
   const options: Array<{ value: CellState; label: string }> = [
     { value: 'default', label: ar.settings.users.useRoleDefault },
-    { value: 'allow', label: ar.settings.users.allow },
-    { value: 'deny', label: ar.settings.users.deny },
+    { value: 'allow',   label: ar.settings.users.allow },
+    { value: 'deny',    label: ar.settings.users.deny },
   ];
 
   return (

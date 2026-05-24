@@ -1,5 +1,6 @@
-import { lazy, Suspense } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { lazy, Suspense, type ReactNode } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { usePermissions } from '@/lib/permissions';
 import { LoginPage } from './pages/Login';
 import { HomePage } from './pages/Home';
 import { AppShell } from './components/AppShell';
@@ -55,6 +56,14 @@ const SecondaryReportPage = lazy(() =>
   import('./pages/reports/SecondaryReport').then((m) => ({ default: m.SecondaryReportPage })),
 );
 
+/** Redirects to "/" if the user doesn't have read access to the given resource. */
+function PermGate({ resource, children }: { resource: string; children: ReactNode }) {
+  const { can, loading } = usePermissions();
+  if (loading) return null;
+  if (!can(resource, 'read')) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
 function RouteFallback() {
   return (
     <div className="flex items-center justify-center py-24" aria-live="polite">
@@ -92,12 +101,12 @@ export function App() {
                 <Route path="/items/labels" element={<LabelsPage />} />
                 <Route path="/items/tops/add" element={<AddTopPage />} />
 
-                <Route path="/inventory" element={<InventoryHubPage />} />
-                <Route path="/inventory/stock" element={<StockViewPage />} />
-                <Route path="/inventory/stock-movements" element={<StockMovementsPage />} />
-                <Route path="/inventory/stocktake" element={<StocktakePage />} />
-                <Route path="/inventory/adjustments" element={<AdjustmentsPage />} />
-                <Route path="/inventory/damage" element={<DamagePage />} />
+                <Route path="/inventory" element={<PermGate resource="inventory"><InventoryHubPage /></PermGate>} />
+                <Route path="/inventory/stock" element={<PermGate resource="inventory"><StockViewPage /></PermGate>} />
+                <Route path="/inventory/stock-movements" element={<PermGate resource="inventory"><StockMovementsPage /></PermGate>} />
+                <Route path="/inventory/stocktake" element={<PermGate resource="inventory"><StocktakePage /></PermGate>} />
+                <Route path="/inventory/adjustments" element={<PermGate resource="inventory"><AdjustmentsPage /></PermGate>} />
+                <Route path="/inventory/damage" element={<PermGate resource="inventory"><DamagePage /></PermGate>} />
 
                 <Route path="/shipments" element={<ShipmentsHubPage />} />
                 <Route path="/shipments/all" element={<ShipmentsListPage />} />
@@ -109,24 +118,24 @@ export function App() {
                 <Route path="/shipments/:id/continue" element={<CreateShipmentPage />} />
                 <Route path="/shipments/:id" element={<ReviewShipmentPage />} />
 
-                <Route path="/customers" element={<CustomersListPage />} />
-                <Route path="/customers/:id" element={<CustomerDetailPage />} />
+                <Route path="/customers" element={<PermGate resource="customers"><CustomersListPage /></PermGate>} />
+                <Route path="/customers/:id" element={<PermGate resource="customers"><CustomerDetailPage /></PermGate>} />
 
                 <Route path="/pos" element={<POSPage />} />
 
                 <Route path="/invoices-returns" element={<InvoicesReturnsHubPage />} />
-                <Route path="/invoices" element={<InvoicesListPage />} />
-                <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
-                <Route path="/returns" element={<ReturnsListPage />} />
-                <Route path="/returns/:id" element={<ReturnDetailPage />} />
+                <Route path="/invoices" element={<PermGate resource="invoices"><InvoicesListPage /></PermGate>} />
+                <Route path="/invoices/:id" element={<PermGate resource="invoices"><InvoiceDetailPage /></PermGate>} />
+                <Route path="/returns" element={<PermGate resource="returns"><ReturnsListPage /></PermGate>} />
+                <Route path="/returns/:id" element={<PermGate resource="returns"><ReturnDetailPage /></PermGate>} />
                 <Route path="/cheques" element={<ChequesPage />} />
 
                 <Route path="/treasury" element={<TreasuryHubPage />} />
                 <Route path="/treasury/overview" element={<TreasuriesOverviewPage />} />
-                <Route path="/cash" element={<CashDrawerPage />} />
-                <Route path="/banks" element={<BanksPage />} />
-                <Route path="/expenses" element={<ExpensesPage />} />
-                <Route path="/reconcile" element={<CashReconcilePage />} />
+                <Route path="/cash" element={<PermGate resource="cash_drawer"><CashDrawerPage /></PermGate>} />
+                <Route path="/banks" element={<PermGate resource="cash_drawer"><BanksPage /></PermGate>} />
+                <Route path="/expenses" element={<PermGate resource="cash_drawer"><ExpensesPage /></PermGate>} />
+                <Route path="/reconcile" element={<PermGate resource="cash_drawer"><CashReconcilePage /></PermGate>} />
 
                 <Route path="/notifications" element={<NotificationsPage />} />
 

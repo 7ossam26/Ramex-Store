@@ -38,6 +38,8 @@ import { ResetPasswordDialog } from './ResetPasswordDialog';
 import { EditUserPermissionsDialog } from './EditUserPermissionsDialog';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import type { UserRow } from '@/lib/settings-api';
+import { RESOURCE_GROUPS } from '@/lib/permissions-config';
+import type { PermAction } from '@/lib/permissions-config';
 
 type Section = SettingsSectionId;
 
@@ -263,14 +265,7 @@ function GeneralSection({ settings, onSave, notifySaved }: SectionProps) {
 
 // ─── Section: Users & Permissions ───────────────────────────────────────────
 
-const RESOURCES = [
-  'customers', 'invoices', 'inventory', 'shipments', 'cash_drawer', 'returns',
-  'reports.daily', 'reports.salesByFabricColor', 'reports.customerLedger',
-  'reports.outstandingOpenInvoices', 'reports.stocktakeInventory', 'reports.cashFlow',
-  'reports.bankReconciliation', 'reports.expenses', 'reports.damageLoss',
-  'reports.salesByPaymentMethod', 'reports.auditLog',
-  'settings', 'users',
-];
+// RESOURCE_GROUPS is the single source of truth — imported from @/lib/permissions-config
 
 function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
   const qc = useQueryClient();
@@ -541,41 +536,66 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
-              {RESOURCES.map((resource, ri) => (
-                <tr
-                  key={resource}
-                  className={cn(
-                    'hover:bg-surface-hover transition-colors duration-150',
-                    ri % 2 === 1 ? 'bg-surface-row-alt/40' : 'bg-surface-elevated',
-                  )}
-                >
-                  <td
-                    className={cn(
-                      'py-2 px-3 text-foreground-muted sticky start-0 z-10 border-e border-border-subtle',
-                      ri % 2 === 1 ? 'bg-surface-row-alt' : 'bg-surface-elevated',
-                    )}
-                  >
-                    {ar.settings.permissions.resources[resource] ?? resource}
-                  </td>
-                  {(['read', 'write', 'approve'] as const).flatMap((action) => [
-                    <td key={`seller-${action}`} className="py-2 px-3 text-center">
-                      <input
-                        type="checkbox"
-                        className="size-4 accent-accent rounded cursor-pointer"
-                        checked={isAllowed('shop_seller', resource, action)}
-                        onChange={() => togglePerm('shop_seller', resource, action)}
-                      />
-                    </td>,
-                    <td key={`factory-${action}`} className="py-2 px-3 text-center">
-                      <input
-                        type="checkbox"
-                        className="size-4 accent-accent rounded cursor-pointer"
-                        checked={isAllowed('factory_sender', resource, action)}
-                        onChange={() => togglePerm('factory_sender', resource, action)}
-                      />
-                    </td>,
-                  ])}
-                </tr>
+              {RESOURCE_GROUPS.map((group) => (
+                <>
+                  {/* Group header row */}
+                  <tr key={`group-${group.groupKey}`} className="bg-surface-row-alt/60">
+                    <td
+                      colSpan={7}
+                      className="py-1.5 px-3 text-xs font-semibold text-foreground-muted tracking-wide sticky start-0 border-e border-border-subtle bg-surface-row-alt/60"
+                    >
+                      {ar.settings.permissions.groups[group.groupKey] ?? group.groupKey}
+                    </td>
+                  </tr>
+                  {/* Resource rows within this group */}
+                  {group.resources.map((def, ri) => (
+                    <tr
+                      key={def.key}
+                      className={cn(
+                        'hover:bg-surface-hover transition-colors duration-150',
+                        ri % 2 === 1 ? 'bg-surface-row-alt/40' : 'bg-surface-elevated',
+                      )}
+                    >
+                      <td
+                        className={cn(
+                          'py-2 px-3 text-foreground-muted sticky start-0 z-10 border-e border-border-subtle',
+                          ri % 2 === 1 ? 'bg-surface-row-alt' : 'bg-surface-elevated',
+                        )}
+                      >
+                        {ar.settings.permissions.resources[def.key] ?? def.key}
+                      </td>
+                      {(['read', 'write', 'approve'] as const).flatMap((action) => {
+                        const supported = def.actions.includes(action as PermAction);
+                        return [
+                          <td key={`seller-${action}`} className="py-2 px-3 text-center">
+                            {supported ? (
+                              <input
+                                type="checkbox"
+                                className="size-4 accent-accent rounded cursor-pointer"
+                                checked={isAllowed('shop_seller', def.key, action)}
+                                onChange={() => togglePerm('shop_seller', def.key, action)}
+                              />
+                            ) : (
+                              <span className="text-foreground-muted/40 text-xs">—</span>
+                            )}
+                          </td>,
+                          <td key={`factory-${action}`} className="py-2 px-3 text-center">
+                            {supported ? (
+                              <input
+                                type="checkbox"
+                                className="size-4 accent-accent rounded cursor-pointer"
+                                checked={isAllowed('factory_sender', def.key, action)}
+                                onChange={() => togglePerm('factory_sender', def.key, action)}
+                              />
+                            ) : (
+                              <span className="text-foreground-muted/40 text-xs">—</span>
+                            )}
+                          </td>,
+                        ];
+                      })}
+                    </tr>
+                  ))}
+                </>
               ))}
             </tbody>
           </table>

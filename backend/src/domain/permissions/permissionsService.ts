@@ -99,6 +99,27 @@ export async function bulkUpdate(
   invalidateCache();
 }
 
+/** Compute the merged effective permissions for a single user (role defaults + personal overrides). */
+export async function getEffectivePermissionsForUser(
+  userId: number,
+  role: string,
+): Promise<Record<string, Record<string, boolean>>> {
+  const [rolePerms, overrides] = await Promise.all([
+    db('role_permissions').where({ role }) as unknown as PermissionRow[],
+    db('user_permission_overrides').where({ user_id: userId }) as unknown as OverrideRow[],
+  ]);
+  const effective: Record<string, Record<string, boolean>> = {};
+  for (const row of rolePerms) {
+    if (!effective[row.resource]) effective[row.resource] = {};
+    effective[row.resource][row.action] = Boolean(row.is_allowed);
+  }
+  for (const ov of overrides) {
+    if (!effective[ov.resource]) effective[ov.resource] = {};
+    effective[ov.resource][ov.action] = Boolean(ov.is_allowed);
+  }
+  return effective;
+}
+
 export async function getOverridesForUser(userId: number): Promise<OverrideRow[]> {
   return db('user_permission_overrides')
     .where({ user_id: userId })

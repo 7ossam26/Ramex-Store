@@ -1070,6 +1070,11 @@ export const ar = {
       write: 'كتابة',
       approve: 'موافقة',
       saved: 'تم حفظ الصلاحيات',
+      groups: {
+        core:    'العمليات الأساسية',
+        reports: 'التقارير',
+        admin:   'الإدارة',
+      } as Record<string, string>,
       resources: {
         customers: 'العملاء',
         invoices: 'الفواتير',

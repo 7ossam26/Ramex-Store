@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { usePermissions } from '@/lib/permissions';
 import { activeSectionForPath, visibleNav } from '@/navigation/nav.config';
 import { cn } from '@/lib/utils';
 
@@ -13,8 +14,9 @@ type Props = {
 
 export function MobileDrawer({ open, onClose }: Props) {
   const { user } = useAuth();
+  const { can } = usePermissions();
   const location = useLocation();
-  const sections = useMemo(() => visibleNav(user?.role), [user?.role]);
+  const sections = useMemo(() => visibleNav(user?.role, can), [user?.role, can]);
   const activeId = activeSectionForPath(location.pathname);
 
   // Auto-close on route change: capture pathname at the moment we open, close
