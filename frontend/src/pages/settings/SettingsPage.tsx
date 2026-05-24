@@ -500,11 +500,11 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
                 >
                   <td
                     className={cn(
-                      'py-2 px-3 font-mono text-foreground-muted sticky start-0 z-10 border-e border-border-subtle',
+                      'py-2 px-3 text-foreground-muted sticky start-0 z-10 border-e border-border-subtle',
                       ri % 2 === 1 ? 'bg-surface-row-alt' : 'bg-surface-elevated',
                     )}
                   >
-                    {resource}
+                    {ar.settings.permissions.resources[resource] ?? resource}
                   </td>
                   {(['read', 'write', 'approve'] as const).flatMap((action) => [
                     <td key={`seller-${action}`} className="py-2 px-3 text-center">

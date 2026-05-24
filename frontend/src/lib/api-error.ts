@@ -19,6 +19,8 @@ export function extractApiError(e: unknown): string {
       return data.issues.map((i) => i.message).join('، ');
     }
     if (data?.message) return data.message;
+    if (data?.error && ar.common.apiErrors[data.error]) return ar.common.apiErrors[data.error];
+    if (data?.error) return data.error;
   }
   if (e instanceof Error) return e.message;
   return ar.common.error;
