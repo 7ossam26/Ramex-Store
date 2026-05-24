@@ -664,10 +664,6 @@ function FabricSubGroup({
   );
 }
 
-// ---------- LabelPrint state ----------
-
-type LabelPrintState = { open: boolean; format: 'thermal' | 'a4'; perPage: string };
-
 // ---------- AddTopPage ----------
 
 export function AddTopPage() {
@@ -684,8 +680,6 @@ export function AddTopPage() {
   const [colorDialogRowKey, setColorDialogRowKey] = useState<{ groupUid: string; rowUid: string } | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [results, setResults] = useState<CreateTopBatchResult[]>([]);
-  const [labelPrint, setLabelPrint] = useState<LabelPrintState>({ open: false, format: 'thermal', perPage: '24' });
-  const [labelPrinting, setLabelPrinting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
 
   const submitMut = useMutation({
@@ -846,16 +840,6 @@ export function AddTopPage() {
 
   const allResultRollIds = results.flatMap((r) => r.rolls.map((roll) => roll.id));
 
-  async function openSupplierLabelsPdf(rollIds: number[]) {
-    setLabelPrinting(true);
-    try {
-      const blob = await itemsApi.batchFabricLabels(rollIds, labelPrint.format, num(labelPrint.perPage) ?? 24);
-      openPdfBlob(blob);
-    } finally {
-      setLabelPrinting(false);
-    }
-  }
-
   // ----- Success view -----
 
   if (results.length > 0) {
@@ -893,33 +877,10 @@ export function AddTopPage() {
               <Button size="sm" variant="outline" onClick={() => itemsApi.batchLabelsPdf(allResultRollIds).then((b) => openPdfBlob(b))}>
                 {ar.addTop.printAllBarcodes}
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setLabelPrint((s) => ({ ...s, open: !s.open }))}>
-                {ar.addTop.printSupplierLabels}
-              </Button>
               <Button size="sm" variant="outline" onClick={() => setResults([])}>
                 {ar.addTop.addFabricGroup}
               </Button>
             </div>
-            {labelPrint.open && (
-              <div className="flex flex-wrap items-center gap-3 p-3 rounded-md border border-border-subtle bg-surface-elevated">
-                <div className="flex gap-2">
-                  {(['thermal', 'a4'] as const).map((fmt) => (
-                    <Button key={fmt} size="sm" variant={labelPrint.format === fmt ? 'default' : 'outline'} onClick={() => setLabelPrint((s) => ({ ...s, format: fmt }))}>
-                      {fmt === 'thermal' ? ar.addTop.printFormatThermal : ar.addTop.printFormatA4}
-                    </Button>
-                  ))}
-                </div>
-                {labelPrint.format === 'a4' && (
-                  <div className="flex items-center gap-2">
-                    <Label className="text-sm whitespace-nowrap">{ar.addTop.perPageLabel}</Label>
-                    <Input type="number" inputMode="numeric" value={labelPrint.perPage} onChange={(e) => setLabelPrint((s) => ({ ...s, perPage: e.target.value }))} dir="ltr" className="h-9 w-20" min={1} max={100} />
-                  </div>
-                )}
-                <Button size="sm" onClick={() => openSupplierLabelsPdf(allResultRollIds)} disabled={labelPrinting}>
-                  {labelPrinting ? ar.loading : ar.labels.print}
-                </Button>
-              </div>
-            )}
           </CardContent>
         </Card>
       </PageShell>
