@@ -6,6 +6,7 @@ import { extractApiError } from '@/lib/api-error';
 import { salesApi } from '@/lib/sales-api';
 import { returnsApi } from '@/lib/returns-api';
 import { useAuth } from '@/lib/auth';
+import { isOwnerOrAbove } from '@/lib/roles';
 import type {
   AddOpenInvoiceLinesBody,
   BankAccount,
@@ -63,7 +64,7 @@ export function InvoiceDetailPage() {
   const idNum = Number(id);
   const qc = useQueryClient();
   const { user } = useAuth();
-  const isOwner = user?.role === 'owner';
+  const isOwner = isOwnerOrAbove(user?.role);
 
   const [voidOpen, setVoidOpen] = useState(false);
   const [voidReason, setVoidReason] = useState('');

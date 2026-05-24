@@ -10,13 +10,13 @@ export const settingsRouter = Router();
 settingsRouter.use(requireAuth, requireActiveSession);
 
 // GET /api/settings — all settings (Owner only)
-settingsRouter.get('/', requireRole('owner'), async (_req, res, next) => {
+settingsRouter.get('/', requireRole('owner', 'super_admin'), async (_req, res, next) => {
   try { res.json(await settingsService.getAll()); }
   catch (e) { next(e); }
 });
 
 // GET /api/settings/:key — single key (Owner only)
-settingsRouter.get('/:key', requireRole('owner'), async (req, res, next) => {
+settingsRouter.get('/:key', requireRole('owner', 'super_admin'), async (req, res, next) => {
   try {
     const rawKey = req.params['key'];
     const key = decodeURIComponent(Array.isArray(rawKey) ? (rawKey[0] ?? '') : (rawKey ?? '')) as SettingKey;
@@ -30,7 +30,7 @@ settingsRouter.get('/:key', requireRole('owner'), async (req, res, next) => {
 });
 
 // PATCH /api/settings/:key — update a setting (Owner only)
-settingsRouter.patch('/:key', requireRole('owner'), async (req, res, next) => {
+settingsRouter.patch('/:key', requireRole('owner', 'super_admin'), async (req, res, next) => {
   try {
     const rawKey = req.params['key'];
     const key = decodeURIComponent(Array.isArray(rawKey) ? (rawKey[0] ?? '') : (rawKey ?? '')) as SettingKey;
@@ -42,7 +42,7 @@ settingsRouter.patch('/:key', requireRole('owner'), async (req, res, next) => {
 });
 
 // GET /api/settings/:key/history — version history (Owner only)
-settingsRouter.get('/:key/history', requireRole('owner'), async (req, res, next) => {
+settingsRouter.get('/:key/history', requireRole('owner', 'super_admin'), async (req, res, next) => {
   try {
     const rawKey = req.params['key'];
     const key  = decodeURIComponent(Array.isArray(rawKey) ? (rawKey[0] ?? '') : (rawKey ?? ''));

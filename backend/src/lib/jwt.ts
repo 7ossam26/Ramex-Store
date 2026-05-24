@@ -2,7 +2,7 @@ import jwt, { type SignOptions } from 'jsonwebtoken';
 import { v4 as uuid } from 'uuid';
 import { env } from '../config/env.js';
 
-export type Role = 'owner' | 'shop_seller' | 'factory_sender';
+export type Role = 'owner' | 'shop_seller' | 'factory_sender' | 'super_admin';
 export type JwtPayload = { sub: number; role: Role; jti: string };
 
 export function signJwt(payload: Omit<JwtPayload, 'jti'>): { token: string; jti: string } {

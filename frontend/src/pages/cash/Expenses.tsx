@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { Plus, Check, X } from 'lucide-react';
 import { financeApi } from '@/lib/finance-api';
 import { useAuth } from '@/lib/auth';
+import { isOwnerOrAbove } from '@/lib/roles';
 import { ar } from '@/i18n/ar';
 import { extractApiError } from '@/lib/api-error';
 import type { Expense } from '@/lib/finance-types';
@@ -64,7 +65,7 @@ function getExpenseStatus(e: Expense): { tone: StatusTone; label: string } {
 export function ExpensesPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const isOwner = user?.role === 'owner';
+  const isOwner = isOwnerOrAbove(user?.role);
 
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');

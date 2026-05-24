@@ -5,6 +5,7 @@ import { ar } from 'date-fns/locale';
 import { notificationsApi, type NotificationRow } from '@/lib/notifications-api';
 import { getEventTypeLabel, getSeverityLabel, eventTypeLabels, severityLabels } from '@/i18n/notifications';
 import { useAuth } from '@/lib/auth';
+import { isOwnerOrAbove } from '@/lib/roles';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/Skeleton';
 import { EmptyState } from '@/components/EmptyState';
@@ -48,7 +49,7 @@ const fmtDate = (s: string) =>
 
 export function NotificationsPage() {
   const { user } = useAuth();
-  const isOwner = user?.role === 'owner';
+  const isOwner = isOwnerOrAbove(user?.role);
   const qc = useQueryClient();
 
   const [tab, setTab] = useState<Tab>('unread');

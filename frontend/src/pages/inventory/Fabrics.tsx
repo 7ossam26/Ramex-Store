@@ -23,6 +23,7 @@ import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { PageShell } from '@/components/Layout/PageShell';
 import { StatusPill } from '@/components/StatusPill';
 import { useAuth } from '@/lib/auth';
+import { isOwnerOrAbove } from '@/lib/roles';
 import { extractApiError } from '@/lib/api-error';
 
 type CompositionRow = { material: string; percent: string };
@@ -75,7 +76,7 @@ function compositionSummary(items: FabricFull['composition']): string {
 export function FabricsPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const isOwner = user?.role === 'owner';
+  const isOwner = isOwnerOrAbove(user?.role);
 
   const fabricsQ = useQuery({
     queryKey: ['fabrics-full'],

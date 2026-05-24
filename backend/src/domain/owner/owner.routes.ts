@@ -6,7 +6,7 @@ import { auditLog } from '../../middleware/audit.js';
 
 export const ownerRouter = Router();
 
-ownerRouter.use(requireAuth, requireActiveSession, requireRole('owner'));
+ownerRouter.use(requireAuth, requireActiveSession, requireRole('owner', 'super_admin'));
 
 function wrapAudit(action: string) {
   return async (req: import('express').Request, _res: import('express').Response, next: import('express').NextFunction) => {

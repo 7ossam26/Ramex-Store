@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { Landmark, Plus, TrendingUp, TrendingDown, Star, Pencil } from 'lucide-react';
 import { financeApi } from '@/lib/finance-api';
 import { useAuth } from '@/lib/auth';
+import { isOwnerOrAbove } from '@/lib/roles';
 import { ar } from '@/i18n/ar';
 import type { BankAccount, BankMovement } from '@/lib/finance-types';
 import { Button } from '@/components/ui/button';
@@ -56,7 +57,7 @@ type BankFormValues = {
 export function BanksPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const isOwner = user?.role === 'owner';
+  const isOwner = isOwnerOrAbove(user?.role);
 
   const [selectedBank, setSelectedBank] = useState<BankAccount | null>(null);
   const [showCreate, setShowCreate] = useState(false);

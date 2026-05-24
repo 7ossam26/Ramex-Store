@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
+import type { Role } from '@/lib/auth';
 
 export type SettingsSectionId =
   | 'general'
@@ -28,6 +29,8 @@ export type SettingsSection = {
   labelAr: string;
   descAr: string;
   icon: LucideIcon;
+  /** If set, only users whose role is in this list can see this section. */
+  visibleTo?: Role[];
 };
 
 export const SETTINGS_SECTIONS: SettingsSection[] = [
@@ -42,6 +45,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     labelAr: 'المستخدمون والصلاحيات',
     descAr: 'إضافة المستخدمين وتحديد صلاحيات كل دور',
     icon: ShieldCheck,
+    visibleTo: ['super_admin'],
   },
   {
     id: 'reasonCodes',
@@ -60,6 +64,10 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 export const SETTINGS_SECTION_IDS: SettingsSectionId[] = SETTINGS_SECTIONS.map((s) => s.id);
 
 export function settingsSectionById(id: SettingsSectionId): SettingsSection {
-  // Tuple guarantees a hit; non-null assertion safe by construction.
   return SETTINGS_SECTIONS.find((s) => s.id === id)!;
+}
+
+/** Returns only the sections visible to the given role. */
+export function visibleSettingsSections(role: Role | undefined): SettingsSection[] {
+  return SETTINGS_SECTIONS.filter((s) => !s.visibleTo || (role && s.visibleTo.includes(role)));
 }
