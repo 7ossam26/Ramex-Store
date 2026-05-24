@@ -12,7 +12,7 @@ export async function can(
   action: string,
   userId?: number,
 ): Promise<boolean> {
-  if (role === 'owner' || role === 'super_admin') return true;
+  if (role === 'super_admin') return true;
 
   // Check per-user override first
   if (userId !== undefined) {

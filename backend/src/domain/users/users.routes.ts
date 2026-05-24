@@ -92,7 +92,7 @@ usersRouter.post('/:id/reset-password', requireRole('super_admin'), async (req, 
 usersRouter.get('/me/permissions', async (req, res, next) => {
   try {
     const { sub: userId, role } = req.user!;
-    if (role === 'owner' || role === 'super_admin') {
+    if (role === 'super_admin') {
       res.json({ all: true });
       return;
     }

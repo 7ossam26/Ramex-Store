@@ -1,9 +1,11 @@
-export type PermAction = 'read' | 'write' | 'approve';
+export type PermAction =
+  | 'read' | 'write' | 'approve'
+  | 'view' | 'manage' | 'salary.disburse' | 'advance.create' | 'deduction.create';
 
 export type ResourceDef = {
   key: string;
-  /** Which actions are meaningful for this resource. Only these will be rendered. */
   actions: PermAction[];
+  descriptionKey?: string;
 };
 
 export type ResourceGroup = {
@@ -15,12 +17,13 @@ export const RESOURCE_GROUPS: ResourceGroup[] = [
   {
     groupKey: 'core',
     resources: [
-      { key: 'customers',   actions: ['read', 'write'] },
-      { key: 'invoices',    actions: ['read', 'write', 'approve'] },
-      { key: 'inventory',   actions: ['read', 'write'] },
-      { key: 'shipments',   actions: ['read', 'write', 'approve'] },
-      { key: 'cash_drawer', actions: ['read', 'write'] },
-      { key: 'returns',     actions: ['read', 'write', 'approve'] },
+      { key: 'customers',    actions: ['read', 'write'],           descriptionKey: 'customers' },
+      { key: 'invoices',     actions: ['read', 'write', 'approve'], descriptionKey: 'invoices' },
+      { key: 'fabric_rolls', actions: ['read', 'write'],           descriptionKey: 'fabric_rolls' },
+      { key: 'inventory',    actions: ['read', 'write'],           descriptionKey: 'inventory' },
+      { key: 'shipments',    actions: ['read', 'write', 'approve'], descriptionKey: 'shipments' },
+      { key: 'cash_drawer',  actions: ['read', 'write'],           descriptionKey: 'cash_drawer' },
+      { key: 'returns',      actions: ['read', 'write', 'approve'], descriptionKey: 'returns' },
     ],
   },
   {
@@ -42,8 +45,18 @@ export const RESOURCE_GROUPS: ResourceGroup[] = [
   {
     groupKey: 'admin',
     resources: [
-      { key: 'settings', actions: ['read', 'write'] },
-      { key: 'users',    actions: ['read', 'write'] },
+      { key: 'settings', actions: ['read', 'write'], descriptionKey: 'settings' },
+      { key: 'users',    actions: ['read', 'write'], descriptionKey: 'users' },
+    ],
+  },
+  {
+    groupKey: 'hr',
+    resources: [
+      {
+        key: 'hr',
+        actions: ['view', 'manage', 'salary.disburse', 'advance.create', 'deduction.create'],
+        descriptionKey: 'hr',
+      },
     ],
   },
 ];

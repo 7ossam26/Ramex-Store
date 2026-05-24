@@ -8,7 +8,6 @@ import { extractApiError } from '@/lib/api-error';
 import { Toast } from '@/components/Toast';
 import { cn } from '@/lib/utils';
 import { RESOURCE_GROUPS } from '@/lib/permissions-config';
-import type { PermAction } from '@/lib/permissions-config';
 
 type Props = {
   user: UserRow | null;
@@ -93,58 +92,57 @@ export function EditUserPermissionsDialog({ user, onClose }: Props) {
           )}
 
           {!isLoading && data && (
-            <div className="rounded-lg border border-border overflow-hidden">
-              <table className="w-full text-xs">
-                <thead className="bg-muted text-muted-foreground">
-                  <tr>
-                    <th className="py-2 px-3 text-start font-medium min-w-40 sticky start-0 bg-muted z-10 border-e border-border">
-                      {ar.settings.permissions.resource}
-                    </th>
-                    <th className="py-2 px-3 text-center font-medium whitespace-nowrap">{ar.settings.permissions.read}</th>
-                    <th className="py-2 px-3 text-center font-medium whitespace-nowrap">{ar.settings.permissions.write}</th>
-                    <th className="py-2 px-3 text-center font-medium whitespace-nowrap">{ar.settings.permissions.approve}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {RESOURCE_GROUPS.map((group) => (
-                    <>
-                      {/* Group header */}
-                      <tr key={`group-${group.groupKey}`} className="bg-muted/60">
-                        <td
-                          colSpan={4}
-                          className="py-1.5 px-3 text-xs font-semibold text-muted-foreground tracking-wide sticky start-0 bg-muted/60"
-                        >
-                          {ar.settings.permissions.groups[group.groupKey] ?? group.groupKey}
-                        </td>
-                      </tr>
-                      {/* Resource rows */}
-                      {group.resources.map((def, ri) => (
-                        <tr key={def.key} className={cn('hover:bg-muted/30 transition-colors', ri % 2 === 1 && 'bg-muted/10')}>
-                          <td className="py-2 px-3 font-medium sticky start-0 bg-background border-e border-border">
-                            {ar.settings.permissions.resources[def.key] ?? def.key}
-                          </td>
-                          {(['read', 'write', 'approve'] as const).map((action) => {
-                            const supported = def.actions.includes(action as PermAction);
-                            return (
-                              <td key={action} className="py-2 px-3 text-center">
-                                {supported ? (
+            <div className="space-y-2">
+              {/* Role context */}
+              <p className="text-xs text-muted-foreground">
+                الدور: {ar.settings.users.roles[data.role as keyof typeof ar.settings.users.roles] ?? data.role} — التعديلات أدناه تتجاوز افتراضي الدور
+              </p>
+
+              {RESOURCE_GROUPS.map((group) => (
+                <div key={group.groupKey} className="rounded-lg border border-border overflow-hidden">
+                  {/* Group header */}
+                  <div className="px-3 py-2 bg-muted/60 text-xs font-semibold text-muted-foreground">
+                    {ar.settings.permissions.groups[group.groupKey] ?? group.groupKey}
+                  </div>
+
+                  {/* Resource rows */}
+                  <div className="divide-y divide-border">
+                    {group.resources.map((def) => {
+                      const desc = (ar.settings.permissions.descriptions as Record<string, string>)[
+                        def.descriptionKey ?? def.key
+                      ];
+                      return (
+                        <div key={def.key} className="px-3 py-2.5 bg-background">
+                          <div className="flex items-start justify-between gap-3 flex-wrap">
+                            <div>
+                              <span className="text-xs font-medium text-foreground">
+                                {(ar.settings.permissions.resources as Record<string, string>)[def.key] ?? def.key}
+                              </span>
+                              {desc && (
+                                <div className="text-[10px] text-muted-foreground mt-0.5">{desc}</div>
+                              )}
+                            </div>
+                            <div className="flex gap-3 flex-wrap justify-end">
+                              {def.actions.map((action) => (
+                                <div key={action} className="flex items-center gap-1.5">
+                                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                    {(ar.settings.permissions.actions as Record<string, string>)[action] ?? action}
+                                  </span>
                                   <TriStateControl
                                     state={getState(def.key, action)}
                                     roleDefault={getRoleDefault(def.key, action)}
                                     onChange={(next) => toggle(def.key, action, next)}
                                   />
-                                ) : (
-                                  <span className="text-muted-foreground/40">—</span>
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </>
-                  ))}
-                </tbody>
-              </table>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 

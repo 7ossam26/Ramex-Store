@@ -125,6 +125,7 @@ export const NAV: NavTop[] = [
     descAr: 'إدارة الاتواب والملصقات',
     icon: Package,
     route: '/items',
+    permission: 'fabric_rolls',
     children: [
       {
         items: [

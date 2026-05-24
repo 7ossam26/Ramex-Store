@@ -39,7 +39,7 @@ import { EditUserPermissionsDialog } from './EditUserPermissionsDialog';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import type { UserRow } from '@/lib/settings-api';
 import { RESOURCE_GROUPS } from '@/lib/permissions-config';
-import type { PermAction } from '@/lib/permissions-config';
+
 
 type Section = SettingsSectionId;
 
@@ -267,6 +267,9 @@ function GeneralSection({ settings, onSave, notifySaved }: SectionProps) {
 
 // RESOURCE_GROUPS is the single source of truth — imported from @/lib/permissions-config
 
+const MATRIX_ROLES = ['owner', 'shop_seller', 'factory_sender'] as const;
+type MatrixRole = (typeof MATRIX_ROLES)[number];
+
 function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
   const qc = useQueryClient();
   const { data: users = [] } = useQuery({ queryKey: ['settings-users'], queryFn: usersApi.list });
@@ -456,156 +459,167 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
         {deleteError && <p className="text-xs text-red-600 mt-1">{deleteError}</p>}
       </section>
 
-      {/* HR Permissions block */}
-      <section className="space-y-3">
-        <h3 className="text-base font-semibold text-foreground">{ar.hr.permissions.title}</h3>
-        <div className="rounded-lg border border-border-subtle bg-surface-elevated overflow-x-auto">
-          <table className="text-xs min-w-max">
-            <thead>
-              <tr className="bg-surface-row-alt text-foreground-muted">
-                <th className="py-2.5 px-3 text-start font-medium min-w-48 sticky start-0 bg-surface-row-alt z-10 border-e border-border-subtle">
-                  {ar.settings.permissions.resource}
-                </th>
-                {(['shop_seller', 'factory_sender'] as const).map((role) => (
-                  <th key={role} className="py-2.5 px-3 text-center font-medium whitespace-nowrap">
-                    {role === 'shop_seller' ? ar.settings.permissions.shopSeller : ar.settings.permissions.factorySender}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {(
-                [
-                  ['hr', 'view', ar.hr.permissions.view],
-                  ['hr', 'manage', ar.hr.permissions.manage],
-                  ['hr', 'salary.disburse', ar.hr.permissions.salaryDisburse],
-                  ['hr', 'advance.create', ar.hr.permissions.advanceCreate],
-                  ['hr', 'deduction.create', ar.hr.permissions.deductionCreate],
-                ] as [string, string, string][]
-              ).map(([resource, action, label], ri) => (
-                <tr
-                  key={`${resource}:${action}`}
-                  className={cn(
-                    'hover:bg-surface-hover transition-colors duration-150',
-                    ri % 2 === 1 ? 'bg-surface-row-alt/40' : 'bg-surface-elevated',
-                  )}
-                >
-                  <td
-                    className={cn(
-                      'py-2 px-3 text-foreground-muted sticky start-0 z-10 border-e border-border-subtle',
-                      ri % 2 === 1 ? 'bg-surface-row-alt' : 'bg-surface-elevated',
-                    )}
-                  >
-                    {label}
-                  </td>
-                  {(['shop_seller', 'factory_sender'] as const).map((role) => (
-                    <td key={role} className="py-2 px-3 text-center">
-                      <input
-                        type="checkbox"
-                        className="size-4 accent-accent rounded cursor-pointer"
-                        checked={isAllowed(role, resource, action)}
-                        onChange={() => togglePerm(role, resource, action)}
-                      />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* Permissions matrix block */}
+      {/* Role Permissions */}
       <section className="space-y-3">
         <h3 className="text-base font-semibold text-foreground">{ar.settings.permissions.title}</h3>
-        <div className="rounded-lg border border-border-subtle bg-surface-elevated overflow-x-auto">
-          <table className="text-xs min-w-max">
-            <thead>
-              <tr className="bg-surface-row-alt text-foreground-muted">
-                <th className="py-2.5 px-3 text-start font-medium min-w-48 sticky start-0 bg-surface-row-alt z-10 border-e border-border-subtle">
-                  {ar.settings.permissions.resource}
-                </th>
-                {(['read', 'write', 'approve'] as const).flatMap((action) => [
-                  <th key={`seller-${action}`} className="py-2.5 px-3 text-center font-medium whitespace-nowrap">
-                    {ar.settings.permissions.shopSeller} / {ar.settings.permissions[action]}
-                  </th>,
-                  <th key={`factory-${action}`} className="py-2.5 px-3 text-center font-medium whitespace-nowrap">
-                    {ar.settings.permissions.factorySender} / {ar.settings.permissions[action]}
-                  </th>,
-                ])}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {RESOURCE_GROUPS.map((group) => (
-                <>
-                  {/* Group header row */}
-                  <tr key={`group-${group.groupKey}`} className="bg-surface-row-alt/60">
-                    <td
-                      colSpan={7}
-                      className="py-1.5 px-3 text-xs font-semibold text-foreground-muted tracking-wide sticky start-0 border-e border-border-subtle bg-surface-row-alt/60"
-                    >
-                      {ar.settings.permissions.groups[group.groupKey] ?? group.groupKey}
-                    </td>
-                  </tr>
-                  {/* Resource rows within this group */}
-                  {group.resources.map((def, ri) => (
-                    <tr
-                      key={def.key}
-                      className={cn(
-                        'hover:bg-surface-hover transition-colors duration-150',
-                        ri % 2 === 1 ? 'bg-surface-row-alt/40' : 'bg-surface-elevated',
-                      )}
-                    >
-                      <td
-                        className={cn(
-                          'py-2 px-3 text-foreground-muted sticky start-0 z-10 border-e border-border-subtle',
-                          ri % 2 === 1 ? 'bg-surface-row-alt' : 'bg-surface-elevated',
-                        )}
-                      >
-                        {ar.settings.permissions.resources[def.key] ?? def.key}
-                      </td>
-                      {(['read', 'write', 'approve'] as const).flatMap((action) => {
-                        const supported = def.actions.includes(action as PermAction);
-                        return [
-                          <td key={`seller-${action}`} className="py-2 px-3 text-center">
-                            {supported ? (
-                              <input
-                                type="checkbox"
-                                className="size-4 accent-accent rounded cursor-pointer"
-                                checked={isAllowed('shop_seller', def.key, action)}
-                                onChange={() => togglePerm('shop_seller', def.key, action)}
-                              />
-                            ) : (
-                              <span className="text-foreground-muted/40 text-xs">—</span>
-                            )}
-                          </td>,
-                          <td key={`factory-${action}`} className="py-2 px-3 text-center">
-                            {supported ? (
-                              <input
-                                type="checkbox"
-                                className="size-4 accent-accent rounded cursor-pointer"
-                                checked={isAllowed('factory_sender', def.key, action)}
-                                onChange={() => togglePerm('factory_sender', def.key, action)}
-                              />
-                            ) : (
-                              <span className="text-foreground-muted/40 text-xs">—</span>
-                            )}
-                          </td>,
-                        ];
-                      })}
-                    </tr>
-                  ))}
-                </>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <StickySaveBar
+        <RolePermissionsPanel
+          isAllowed={isAllowed}
+          onToggle={togglePerm}
+          dirty={matrixDirty}
           onSave={savePerms}
           saving={savePermsMut.isPending}
-          disabled={matrixDirty.size === 0}
         />
       </section>
+    </div>
+  );
+}
+
+// ─── Role Permissions Panel ──────────────────────────────────────────────────
+
+const ROLE_LABELS: Record<MatrixRole, string> = {
+  owner:          ar.settings.permissions.owner,
+  shop_seller:    ar.settings.permissions.shopSeller,
+  factory_sender: ar.settings.permissions.factorySender,
+};
+
+function RolePermissionsPanel({
+  isAllowed,
+  onToggle,
+  dirty,
+  onSave,
+  saving,
+}: {
+  isAllowed: (role: string, resource: string, action: string) => boolean;
+  onToggle: (role: string, resource: string, action: string) => void;
+  dirty: Map<string, boolean>;
+  onSave: () => void;
+  saving: boolean;
+}) {
+  const [activeRole, setActiveRole] = useState<MatrixRole>('owner');
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
+    new Set(['core', 'admin', 'hr']),
+  );
+
+  function toggleGroup(groupKey: string) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) next.delete(groupKey);
+      else next.add(groupKey);
+      return next;
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Role tab selector */}
+      <div className="relative flex border-b border-border-subtle">
+        {MATRIX_ROLES.map((role) => (
+          <button
+            key={role}
+            type="button"
+            onClick={() => setActiveRole(role)}
+            className={cn(
+              'relative px-4 py-2.5 text-sm transition-colors duration-150 ease-standard',
+              activeRole === role
+                ? 'text-foreground font-semibold'
+                : 'text-foreground-muted hover:text-foreground',
+            )}
+          >
+            {activeRole === role && (
+              <motion.span
+                layoutId="role-permissions-tab"
+                className="absolute -bottom-px inset-x-2 h-0.5 bg-accent rounded-full"
+                transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+              />
+            )}
+            <span className="relative">{ROLE_LABELS[role]}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Legend */}
+      <p className="text-xs text-foreground-muted">{ar.settings.permissions.legend}</p>
+
+      {/* Module groups */}
+      <div className="space-y-2">
+        {RESOURCE_GROUPS.map((group) => {
+          const isExpanded = expandedGroups.has(group.groupKey);
+          const isReports = group.groupKey === 'reports';
+          const allowedReportsCount = isReports
+            ? group.resources.filter((r) => isAllowed(activeRole, r.key, 'read')).length
+            : 0;
+
+          return (
+            <div key={group.groupKey} className="rounded-lg border border-border-subtle overflow-hidden">
+              {/* Group header */}
+              <button
+                type="button"
+                className="w-full flex items-center justify-between px-3 py-2.5 bg-surface-row-alt hover:bg-surface-hover transition-colors duration-150"
+                onClick={() => toggleGroup(group.groupKey)}
+              >
+                <span className="text-sm font-semibold text-foreground-muted">
+                  {ar.settings.permissions.groups[group.groupKey] ?? group.groupKey}
+                  {isReports && (
+                    <span className="ms-2 text-xs font-normal text-foreground-muted/70">
+                      ({allowedReportsCount}/{group.resources.length} مسموح)
+                    </span>
+                  )}
+                </span>
+                <span className="text-foreground-muted/60 text-xs">{isExpanded ? '▲' : '▼'}</span>
+              </button>
+
+              {/* Resource rows */}
+              {isExpanded && (
+                <div className="divide-y divide-border-subtle">
+                  {group.resources.map((def) => {
+                    const desc = (ar.settings.permissions.descriptions as Record<string, string>)[
+                      def.descriptionKey ?? def.key
+                    ];
+                    return (
+                      <div
+                        key={def.key}
+                        className="px-3 py-2.5 flex items-center justify-between gap-4 bg-surface-elevated hover:bg-surface-hover/50 transition-colors duration-150"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-foreground">
+                            {(ar.settings.permissions.resources as Record<string, string>)[def.key] ?? def.key}
+                          </div>
+                          {desc && (
+                            <div className="text-xs text-foreground-muted/70 mt-0.5">{desc}</div>
+                          )}
+                        </div>
+                        <div className="flex gap-1.5 flex-shrink-0 flex-wrap justify-end">
+                          {def.actions.map((action) => {
+                            const allowed = isAllowed(activeRole, def.key, action);
+                            return (
+                              <button
+                                key={action}
+                                type="button"
+                                onClick={() => onToggle(activeRole, def.key, action)}
+                                className={cn(
+                                  'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-150 whitespace-nowrap border',
+                                  allowed
+                                    ? 'bg-accent/10 text-accent border-accent/30 hover:bg-accent/20'
+                                    : 'bg-surface-elevated text-foreground-muted border-border-default hover:border-foreground-muted/40',
+                                )}
+                              >
+                                <span className="text-[10px]">{allowed ? '✓' : '✕'}</span>
+                                {(ar.settings.permissions.actions as Record<string, string>)[action] ?? action}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <StickySaveBar onSave={onSave} saving={saving} disabled={dirty.size === 0} />
     </div>
   );
 }
