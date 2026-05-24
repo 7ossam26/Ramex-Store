@@ -49,6 +49,25 @@ usersRouter.patch('/:id', requireRole('super_admin'), async (req, res, next) => 
   }
 });
 
+// DELETE /users/:id — delete user (super_admin only; cannot delete self or another super_admin)
+usersRouter.delete('/:id', requireRole('super_admin'), async (req, res, next) => {
+  try {
+    const id = Number(req.params['id']);
+    if (!id) { res.status(400).json({ error: 'invalid id' }); return; }
+    if (req.user?.sub === id) { res.status(400).json({ error: 'CANNOT_DELETE_SELF' }); return; }
+    const before = await svc.findById(id);
+    if (!before) { res.status(404).json({ error: 'USER_NOT_FOUND' }); return; }
+    await svc.deleteUser(id);
+    await auditLog(req, 'user.delete', 'users', id,
+      { username: before.username, role: before.role }, null,
+      { severity: 'critical' });
+    res.json({ ok: true });
+  } catch (e) {
+    if ((e as { code?: string }).code === 'CANNOT_DELETE_SUPER_ADMIN') { res.status(403).json({ error: 'CANNOT_DELETE_SUPER_ADMIN' }); return; }
+    next(e);
+  }
+});
+
 // POST /users/:id/reset-password — reset a user's password (super_admin only)
 usersRouter.post('/:id/reset-password', requireRole('super_admin'), async (req, res, next) => {
   try {

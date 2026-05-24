@@ -28,6 +28,13 @@ export async function createUser(data: {
   return row;
 }
 
+export async function deleteUser(id: number): Promise<void> {
+  const existing = await db('users').where({ id }).first();
+  if (!existing) throw Object.assign(new Error('USER_NOT_FOUND'), { code: 'USER_NOT_FOUND' });
+  if (existing.role === 'super_admin') throw Object.assign(new Error('CANNOT_DELETE_SUPER_ADMIN'), { code: 'CANNOT_DELETE_SUPER_ADMIN' });
+  await db('users').where({ id }).delete();
+}
+
 export async function resetPassword(
   id: number,
   newPassword: string,

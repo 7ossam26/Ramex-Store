@@ -36,6 +36,7 @@ import {
 import { EditUserDialog } from './EditUserDialog';
 import { ResetPasswordDialog } from './ResetPasswordDialog';
 import { EditUserPermissionsDialog } from './EditUserPermissionsDialog';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import type { UserRow } from '@/lib/settings-api';
 
 type Section = SettingsSectionId;
@@ -283,6 +284,18 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
   const [resettingUser, setResettingUser] = useState<UserRow | null>(null);
   const [permsUser, setPermsUser] = useState<UserRow | null>(null);
+  const [deletingUser, setDeletingUser] = useState<UserRow | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const deleteUserMut = useMutation({
+    mutationFn: (id: number) => usersApi.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['settings-users'] });
+      setDeletingUser(null);
+      notifySaved();
+    },
+    onError: (e) => { setDeleteError(extractApiError(e)); setDeletingUser(null); },
+  });
 
   const createUser = useMutation({
     mutationFn: () => usersApi.create(userForm),
@@ -423,6 +436,9 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
                         <Button size="sm" variant="outline" className="h-7 text-xs px-2 border-destructive/40 text-destructive hover:bg-destructive/10" onClick={() => setResettingUser(u)}>
                           {ar.settings.users.resetPassword}
                         </Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs px-2 border-red-400 text-red-600 hover:bg-red-50" onClick={() => setDeletingUser(u)}>
+                          {ar.settings.users.deleteUser}
+                        </Button>
                       </div>
                     )}
                   </td>
@@ -435,6 +451,14 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
         <EditUserDialog user={editingUser} onClose={() => setEditingUser(null)} />
         <ResetPasswordDialog user={resettingUser} onClose={() => setResettingUser(null)} />
         <EditUserPermissionsDialog user={permsUser} onClose={() => setPermsUser(null)} />
+        <ConfirmDialog
+          open={!!deletingUser}
+          title={ar.settings.users.deleteUser}
+          message={ar.settings.users.deleteUserConfirm}
+          onConfirm={() => deletingUser && deleteUserMut.mutate(deletingUser.id)}
+          onCancel={() => setDeletingUser(null)}
+        />
+        {deleteError && <p className="text-xs text-red-600 mt-1">{deleteError}</p>}
       </section>
 
       {/* HR Permissions block */}
