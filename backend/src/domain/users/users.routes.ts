@@ -4,8 +4,9 @@ import { requireAuth, requireRole } from '../../middleware/auth.js';
 import { requireActiveSession } from '../../middleware/concurrent-session.js';
 import { auditLog } from '../../middleware/audit.js';
 import { meCtl, listCtl } from './users.controller.js';
-import { CreateUserSchema, UpdateUserSchema } from './users.schemas.js';
+import { CreateUserSchema, UpdateUserSchema, ResetPasswordSchema, UpdateUserPermissionsSchema } from './users.schemas.js';
 import * as svc from './users.service.js';
+import * as permSvc from '../permissions/permissionsService.js';
 
 export const usersRouter = Router();
 usersRouter.use(requireAuth, requireActiveSession);
@@ -42,6 +43,63 @@ usersRouter.patch('/:id', requireRole('super_admin'), async (req, res, next) => 
       { role: user.role, is_active: user.is_active },
       { severity: 'high' });
     res.json(user);
+  } catch (e) {
+    if (e instanceof ZodError) { res.status(400).json({ error: e.errors[0]?.message ?? 'validation error' }); return; }
+    next(e);
+  }
+});
+
+// POST /users/:id/reset-password — reset a user's password (super_admin only)
+usersRouter.post('/:id/reset-password', requireRole('super_admin'), async (req, res, next) => {
+  try {
+    const id = Number(req.params['id']);
+    if (!id) { res.status(400).json({ error: 'invalid id' }); return; }
+    const { password } = ResetPasswordSchema.parse(req.body);
+    const before = await svc.findById(id);
+    if (!before) { res.status(404).json({ error: 'USER_NOT_FOUND' }); return; }
+    await svc.resetPassword(id, password);
+    await auditLog(req, 'user.password_reset', 'users', id,
+      { username: before.username },
+      { username: before.username },
+      { severity: 'critical' });
+    res.json({ ok: true });
+  } catch (e) {
+    if (e instanceof ZodError) { res.status(400).json({ error: e.errors[0]?.message ?? 'validation error' }); return; }
+    next(e);
+  }
+});
+
+// GET /users/:id/permissions — get role matrix + user overrides (super_admin only)
+usersRouter.get('/:id/permissions', requireRole('super_admin'), async (req, res, next) => {
+  try {
+    const id = Number(req.params['id']);
+    if (!id) { res.status(400).json({ error: 'invalid id' }); return; }
+    const user = await svc.findById(id);
+    if (!user) { res.status(404).json({ error: 'USER_NOT_FOUND' }); return; }
+    const [roleMatrix, overrides] = await Promise.all([
+      permSvc.getMatrix(),
+      permSvc.getOverridesForUser(id),
+    ]);
+    res.json({ role: user.role, roleMatrix, overrides });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// PATCH /users/:id/permissions — set per-user permission overrides (super_admin only)
+usersRouter.patch('/:id/permissions', requireRole('super_admin'), async (req, res, next) => {
+  try {
+    const id = Number(req.params['id']);
+    if (!id) { res.status(400).json({ error: 'invalid id' }); return; }
+    const updates = UpdateUserPermissionsSchema.parse(req.body);
+    const user = await svc.findById(id);
+    if (!user) { res.status(404).json({ error: 'USER_NOT_FOUND' }); return; }
+    await permSvc.bulkUpsertOverridesForUser(id, updates);
+    await auditLog(req, 'user.permissions_update', 'user_permission_overrides', id,
+      null,
+      { user_id: id, count: updates.length },
+      { severity: 'high' });
+    res.json({ ok: true, updated: updates.length });
   } catch (e) {
     if (e instanceof ZodError) { res.status(400).json({ error: e.errors[0]?.message ?? 'validation error' }); return; }
     next(e);

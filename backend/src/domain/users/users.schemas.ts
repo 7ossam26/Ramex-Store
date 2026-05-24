@@ -15,3 +15,15 @@ export const UpdateUserSchema = z.object({
   password: z.string().min(8).optional(),
   is_active: z.boolean().optional(),
 }).refine((d) => Object.keys(d).length > 0, { message: 'at least one field required' });
+
+export const ResetPasswordSchema = z.object({
+  password: z.string().min(8),
+});
+
+export const UpdateUserPermissionsSchema = z.array(
+  z.object({
+    resource: z.string().min(1).max(64),
+    action: z.enum(['read', 'write', 'approve']),
+    is_allowed: z.boolean().nullable(),
+  }),
+).min(1);

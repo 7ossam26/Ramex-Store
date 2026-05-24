@@ -33,6 +33,10 @@ import {
   type SettingsSection,
   type SettingsSectionId,
 } from '@/navigation/settings.config';
+import { EditUserDialog } from './EditUserDialog';
+import { ResetPasswordDialog } from './ResetPasswordDialog';
+import { EditUserPermissionsDialog } from './EditUserPermissionsDialog';
+import type { UserRow } from '@/lib/settings-api';
 
 type Section = SettingsSectionId;
 
@@ -276,6 +280,9 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
   const [userForm, setUserForm] = useState({ username: '', full_name_ar: '', role: 'shop_seller', password: '' });
   const [matrixDirty, setMatrixDirty] = useState<Map<string, boolean>>(new Map());
   const [error, setError] = useState<string | null>(null);
+  const [editingUser, setEditingUser] = useState<UserRow | null>(null);
+  const [resettingUser, setResettingUser] = useState<UserRow | null>(null);
+  const [permsUser, setPermsUser] = useState<UserRow | null>(null);
 
   const createUser = useMutation({
     mutationFn: () => usersApi.create(userForm),
@@ -390,6 +397,7 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
                 <th className="py-2.5 px-3 text-start font-medium">{ar.settings.users.fullNameAr}</th>
                 <th className="py-2.5 px-3 text-start font-medium">{ar.settings.users.role}</th>
                 <th className="py-2.5 px-3 text-start font-medium">{ar.settings.users.isActive}</th>
+                <th className="py-2.5 px-3 text-start font-medium">{ar.settings.users.actions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle bg-surface-elevated">
@@ -403,11 +411,30 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
                   <td className="py-2.5 px-3">
                     <Toggle checked={u.is_active} onChange={(v) => toggleUser.mutate({ id: u.id, is_active: v })} />
                   </td>
+                  <td className="py-2.5 px-3">
+                    {u.role !== 'super_admin' && (
+                      <div className="flex gap-1.5 flex-wrap">
+                        <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => setEditingUser(u)}>
+                          {ar.settings.users.edit}
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => setPermsUser(u)}>
+                          {ar.settings.users.editPermissions}
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs px-2 border-destructive/40 text-destructive hover:bg-destructive/10" onClick={() => setResettingUser(u)}>
+                          {ar.settings.users.resetPassword}
+                        </Button>
+                      </div>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+
+        <EditUserDialog user={editingUser} onClose={() => setEditingUser(null)} />
+        <ResetPasswordDialog user={resettingUser} onClose={() => setResettingUser(null)} />
+        <EditUserPermissionsDialog user={permsUser} onClose={() => setPermsUser(null)} />
       </section>
 
       {/* HR Permissions block */}

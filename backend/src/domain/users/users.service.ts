@@ -28,6 +28,13 @@ export async function createUser(data: {
   return row;
 }
 
+export async function resetPassword(
+  id: number,
+  newPassword: string,
+): Promise<{ id: number; username: string; full_name_ar: string; role: string; is_active: boolean; created_at: string }> {
+  return updateUser(id, { password: newPassword });
+}
+
 export async function updateUser(
   id: number,
   data: { full_name_ar?: string; role?: string; password?: string; is_active?: boolean },
