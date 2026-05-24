@@ -4,6 +4,7 @@ import { extractApiError } from '@/lib/api-error';
 import { useForm, useWatch } from 'react-hook-form';
 import { AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { isOwnerOrAbove } from '@/lib/roles';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
 import type { DamageDisposition, DamageReasonCode } from '@/lib/inventory-types';
@@ -144,7 +145,7 @@ export function DamagePage() {
                     <td>{ar.damage.dispositions[e.disposition]}</td>
                     <td className="tabular-num" dir="ltr">{e.valuation_egp}</td>
                     <td>
-                      {e.requires_approval && !e.approved_at && user?.role === 'owner' ? (
+                      {e.requires_approval && !e.approved_at && isOwnerOrAbove(user?.role) ? (
                         <div className="flex gap-1">
                           <Button size="sm" onClick={() => approve.mutate({ id: e.id, ok: true })}>
                             {ar.damage.approve}

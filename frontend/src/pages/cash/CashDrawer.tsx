@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { TrendingUp, TrendingDown, Clock } from 'lucide-react';
 import { financeApi } from '@/lib/finance-api';
 import { useAuth } from '@/lib/auth';
+import { isOwnerOrAbove } from '@/lib/roles';
 import { ar } from '@/i18n/ar';
 import type { CashMovement } from '@/lib/finance-types';
 import { Button } from '@/components/ui/button';
@@ -44,7 +45,7 @@ const EVENT_LABELS = ar.cash.eventTypes as Record<string, string>;
 export function CashDrawerPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const isOwner = user?.role === 'owner';
+  const isOwner = isOwnerOrAbove(user?.role);
 
   const [page, setPage] = useState(1);
   const [from, setFrom] = useState('');

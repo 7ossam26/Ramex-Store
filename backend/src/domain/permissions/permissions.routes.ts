@@ -9,13 +9,13 @@ export const permissionsRouter = Router();
 permissionsRouter.use(requireAuth, requireActiveSession);
 
 // GET /api/permissions — full matrix (Owner only)
-permissionsRouter.get('/', requireRole('owner'), async (_req, res, next) => {
+permissionsRouter.get('/', requireRole('super_admin'), async (_req, res, next) => {
   try { res.json(await permSvc.getMatrix()); }
   catch (e) { next(e); }
 });
 
 // PATCH /api/permissions — bulk update (Owner only)
-permissionsRouter.patch('/', requireRole('owner'), async (req, res, next) => {
+permissionsRouter.patch('/', requireRole('super_admin'), async (req, res, next) => {
   try {
     const updates = req.body as Array<{ role: string; resource: string; action: string; is_allowed: boolean }>;
     if (!Array.isArray(updates)) {

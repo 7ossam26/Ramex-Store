@@ -19,7 +19,7 @@ hrRouter.use(requireAuth, requireActiveSession);
 function requireHrPerm(action: string): RequestHandler {
   return async (req, res, next) => {
     const role = req.user!.role;
-    if (role === 'owner') return next();
+    if (role === 'owner' || role === 'super_admin') return next();
     const allowed = await can(role, 'hr', action);
     if (!allowed) {
       res.status(403).json({ error: 'forbidden' });
@@ -143,7 +143,7 @@ hrRouter.post('/adjustments', async (req, res, next) => {
     const body = CreateAdjustmentSchema.parse(req.body);
     const neededAction = body.kind === 'advance' ? 'advance.create' : 'deduction.create';
     const role = req.user!.role;
-    if (role !== 'owner') {
+    if (role !== 'owner' && role !== 'super_admin') {
       const allowed = await can(role, 'hr', neededAction);
       if (!allowed) { res.status(403).json({ error: 'forbidden' }); return; }
     }

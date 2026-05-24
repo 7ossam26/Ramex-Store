@@ -6,7 +6,7 @@ const TTL = 60_000;
 /** Check if a role is allowed to perform an action on a resource.
  *  Owner is unconditionally allowed (short-circuit before any DB call). */
 export async function can(role: string, resource: string, action: string): Promise<boolean> {
-  if (role === 'owner') return true;
+  if (role === 'owner' || role === 'super_admin') return true;
 
   const key = `${role}:${resource}:${action}`;
   const cached = _cache.get(key);

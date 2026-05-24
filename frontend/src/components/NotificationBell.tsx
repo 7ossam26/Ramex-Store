@@ -6,6 +6,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ar as arLocale } from 'date-fns/locale';
 import { notificationsApi, type NotificationRow } from '@/lib/notifications-api';
 import { useAuth } from '@/lib/auth';
+import { isOwnerOrAbove } from '@/lib/roles';
 import { useIsDesktop } from '@/hooks/useMediaQuery';
 import {
   Sheet,
@@ -85,7 +86,7 @@ export function NotificationBell() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const isOwner = user?.role === 'owner';
+  const isOwner = isOwnerOrAbove(user?.role);
   const isDesktop = useIsDesktop();
 
   const { data: countData } = useQuery({

@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { ar } from '@/i18n/ar';
 import { useAuth } from '@/lib/auth';
+import { isOwnerOrAbove } from '@/lib/roles';
 import { OwnerDashboard, SellerDashboard } from '@/components/dashboard';
 
 /* Role-aware landing.
@@ -11,7 +12,7 @@ export function HomePage() {
   const { user } = useAuth();
   const role = user?.role;
 
-  if (role === 'owner') return <OwnerDashboard />;
+  if (isOwnerOrAbove(role)) return <OwnerDashboard />;
   if (role === 'shop_seller') return <SellerDashboard />;
   return <FactorySenderLanding />;
 }

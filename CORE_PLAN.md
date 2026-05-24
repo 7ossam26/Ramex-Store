@@ -100,12 +100,15 @@ This repo exposes **Owner read-only API endpoints** (Module 13) for the Dashboar
 
 | Role | Purpose | Access |
 |---|---|---|
-| **Owner** | Business owner | Full admin: see + edit everything |
+| **Super Admin** | Platform bootstrap account | Everything Owner can do, PLUS user CRUD and role-permissions matrix |
+| **Owner** | Business owner | Full admin for ops: see + edit settings, items, finance, inventory, reports — but NOT user management or permissions |
 | **Shop Seller** (Ziad) | Daily POS operator | POS + customers + receive shipments + cash drawer |
 | **Factory Sender** (Ahmed) | Factory side | Create outbound shipments only; sees Factory Warehouse stock |
 
-- User CRUD: Owner only.
-- Password reset: Owner only (no self-service "forgot password").
+> **Amendment 2026-05-24**: A 4th role `super_admin` was introduced above Owner at the explicit request of the business owner. Owner remains the business-side full admin for day-to-day ops. User CRUD and the role-permissions matrix moved from Owner to Super Admin exclusively. The Settings → "المستخدمون والصلاحيات" sub-section is hidden from Owner entirely and only visible to Super Admin. Super Admin is seeded once at install (`username: superadmin`, default password `ChangeMe123!` — must be changed on first login).
+
+- User CRUD: Super Admin only.
+- Password reset: Super Admin only (no self-service "forgot password").
 - Concurrent sessions: blocked (same user cannot be logged into 2 devices simultaneously).
 - No auto-logout on inactivity.
 - Online-only (no offline mode); notify user if connectivity lost.
@@ -282,7 +285,7 @@ This repo exposes **Owner read-only API endpoints** (Module 13) for the Dashboar
 | Cash Drawer | Initial opening balance (set once) |
 | Bank Accounts | CRUD + active flag |
 | Receipt | Logo, header field toggles, warning text, A4 layout |
-| Users & Roles | User CRUD, role permissions matrix |
+| Users & Roles | User CRUD, role permissions matrix **(super admin only — hidden from Owner)** |
 | Reason Codes | Damage/loss codes (editable), expense categories (editable), cancellation reasons (editable) |
 | Day Rollover | Time of day for daily report cutoff |
 | System | Audit retention=forever (read-only display) |

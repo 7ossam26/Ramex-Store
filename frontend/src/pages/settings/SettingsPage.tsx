@@ -17,6 +17,7 @@ import { settingsApi, permissionsApi, usersApi } from '@/lib/settings-api';
 import { codesApi, type CodeGrade, type CodeComposition, type CodeBrand, type CodeSupplier } from '@/lib/codes-api';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
+import { isOwnerOrAbove, isSuperAdmin } from '@/lib/roles';
 import { useIsDesktop } from '@/hooks/useMediaQuery';
 import { PageHeader } from '@/components/PageHeader';
 import { Toggle as SharedToggle } from '@/components/Toggle';
@@ -26,9 +27,10 @@ import { Skeleton } from '@/components/Skeleton';
 import { cn } from '@/lib/utils';
 import { extractApiError } from '@/lib/api-error';
 import {
-  SETTINGS_SECTIONS,
   SETTINGS_SECTION_IDS,
   settingsSectionById,
+  visibleSettingsSections,
+  type SettingsSection,
   type SettingsSectionId,
 } from '@/navigation/settings.config';
 
@@ -1111,9 +1113,11 @@ function FabricCodesSection({ notifySaved }: { notifySaved: () => void }) {
 function DesktopSubNav({
   active,
   onChange,
+  sections,
 }: {
   active: Section;
   onChange: (s: Section) => void;
+  sections: SettingsSection[];
 }) {
   return (
     <aside
@@ -1121,7 +1125,7 @@ function DesktopSubNav({
       aria-label="Settings sections"
     >
       <nav className="rounded-lg border border-border-subtle bg-surface-elevated p-2 space-y-0.5 shadow-sm">
-        {SETTINGS_SECTIONS.map((s) => {
+        {sections.map((s) => {
           const Icon = s.icon;
           const isActive = active === s.id;
           return (
@@ -1168,9 +1172,11 @@ function DesktopSubNav({
 function MobileChipRow({
   active,
   onChange,
+  sections,
 }: {
   active: Section;
   onChange: (s: Section) => void;
+  sections: SettingsSection[];
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
 
@@ -1188,7 +1194,7 @@ function MobileChipRow({
     <div className="md:hidden sticky top-[52px] z-sticky -mx-3 px-3 py-2 bg-surface/95 backdrop-blur border-b border-border-subtle">
       <div ref={scrollerRef} className="overflow-x-auto -mx-1 px-1 no-scrollbar">
         <div className="flex gap-2 w-max">
-          {SETTINGS_SECTIONS.map((s) => {
+          {sections.map((s) => {
             const isActive = active === s.id;
             return (
               <button
@@ -1272,7 +1278,7 @@ export function SettingsPage() {
     requestAnimationFrame(() => setToastOpen(true));
   }
 
-  if (user?.role !== 'owner') {
+  if (!isOwnerOrAbove(user?.role)) {
     return (
       <div dir="rtl" className="max-w-2xl mx-auto py-12">
         <ErrorBanner title={ar.common.error} description={ar.common.error} />
@@ -1280,6 +1286,7 @@ export function SettingsPage() {
     );
   }
 
+  const sections = visibleSettingsSections(user?.role);
   const sectionMeta = settingsSectionById(activeSection);
 
   function renderSection() {
@@ -1297,6 +1304,7 @@ export function SettingsPage() {
       case 'general':
         return <GeneralSection settings={settings} onSave={handleSave} notifySaved={notifySaved} />;
       case 'usersPermissions':
+        if (!isSuperAdmin(user?.role)) return null;
         return <UsersPermissionsSection notifySaved={notifySaved} />;
       case 'reasonCodes':
         return <ReasonCodesSection settings={settings} onSave={handleSave} notifySaved={notifySaved} />;
@@ -1305,8 +1313,8 @@ export function SettingsPage() {
     }
   }
 
-  // Ensure mobile chip row's active state stays in sync if SECTION_IDS shrinks.
-  if (!SETTINGS_SECTION_IDS.includes(activeSection)) {
+  // Ensure active section is within the visible set for this user.
+  if (!SETTINGS_SECTION_IDS.includes(activeSection) || !sections.some((s) => s.id === activeSection)) {
     return null;
   }
 
@@ -1315,10 +1323,10 @@ export function SettingsPage() {
       <PageHeader title={ar.settings.title} description={sectionMeta.descAr} />
 
       {/* Mobile sub-nav: horizontal scroll chip row sticky under the TopBar. */}
-      <MobileChipRow active={activeSection} onChange={setActiveSection} />
+      <MobileChipRow active={activeSection} onChange={setActiveSection} sections={sections} />
 
       <div className="flex gap-6 items-start">
-        {isDesktop && <DesktopSubNav active={activeSection} onChange={setActiveSection} />}
+        {isDesktop && <DesktopSubNav active={activeSection} onChange={setActiveSection} sections={sections} />}
 
         <main className="flex-1 min-w-0">
           <div className="rounded-lg border border-border-subtle bg-surface-elevated shadow-sm">

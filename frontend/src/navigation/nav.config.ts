@@ -443,7 +443,7 @@ export const NAV: NavTop[] = [
     descAr: 'إعدادات النظام والمستخدمين',
     icon: SettingsIcon,
     route: '/settings',
-    visibleTo: ['owner'],
+    visibleTo: ['owner', 'super_admin'],
   },
 ];
 
