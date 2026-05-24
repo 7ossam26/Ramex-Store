@@ -61,7 +61,7 @@ function LastUpdatedChip({ ms }: { ms: number }) {
     <span
       className={cn(
         'inline-flex items-center gap-1.5 rounded-pill border border-border-subtle',
-        'bg-surface px-2.5 py-1 text-xs text-foreground-tertiary',
+        'bg-surface px-2.5 py-1 text-xs',
       )}
       title={new Date(ms).toLocaleString('ar-EG-u-nu-latn')}
     >
@@ -69,7 +69,7 @@ function LastUpdatedChip({ ms }: { ms: number }) {
         className="size-1.5 rounded-full bg-success animate-pulse"
         aria-hidden
       />
-      {label}
+      <span style={{ color: '#16a34a', fontWeight: '500', fontSize: '0.875rem' }}>{label}</span>
     </span>
   );
 }

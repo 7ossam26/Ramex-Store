@@ -20,7 +20,7 @@ import { RollStatusPill } from '@/components/items/RollStatusPill';
 
 export function LabelsPage() {
   const [filters, setFilters] = useState({ fabric: '', color: '', rollSrNo: '' });
-  const [applied, setApplied] = useState<typeof filters | null>(null);
+  const [applied, setApplied] = useState<typeof filters | null>({ fabric: '', color: '', rollSrNo: '' });
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [reprintTarget, setReprintTarget] = useState<RollWithDetails | null>(null);
   const [reprintReason, setReprintReason] = useState('');

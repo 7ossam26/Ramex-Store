@@ -34,11 +34,9 @@ export function PulseHeroCard({
             tone === 'neutral' && 'text-foreground-tertiary',
           )}
         >
-          {noFlow ? '—' : fmtMoney(animated)}
+          {fmtMoney(animated)}
         </span>
-        {!noFlow && (
-          <span className="text-sm text-foreground-tertiary">{EGP}</span>
-        )}
+        <span className="text-sm text-foreground-tertiary">{EGP}</span>
       </div>
 
       {noFlow ? (

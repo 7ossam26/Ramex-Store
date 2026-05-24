@@ -36,13 +36,10 @@ export type OwnerDashboardQueries = ReturnType<typeof useOwnerDashboardQueries>;
  * dozen useQuery calls. Returns the typed results plus helpers. */
 export function useOwnerDashboardQueries({
   topFabricsPeriod,
-  turnoverPeriod,
 }: {
   topFabricsPeriod: Period;
-  turnoverPeriod: Period;
 }) {
   const todayIso = useMemo(cairoTodayIso, []);
-  const trendFrom = useMemo(() => daysAgoIso(13), []);
   const expensesFrom = useMemo(() => daysAgoIso(29), []);
 
   const summary = useQuery({
@@ -77,39 +74,6 @@ export function useOwnerDashboardQueries({
     ...sharedOptions,
   });
 
-  const hourly = useQuery({
-    queryKey: ['dashboard', 'owner', 'hourly-curve', todayIso],
-    queryFn: () => ownerApi.hourlySalesCurve(todayIso),
-    staleTime: 30_000,
-    refetchInterval: jitter(WARM, 'hourly-curve'),
-    ...sharedOptions,
-  });
-
-  const dailyTotals = useQuery({
-    queryKey: ['dashboard', 'owner', 'daily-totals', trendFrom, todayIso],
-    queryFn: () => ownerApi.dailyTotals(trendFrom, todayIso),
-    staleTime: 120_000,
-    refetchInterval: jitter(COLD, 'daily-totals'),
-    ...sharedOptions,
-  });
-
-  const stockSummary = useQuery({
-    queryKey: ['dashboard', 'owner', 'stock-summary'],
-    queryFn: ownerApi.stockSummary,
-    staleTime: 120_000,
-    refetchInterval: jitter(COLD, 'stock-summary'),
-    ...sharedOptions,
-  });
-
-  const turnover = useQuery({
-    queryKey: ['dashboard', 'owner', 'turnover', turnoverPeriod],
-    queryFn: () => ownerApi.inventoryTurnover(turnoverPeriod),
-    staleTime: 120_000,
-    refetchInterval: jitter(COLD, `turnover-${turnoverPeriod}`),
-    placeholderData: keepPreviousData,
-    ...sharedOptions,
-  });
-
   const topFabrics = useQuery({
     queryKey: ['dashboard', 'owner', 'top-fabrics', topFabricsPeriod],
     queryFn: () => ownerApi.topFabrics(topFabricsPeriod),
@@ -127,26 +91,9 @@ export function useOwnerDashboardQueries({
     ...sharedOptions,
   });
 
-  const damage = useQuery({
-    queryKey: ['dashboard', 'owner', 'damage-loss', expensesFrom, todayIso],
-    queryFn: () => ownerApi.damageLoss(expensesFrom, todayIso),
-    staleTime: 120_000,
-    refetchInterval: jitter(COLD, 'damage-loss'),
-    ...sharedOptions,
-  });
-
-  const audit = useQuery({
-    queryKey: ['dashboard', 'owner', 'audit-recent'],
-    queryFn: () => ownerApi.auditLog({ page: 1, limit: 10 }),
-    staleTime: 30_000,
-    refetchInterval: jitter(WARM, 'audit-recent'),
-    ...sharedOptions,
-  });
-
   const queries: UseQueryResult<unknown>[] = [
     summary, cash, openInvoices, notifications,
-    hourly, dailyTotals, stockSummary, turnover,
-    topFabrics, expenses, damage, audit,
+    topFabrics, expenses,
   ];
 
   const lastUpdatedMs = queries.reduce(
@@ -159,14 +106,8 @@ export function useOwnerDashboardQueries({
     cash,
     openInvoices,
     notifications,
-    hourly,
-    dailyTotals,
-    stockSummary,
-    turnover,
     topFabrics,
     expenses,
-    damage,
-    audit,
     lastUpdatedMs,
     todayIso,
   };

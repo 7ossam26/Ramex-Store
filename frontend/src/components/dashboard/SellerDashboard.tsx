@@ -187,11 +187,9 @@ function DrawerTile({
       </p>
       <div className="flex items-baseline gap-1.5 tabular-num">
         <span className="text-3xl font-semibold text-foreground" dir="ltr">
-          {balance === 0 ? '—' : fmtMoney(balance)}
+          {fmtMoney(balance)}
         </span>
-        {balance > 0 && (
-          <span className="text-sm text-foreground-tertiary">{EGP}</span>
-        )}
+        <span className="text-sm text-foreground-tertiary">{EGP}</span>
       </div>
       <p className="text-xs text-foreground-tertiary mt-2">
         {opened

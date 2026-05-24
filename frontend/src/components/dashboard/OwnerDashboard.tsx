@@ -8,36 +8,23 @@ import { PulseHeroCard } from './PulseHeroCard';
 import { CashAndBankStrip } from './CashAndBankStrip';
 import { OpenInvoicesPulse } from './OpenInvoicesPulse';
 import { NotificationsPeek } from './NotificationsPeek';
-import { HourlyCurveCard } from './HourlyCurveCard';
-import { RevenueTrendCard } from './RevenueTrendCard';
-import { StockHealthDonut } from './StockHealthDonut';
-import { TurnoverStat } from './TurnoverStat';
 import { TopFabricsList } from './TopFabricsList';
 import { ExpensesStackedBar } from './ExpensesStackedBar';
-import { DamageLossList } from './DamageLossList';
-import { ActivityFeed } from './ActivityFeed';
 import { DashboardCardSkeleton, WidgetError } from './states';
 import type { Period } from './PeriodChip';
 import { useOwnerDashboardQueries } from './useDashboardQueries';
 
 export function OwnerDashboard() {
   const [topFabricsPeriod, setTopFabricsPeriod] = useState<Period>('7d');
-  const [turnoverPeriod, setTurnoverPeriod] = useState<Period>('30d');
 
-  const q = useOwnerDashboardQueries({ topFabricsPeriod, turnoverPeriod });
+  const q = useOwnerDashboardQueries({ topFabricsPeriod });
 
   const summary = q.summary.data;
   const cash = q.cash.data;
   const openInvoices = q.openInvoices.data;
   const notifications = q.notifications.data;
-  const hourly = q.hourly.data;
-  const dailyTotals = q.dailyTotals.data;
-  const stock = q.stockSummary.data;
-  const turnover = q.turnover.data;
   const topFabrics = q.topFabrics.data;
   const expenses = q.expenses.data;
-  const damage = q.damage.data;
-  const audit = q.audit.data;
 
   return (
     <DashboardShell
@@ -147,63 +134,6 @@ export function OwnerDashboard() {
         )}
       </FoldSection>
 
-      {/* ── Fold B — Trends ────────────────────────────────────────────── */}
-      <FoldSection
-        label={ar.dashboard.folds.trends}
-        caption={ar.dashboard.foldCaption.trends}
-      >
-        <Slot colSpan="lg:col-span-7">
-          {hourly ? (
-            <HourlyCurveCard rows={hourly} />
-          ) : q.hourly.error ? (
-            <WidgetError
-              title={ar.dashboard.errors.hourly}
-              onRetry={() => void q.hourly.refetch()}
-            />
-          ) : (
-            <DashboardCardSkeleton lines={4} />
-          )}
-        </Slot>
-        <Slot colSpan="lg:col-span-5">
-          {dailyTotals ? (
-            <RevenueTrendCard rows={dailyTotals} />
-          ) : q.dailyTotals.error ? (
-            <WidgetError
-              title={ar.dashboard.errors.trend}
-              onRetry={() => void q.dailyTotals.refetch()}
-            />
-          ) : (
-            <DashboardCardSkeleton lines={4} />
-          )}
-        </Slot>
-        <Slot colSpan="lg:col-span-8">
-          {stock ? (
-            <StockHealthDonut rows={stock} />
-          ) : q.stockSummary.error ? (
-            <WidgetError
-              title={ar.dashboard.errors.stock}
-              onRetry={() => void q.stockSummary.refetch()}
-            />
-          ) : (
-            <DashboardCardSkeleton lines={3} />
-          )}
-        </Slot>
-        <Slot colSpan="lg:col-span-4">
-          {q.turnover.error ? (
-            <WidgetError
-              title={ar.dashboard.errors.turnover}
-              onRetry={() => void q.turnover.refetch()}
-            />
-          ) : (
-            <TurnoverStat
-              period={turnoverPeriod}
-              onPeriodChange={setTurnoverPeriod}
-              data={turnover}
-            />
-          )}
-        </Slot>
-      </FoldSection>
-
       {/* ── Fold C — Movers ────────────────────────────────────────────── */}
       <FoldSection
         label={ar.dashboard.folds.movers}
@@ -233,30 +163,6 @@ export function OwnerDashboard() {
             />
           ) : (
             <DashboardCardSkeleton lines={3} />
-          )}
-        </Slot>
-        <Slot colSpan="lg:col-span-5">
-          {damage ? (
-            <DamageLossList data={damage} />
-          ) : q.damage.error ? (
-            <WidgetError
-              title={ar.dashboard.errors.damage}
-              onRetry={() => void q.damage.refetch()}
-            />
-          ) : (
-            <DashboardCardSkeleton lines={3} />
-          )}
-        </Slot>
-        <Slot colSpan="lg:col-span-7">
-          {audit ? (
-            <ActivityFeed rows={audit.rows} />
-          ) : q.audit.error ? (
-            <WidgetError
-              title={ar.dashboard.errors.activity}
-              onRetry={() => void q.audit.refetch()}
-            />
-          ) : (
-            <DashboardCardSkeleton lines={4} />
           )}
         </Slot>
       </FoldSection>

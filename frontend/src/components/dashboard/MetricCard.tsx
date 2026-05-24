@@ -40,7 +40,7 @@ export function MetricCard({
   suffix,
   meta,
   tone = 'default',
-  emDashOnZero = true,
+  emDashOnZero = false,
   className,
 }: MetricCardProps) {
   const numeric = typeof value === 'number' && Number.isFinite(value) ? value : 0;

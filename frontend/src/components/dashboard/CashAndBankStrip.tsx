@@ -62,7 +62,6 @@ function BalanceTile({
   value: number;
   pill: React.ReactNode;
 }) {
-  const showDash = value === 0;
   return (
     <div className="space-y-2">
       <p className="text-xs font-medium uppercase tracking-wide text-foreground-muted">
@@ -70,9 +69,9 @@ function BalanceTile({
       </p>
       <div className="flex items-baseline gap-1.5 tabular-num">
         <span className="text-2xl font-semibold text-foreground" dir="ltr">
-          {showDash ? '—' : fmtMoney(value)}
+          {fmtMoney(value)}
         </span>
-        {!showDash && <span className="text-xs text-foreground-tertiary">{EGP}</span>}
+        <span className="text-xs text-foreground-tertiary">{EGP}</span>
       </div>
       <div>{pill}</div>
     </div>

@@ -4,10 +4,6 @@ const ROLES = "'owner', 'shop_seller', 'factory_sender', 'super_admin'";
 const ROLES_WITHOUT_SUPER = "'owner', 'shop_seller', 'factory_sender'";
 
 export async function up(db: Knex): Promise<void> {
-  if (db.client.config.client === 'pg' || db.client.config.client === 'postgresql') {
-    await db.raw(`ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'super_admin'`);
-  }
-
   await db.raw(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`);
   await db.raw(`ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN (${ROLES}))`);
 
