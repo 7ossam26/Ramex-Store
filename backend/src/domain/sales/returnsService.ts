@@ -76,6 +76,7 @@ export type ReturnFromScanInput = {
   reference?: string | null;
   chequeDetails?: ChequeDetails | null;
   actorUserId: number;
+  shiftId?: number | null;
 };
 
 export async function createReturnFromRollScan(
@@ -116,6 +117,7 @@ export async function createReturnFromRollScan(
         bank_account_id: input.bankAccountId ?? null,
         notes_ar: null,
         kind: 'refund',
+        shift_id: input.shiftId ?? null,
       })
       .returning('id');
 
@@ -265,6 +267,7 @@ export type ProcessReturnInput = {
   actorUserId: number;
   actorRole: string;
   ownerWindowOverride?: boolean;
+  shiftId?: number | null;
 };
 
 export type ProcessExchangeInput = ProcessReturnInput & {
@@ -396,6 +399,7 @@ export async function processReturn(input: ProcessReturnInput): Promise<ReturnRo
       bank_account_id: input.bankAccountId ?? null,
       notes_ar: input.notesAr ?? null,
       kind: 'refund',
+      shift_id: input.shiftId ?? null,
     }).returning('id');
     const ret = await trx('returns').where({ id: retId }).first();
 
@@ -601,6 +605,7 @@ export async function processExchange(input: ProcessExchangeInput): Promise<{
       bank_account_id: input.bankAccountId ?? null,
       notes_ar: input.notesAr ?? null,
       kind: 'exchange',
+      shift_id: input.shiftId ?? null,
     }).returning('id');
     const ret = await trx('returns').where({ id: retId }).first();
 

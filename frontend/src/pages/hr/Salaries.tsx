@@ -4,26 +4,19 @@ import { ar } from '@/i18n/ar';
 import { hrApi, type HrSalaryPreview } from '@/lib/hr-api';
 import { bankAccountsApi } from '@/lib/settings-api';
 import { Button } from '@/components/ui/button';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/Layout/PageShell';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { Skeleton } from '@/components/Skeleton';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { StatusPill } from '@/components/StatusPill';
 import { cn } from '@/lib/utils';
+import { extractApiError } from '@/lib/api-error';
 import { format } from 'date-fns';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(v: number) {
   return v.toLocaleString('en-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function extractError(e: unknown): string {
-  const msg =
-    (e as { response?: { data?: { message?: string; error?: string } } })?.response?.data?.message ??
-    (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-    (e as { message?: string })?.message;
-  return msg ?? ar.common.error;
 }
 
 function toMonthDate(ym: string) {
@@ -68,7 +61,7 @@ function DisburseDialog({ preview, month, onClose, onDone }: DisburseDialogProps
       qc.invalidateQueries({ queryKey: ['hr-salaries-preview'] });
       onDone();
     },
-    onError: (e) => setError(extractError(e)),
+    onError: (e) => setError(extractApiError(e)),
   });
 
   const needsBank = paidVia !== 'cash';
@@ -208,9 +201,7 @@ export function SalariesPage() {
   const pendingCount = rows.filter((r) => !r.already_disbursed).length;
 
   return (
-    <div dir="rtl" className="space-y-4">
-      <PageHeader title={ar.hr.salaries} description={ar.hr.salary.previewHint} />
-
+    <PageShell title={ar.hr.salaries} description={ar.hr.salary.previewHint} backTo="/hr">
       {/* Month picker */}
       <div className="flex flex-wrap gap-3 items-center">
         <div className="space-y-0.5">
@@ -310,6 +301,6 @@ export function SalariesPage() {
           onDone={() => setDisbursingPreview(null)}
         />
       )}
-    </div>
+    </PageShell>
   );
 }

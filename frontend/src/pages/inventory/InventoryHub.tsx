@@ -1,4 +1,4 @@
-import { AlertOctagon, ArrowDownUp, ClipboardList, Hash, LayoutDashboard, Scale } from 'lucide-react';
+import { AlertOctagon, ArrowDownUp, ClipboardList, LayoutDashboard, Scale } from 'lucide-react';
 import { HubLanding, type HubCard } from '@/components/Layout/HubLanding';
 import { ar } from '@/i18n/ar';
 
@@ -8,6 +8,7 @@ const cards: HubCard[] = [
     description: ar.hubs.inventoryOverviewDesc,
     href: '/inventory/stock',
     icon: LayoutDashboard,
+    featured: true,
   },
   {
     label: ar.inventory.stockMovements,
@@ -32,12 +33,6 @@ const cards: HubCard[] = [
     description: ar.hubs.inventoryDamageDesc,
     href: '/inventory/damage',
     icon: AlertOctagon,
-  },
-  {
-    label: 'التكويدات',
-    description: ar.hubs.inventoryCodesDesc,
-    href: '/codes',
-    icon: Hash,
   },
 ];
 

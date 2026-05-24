@@ -15,12 +15,12 @@ import { StocktakePage } from './pages/inventory/Stocktake';
 import { AdjustmentsPage } from './pages/inventory/Adjustments';
 import { DamagePage } from './pages/inventory/Damage';
 import { InventoryHubPage } from './pages/inventory/InventoryHub';
-import { CodesPage } from './pages/inventory/CodesPage';
 import { CustomersListPage } from './pages/customers/CustomersList';
 import { CustomerDetailPage } from './pages/customers/CustomerDetail';
 import { POSPage } from './pages/pos/POS';
 import { InvoicesListPage } from './pages/invoices/InvoicesList';
 import { InvoiceDetailPage } from './pages/invoices/InvoiceDetail';
+import { DraftInvoicePrintPage } from './pages/invoices/DraftInvoicePrintPage';
 import { InvoicesReturnsHubPage } from './pages/invoicesReturns/InvoicesReturnsHub';
 import { ChequesPage } from './pages/invoicesReturns/ChequesPage';
 import { CashDrawerPage } from './pages/cash/CashDrawer';
@@ -42,6 +42,8 @@ import { HrHubPage } from './pages/hr/HrHub';
 import { EmployeesPage } from './pages/hr/Employees';
 import { SalariesPage } from './pages/hr/Salaries';
 import { AdjustmentsPage as HrAdjustmentsPage } from './pages/hr/Adjustments';
+import { ShiftHistoryPage } from './pages/shifts/ShiftHistory';
+import { ShiftReportPage } from './pages/shifts/ShiftReport';
 
 /* Chart-heavy report routes are lazy-loaded so Recharts is only fetched
  * when the user navigates into Reports. Saves ~250kb gzipped from the
@@ -66,6 +68,15 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      {/* Draft invoice print view — full-page, no AppShell chrome */}
+      <Route
+        path="/invoices/:id/draft"
+        element={
+          <ProtectedRoute>
+            <DraftInvoicePrintPage />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/*"
         element={
@@ -83,7 +94,6 @@ export function App() {
 
                 <Route path="/inventory" element={<InventoryHubPage />} />
                 <Route path="/inventory/stock" element={<StockViewPage />} />
-                <Route path="/codes" element={<CodesPage />} />
                 <Route path="/inventory/stock-movements" element={<StockMovementsPage />} />
                 <Route path="/inventory/stocktake" element={<StocktakePage />} />
                 <Route path="/inventory/adjustments" element={<AdjustmentsPage />} />
@@ -130,6 +140,9 @@ export function App() {
                 <Route path="/hr/adjustments" element={<HrAdjustmentsPage />} />
 
                 <Route path="/settings" element={<SettingsPage />} />
+
+                <Route path="/shifts" element={<ShiftHistoryPage />} />
+                <Route path="/shifts/:id" element={<ShiftReportPage />} />
               </Routes>
               </Suspense>
             </AppShell>

@@ -3,12 +3,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { hrApi, type HrEmployee, type HrEmployeeDetail } from '@/lib/hr-api';
 import { Button } from '@/components/ui/button';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/Layout/PageShell';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { Skeleton } from '@/components/Skeleton';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { StatusPill } from '@/components/StatusPill';
+import { Toggle } from '@/components/Toggle';
 import { cn } from '@/lib/utils';
+import { extractApiError } from '@/lib/api-error';
 import { format } from 'date-fns';
 import { arSA } from 'date-fns/locale';
 
@@ -16,14 +18,6 @@ import { arSA } from 'date-fns/locale';
 
 function fmt(v: string | number) {
   return Number(v).toLocaleString('en-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function extractError(e: unknown): string {
-  const msg =
-    (e as { response?: { data?: { message?: string; error?: string } } })?.response?.data?.message ??
-    (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-    (e as { message?: string })?.message;
-  return msg ?? ar.common.error;
 }
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
@@ -112,7 +106,7 @@ function EmployeeForm({
           <input
             type="number"
             min={0}
-            step={0.01}
+            step={1}
             className={cn(inputCls, 'w-40')}
             style={{ unicodeBidi: 'plaintext' }}
             value={form.base_salary_egp}
@@ -123,24 +117,11 @@ function EmployeeForm({
         {'is_active' in initial && (
           <div className="flex items-center gap-3">
             <label className="text-sm font-medium text-foreground">{ar.hr.employee.isActive}</label>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={form.is_active}
-              onClick={() => field('is_active', !form.is_active)}
-              className={cn(
-                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-150',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
-                form.is_active ? 'bg-accent' : 'bg-border-default',
-              )}
-            >
-              <span
-                className={cn(
-                  'inline-block size-4 rounded-full bg-surface-elevated shadow-sm transition-transform duration-200',
-                  form.is_active ? 'translate-x-6' : 'translate-x-1',
-                )}
-              />
-            </button>
+            <Toggle
+              checked={form.is_active}
+              onChange={(v) => field('is_active', v)}
+              label={ar.hr.employee.isActive}
+            />
           </div>
         )}
       </div>
@@ -210,7 +191,7 @@ function EmployeeDrawer({
             ))}
           </div>
         )}
-        {error && <ErrorBanner title={ar.common.error} description={extractError(error)} />}
+        {error && <ErrorBanner title={ar.common.error} description={extractApiError(error)} />}
         {data && (
           <>
             <dl className="rounded-lg border border-border-subtle bg-surface p-4 space-y-2 text-sm">
@@ -310,7 +291,7 @@ export function EmployeesPage() {
       setShowCreate(false);
       setFormError(null);
     },
-    onError: (e) => setFormError(extractError(e)),
+    onError: (e) => setFormError(extractApiError(e)),
   });
 
   const updateMut = useMutation({
@@ -328,7 +309,7 @@ export function EmployeesPage() {
       setEditingEmp(null);
       setFormError(null);
     },
-    onError: (e) => setFormError(extractError(e)),
+    onError: (e) => setFormError(extractApiError(e)),
   });
 
   const employees = data?.rows ?? [];
@@ -385,9 +366,7 @@ export function EmployeesPage() {
   ];
 
   return (
-    <div dir="rtl" className="space-y-4">
-      <PageHeader title={ar.hr.employees} description={ar.hr.title} />
-
+    <PageShell title={ar.hr.employees} description={ar.hr.title} backTo="/hr">
       {/* Toolbar */}
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <div className="flex gap-2 items-center flex-wrap">
@@ -413,8 +392,8 @@ export function EmployeesPage() {
               {f === 'all'
                 ? ar.hr.employee.filterAll
                 : f === 'active'
-                ? ar.hr.employee.filterActive
-                : ar.hr.employee.filterInactive}
+                  ? ar.hr.employee.filterActive
+                  : ar.hr.employee.filterInactive}
             </button>
           ))}
         </div>
@@ -458,7 +437,7 @@ export function EmployeesPage() {
         onRowClick={(e) => setDrawerEmpId(e.id)}
         isLoading={isLoading}
         isError={!!error}
-        onRetry={() => {}}
+        onRetry={() => { }}
         errorTitle={ar.common.error}
         empty={ar.hr.employee.empty}
         resetKey={`${search}|${filterActive}`}
@@ -483,6 +462,6 @@ export function EmployeesPage() {
           />
         </>
       )}
-    </div>
+    </PageShell>
   );
 }

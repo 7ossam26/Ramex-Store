@@ -58,7 +58,7 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
     columns: [
       { label: 'الخامة', key: 'fabric_name_ar' },
       { label: 'اللون', key: 'color_name_ar' },
-      { label: 'عدد التوبات', key: 'roll_count' },
+      { label: 'عدد الاتواب', key: 'roll_count' },
       { label: 'الوزن (كجم)', key: 'total_weight_kg' },
       { label: 'الإيراد (ج.م)', key: 'total_revenue_egp' },
       { label: 'متوسط السعر/كجم', key: 'avg_price_per_kg' },
@@ -444,7 +444,7 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
     columns: [
       { label: 'المخزن', key: 'warehouse' },
       { label: 'الحالة', key: 'status' },
-      { label: 'عدد التوبات', key: 'roll_count' },
+      { label: 'عدد الاتواب', key: 'roll_count' },
       { label: 'الوزن (كجم)', key: 'total_weight_kg' },
       { label: 'الطول (م)', key: 'total_length_m' },
     ],
@@ -461,8 +461,8 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
     },
     chart: {
       type: 'bar',
-      title: 'توزيع التوبات حسب المخزن',
-      seriesLabel: 'عدد التوبات',
+      title: 'توزيع الاتواب حسب المخزن',
+      seriesLabel: 'عدد الاتواب',
       derive: (raw) => {
         const res = raw as { by_warehouse: Array<{ warehouse: string; total_rolls: number }> };
         return res.by_warehouse.map((r) => ({ name: r.warehouse, value: r.total_rolls }));
@@ -495,8 +495,8 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
     },
     chart: {
       type: 'bar',
-      title: 'التوبات حسب فترة التخزين',
-      seriesLabel: 'عدد التوبات',
+      title: 'الاتواب حسب فترة التخزين',
+      seriesLabel: 'عدد الاتواب',
       derive: (raw) => {
         const res = raw as { by_bucket: Array<{ bucket: string; roll_count: number }> };
         return res.by_bucket.map((r) => ({ name: r.bucket, value: r.roll_count }));
@@ -509,9 +509,8 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
     columns: [
       { label: 'رقم الطلبية', key: 'shipment_no' },
       { label: 'الحالة', key: 'status' },
-      { label: 'عدد التوبات', key: 'roll_count' },
+      { label: 'عدد الاتواب', key: 'roll_count' },
       { label: 'الوزن (كجم)', key: 'total_weight_kg' },
-      { label: 'القيمة البيعية (ج.م)', key: 'total_selling_value_egp' },
       { label: 'التاريخ', key: 'created_at' },
     ],
     flatten: (d) => {
@@ -519,22 +518,11 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
       return res.rows.map((r) => ({
         ...(r as Record<string, string | number>),
         roll_count: String((r as Record<string, unknown>)['roll_count']),
-        total_selling_value_egp: fmt((r as Record<string, unknown>)['total_selling_value_egp'] as string),
       }));
     },
     totals: (d) => {
-      const res = d as { total_rolls: number; total_weight_kg: string; total_selling_value_egp: string };
-      return { shipment_no: 'الإجمالي', roll_count: String(res.total_rolls), total_weight_kg: res.total_weight_kg, total_selling_value_egp: fmt(res.total_selling_value_egp) };
-    },
-    chart: {
-      type: 'bar',
-      title: 'القيمة البيعية للطلبيات',
-      seriesLabel: 'القيمة البيعية',
-      isCurrency: true,
-      derive: (raw) => {
-        const res = raw as { rows: Array<{ shipment_no: string; total_selling_value_egp: string }> };
-        return res.rows.map((r) => ({ name: truncate(r.shipment_no, 14), value: Number(r.total_selling_value_egp) }));
-      },
+      const res = d as { total_rolls: number; total_weight_kg: string };
+      return { shipment_no: 'الإجمالي', roll_count: String(res.total_rolls), total_weight_kg: res.total_weight_kg };
     },
   },
   outstandingCheques: {
@@ -779,7 +767,8 @@ export function SecondaryReportPage() {
             </Label>
             <Input
               type="number"
-              inputMode="decimal"
+              inputMode="numeric"
+              step="1"
               value={customerId}
               onChange={(e) => setCustomerId(e.target.value)}
               placeholder="رقم العميل"

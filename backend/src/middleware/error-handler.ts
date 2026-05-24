@@ -1,6 +1,7 @@
 import type { ErrorRequestHandler } from 'express';
 import { ZodError } from 'zod';
 import { logger } from '../lib/logger.js';
+import { env } from '../config/env.js';
 
 export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   if (err instanceof ZodError) {
@@ -8,5 +9,13 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     return;
   }
   logger.error({ err, reqId: req.id }, 'unhandled error');
-  res.status(500).json({ error: 'internal' });
+
+  const body: { error: string; message?: string; detail?: string } = { error: 'internal' };
+  if (err instanceof Error) {
+    body.message = err.message;
+    if (env.NODE_ENV !== 'production') {
+      body.detail = err.stack;
+    }
+  }
+  res.status(500).json(body);
 };

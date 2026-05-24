@@ -3,10 +3,10 @@ import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
+import { extractApiError } from '@/lib/api-error';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/PageHeader';
 import { ShipmentStatusPill } from '@/components/shipments/ShipmentStatusPill';
 import { StatusPill, type StatusTone } from '@/components/StatusPill';
@@ -18,25 +18,13 @@ const LINE_STATUS_TONE: Record<string, StatusTone> = {
   rejected: 'danger',
 };
 
-function formatEgp(value: number): string {
-  return value.toFixed(2);
-}
-
-function previewTotal(line: ShipmentLineDetail, price: number): string | null {
-  if (line.fabric_unit === 'meter') {
-    if (!line.length_m) return null;
-    return formatEgp(price * Number(line.length_m));
-  }
-  return formatEgp(price * Number(line.weight_kg));
-}
-
 export function ReviewShipmentPage() {
   const { id } = useParams<{ id: string }>();
   const shipmentId = Number(id);
   const qc = useQueryClient();
 
   const [reasons, setReasons] = useState<Record<number, string>>({});
-  const [fabricPrices, setFabricPrices] = useState<Record<number, string>>({});
+  const [acceptError, setAcceptError] = useState<string | null>(null);
 
   const q = useQuery({
     queryKey: ['shipment', shipmentId],
@@ -61,9 +49,12 @@ export function ReviewShipmentPage() {
   });
 
   const accept = useMutation({
-    mutationFn: (fabricReferencePrices: Array<{ fabricId: number; pricePerUnit: number }>) =>
-      inventoryApi.acceptShipment(shipmentId, fabricReferencePrices),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['shipment', shipmentId] }),
+    mutationFn: () => inventoryApi.acceptShipment(shipmentId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['shipment', shipmentId] });
+      setAcceptError(null);
+    },
+    onError: (e) => setAcceptError(extractApiError(e)),
   });
 
   if (!q.data) return <div>{ar.loading}</div>;
@@ -81,52 +72,30 @@ export function ReviewShipmentPage() {
 
   const allReviewed = shipment.lines.every((l) => l.status !== 'pending');
 
-  // Fabrics that have at least one accepted line.
-  const acceptedFabricIds = new Set(
-    shipment.lines.filter((l) => l.status === 'accepted').map((l) => l.fabric_id),
-  );
-
-  const allFabricsPriced = [...acceptedFabricIds].every((fid) => {
-    const raw = fabricPrices[fid]?.trim();
-    return raw !== undefined && raw !== '' && Number(raw) >= 0;
-  });
-
-  const canConfirm = allReviewed && allFabricsPriced && !accept.isPending;
-
-  let confirmTitle: string | undefined;
-  if (!allReviewed) confirmTitle = ar.shipments.acceptShipmentBlockedReview;
-  else if (!allFabricsPriced) confirmTitle = ar.shipments.acceptShipmentBlockedPrice;
+  const canConfirm = allReviewed && !accept.isPending;
+  const confirmTitle = !allReviewed ? ar.shipments.acceptShipmentBlockedReview : undefined;
 
   function handleConfirm() {
-    const fabricReferencePrices = [...acceptedFabricIds].map((fabricId) => ({
-      fabricId,
-      pricePerUnit: Number(fabricPrices[fabricId]),
-    }));
-    accept.mutate(fabricReferencePrices);
+    accept.mutate();
   }
 
   return (
     <div className="space-y-4 max-w-5xl mx-auto" dir="rtl">
       <PageHeader
         title={shipment.shipment_no}
+        backTo="/shipments"
         actions={<ShipmentStatusPill status={shipment.status} />}
       />
 
-      {accept.isError && (
+      {acceptError && (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {(accept.error as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-            'حدث خطأ أثناء تأكيد الاستلام'}
+          {acceptError}
         </div>
       )}
 
       {[...fabricGroups.entries()].map(([fabricId, lines]) => {
         const firstLine = lines[0];
         const isKg = firstLine.fabric_unit === 'kg';
-        const priceLabel = isKg ? ar.shipments.referencePriceKg : ar.shipments.referencePriceMeter;
-        const unitSuffix = isKg ? 'كجم' : 'م';
-        const hasAccepted = lines.some((l) => l.status === 'accepted');
-        const rawPrice = fabricPrices[fabricId] ?? '';
-        const priceNum = rawPrice.trim() !== '' ? Number(rawPrice) : NaN;
 
         return (
           <Card key={fabricId}>
@@ -138,41 +107,6 @@ export function ReviewShipmentPage() {
                     ({isKg ? 'كيلو' : 'متر'})
                   </span>
                 </CardTitle>
-
-                {isReviewable && hasAccepted && (
-                  <div className="flex flex-col gap-1 min-w-[180px]">
-                    <Label
-                      htmlFor={`price-${fabricId}`}
-                      className="text-xs font-medium text-foreground"
-                    >
-                      {priceLabel} (ج.م/{unitSuffix})
-                    </Label>
-                    <Input
-                      id={`price-${fabricId}`}
-                      type="number"
-                      inputMode="decimal"
-                      step="0.01"
-                      min="0"
-                      value={rawPrice}
-                      onChange={(e) =>
-                        setFabricPrices((p) => ({ ...p, [fabricId]: e.target.value }))
-                      }
-                      placeholder={ar.shipments.referencePricePlaceholder}
-                      className="w-40 text-left"
-                      dir="ltr"
-                    />
-                  </div>
-                )}
-
-                {!isReviewable && (
-                  <div className="text-sm text-foreground-muted">
-                    {priceLabel}:{' '}
-                    <span className="font-mono tabular-num" dir="ltr">
-                      {lines.find((l) => l.reference_price_per_unit)?.reference_price_per_unit ?? '—'}
-                    </span>{' '}
-                    ج.م/{unitSuffix}
-                  </div>
-                )}
               </div>
             </CardHeader>
 
@@ -185,14 +119,6 @@ export function ReviewShipmentPage() {
                     <th className="font-medium">
                       {isKg ? ar.shipments.rollWeight : 'الطول (م)'}
                     </th>
-                    {!isReviewable && (
-                      <th className="font-medium">{ar.shipments.previewTotal} (ج.م)</th>
-                    )}
-                    {isReviewable && !Number.isNaN(priceNum) && priceNum >= 0 && (
-                      <th className="font-medium text-foreground-muted">
-                        {ar.shipments.previewTotal} (ج.م)
-                      </th>
-                    )}
                     <th className="font-medium">الحالة</th>
                     {isReviewable && <th />}
                   </tr>
@@ -200,12 +126,6 @@ export function ReviewShipmentPage() {
                 <tbody>
                   {lines.map((l) => {
                     const qty = isKg ? l.weight_kg : l.length_m;
-                    const total =
-                      !Number.isNaN(priceNum) && priceNum >= 0
-                        ? previewTotal(l, priceNum)
-                        : !isReviewable && l.reference_price_per_unit
-                          ? previewTotal(l, Number(l.reference_price_per_unit))
-                          : null;
 
                     return (
                       <tr
@@ -224,12 +144,6 @@ export function ReviewShipmentPage() {
                         <td className="tabular-num" dir="ltr">
                           {qty ?? '—'}
                         </td>
-                        {((!isReviewable) ||
-                          (!Number.isNaN(priceNum) && priceNum >= 0)) && (
-                          <td className="tabular-num text-foreground-muted" dir="ltr">
-                            {total ?? '—'}
-                          </td>
-                        )}
                         <td>
                           <StatusPill tone={LINE_STATUS_TONE[l.status] ?? 'neutral'}>
                             {ar.shipments.lineStatus[l.status]}

@@ -89,7 +89,7 @@ export async function softDeleteEntity(req: Request, res: Response): Promise<voi
   if (referenced && !force) {
     res.status(409).json({
       error: 'referenced_by_active_roll',
-      message: 'هذا الكود مرتبط بتوبات نشطة. أرسل force=true للمتابعة.',
+      message: 'هذا الكود مرتبط باتواب نشطة. أرسل force=true للمتابعة.',
     });
     return;
   }

@@ -7,13 +7,12 @@ import {
   FinalPaymentSchema,
   ListChequesQuerySchema,
   ListInvoicesQuerySchema,
-  PdfVariantSchema,
   SalePreviewSchema,
   VoidInvoiceSchema,
 } from './sales.schemas.js';
 import * as svc from './invoices.service.js';
 import * as openSvc from './openInvoices.service.js';
-import { buildInvoicePdf } from '../../lib/pdf/invoice.js';
+import { auditLog } from '../../middleware/audit.js';
 
 const ERR_MAP: Record<string, { status: number; message: string }> = {
   CUSTOMER_NOT_FOUND: { status: 404, message: 'العميل غير موجود' },
@@ -66,7 +65,7 @@ function actorId(req: Request): number {
 export async function createSale(req: Request, res: Response): Promise<void> {
   const data = CreateSaleSchema.parse(req.body);
   try {
-    const invoice = await svc.createSale(actorId(req), data);
+    const invoice = await svc.createSale(actorId(req), data, req.shiftId ?? null);
     res.status(201).json(invoice);
   } catch (e) {
     if (handleDomainError(e, res)) return;
@@ -95,6 +94,7 @@ export async function voidInvoice(req: Request, res: Response): Promise<void> {
       String(req.user!.role),
       data.reason_ar,
       data.approved_by_owner ?? false,
+      req.shiftId ?? null,
     );
     res.json(result);
   } catch (e) {
@@ -122,7 +122,7 @@ export async function addFinalPayment(req: Request, res: Response): Promise<void
   const id = Number(req.params.id);
   const data = FinalPaymentSchema.parse(req.body);
   try {
-    const result = await openSvc.addFinalPayment(id, actorId(req), data.payments);
+    const result = await openSvc.addFinalPayment(id, actorId(req), data.payments, req.shiftId ?? null);
     res.json(result);
   } catch (e) {
     if (handleDomainError(e, res)) return;
@@ -154,6 +154,7 @@ export async function cancelOpenInvoice(req: Request, res: Response): Promise<vo
       reference: data.reference ?? null,
       chequeDetails: data.cheque_details ?? null,
       notesAr: data.notes_ar,
+      shiftId: req.shiftId ?? null,
     });
     res.json(result);
   } catch (e) {
@@ -218,16 +219,13 @@ export async function listCheques(req: Request, res: Response): Promise<void> {
   res.json(await svc.listCheques(q));
 }
 
-export async function getInvoicePdf(req: Request, res: Response): Promise<void> {
+export async function auditReprint(req: Request, res: Response): Promise<void> {
   const id = Number(req.params.id);
-  const { variant } = PdfVariantSchema.parse(req.query);
   const detail = await svc.getInvoiceDetail(id);
   if (!detail) {
     res.status(404).json({ error: 'INVOICE_NOT_FOUND', message: 'الفاتورة غير موجودة' });
     return;
   }
-  const buf = await buildInvoicePdf(detail, variant);
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `inline; filename="${detail.invoice_no}.pdf"`);
-  res.end(buf);
+  await auditLog(req, 'invoice.reprint', 'invoice', id, null, { invoice_no: detail.invoice_no });
+  res.status(204).end();
 }

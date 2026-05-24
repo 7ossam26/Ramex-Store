@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import { extractApiError } from '@/lib/api-error';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   X,
@@ -32,7 +32,6 @@ import { ar } from '@/i18n/ar';
 import { salesApi } from '@/lib/sales-api';
 import { customersApi } from '@/lib/customers-api';
 import { itemsApi } from '@/lib/items-api';
-import { openPdfBlob } from '@/lib/pdf';
 import type { Customer } from '@/lib/customers-types';
 import type {
   BankAccount,
@@ -61,6 +60,9 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { ScannerInput } from '@/components/ScannerInput';
+import { shiftsApi, type Shift } from '@/lib/shifts-api';
+import { StartDayPanel } from './StartDayPanel';
+import { EndDayDialog } from './EndDayDialog';
 
 type CartLine = {
   roll: RollLookup;
@@ -156,6 +158,18 @@ function rollMatchesDestination(r: RollLookup, dest: FulfillmentDestination): bo
 
 export function POSPage() {
   const qc = useQueryClient();
+
+  const [endDayShift, setEndDayShift] = useState<Shift | null>(null);
+
+  const shiftQ = useQuery<Shift | null>({
+    queryKey: ['shift-current'],
+    queryFn: () => shiftsApi.current(),
+    // Pause refetch while the End Day dialog is showing the report —
+    // otherwise the auto-refetch would set shiftQ.data=null, the gate would
+    // re-render to StartDayPanel, and the dialog would unmount mid-report.
+    refetchInterval: endDayShift ? false : 60_000,
+    refetchOnWindowFocus: !endDayShift,
+  });
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -322,8 +336,8 @@ export function POSPage() {
         setFlashRowId(roll.id);
       }
     } catch (e) {
-      const status = axios.isAxiosError(e) ? e.response?.status : 0;
-      flagScanFailure(status === 404 ? ar.pos.notFound : ar.common.error);
+      const status = (e as { response?: { status?: number } })?.response?.status;
+      flagScanFailure(status === 404 ? ar.pos.notFound : extractApiError(e));
     }
   }
 
@@ -361,10 +375,7 @@ export function POSPage() {
       qc.invalidateQueries({ queryKey: ['pos-rolls'] });
       showToast(`${ar.pos.returnSuccess} — ${result.return_no}`);
     } catch (e) {
-      const msg =
-        axios.isAxiosError(e) &&
-        (e.response?.data as { message?: string } | undefined)?.message;
-      showToast(msg || ar.common.error);
+      showToast(extractApiError(e));
     } finally {
       setReturnConfirming(false);
     }
@@ -420,11 +431,6 @@ export function POSPage() {
         ? instaNum
         : cashNum + instaNum; // split
 
-  const invoicePdfMut = useMutation({
-    mutationFn: ({ id, variant }: { id: number; variant: 'original' | 'reprint' | 'open' }) =>
-      salesApi.pdfBlob(id, variant),
-    onSuccess: (blob) => openPdfBlob(blob),
-  });
 
   const submit = useMutation({
     mutationFn: () => {
@@ -474,12 +480,7 @@ export function POSPage() {
       setSubmitError(null);
     },
     onError: (e: unknown) => {
-      const msg =
-        axios.isAxiosError(e) &&
-        e.response?.data &&
-        (e.response.data as { message?: string }).message
-          ? (e.response.data as { message: string }).message
-          : ar.common.error;
+      const msg = extractApiError(e);
       setSubmitError(msg);
       showToast(msg);
     },
@@ -518,11 +519,96 @@ export function POSPage() {
     setPendingDestination(null);
   }
 
+  // Render the End Day dialog whenever it's been opened — it captures its own
+  // shift snapshot so it stays mounted even after shiftQ.data becomes null
+  // (i.e., right after the user closes the shift). The user must explicitly
+  // click "تم" to dismiss it.
+  const endDayDialog = endDayShift ? (
+    <EndDayDialog
+      open
+      shift={endDayShift}
+      onClose={() => {
+        setEndDayShift(null);
+        qc.invalidateQueries({ queryKey: ['shift-current'] });
+        qc.invalidateQueries({ queryKey: ['cash-balance'] });
+      }}
+    />
+  ) : null;
+
+  // --- Shift gate ---
+  if (shiftQ.isLoading) {
+    return (
+      <>
+        {endDayDialog}
+        <div className="flex min-h-screen items-center justify-center text-foreground-muted text-sm">
+          {ar.loading}
+        </div>
+      </>
+    );
+  }
+
+  if (shiftQ.isError) {
+    return (
+      <>
+        {endDayDialog}
+        <div className="flex min-h-screen items-center justify-center flex-col gap-4 px-4" dir="rtl">
+          <p className="text-sm text-danger-foreground">{ar.common.error}</p>
+          <button
+            type="button"
+            onClick={() => shiftQ.refetch()}
+            className="text-sm text-accent hover:underline"
+          >
+            {ar.common.refresh}
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  if (!shiftQ.data) {
+    return (
+      <>
+        {endDayDialog}
+        <StartDayPanel
+          onStaleShift={async () => {
+            // A stale open shift exists — fetch it and surface in EndDayDialog
+            const stale = await shiftsApi.current();
+            if (stale) {
+              setEndDayShift(stale);
+            }
+          }}
+        />
+      </>
+    );
+  }
+
+  const activeShift = shiftQ.data;
+
   return (
+    <>
+      {endDayDialog}
+
     <div
       data-motion="reduced"
       className="flex flex-col gap-4 max-w-[1600px] mx-auto pb-24 lg:pb-4"
     >
+      {/* Shift strip */}
+      <div className="flex items-center justify-between rounded-lg border border-border-subtle bg-surface-elevated px-4 py-2 text-sm" dir="rtl">
+        <span className="text-foreground-muted">
+          {ar.shifts.openedAt}:{' '}
+          <span className="font-medium text-foreground tabular-num" dir="ltr">
+            {new Date(activeShift.opened_at).toLocaleString('en-GB', { timeZone: 'Africa/Cairo', hour12: false })}
+          </span>
+        </span>
+        <button
+          type="button"
+          onClick={() => setEndDayShift(activeShift)}
+          className="rounded-md bg-danger px-3 py-1.5 text-xs font-medium text-danger-foreground hover:opacity-90 transition-opacity"
+        >
+          {ar.shifts.endDay}
+        </button>
+      </div>
+
       {/* Top bar — customer + discount + open invoice + cart pill (mobile) */}
       <TopBar
         customer={customer}
@@ -827,8 +913,7 @@ export function POSPage() {
                 <Button
                   variant="outline"
                   className="flex-1 h-12 cursor-pointer"
-                  disabled={invoicePdfMut.isPending}
-                  onClick={() => invoicePdfMut.mutate({ id: completed.id, variant: 'original' })}
+                  onClick={() => window.open(`/invoices/${completed.id}/draft`, '_blank', 'noopener')}
                 >
                   {ar.pos.print}
                 </Button>
@@ -936,6 +1021,7 @@ export function POSPage() {
         }}
       />
     </div>
+    </>
   );
 }
 
@@ -968,7 +1054,7 @@ function TopBar({
   onOpenCart: () => void;
 }) {
   return (
-    <div className="sticky top-0 z-sticky bg-surface/95 backdrop-blur border-b border-border-subtle -mx-2 px-2 py-2 flex flex-wrap items-center gap-2">
+    <div className="bg-surface border-b border-border-subtle -mx-2 px-2 py-2 flex flex-wrap items-center gap-2">
       {/* Customer pill */}
       {customer ? (
         <div className="flex items-center gap-2 rounded-md border border-border-default bg-surface-elevated px-3 py-2 min-h-11">
@@ -1867,7 +1953,7 @@ function ProductsGrid({
               <div
                 key={r.id}
                 aria-disabled={wrongWarehouse || undefined}
-                className={`group relative rounded-md border bg-surface-elevated p-3 flex flex-col gap-2 transition-colors duration-150 ${
+                className={`group rounded-md border bg-surface-elevated p-3 flex flex-col gap-2 transition-colors duration-150 ${
                   inCart
                     ? 'border-success/40 bg-success-subtle'
                     : wrongWarehouse
@@ -1876,13 +1962,13 @@ function ProductsGrid({
                 }`}
               >
                 {inCart && (
-                  <span className="absolute top-2 start-2 inline-flex items-center gap-1 rounded-pill bg-success text-white px-2 py-0.5 text-[10px] font-medium">
+                  <span className="self-start inline-flex items-center gap-1 rounded-pill bg-success text-white px-2 py-0.5 text-[10px] font-medium">
                     <CheckCircle2 className="size-3" />
                     {ar.pos.inCart}
                   </span>
                 )}
                 {!inCart && factoryInShopMode && (
-                  <span className="absolute top-2 start-2 inline-flex items-center gap-1 rounded-pill bg-surface-row-alt text-foreground-muted border border-border-default px-2 py-0.5 text-[10px] font-medium">
+                  <span className="self-start inline-flex items-center gap-1 rounded-pill bg-surface-row-alt text-foreground-muted border border-border-default px-2 py-0.5 text-[10px] font-medium">
                     <Factory className="size-3" />
                     {ar.pos.factoryRollBadge}
                   </span>
@@ -2037,9 +2123,7 @@ function NoLinesDepositDialog({
         setError(ar.pos.depositRequired);
         return;
       }
-      const msg =
-        axios.isAxiosError(e) && (e.response?.data as { message?: string } | undefined)?.message;
-      setError(msg || ar.common.error);
+      setError(extractApiError(e));
     },
   });
 
@@ -2500,13 +2584,7 @@ function QuickCustomerDialog({
       setError(null);
     },
     onError: (e: unknown) => {
-      const msg =
-        axios.isAxiosError(e) &&
-        e.response?.data &&
-        (e.response.data as { message?: string }).message
-          ? (e.response.data as { message: string }).message
-          : ar.common.error;
-      setError(msg);
+      setError(extractApiError(e));
     },
   });
 

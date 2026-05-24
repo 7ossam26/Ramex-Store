@@ -242,6 +242,7 @@ export async function previewSale(input: SalePreviewInput): Promise<SalePreview>
 export async function createSale(
   cashierUserId: number,
   input: CreateSaleInput,
+  shiftId: number | null = null,
 ): Promise<Invoice> {
   return db.transaction(async (trx) => {
     const settings = await readSettings(trx);
@@ -349,6 +350,7 @@ export async function createSale(
       balance_egp: balance,
       notes_ar: input.notesAr ?? null,
       closed_at: isFullyPaid ? trx.fn.now() : null,
+      shift_id: shiftId,
     }).returning('id');
     const invoice = await trx('invoices').where({ id: invoiceId }).first();
 
@@ -530,6 +532,7 @@ export async function voidInvoice(
   actorRole: string,
   reasonAr: string,
   approvedByOwner: boolean,
+  shiftId: number | null = null,
 ): Promise<{ requires_approval: true } | { invoice: Invoice }> {
   return db.transaction(async (trx) => {
     const settings = await readSettings(trx);
@@ -646,6 +649,7 @@ export async function voidInvoice(
       status: 'cancelled',
       cancelled_at: trx.fn.now(),
       cancelled_reason_ar: reasonAr,
+      ...(shiftId != null ? { shift_id: shiftId } : {}),
     });
     const updated = await trx('invoices').where({ id: invoiceId }).first();
 

@@ -23,6 +23,7 @@ export function InvoicesReturnsHubPage() {
       title={ar.hubs.invoicesReturnsTitle}
       description={ar.hubs.invoicesReturnsDescription}
       cards={cards}
+      featuredMode="none"
     />
   );
 }

@@ -9,6 +9,7 @@ const cards: HubCard[] = [
     href: '/treasury/overview',
     icon: LayoutDashboard,
     visibleTo: ['owner'],
+    featured: true,
   },
   {
     label: ar.cash.drawer,

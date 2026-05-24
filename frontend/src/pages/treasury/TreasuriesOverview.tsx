@@ -5,7 +5,7 @@ import { RefreshCw, Banknote, Landmark, TrendingDown, TrendingUp } from 'lucide-
 import { Link } from 'react-router-dom';
 import { financeApi } from '@/lib/finance-api';
 import { ar } from '@/i18n/ar';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/Layout/PageShell';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { Skeleton } from '@/components/Skeleton';
@@ -261,11 +261,11 @@ export function TreasuriesOverviewPage() {
     .map((m) => (m.direction === 'in' ? 1 : -1) * Number(m.amount_egp)) ?? [];
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={ar.treasuriesOverview.title}
-        description={ar.treasuriesOverview.description}
-        actions={
+    <PageShell
+      title={ar.treasuriesOverview.title}
+      description={ar.treasuriesOverview.description}
+      backTo="/treasury"
+      actions={
           <>
             {dataUpdatedAt > 0 && (
               <span className="text-xs text-foreground-tertiary hidden sm:block">
@@ -285,7 +285,7 @@ export function TreasuriesOverviewPage() {
             </Button>
           </>
         }
-      />
+      >
 
       {isLoading && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -452,6 +452,6 @@ export function TreasuriesOverviewPage() {
           </motion.div>
         </motion.div>
       )}
-    </div>
+    </PageShell>
   );
 }

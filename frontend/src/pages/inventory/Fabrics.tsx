@@ -20,9 +20,10 @@ import {
   DialogTitle,
 } from '@/components/ResponsiveDialog';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/Layout/PageShell';
 import { StatusPill } from '@/components/StatusPill';
 import { useAuth } from '@/lib/auth';
+import { extractApiError } from '@/lib/api-error';
 
 type CompositionRow = { material: string; percent: string };
 
@@ -119,7 +120,7 @@ export function FabricsPage() {
       qc.invalidateQueries({ queryKey: ['fabrics'] });
       close();
     },
-    onError: (e: unknown) => setErrorMsg(extractErr(e)),
+    onError: (e: unknown) => setErrorMsg(extractApiError(e)),
   });
 
   const updateMut = useMutation({
@@ -130,7 +131,7 @@ export function FabricsPage() {
       qc.invalidateQueries({ queryKey: ['fabrics'] });
       close();
     },
-    onError: (e: unknown) => setErrorMsg(extractErr(e)),
+    onError: (e: unknown) => setErrorMsg(extractApiError(e)),
   });
 
   function buildPayload(): CreateFabricInput | null {
@@ -228,16 +229,16 @@ export function FabricsPage() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4" dir="rtl">
-      <PageHeader
-        title={ar.fabrics.title}
-        description={ar.hubs.inventoryFabricsDesc}
-        actions={
-          isOwner && (
-            <Button onClick={openCreate}>+ {ar.fabrics.addFabric}</Button>
-          )
-        }
-      />
+    <PageShell
+      title={ar.fabrics.title}
+      description={ar.hubs.inventoryFabricsDesc}
+      backTo="/items"
+      actions={
+        isOwner && (
+          <Button onClick={openCreate}>+ {ar.fabrics.addFabric}</Button>
+        )
+      }
+    >
 
       <div className="text-sm text-foreground-muted">
         {ar.fabrics.hint}{' '}
@@ -298,8 +299,8 @@ export function FabricsPage() {
                 <Label>{ar.addTop.widthCm}</Label>
                 <Input
                   type="number"
-                  inputMode="decimal"
-                  step="0.5"
+                  inputMode="numeric"
+                  step="1"
                   value={form.width_cm}
                   onChange={(e) => setForm({ ...form, width_cm: e.target.value })}
                   dir="ltr"
@@ -363,8 +364,8 @@ export function FabricsPage() {
                     <div className="flex items-center gap-1">
                       <Input
                         type="number"
-                        inputMode="decimal"
-                        step="0.1"
+                        inputMode="numeric"
+                        step="1"
                         value={c.percent}
                         onChange={(e) => {
                           const next = [...form.composition];
@@ -505,15 +506,7 @@ export function FabricsPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }
 
-function extractErr(e: unknown): string {
-  return (
-    (e as { response?: { data?: { message?: string; error?: string } } })?.response?.data
-      ?.message ??
-    (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-    ar.common.error
-  );
-}

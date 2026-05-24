@@ -16,7 +16,6 @@ export const SETTINGS_SCHEMAS = {
   'pos.approval_threshold_egp': z.number().min(0).default(5000),
   'pos.stale_invoice_days':   z.number().int().min(1).default(7),
   'pos.return_window_days':   z.number().int().min(0).default(14),
-  'day_rollover.time':        z.string().regex(/^\d{2}:\d{2}$/).default('00:00'),
   'barcode.label_size':       z.string().default('50x30mm'),
   'barcode.label_fields':     z.array(z.string()).default(['fabric', 'color', 'weight', 'barcode']),
   'reason_codes.damage': z.array(z.object({
@@ -72,7 +71,6 @@ export const LEGACY_KEY_MAP: Partial<Record<SettingKey, string>> = {
   'pos.approval_threshold_egp': 'approval_threshold_egp',
   'pos.stale_invoice_days':     'stale_invoice_days',
   'pos.return_window_days':     'return_window_days',
-  'day_rollover.time':          'day_rollover_time',
   'barcode.label_size':         'barcode_label_size',
   'barcode.label_fields':       'barcode_label_fields',
   'reason_codes.damage':        'damage_reason_codes',

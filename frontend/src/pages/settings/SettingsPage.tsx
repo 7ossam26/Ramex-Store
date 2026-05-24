@@ -19,10 +19,12 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import { useIsDesktop } from '@/hooks/useMediaQuery';
 import { PageHeader } from '@/components/PageHeader';
+import { Toggle as SharedToggle } from '@/components/Toggle';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { Toast } from '@/components/Toast';
 import { Skeleton } from '@/components/Skeleton';
 import { cn } from '@/lib/utils';
+import { extractApiError } from '@/lib/api-error';
 import {
   SETTINGS_SECTIONS,
   SETTINGS_SECTION_IDS,
@@ -106,6 +108,8 @@ function NumInput({
   );
 }
 
+// Toggle is imported from @/components/Toggle
+// This local stub keeps existing call-sites working without touching them.
 function Toggle({
   checked,
   onChange,
@@ -115,28 +119,7 @@ function Toggle({
   onChange: (v: boolean) => void;
   disabled?: boolean;
 }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={cn(
-        'relative inline-flex h-6 w-11 items-center rounded-pill transition-colors duration-150 ease-standard',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-elevated',
-        'disabled:opacity-60 disabled:cursor-not-allowed',
-        checked ? 'bg-accent' : 'bg-border-default',
-      )}
-    >
-      <span
-        className={cn(
-          'inline-block size-4 rounded-full bg-surface-elevated shadow-sm transition-transform duration-200 ease-emphasized',
-          checked ? 'translate-x-6' : 'translate-x-1',
-        )}
-      />
-    </button>
-  );
+  return <SharedToggle checked={checked} onChange={onChange} disabled={disabled} />;
 }
 
 function SelectInput({
@@ -206,14 +189,6 @@ function SaveErrorBanner({ message, onDismiss }: { message: string; onDismiss?: 
   );
 }
 
-function extractApiError(e: unknown, fallback = ar.common.error): string {
-  const msg =
-    (e as { response?: { data?: { message?: string; error?: string } } })?.response?.data?.message ??
-    (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-    (e as { message?: string })?.message;
-  return msg ?? fallback;
-}
-
 // ─── Section: General ────────────────────────────────────────────────────────
 
 type SectionProps = {
@@ -275,17 +250,6 @@ function GeneralSection({ settings, onSave, notifySaved }: SectionProps) {
         />
       </FieldRow>
       <StickySaveBar onSave={save} saving={saving} />
-    </div>
-  );
-}
-
-// ─── Section: Cash Drawer (read-only) ───────────────────────────────────────
-
-function CashDrawerSection() {
-  return (
-    <div className="rounded-lg border border-border-subtle bg-surface p-4">
-      <p className="text-sm text-foreground-muted mb-2">{ar.settings.cashDrawer.openingBalance}</p>
-      <p className="text-sm text-foreground">{ar.settings.system.auditRetentionValue}</p>
     </div>
   );
 }
@@ -696,45 +660,6 @@ function ReasonCodesSection({ settings, onSave, notifySaved }: SectionProps) {
         <h3 className="text-base font-semibold text-foreground">{ar.settings.reasonCodes.cancellation}</h3>
         <ReasonCodeList items={cancel} onChange={setCancel} />
       </section>
-      <StickySaveBar onSave={save} saving={saving} />
-    </div>
-  );
-}
-
-// ─── Section: Day rollover ──────────────────────────────────────────────────
-
-function DayRolloverSection({ settings, onSave, notifySaved }: SectionProps) {
-  const [time, setTime] = useState(String(settings['day_rollover.time'] ?? '00:00'));
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function save() {
-    setError(null);
-    setSaving(true);
-    try {
-      await onSave('day_rollover.time', time);
-      notifySaved();
-    } catch (e) {
-      setError(extractApiError(e));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className={cn('space-y-5', saving && 'opacity-70 pointer-events-none')}>
-      {error && <SaveErrorBanner message={error} onDismiss={() => setError(null)} />}
-      <FieldRow label={ar.settings.dayRollover.time}>
-        <input
-          type="time"
-          className={cn(
-            'h-10 w-40 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground tabular-num',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:border-accent transition-colors duration-75',
-          )}
-          value={time}
-          onChange={(e) => setTime(e.target.value)}
-        />
-      </FieldRow>
       <StickySaveBar onSave={save} saving={saving} />
     </div>
   );
@@ -1181,19 +1106,6 @@ function FabricCodesSection({ notifySaved }: { notifySaved: () => void }) {
   );
 }
 
-// ─── Section: System (read-only) ────────────────────────────────────────────
-
-function SystemSection() {
-  return (
-    <div className="rounded-lg border border-border-subtle bg-surface-elevated overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle last:border-b-0">
-        <span className="text-sm text-foreground-muted">{ar.settings.system.auditRetention}</span>
-        <span className="text-sm font-medium text-foreground">{ar.settings.system.auditRetentionValue}</span>
-      </div>
-    </div>
-  );
-}
-
 // ─── Sub-nav (desktop) ──────────────────────────────────────────────────────
 
 function DesktopSubNav({
@@ -1384,16 +1296,10 @@ export function SettingsPage() {
     switch (activeSection) {
       case 'general':
         return <GeneralSection settings={settings} onSave={handleSave} notifySaved={notifySaved} />;
-      case 'cashDrawer':
-        return <CashDrawerSection />;
       case 'usersPermissions':
         return <UsersPermissionsSection notifySaved={notifySaved} />;
       case 'reasonCodes':
         return <ReasonCodesSection settings={settings} onSave={handleSave} notifySaved={notifySaved} />;
-      case 'dayRollover':
-        return <DayRolloverSection settings={settings} onSave={handleSave} notifySaved={notifySaved} />;
-      case 'system':
-        return <SystemSection />;
       case 'fabricCodes':
         return <FabricCodesSection notifySaved={notifySaved} />;
     }

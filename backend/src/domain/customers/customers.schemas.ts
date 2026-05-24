@@ -7,7 +7,7 @@ export const PhoneSchema = z
   .regex(PHONE_REGEX, 'صيغة الهاتف غير صحيحة (يجب أن يبدأ بـ 010 أو 011 أو 012 أو 015)');
 
 export const CreateCustomerSchema = z.object({
-  name_ar: z.string().min(1).max(128),
+  name_ar: z.string().min(1, 'اسم العميل مطلوب').max(128, 'الاسم طويل جداً'),
   phone: PhoneSchema,
   phone_secondary: PhoneSchema.nullable().optional(),
   address_ar: z.string().max(2000).nullable().optional(),
@@ -17,14 +17,14 @@ export const CreateCustomerSchema = z.object({
 export type CreateCustomerInput = z.infer<typeof CreateCustomerSchema>;
 
 export const QuickCreateCustomerSchema = z.object({
-  name_ar: z.string().min(1).max(128),
+  name_ar: z.string().min(1, 'اسم العميل مطلوب').max(128, 'الاسم طويل جداً'),
   phone: PhoneSchema,
 });
 export type QuickCreateCustomerInput = z.infer<typeof QuickCreateCustomerSchema>;
 
 export const UpdateCustomerSchema = z
   .object({
-    name_ar: z.string().min(1).max(128).optional(),
+    name_ar: z.string().min(1, 'اسم العميل مطلوب').max(128, 'الاسم طويل جداً').optional(),
     phone: PhoneSchema.optional(),
     phone_secondary: PhoneSchema.nullable().optional(),
     address_ar: z.string().max(2000).nullable().optional(),

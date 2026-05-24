@@ -22,7 +22,6 @@ export type CashDrawerBalance = {
   opening_balance_egp: number;
   opening_set_at: string | null;
   last_movement_at: string | null;
-  last_closed_at: string | null;
 };
 
 export type CashMovement = {

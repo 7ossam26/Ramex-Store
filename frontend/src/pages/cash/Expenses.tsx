@@ -5,6 +5,7 @@ import { Plus, Check, X } from 'lucide-react';
 import { financeApi } from '@/lib/finance-api';
 import { useAuth } from '@/lib/auth';
 import { ar } from '@/i18n/ar';
+import { extractApiError } from '@/lib/api-error';
 import type { Expense } from '@/lib/finance-types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,7 +18,7 @@ import {
   DialogClose,
 } from '@/components/ResponsiveDialog';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { FilterChip } from '@/components/FilterChip';
 import { StatusPill, type StatusTone } from '@/components/StatusPill';
 
@@ -70,6 +71,8 @@ export function ExpensesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [rejectTarget, setRejectTarget] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [rejectError, setRejectError] = useState<string | null>(null);
 
   const expensesQ = useQuery({
     queryKey: ['expenses', page, statusFilter],
@@ -110,7 +113,9 @@ export function ExpensesPage() {
       qc.invalidateQueries({ queryKey: ['banks'] });
       setShowCreate(false);
       form.reset();
+      setCreateError(null);
     },
+    onError: (e) => setCreateError(extractApiError(e)),
   });
 
   const approveMut = useMutation({
@@ -129,7 +134,9 @@ export function ExpensesPage() {
       qc.invalidateQueries({ queryKey: ['expenses'] });
       setRejectTarget(null);
       setRejectReason('');
+      setRejectError(null);
     },
+    onError: (e) => setRejectError(extractApiError(e)),
   });
 
   const totalPages = expensesQ.data ? Math.ceil(expensesQ.data.total / PAGE_SIZE) : 1;
@@ -198,17 +205,17 @@ export function ExpensesPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={ar.cash.expenses}
-        description={ar.hubs.expensesDesc}
-        actions={
-          <Button variant="accent" onClick={() => setShowCreate(true)} className="gap-1.5">
-            <Plus className="size-4" aria-hidden />
-            تسجيل مصروف
-          </Button>
-        }
-      />
+    <PageShell
+      title={ar.cash.expenses}
+      description={ar.hubs.expensesDesc}
+      backTo="/treasury"
+      actions={
+        <Button variant="accent" onClick={() => setShowCreate(true)} className="gap-1.5">
+          <Plus className="size-4" aria-hidden />
+          تسجيل مصروف
+        </Button>
+      }
+    >
 
       {/* Filter chips */}
       <div className="flex gap-2 overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0">
@@ -226,6 +233,7 @@ export function ExpensesPage() {
         ))}
       </div>
 
+      <SectionCard noPadding>
       <ResponsiveTable
         columns={columns}
         rows={expenseRows}
@@ -266,6 +274,7 @@ export function ExpensesPage() {
           );
         }}
       />
+      </SectionCard>
 
       {totalPages > 1 && (
         <div className="flex justify-center items-center gap-3">
@@ -315,8 +324,8 @@ export function ExpensesPage() {
               <Input
                 type="number"
                 inputMode="decimal"
-                step="0.01"
-                min="0.01"
+                step="1"
+                min="1"
                 {...form.register('amount_egp', { required: true })}
               />
             </div>
@@ -377,8 +386,8 @@ export function ExpensesPage() {
               <Label>ملاحظات</Label>
               <Input {...form.register('notes_ar')} />
             </div>
-            {createMut.error && (
-              <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">حدث خطأ</p>
+            {createError && (
+              <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">{createError}</p>
             )}
             <div className="flex justify-end gap-2 pt-2">
               <DialogClose asChild>
@@ -407,8 +416,8 @@ export function ExpensesPage() {
               </Label>
               <Input value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
             </div>
-            {rejectMut.error && (
-              <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">حدث خطأ</p>
+            {rejectError && (
+              <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">{rejectError}</p>
             )}
             <div className="flex justify-end gap-2 pt-2">
               <DialogClose asChild>
@@ -430,6 +439,6 @@ export function ExpensesPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

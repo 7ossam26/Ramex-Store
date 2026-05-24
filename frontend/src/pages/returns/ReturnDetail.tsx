@@ -50,6 +50,7 @@ export function ReturnDetailPage() {
       <PageHeader
         title={ret.return_no}
         description={`${fmtDate(ret.processed_at)} · ${ar.returns.actor}: ${ret.actor_username}`}
+        backTo="/returns"
         actions={
           <div className="flex items-center gap-2 flex-wrap">
             <StatusPill tone={ret.kind === 'refund' ? 'danger' : 'info'}>

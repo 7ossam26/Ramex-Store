@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
+import { extractApiError } from '@/lib/api-error';
 import { useAuth } from '@/lib/auth';
 import type { Shipment } from '@/lib/inventory-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -64,10 +65,7 @@ export function CreateShipmentPage() {
       qc.invalidateQueries({ queryKey: ['factory-rolls'] });
     },
     onError: (e: unknown) => {
-      const msg =
-        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        ar.common.error;
-      setAddError(msg);
+      setAddError(extractApiError(e));
     },
   });
 
@@ -82,10 +80,8 @@ export function CreateShipmentPage() {
       setTimeout(() => setScanFlash(null), 1000);
     },
     onError: (e: unknown, barcode) => {
-      const msg =
-        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        `${ar.shipments.barcodeNotFound}: ${barcode}`;
-      setScanError(msg);
+      const msg = extractApiError(e);
+      setScanError(msg !== ar.common.error ? msg : `${ar.shipments.barcodeNotFound}: ${barcode}`);
       setScanFlash(null);
     },
   });
@@ -169,7 +165,7 @@ export function CreateShipmentPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
-      <PageHeader title={`${ar.shipments.create} — ${shipment.shipment_no}`} />
+      <PageHeader title={`${ar.shipments.create} — ${shipment.shipment_no}`} backTo="/shipments" />
 
       <Card>
         <CardHeader>

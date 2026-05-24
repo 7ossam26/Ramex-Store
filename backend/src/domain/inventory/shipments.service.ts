@@ -234,7 +234,7 @@ export async function reviewLine(
 export async function acceptShipment(
   shipmentId: number,
   actorUserId: number,
-  input: AcceptShipmentInput,
+  _input: AcceptShipmentInput,
 ): Promise<Shipment> {
   return db.transaction(async (trx) => {
     const shipment = await trx('shipments').where({ id: shipmentId }).first();
@@ -255,15 +255,6 @@ export async function acceptShipment(
     const accepted = lines.filter((l: Record<string, unknown>) => l.status === 'accepted');
     const rejected = lines.filter((l: Record<string, unknown>) => l.status === 'rejected');
 
-    const priceMap = new Map(
-      input.fabricReferencePrices.map((p) => [p.fabricId, p.pricePerUnit]),
-    );
-
-    const acceptedFabricIds = new Set(accepted.map((l: Record<string, unknown>) => l.fabric_id as number));
-    for (const fabricId of acceptedFabricIds) {
-      if (!priceMap.has(fabricId)) throw new Error('MISSING_FABRIC_PRICE');
-    }
-
     const meterRollsWithNullLength = accepted.filter(
       (l: Record<string, unknown>) => l.fabric_unit === 'meter' && (l.length_m === null || l.length_m === undefined),
     );
@@ -275,10 +266,8 @@ export async function acceptShipment(
     }
 
     for (const line of accepted) {
-      const pricePerUnit = priceMap.get(line.fabric_id as number)!;
       await trx('rolls').where({ id: line.roll_id }).update({
         warehouse: 'shop',
-        reference_price_per_unit: pricePerUnit,
         received_at: trx.fn.now(),
         updated_at: trx.fn.now(),
       });
@@ -318,19 +307,6 @@ export async function acceptShipment(
       updated_at: trx.fn.now(),
     });
     const updated = await trx('shipments').where({ id: shipmentId }).first();
-
-    for (const [fabricId, pricePerUnit] of priceMap) {
-      if (!acceptedFabricIds.has(fabricId)) continue;
-      const rollCount = accepted.filter((l: Record<string, unknown>) => l.fabric_id === fabricId).length;
-      await auditFromService(trx, {
-        actorUserId,
-        action: 'shipment_reference_priced',
-        entity: 'shipment',
-        entityId: shipmentId,
-        after: { fabricId, pricePerUnit, rollCount },
-        severity: 'medium',
-      });
-    }
 
     await auditFromService(trx, {
       actorUserId,

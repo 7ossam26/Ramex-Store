@@ -24,14 +24,7 @@ export const ReviewShipmentLineSchema = z.object({
 });
 export type ReviewShipmentLineInput = z.infer<typeof ReviewShipmentLineSchema>;
 
-export const FabricReferencePriceSchema = z.object({
-  fabricId: z.number().int().positive(),
-  pricePerUnit: z.number().nonnegative(),
-});
-
-export const AcceptShipmentSchema = z.object({
-  fabricReferencePrices: z.array(FabricReferencePriceSchema).min(1),
-});
+export const AcceptShipmentSchema = z.object({});
 export type AcceptShipmentInput = z.infer<typeof AcceptShipmentSchema>;
 
 export const ListFactoryRollsQuerySchema = z.object({

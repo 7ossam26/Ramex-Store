@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, Plus, Trash2, X } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
+import { extractApiError } from '@/lib/api-error';
 import { itemsApi } from '@/lib/items-api';
 import type {
   Color,
@@ -23,7 +24,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Code128 } from '@/components/Code128';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/Layout/PageShell';
 
 // ---------- helpers ----------
 
@@ -148,10 +149,7 @@ function FabricCreateDialog({
       setErr(null);
     },
     onError: (e: unknown) => {
-      const msg =
-        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        ar.common.error;
-      setErr(msg);
+      setErr(extractApiError(e));
     },
   });
 
@@ -189,7 +187,7 @@ function FabricCreateDialog({
             </div>
             <div className="space-y-1">
               <Label>{ar.addTop.widthCm}</Label>
-              <Input type="number" inputMode="decimal" step="0.5" value={draft.width_cm} onChange={(e) => setDraft({ ...draft, width_cm: e.target.value })} dir="ltr" />
+              <Input type="number" inputMode="numeric" step="1" value={draft.width_cm} onChange={(e) => setDraft({ ...draft, width_cm: e.target.value })} dir="ltr" />
             </div>
             <div className="space-y-1 col-span-2">
               <Label>{ar.fabrics.unit}</Label>
@@ -211,7 +209,7 @@ function FabricCreateDialog({
                 <div key={idx} className="grid grid-cols-[1fr_100px_auto] gap-2">
                   <Input value={c.material} onChange={(e) => { const next = [...draft.composition]; next[idx] = { ...c, material: e.target.value }; setDraft({ ...draft, composition: next }); }} placeholder={ar.addTop.material} />
                   <div className="flex items-center gap-1">
-                    <Input type="number" inputMode="decimal" step="0.1" value={c.percent} onChange={(e) => {
+                    <Input type="number" inputMode="numeric" step="1" value={c.percent} onChange={(e) => {
                       const next = [...draft.composition];
                       next[idx] = { ...c, percent: e.target.value };
                       if (idx + 1 < next.length) {
@@ -270,8 +268,7 @@ function ColorCreateDialog({
       setErr(null);
     },
     onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? ar.common.error;
-      setErr(msg);
+      setErr(extractApiError(e));
     },
   });
 
@@ -728,11 +725,7 @@ export function AddTopPage() {
       qc.invalidateQueries({ queryKey: ['rolls-search'] });
     },
     onError: (e: unknown) => {
-      const msg =
-        (e as { response?: { data?: { message?: string; error?: string } } })?.response?.data?.message ??
-        (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-        ar.common.error;
-      setGlobalError(msg);
+      setGlobalError(extractApiError(e));
     },
   });
 
@@ -876,8 +869,7 @@ export function AddTopPage() {
   if (results.length > 0) {
     const allRolls = results.flatMap((r) => r.rolls);
     return (
-      <div className="max-w-5xl mx-auto space-y-4" dir="rtl">
-        <PageHeader title={ar.addTop.navTitle} description={ar.hubs.itemsAddTopDesc} />
+      <PageShell title={ar.addTop.navTitle} description={ar.hubs.itemsAddTopDesc} backTo="/items" className="max-w-5xl">
         <Card className="border-success/40 bg-success-subtle">
           <CardHeader>
             <CardTitle className="text-success-foreground">
@@ -938,20 +930,24 @@ export function AddTopPage() {
             )}
           </CardContent>
         </Card>
-      </div>
+      </PageShell>
     );
   }
 
   // ----- Main form -----
 
   return (
-    <div className="max-w-5xl mx-auto space-y-4" dir="rtl">
-      <div className="flex items-center gap-3">
-        <PageHeader title={ar.addTop.navTitle} description={ar.hubs.itemsAddTopDesc} />
+    <PageShell
+      title={ar.addTop.navTitle}
+      description={ar.hubs.itemsAddTopDesc}
+      backTo="/items"
+      className="max-w-5xl"
+      actions={
         <span className="shrink-0 text-xs font-medium px-2 py-0.5 rounded-full bg-accent text-accent-foreground">
           {ar.addTop.factoryBadge}
         </span>
-      </div>
+      }
+    >
 
       {/* Fabric dialogs */}
       <FabricCreateDialog
@@ -1031,6 +1027,6 @@ export function AddTopPage() {
           {submitMut.isPending ? ar.loading : ar.addTop.saveAndPrint}
         </Button>
       </div>
-    </div>
+    </PageShell>
   );
 }

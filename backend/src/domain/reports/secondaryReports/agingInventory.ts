@@ -49,7 +49,7 @@ export async function getAgingInventory(): Promise<AgingInventoryResult> {
       'r.warehouse',
       'r.roll_sr_no',
       'r.weight_kg',
-      db.raw("CAST(julianday('now') - julianday(COALESCE(r.received_at, r.created_at)) AS INTEGER) as age_days"),
+      db.raw("EXTRACT(DAY FROM (NOW() - COALESCE(r.received_at, r.created_at)))::INTEGER as age_days"),
     );
 
   const mapped: AgingInventoryRow[] = rows.map((r: Record<string, unknown>) => ({
@@ -92,7 +92,7 @@ export function agingInventoryToExport(
   generatedAt: string,
 ): ReportPdfOptions {
   return {
-    titleAr: 'التوبات الراكدة في المخزن',
+    titleAr: 'الاتواب الراكدة في المخزن',
     generatedAt,
     sections: [
       {
@@ -111,7 +111,7 @@ export function agingInventoryToExport(
           fabric_name_ar: 'الإجمالي',
           weight_kg: data.grand_total_weight_kg,
         },
-        emptyAr: 'لا توجد توبات في المخزن',
+        emptyAr: 'لا توجد اتواب في المخزن',
       },
     ],
   };

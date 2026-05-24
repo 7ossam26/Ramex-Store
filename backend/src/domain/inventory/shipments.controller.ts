@@ -128,7 +128,7 @@ export async function acceptShipment(req: Request, res: Response): Promise<void>
       const barcodes = (e as Error & { barcodes?: string[] }).barcodes ?? [];
       res.status(422).json({
         error: 'METER_ROLL_MISSING_LENGTH',
-        message: `توبات بخامة (متر) بدون طول محدد — يرجى تحديث الطول أولاً: ${barcodes.join('، ')}`,
+        message: `اتواب بخامة (متر) بدون طول محدد — يرجى تحديث الطول أولاً: ${barcodes.join('، ')}`,
         barcodes,
       });
       return;

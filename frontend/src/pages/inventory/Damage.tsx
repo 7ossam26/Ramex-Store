@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { extractApiError } from '@/lib/api-error';
 import { useForm, useWatch } from 'react-hook-form';
 import { AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -9,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/Layout/PageShell';
 import { StatusPill } from '@/components/StatusPill';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { EmptyState } from '@/components/EmptyState';
@@ -33,6 +35,7 @@ type FormVals = {
 export function DamagePage() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const [createError, setCreateError] = useState<string | null>(null);
   const list = useQuery({ queryKey: ['damage-events'], queryFn: () => inventoryApi.listDamageEvents() });
 
   const create = useMutation({
@@ -45,8 +48,10 @@ export function DamagePage() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['damage-events'] });
+      setCreateError(null);
       form.reset();
     },
+    onError: (e) => setCreateError(extractApiError(e)),
   });
 
   const approve = useMutation({
@@ -59,9 +64,7 @@ export function DamagePage() {
   const isLoss = LOSS_REASONS.includes(reason);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-4">
-      <PageHeader title={ar.damage.title} description={ar.hubs.inventoryDamageDesc} />
-
+    <PageShell title={ar.damage.title} description={ar.hubs.inventoryDamageDesc} backTo="/inventory">
       <Card>
         <CardHeader><CardTitle>{ar.damage.record}</CardTitle></CardHeader>
         <CardContent>
@@ -97,9 +100,9 @@ export function DamagePage() {
             </div>
             <div className="col-span-full flex items-center gap-3 flex-wrap">
               <Button type="submit" disabled={create.isPending}>{ar.damage.record}</Button>
-              {create.error && (
+              {createError && (
                 <span className="text-sm text-danger transition-opacity duration-75 ease-standard" role="alert">
-                  {(create.error as { response?: { data?: { message?: string } } })?.response?.data?.message ?? ar.common.error}
+                  {createError}
                 </span>
               )}
             </div>
@@ -161,6 +164,6 @@ export function DamagePage() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </PageShell>
   );
 }

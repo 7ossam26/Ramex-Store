@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const SetOpeningBalanceSchema = z.object({
-  amount: z.number().positive(),
+  amount: z.number({ invalid_type_error: 'الرصيد يجب أن يكون رقماً' }).positive('الرصيد يجب أن يكون أكبر من صفر'),
   override: z.boolean().optional().default(false),
 });
 
@@ -19,18 +19,18 @@ export const CashReconcileSchema = z.object({
 });
 
 export const CashDepositToBankSchema = z.object({
-  amount: z.number().positive(),
+  amount: z.number({ invalid_type_error: 'المبلغ يجب أن يكون رقماً' }).positive('المبلغ يجب أن يكون أكبر من صفر'),
   bank_account_id: z.number().int().positive(),
   notes_ar: z.string().nullable().optional(),
 });
 
 export const OwnerWithdrawalSchema = z.object({
-  amount: z.number().positive(),
+  amount: z.number({ invalid_type_error: 'المبلغ يجب أن يكون رقماً' }).positive('المبلغ يجب أن يكون أكبر من صفر'),
   notes_ar: z.string().nullable().optional(),
 });
 
 export const CreateBankAccountSchema = z.object({
-  name_ar: z.string().min(1).max(64),
+  name_ar: z.string().min(1, 'اسم الحساب مطلوب').max(64, 'اسم الحساب طويل جداً'),
   bank_name_ar: z.string().max(64).nullable().optional(),
   branch_ar: z.string().max(64).nullable().optional(),
   iban: z.string().max(64).nullable().optional(),
@@ -40,7 +40,7 @@ export const CreateBankAccountSchema = z.object({
 });
 
 export const UpdateBankAccountSchema = z.object({
-  name_ar: z.string().min(1).max(64).optional(),
+  name_ar: z.string().min(1, 'اسم الحساب مطلوب').max(64, 'اسم الحساب طويل جداً').optional(),
   bank_name_ar: z.string().max(64).nullable().optional(),
   branch_ar: z.string().max(64).nullable().optional(),
   iban: z.string().max(64).nullable().optional(),
@@ -64,15 +64,15 @@ export const BankReconcileSchema = z.object({
 });
 
 export const CreateExpenseSchema = z.object({
-  category: z.string().min(1).max(32),
-  amount_egp: z.number().positive(),
+  category: z.string().min(1, 'فئة المصروف مطلوبة').max(32, 'اسم الفئة طويل جداً'),
+  amount_egp: z.number({ invalid_type_error: 'المبلغ يجب أن يكون رقماً' }).positive('المبلغ يجب أن يكون أكبر من صفر'),
   paid_from: z.enum(['cash', 'bank', 'instapay']),
   bank_account_id: z.number().int().positive().nullable().optional(),
   notes_ar: z.string().nullable().optional(),
 });
 
 export const RejectExpenseSchema = z.object({
-  reason_ar: z.string().min(1),
+  reason_ar: z.string().min(1, 'سبب الرفض مطلوب'),
 });
 
 export const ExpensesQuerySchema = z.object({

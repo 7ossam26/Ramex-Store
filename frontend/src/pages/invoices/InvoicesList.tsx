@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { salesApi } from '@/lib/sales-api';
-import { openPdfBlob } from '@/lib/pdf';
 import type {
   FulfillmentDestination,
   InvoiceListRow,
@@ -17,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { KpiGrid } from '@/components/dashboard/KpiGrid';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { FilterChip } from '@/components/FilterChip';
@@ -56,9 +55,7 @@ export function InvoicesListPage() {
   const [tab, setTab] = useState<TabKey>('all');
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4">
-      <PageHeader title={ar.invoices.title} />
-
+    <PageShell title={ar.invoices.title} backTo="/invoices-returns">
       {/* Filter chip row */}
       <div className="flex gap-2 overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0 pb-1">
         {TAB_ORDER.map((k) => (
@@ -75,7 +72,7 @@ export function InvoicesListPage() {
       ) : (
         <DefaultTab status={TAB_TO_STATUS[tab]} />
       )}
-    </div>
+    </PageShell>
   );
 }
 
@@ -116,10 +113,6 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
     return { revenue, totalPaid, totalBalance };
   }, [rows]);
 
-  const reprintMut = useMutation({
-    mutationFn: (invoiceId: number) => salesApi.pdfBlob(invoiceId, 'reprint'),
-    onSuccess: (blob) => openPdfBlob(blob),
-  });
 
   const filterControls = (
     <div className="rounded-lg border border-border-subtle bg-surface-elevated p-3 space-y-3">
@@ -237,9 +230,8 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
           </Link>
           <button
             type="button"
-            className="text-xs text-accent hover:text-accent-hover hover:underline underline-offset-2 cursor-pointer disabled:opacity-50"
-            disabled={reprintMut.isPending && reprintMut.variables === r.id}
-            onClick={(e) => { e.stopPropagation(); reprintMut.mutate(r.id); }}
+            className="text-xs text-accent hover:text-accent-hover hover:underline underline-offset-2 cursor-pointer"
+            onClick={(e) => { e.stopPropagation(); window.open(`/invoices/${r.id}/draft?variant=reprint`, '_blank', 'noopener'); }}
           >
             {ar.invoices.reprint}
           </button>
@@ -287,17 +279,19 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
 
       <MobileFilterSheet activeCount={activeFilters}>{filterControls}</MobileFilterSheet>
 
-      <ResponsiveTable
-        columns={columns}
-        rows={rows}
-        rowKey={(r) => String(r.id)}
-        onRowClick={(r) => { window.location.href = `/invoices/${r.id}`; }}
-        empty={ar.invoices.empty}
-        isLoading={q.isLoading}
-        isError={q.isError}
-        onRetry={() => q.refetch()}
-        resetKey={`${status ?? ''}|${destination}|${dateFrom}|${dateTo}|${page}`}
-      />
+      <SectionCard noPadding>
+        <ResponsiveTable
+          columns={columns}
+          rows={rows}
+          rowKey={(r) => String(r.id)}
+          onRowClick={(r) => { window.location.href = `/invoices/${r.id}`; }}
+          empty={ar.invoices.empty}
+          isLoading={q.isLoading}
+          isError={q.isError}
+          onRetry={() => q.refetch()}
+          resetKey={`${status ?? ''}|${destination}|${dateFrom}|${dateTo}|${page}`}
+        />
+      </SectionCard>
 
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
@@ -396,17 +390,19 @@ function OpenInvoicesTab() {
   ];
 
   return (
-    <ResponsiveTable
-      columns={columns}
-      rows={rows}
-      rowKey={(r) => String(r.id)}
-      onRowClick={(r) => { window.location.href = `/invoices/${r.id}`; }}
-      empty={ar.invoices.empty}
-      isLoading={q.isLoading}
-      isError={q.isError}
-      onRetry={() => q.refetch()}
-      rowClassName={(r) => (r.is_stale ? 'border-s-2 border-s-warning' : '')}
-    />
+    <SectionCard noPadding>
+      <ResponsiveTable
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => String(r.id)}
+        onRowClick={(r) => { window.location.href = `/invoices/${r.id}`; }}
+        empty={ar.invoices.empty}
+        isLoading={q.isLoading}
+        isError={q.isError}
+        onRetry={() => q.refetch()}
+        rowClassName={(r) => (r.is_stale ? 'border-s-2 border-s-warning' : '')}
+      />
+    </SectionCard>
   );
 }
 
@@ -471,24 +467,26 @@ function PendingPickupTab() {
 
   return (
     <>
-      <ResponsiveTable
-        columns={columns}
-        rows={rows}
-        rowKey={(r) => String(r.id)}
-        empty={ar.invoices.empty}
-        isLoading={q.isLoading}
-        isError={q.isError}
-        onRetry={() => q.refetch()}
-        actions={(r) => (
-          <Button
-            size="sm"
-            onClick={() => setPendingDeliverId(r.id)}
-            disabled={deliverMut.isPending}
-          >
-            {ar.invoices.markDelivered}
-          </Button>
-        )}
-      />
+      <SectionCard noPadding>
+        <ResponsiveTable
+          columns={columns}
+          rows={rows}
+          rowKey={(r) => String(r.id)}
+          empty={ar.invoices.empty}
+          isLoading={q.isLoading}
+          isError={q.isError}
+          onRetry={() => q.refetch()}
+          actions={(r) => (
+            <Button
+              size="sm"
+              onClick={() => setPendingDeliverId(r.id)}
+              disabled={deliverMut.isPending}
+            >
+              {ar.invoices.markDelivered}
+            </Button>
+          )}
+        />
+      </SectionCard>
       <ConfirmDialog
         open={pendingDeliverId !== null}
         message={ar.invoices.markDeliveredConfirm}

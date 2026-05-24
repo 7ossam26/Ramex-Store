@@ -7,17 +7,17 @@ const egyptianPhone = z
   .optional();
 
 export const CreateEmployeeSchema = z.object({
-  name_ar: z.string().min(1).max(128),
+  name_ar: z.string().min(1, 'اسم الموظف مطلوب').max(128, 'الاسم طويل جداً (128 حرفاً كحد أقصى)'),
   phone: egyptianPhone,
-  role_ar: z.string().max(64).nullable().optional(),
-  base_salary_egp: z.number().min(0),
+  role_ar: z.string().max(64, 'المسمى الوظيفي طويل جداً (64 حرفاً كحد أقصى)').nullable().optional(),
+  base_salary_egp: z.number({ invalid_type_error: 'الراتب يجب أن يكون رقماً' }).min(0, 'الراتب لا يمكن أن يكون سالباً'),
 });
 
 export const UpdateEmployeeSchema = z.object({
-  name_ar: z.string().min(1).max(128).optional(),
+  name_ar: z.string().min(1, 'اسم الموظف مطلوب').max(128, 'الاسم طويل جداً (128 حرفاً كحد أقصى)').optional(),
   phone: egyptianPhone,
-  role_ar: z.string().max(64).nullable().optional(),
-  base_salary_egp: z.number().min(0).optional(),
+  role_ar: z.string().max(64, 'المسمى الوظيفي طويل جداً (64 حرفاً كحد أقصى)').nullable().optional(),
+  base_salary_egp: z.number({ invalid_type_error: 'الراتب يجب أن يكون رقماً' }).min(0, 'الراتب لا يمكن أن يكون سالباً').optional(),
   is_active: z.boolean().optional(),
 });
 
@@ -35,7 +35,7 @@ export const DisburseSchema = z.object({
 export const CreateAdjustmentSchema = z.object({
   employee_id: z.number().int().positive(),
   kind: z.enum(['advance', 'deduction']),
-  amount_egp: z.number().positive(),
+  amount_egp: z.number({ invalid_type_error: 'المبلغ يجب أن يكون رقماً' }).positive('المبلغ يجب أن يكون أكبر من صفر'),
   salary_month: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'صيغة التاريخ غير صحيحة — YYYY-MM-DD'),
   reason_ar: z.string().nullable().optional(),
 });

@@ -77,6 +77,7 @@ export async function addFinalPayment(
   invoiceId: number,
   actorUserId: number,
   payments: FinalPayment[],
+  shiftId: number | null = null,
 ): Promise<{ invoice: Invoice }> {
   if (payments.length === 0) throw new Error('NO_PAYMENT_PROVIDED');
 
@@ -192,6 +193,7 @@ export async function addFinalPayment(
       balance_egp: newBalance,
       status: newStatus,
       closed_at: closed ? trx.fn.now() : invoice.closed_at,
+      ...(shiftId != null ? { shift_id: shiftId } : {}),
     });
     const updated = await trx('invoices').where({ id: invoiceId }).first();
 
@@ -284,6 +286,7 @@ export async function cancelOpenInvoice(
     reference?: string | null;
     chequeDetails?: ChequeDetails | null;
     notesAr: string;
+    shiftId?: number | null;
   },
 ): Promise<{ invoice: Invoice }> {
   return db.transaction(async (trx) => {
@@ -450,6 +453,7 @@ export async function cancelOpenInvoice(
       status: 'cancelled',
       cancelled_at: trx.fn.now(),
       cancelled_reason_ar: opts.notesAr,
+      ...(opts.shiftId != null ? { shift_id: opts.shiftId } : {}),
     });
     const updated = await trx('invoices').where({ id: invoiceId }).first();
 

@@ -3,26 +3,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { hrApi, type HrSalaryAdjustment } from '@/lib/hr-api';
 import { Button } from '@/components/ui/button';
-import { PageHeader } from '@/components/PageHeader';
+import { PageShell } from '@/components/Layout/PageShell';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { Skeleton } from '@/components/Skeleton';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { StatusPill } from '@/components/StatusPill';
 import { cn } from '@/lib/utils';
+import { extractApiError } from '@/lib/api-error';
 import { format } from 'date-fns';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(v: string | number) {
   return Number(v).toLocaleString('en-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function extractError(e: unknown): string {
-  const msg =
-    (e as { response?: { data?: { message?: string; error?: string } } })?.response?.data?.message ??
-    (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-    (e as { message?: string })?.message;
-  return msg ?? ar.common.error;
 }
 
 function toMonthDate(ym: string) {
@@ -77,7 +70,7 @@ function CreateAdjustmentDialog({
       qc.invalidateQueries({ queryKey: ['hr-salaries-preview'] });
       onDone();
     },
-    onError: (e) => setError(extractError(e)),
+    onError: (e) => setError(extractApiError(e)),
   });
 
   const canSubmit =
@@ -162,8 +155,8 @@ function CreateAdjustmentDialog({
               <label className="text-sm font-medium text-foreground">{ar.hr.adjustment.amount}</label>
               <input
                 type="number"
-                min={0.01}
-                step={0.01}
+                min={1}
+                step={1}
                 className={cn(inputCls, 'w-44')}
                 style={{ unicodeBidi: 'plaintext' }}
                 value={form.amount_egp}
@@ -233,9 +226,7 @@ export function AdjustmentsPage() {
   const rows: HrSalaryAdjustment[] = data?.rows ?? [];
 
   return (
-    <div dir="rtl" className="space-y-4">
-      <PageHeader title={ar.hr.adjustments} description={ar.hr.title} />
-
+    <PageShell title={ar.hr.adjustments} description={ar.hr.title} backTo="/hr">
       {/* Toolbar */}
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <div className="flex gap-2 flex-wrap">
@@ -328,6 +319,6 @@ export function AdjustmentsPage() {
           onDone={() => setShowCreate(false)}
         />
       )}
-    </div>
+    </PageShell>
   );
 }

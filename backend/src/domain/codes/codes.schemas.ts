@@ -6,32 +6,32 @@ const CompositionBreakdownItemSchema = z.object({
 });
 
 export const CreateGradeSchema = z.object({
-  arabic_name: z.string().min(1).max(128),
+  arabic_name: z.string().min(1, 'الاسم العربي مطلوب').max(128, 'الاسم طويل جداً'),
   english_name: z.string().max(128).nullable().optional(),
 });
 
 export const CreateColorCodeSchema = z.object({
-  name_ar: z.string().min(1).max(64),
-  code: z.string().min(1).max(16),
+  name_ar: z.string().min(1, 'الاسم مطلوب').max(64, 'الاسم طويل جداً'),
+  code: z.string().min(1, 'الكود مطلوب').max(16, 'الكود طويل جداً'),
   english_name: z.string().max(128).nullable().optional(),
 });
 
 export const CreateCompositionSchema = z.object({
-  arabic_name: z.string().min(1).max(128),
+  arabic_name: z.string().min(1, 'الاسم العربي مطلوب').max(128, 'الاسم طويل جداً'),
   english_name: z.string().max(128).nullable().optional(),
   description: z.string().nullable().optional(),
   breakdown: z.array(CompositionBreakdownItemSchema).nullable().optional(),
 });
 
 export const CreateBrandSchema = z.object({
-  arabic_name: z.string().min(1).max(128),
+  arabic_name: z.string().min(1, 'الاسم العربي مطلوب').max(128, 'الاسم طويل جداً'),
   english_name: z.string().max(128).nullable().optional(),
   product_line: z.string().nullable().optional(),
   supplier_id: z.number().int().positive().nullable().optional(),
 });
 
 export const CreateSupplierSchema = z.object({
-  arabic_name: z.string().min(1).max(128),
+  arabic_name: z.string().min(1, 'الاسم العربي مطلوب').max(128, 'الاسم طويل جداً'),
   english_name: z.string().max(128).nullable().optional(),
   arabic_warning_text: z.string().nullable().optional(),
 });
