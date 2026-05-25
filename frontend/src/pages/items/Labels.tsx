@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Printer, RotateCcw } from 'lucide-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { itemsApi } from '@/lib/items-api';
@@ -167,14 +168,14 @@ export function LabelsPage() {
     {
       key: 'sr_no',
       header: ar.labels.rollSrNoFilter,
-      cell: (r) => <span className="font-mono text-xs text-foreground">{r.roll_sr_no ?? '—'}</span>,
+      cell: (r) => <span className="font-mono text-sm text-foreground">{r.roll_sr_no ?? '—'}</span>,
       secondary: true,
     },
     { key: 'color', header: ar.labels.colorFilter, cell: (r) => r.color_name_ar, secondary: true },
     {
       key: 'barcode',
       header: ar.labels.barcode,
-      cell: (r) => <span className="font-mono text-xs tabular-num" dir="ltr">{r.internal_barcode}</span>,
+      cell: (r) => <span className="font-mono text-sm tabular-num" dir="ltr">{r.internal_barcode}</span>,
     },
     {
       key: 'weight',
@@ -239,15 +240,17 @@ export function LabelsPage() {
                   variant="outline"
                   disabled={labelPdfMut.isPending && labelPdfMut.variables === r.id}
                   onClick={() => labelPdfMut.mutate(r.id)}
+                  aria-label={ar.labels.print}
                 >
-                  {ar.labels.print}
+                  <Printer className="size-4" aria-hidden />
                 </Button>
                 <Button
                   size="sm"
                   variant="ghost"
                   onClick={() => { setReprintTarget(r); setReprintReason(''); }}
+                  aria-label={ar.labels.reprint}
                 >
-                  {ar.labels.reprint}
+                  <RotateCcw className="size-4" aria-hidden />
                 </Button>
               </div>
             )}

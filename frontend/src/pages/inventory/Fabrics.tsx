@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Pencil } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
@@ -196,7 +197,7 @@ export function FabricsPage() {
       {
         key: 'code',
         header: ar.fabrics.code,
-        cell: (f) => <span className="font-mono text-xs" dir="ltr">{f.code}</span>,
+        cell: (f) => <span className="font-mono text-sm" dir="ltr">{f.code}</span>,
         secondary: true,
       },
       {
@@ -213,7 +214,7 @@ export function FabricsPage() {
         key: 'composition',
         header: ar.fabrics.composition,
         cell: (f) => (
-          <span className="text-xs text-foreground-muted">{compositionSummary(f.composition)}</span>
+          <span className="text-sm text-foreground-muted">{compositionSummary(f.composition)}</span>
         ),
       },
       {
@@ -261,8 +262,8 @@ export function FabricsPage() {
         actions={
           isOwner
             ? (f) => (
-                <Button size="sm" variant="outline" onClick={() => openEdit(f)}>
-                  {ar.fabrics.edit}
+                <Button size="sm" variant="outline" onClick={() => openEdit(f)} aria-label={ar.fabrics.edit}>
+                  <Pencil className="size-4" aria-hidden />
                 </Button>
               )
             : undefined

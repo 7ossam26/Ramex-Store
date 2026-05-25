@@ -116,22 +116,20 @@ export function ResponsiveTable<T>({
           className,
         )}
       >
-        <table className="w-full text-sm">
+        <table className="w-full text-lg">
           {/* No sticky behavior: the page (not the table wrapper) owns the
               scroll context, so `position: sticky` here is inert. Dropped per
               Phase 7 closeout-fix review. */}
           <thead className="bg-surface-elevated">
-            <tr className="text-start text-xs text-foreground-muted border-b border-border-subtle">
+            <tr className="text-base text-foreground-muted border-b border-border-subtle">
               {visibleCols.map((c) => (
                 <th
                   key={c.key}
-                  className={cn(
-                    'px-3 py-3 font-medium uppercase tracking-wide',
-                    c.align === 'end' && 'text-end',
-                    c.align === 'center' && 'text-center',
-                    c.className,
-                  )}
-                  style={c.width ? { width: c.width } : undefined}
+                  className={cn('px-3 py-3 font-medium', c.className)}
+                  style={{
+                    ...(c.width ? { width: c.width } : {}),
+                    textAlign: c.align === 'start' ? 'start' : c.align === 'end' ? 'end' : 'center',
+                  }}
                 >
                   {c.header}
                 </th>
@@ -175,12 +173,8 @@ export function ResponsiveTable<T>({
                       {visibleCols.map((c) => (
                         <td
                           key={c.key}
-                          className={cn(
-                            'px-3 py-2.5 align-middle text-foreground',
-                            c.align === 'end' && 'text-end',
-                            c.align === 'center' && 'text-center',
-                            c.className,
-                          )}
+                          className={cn('px-3 py-2.5 align-middle text-foreground', c.className)}
+                          style={{ textAlign: c.align === 'start' ? 'start' : c.align === 'end' ? 'end' : 'center' }}
                         >
                           {c.cell(row)}
                         </td>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Printer } from 'lucide-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { itemsApi } from '@/lib/items-api';
@@ -239,7 +240,7 @@ export function RollsPage() {
     {
       key: 'sr_no',
       header: ar.labels.rollSrNoFilter,
-      cell: (r) => <span className="font-mono text-xs text-foreground">{r.roll_sr_no ?? '—'}</span>,
+      cell: (r) => <span className="font-mono text-sm text-foreground">{r.roll_sr_no ?? '—'}</span>,
       secondary: true,
     },
     {
@@ -257,7 +258,7 @@ export function RollsPage() {
     {
       key: 'barcode',
       header: ar.labels.barcode,
-      cell: (r) => <span className="font-mono text-xs tabular-num" dir="ltr">{r.internal_barcode}</span>,
+      cell: (r) => <span className="font-mono text-sm tabular-num" dir="ltr">{r.internal_barcode}</span>,
     },
     {
       key: 'weight',
@@ -292,8 +293,9 @@ export function RollsPage() {
             variant="outline"
             disabled={labelPdfMut.isPending && labelPdfMut.variables === r.id}
             onClick={(e) => { e.stopPropagation(); labelPdfMut.mutate(r.id); }}
+            aria-label={ar.labels.print}
           >
-            {ar.labels.print}
+            <Printer className="size-4" aria-hidden />
           </Button>
         )}
       />
