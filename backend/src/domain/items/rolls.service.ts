@@ -28,9 +28,6 @@ function rollLabelQuery() {
     .leftJoin('fabric_grades as g', function () {
       this.on('g.id', '=', db.raw('COALESCE(r.grade_id, f.default_grade_id)'));
     })
-    .leftJoin('compositions as comp', function () {
-      this.on('comp.id', '=', db.raw('COALESCE(r.composition_id, f.default_composition_id)'));
-    })
     .leftJoin('brands as br', function () {
       this.on('br.id', '=', db.raw('COALESCE(r.brand_id, f.default_brand_id)'));
     })
@@ -40,16 +37,47 @@ function rollLabelQuery() {
       'f.code as fabric_code',
       'f.name_ar as fabric_name_ar',
       'f.unit as fabric_unit',
+      'f.composition as fabric_composition',
       'c.name_ar as color_name_ar',
       'c.code as color_code',
       'l.lot_no as lot_no',
       'g.arabic_name as grade_arabic_name',
-      'comp.description as composition_description',
       'br.arabic_name as brand_arabic_name',
       'br.product_line as brand_product_line',
       'sup.arabic_name as supplier_arabic_name',
       'sup.arabic_warning_text as supplier_arabic_warning_text',
     );
+}
+
+function safeParseJsonArray(raw: unknown): unknown[] | null {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw !== 'string') return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function formatFabricComposition(raw: unknown): string | null {
+  const items = safeParseJsonArray(raw);
+  if (!items || items.length === 0) return null;
+  const parts = items
+    .filter((i): i is { material: string; percent: number } =>
+      !!i && typeof i === 'object'
+      && typeof (i as { material: unknown }).material === 'string'
+      && typeof (i as { percent: unknown }).percent === 'number')
+    .map((i) => `${i.material.trim()} ${i.percent}%`)
+    .filter((s) => s.length > 0);
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
+function normalizeLabelRow(row: Record<string, unknown>): RollWithLabelDetails {
+  const description = formatFabricComposition(row.fabric_composition);
+  const { fabric_composition: _fc, ...rest } = row;
+  void _fc;
+  return { ...rest, composition_description: description } as RollWithLabelDetails;
 }
 
 export async function listRolls(filters: {
@@ -77,11 +105,13 @@ export async function getRoll(id: number): Promise<RollWithDetails | undefined> 
 }
 
 export async function getRollWithLabel(id: number): Promise<RollWithLabelDetails | undefined> {
-  return rollLabelQuery().where('r.id', id).first();
+  const row = await rollLabelQuery().where('r.id', id).first();
+  return row ? normalizeLabelRow(row) : undefined;
 }
 
 export async function getRollsWithLabel(ids: number[]): Promise<RollWithLabelDetails[]> {
-  return rollLabelQuery().whereIn('r.id', ids);
+  const rows = await rollLabelQuery().whereIn('r.id', ids);
+  return rows.map(normalizeLabelRow);
 }
 
 export async function updateRoll(
@@ -111,11 +141,12 @@ export async function togglePosVisibility(id: number): Promise<Roll | undefined>
 export async function findByBarcode(
   barcode: string,
 ): Promise<RollWithLabelDetails | undefined> {
-  return rollLabelQuery()
+  const row = await rollLabelQuery()
     .where((b) =>
       b.where('r.internal_barcode', barcode).orWhere('r.external_barcode', barcode),
     )
     .first();
+  return row ? normalizeLabelRow(row) : undefined;
 }
 
 export async function searchRolls(filters: {
