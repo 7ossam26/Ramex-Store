@@ -137,7 +137,7 @@ function buildOneLabelContent(
             colSpan: 4,
             stack: [
               {
-                text: has('logo') ? 'رامكس' : '',
+                text: has('logo') ? 'RMX' : '',
                 fontSize: 26,
                 bold: true,
                 alignment: 'center' as const,
