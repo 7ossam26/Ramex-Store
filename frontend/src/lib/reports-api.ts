@@ -1,6 +1,9 @@
 import { api } from './api';
 
 export const reportsApi = {
+  getGeneral: (from: string, to: string) =>
+    api.get('/reports/general', { params: { from, to } }).then((r) => r.data),
+
   getDaily: (date: string) =>
     api.get('/reports/daily', { params: { date } }).then((r) => r.data),
 
@@ -78,4 +81,23 @@ export type DailyReport = {
     closed_today_value_egp: string;
   };
   stock_movements: Array<{ event_type: string; count: number }>;
+};
+
+export type GeneralReport = {
+  from: string;
+  to: string;
+  generated_at: string;
+  summary: {
+    total_sales_egp: string;
+    net_profit_egp: string;
+    invoice_count: number;
+  };
+  hourly_sales: Array<{ hour: string; total_egp: number }>;
+  sales_by_fabric: Array<{ name: string; value: number }>;
+  store_rows: Array<{
+    store_name_ar: string;
+    total_sales_egp: string;
+    invoice_count: number;
+    avg_invoice_egp: string;
+  }>;
 };
