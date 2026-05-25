@@ -5,16 +5,45 @@ import { getSetting } from '../../domain/settings/settings.service.js';
 import type { RollWithLabelDetails } from '../../domain/items/items.types.js';
 
 const MM_TO_PT = 2.8346;
+const DEFAULT_LABEL_WIDTH_MM = 100;
+const DEFAULT_LABEL_HEIGHT_MM = 150;
+const DEFAULT_LABEL_SIZE = `${DEFAULT_LABEL_WIDTH_MM}x${DEFAULT_LABEL_HEIGHT_MM}mm`;
+const DEFAULT_LABEL_WIDTH = DEFAULT_LABEL_WIDTH_MM * MM_TO_PT;
+const DEFAULT_LABEL_HEIGHT = DEFAULT_LABEL_HEIGHT_MM * MM_TO_PT;
+const PAGE_MARGIN = 12;
+const BARCODE_FIT: [number, number] = [235, 58];
+const LEGACY_COMPACT_LABEL_SIZE = '50x30mm';
 
 const DEFAULT_FIELDS = [
   'logo', 'roll_sr_no', 'fabric_name', 'color_name',
-  'barcode', 'fabric_code', 'color_code', 'weight', 'composition',
+  'barcode', 'fabric_code', 'color_code', 'weight', 'composition', 'lot_no',
 ];
 
+const FIELD_ALIASES: Record<string, string> = {
+  fabric: 'fabric_name',
+  color: 'color_name',
+};
+
+const LEGACY_DEFAULT_FIELDS = new Set(['fabric', 'color', 'weight', 'barcode']);
+
 function parseLabelSize(raw: string): { width: number; height: number } {
-  const m = raw.match(/^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)mm$/i);
-  if (!m) return { width: 50 * MM_TO_PT, height: 30 * MM_TO_PT };
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === LEGACY_COMPACT_LABEL_SIZE) {
+    return { width: DEFAULT_LABEL_WIDTH, height: DEFAULT_LABEL_HEIGHT };
+  }
+
+  const m = normalized.match(/^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)mm$/i);
+  if (!m) return { width: DEFAULT_LABEL_WIDTH, height: DEFAULT_LABEL_HEIGHT };
   return { width: Number(m[1]) * MM_TO_PT, height: Number(m[2]) * MM_TO_PT };
+}
+
+function normalizeFields(fields: string[]): Set<string> {
+  const isLegacyDefault =
+    fields.length === LEGACY_DEFAULT_FIELDS.size &&
+    fields.every((field) => LEGACY_DEFAULT_FIELDS.has(field));
+
+  if (isLegacyDefault) return new Set(DEFAULT_FIELDS);
+  return new Set(fields.map((field) => FIELD_ALIASES[field] ?? field));
 }
 
 let fontsConfigured = false;
@@ -36,19 +65,15 @@ async function barcodeImage(text: string): Promise<string> {
     bcid: 'code128',
     text,
     scale: 3,
-    height: 7,
+    height: 18,
     includetext: false,
-    paddingwidth: 2,
+    paddingwidth: 4,
   });
   return `data:image/png;base64,${buf.toString('base64')}`;
 }
 
-function rule(inner: number): unknown {
-  return {
-    canvas: [{ type: 'line', x1: 0, y1: 0, x2: inner, y2: 0, lineWidth: 0.4, lineColor: '#444444' }],
-    margin: [0, 0, 0, 1] as [number, number, number, number],
-  };
-}
+type PdfMargin = [number, number, number, number];
+type PdfNode = Record<string, unknown>;
 
 function makePdfConfig(
   width: number,
@@ -58,8 +83,8 @@ function makePdfConfig(
 ): Record<string, unknown> {
   return {
     pageSize: { width, height },
-    pageMargins: [5, 5, 5, 5],
-    defaultStyle: { font: 'Amiri', fontSize: 7, alignment: 'right' },
+    pageMargins: [PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN],
+    defaultStyle: { font: 'Cairo', fontSize: 8.5, alignment: 'center', color: '#000000' },
     images,
     content,
   };
@@ -75,15 +100,8 @@ function createPdf(def: Record<string, unknown>): { getBuffer: () => Promise<Buf
 /**
  * Builds all pdfmake content nodes for one label.
  *
- * Layout (top → bottom):
- *   ━━━━━━━━━━━━━━━━━━━━━  2pt accent bar
- *   SR# 001        رامكس  header row (no separator after — keeps it compact)
- *   قطن مصري · أزرق        fabric · color  [top details]
- *   █████████████████████  barcode image
- *   1234567890123456        barcode text
- *   ──────────────────────  thin rule
- *   F001 · C02 · 25.500 كجم  spec footer
- *   التركيب: 100% قطن        composition
+ * Print stance: invoice-grade utility. It follows the app invoice language:
+ * Cairo type, black ink, soft gray labels, hairline borders, and stacked values.
  */
 function buildOneLabelContent(
   roll: RollWithLabelDetails,
@@ -92,110 +110,168 @@ function buildOneLabelContent(
   pageWidth: number,
   pageBreak?: 'before',
 ): unknown[] {
-  const inner = pageWidth - 10;
-  const has = (f: string) => fields.includes(f);
-  const content: unknown[] = [];
+  const normalizedFields = normalizeFields(fields);
+  const has = (field: string) => normalizedFields.has(field);
 
-  // Thick top accent bar — pageBreak lives here so there's no stack wrapper
-  content.push({
-    canvas: [{
-      type: 'line',
-      x1: 0, y1: 0, x2: inner, y2: 0,
-      lineWidth: 2,
-      lineColor: '#000000',
-    }],
-    margin: [0, 0, 0, 2] as [number, number, number, number],
+  const fabricName = has('fabric_name') ? roll.fabric_name_ar : '';
+  const colorName = has('color_name') ? roll.color_name_ar : '';
+  const colorCode = has('color_code') ? roll.color_code : '';
+  const fabricDisplay = fabricName || 'توب قماش';
+  const colorDisplay = [colorName, colorCode].filter(Boolean).join(' / ');
+
+  const specCells: PdfNode[] = [];
+  if (has('roll_sr_no') && roll.roll_sr_no) specCells.push(infoCell('كود التوب', roll.roll_sr_no));
+  if (has('weight') && roll.weight_kg) specCells.push(infoCell('الوزن', formatWeight(roll.weight_kg)));
+  if (has('fabric_code') && roll.fabric_code) specCells.push(infoCell('كود الخامة', roll.fabric_code));
+  if (has('lot_no') && roll.lot_no) specCells.push(infoCell('اللوت', roll.lot_no));
+  while (specCells.length < 4) specCells.push(emptyInfoCell());
+
+  return [{
+    table: {
+      widths: ['*', '*', '*', '*'],
+      heights: [58, 29, 37, 31, 79],
+      dontBreakRows: true,
+      body: [
+        [
+          {
+            colSpan: 4,
+            stack: [
+              {
+                text: has('logo') ? 'رامكس' : '',
+                fontSize: 25,
+                bold: true,
+                alignment: 'center' as const,
+                lineHeight: 0.95,
+              },
+              {
+                canvas: [{ type: 'line', x1: 0, y1: 0, x2: pageWidth - PAGE_MARGIN * 2 - 16, y2: 0, lineWidth: 0.5, lineColor: '#CCCCCC' }],
+                margin: [8, 5, 8, 0] as PdfMargin,
+              },
+              {
+                text: 'باركود',
+                fontSize: 17,
+                color: '#9CA3AF',
+                bold: false,
+                alignment: 'center' as const,
+                margin: [0, 2, 0, 0] as PdfMargin,
+              },
+              {
+                text: 'جاهز للمسح',
+                fontSize: 7.5,
+                color: '#666666',
+                alignment: 'center' as const,
+                margin: [0, 1, 0, 0] as PdfMargin,
+              },
+            ],
+            margin: [8, 5, 8, 4] as PdfMargin,
+          },
+          emptySpanCell(),
+          emptySpanCell(),
+          emptySpanCell(),
+        ],
+        specCells.slice(0, 4),
+        [
+          { ...valueBlock('الخامة', fabricDisplay, 14), colSpan: 2 },
+          emptySpanCell(),
+          { ...valueBlock('اللون', colorDisplay || '—', 12.5), colSpan: 2 },
+          emptySpanCell(),
+        ],
+        [
+          {
+            ...valueBlock('التركيب', roll.composition_description ?? '—', 11.5),
+            colSpan: 4,
+          },
+          emptySpanCell(),
+          emptySpanCell(),
+          emptySpanCell(),
+        ],
+        [
+          {
+            ...barcodeBlock(imageKey, roll.internal_barcode),
+            colSpan: 4,
+          },
+          emptySpanCell(),
+          emptySpanCell(),
+          emptySpanCell(),
+        ],
+      ],
+    },
+    layout: hairlineGrid,
     ...(pageBreak ? { pageBreak } : {}),
-  });
+  }];
+}
 
-  // Header: SR# (left) | رامكس (right — RTL start = brand position)
-  content.push({
-    columns: [
-      has('roll_sr_no') && roll.roll_sr_no
-        ? { text: `SR# ${roll.roll_sr_no}`, bold: true, fontSize: 6.5, alignment: 'left' as const }
-        : { text: '' },
-      has('logo')
-        ? { text: 'رامكس', bold: true, fontSize: 8.5, alignment: 'right' as const }
-        : { text: '' },
+function infoCell(label: string, value: string): PdfNode {
+  return {
+    stack: [
+      { text: label, fontSize: 6.8, color: '#666666', bold: false, alignment: 'center' as const },
+      { text: value, fontSize: 9.2, bold: true, color: '#000000', alignment: 'center' as const, margin: [0, 1.5, 0, 0] as PdfMargin },
     ],
-    columnGap: 4,
-    margin: [0, 0, 0, 2] as [number, number, number, number],
-  });
+    margin: [5, 5, 5, 4] as PdfMargin,
+  };
+}
 
-  // Top details: fabric name (bold) · color name — no separator, saves vertical space
-  const topInlines: unknown[] = [];
-  if (has('fabric_name') && roll.fabric_name_ar) {
-    topInlines.push({ text: roll.fabric_name_ar, bold: true });
-  }
-  if (has('color_name') && roll.color_name_ar) {
-    if (topInlines.length) topInlines.push({ text: '  ·  ' });
-    topInlines.push({ text: roll.color_name_ar });
-  }
-  if (topInlines.length) {
-    content.push({
-      text: topInlines,
-      fontSize: 6,
-      alignment: 'center' as const,
-      margin: [0, 0, 0, 1] as [number, number, number, number],
-    });
-  }
+function emptyInfoCell(): PdfNode {
+  return { text: '', margin: [5, 5, 5, 4] as PdfMargin };
+}
 
-  // Barcode image + human-readable text
-  if (has('barcode')) {
-    content.push(
+function emptySpanCell(): PdfNode {
+  return { text: '' };
+}
+
+function valueBlock(label: string, value: string, valueSize: number): PdfNode {
+  return {
+    stack: [
+      { text: label, fontSize: 7.4, color: '#666666', bold: false },
+      { text: value, fontSize: valueSize, bold: true, color: '#000000', alignment: 'center' as const, margin: [0, 1.5, 0, 0] as PdfMargin, lineHeight: 1.05 },
+    ],
+    margin: [8, 5.5, 8, 5] as PdfMargin,
+  };
+}
+
+function barcodeBlock(imageKey: string, barcode: string): PdfNode {
+  return {
+    stack: [
       {
         image: imageKey,
-        width: inner,
+        fit: BARCODE_FIT,
         alignment: 'center' as const,
-        margin: [0, 0, 0, 0.5] as [number, number, number, number],
+        margin: [0, 2, 0, 3] as PdfMargin,
       },
       {
-        text: roll.internal_barcode,
-        fontSize: 5,
+        text: barcode,
+        fontSize: 9.5,
+        bold: true,
+        characterSpacing: 0.7,
         alignment: 'center' as const,
-        characterSpacing: 0.8,
-        margin: [0, 0, 0, 1] as [number, number, number, number],
       },
-    );
-  }
-
-  content.push(rule(inner));
-
-  // Spec footer: fabric_code · color_code · weight · lot_no
-  const specParts: string[] = [];
-  if (has('fabric_code') && roll.fabric_code) specParts.push(roll.fabric_code);
-  if (has('color_code') && roll.color_code) specParts.push(roll.color_code);
-  if (has('weight') && roll.weight_kg) specParts.push(`${Number(roll.weight_kg).toFixed(3)} كجم`);
-  if (has('lot_no') && roll.lot_no) specParts.push(`#${roll.lot_no}`);
-  if (specParts.length) {
-    content.push({
-      text: specParts.join(' · '),
-      fontSize: 5.5,
-      alignment: 'center' as const,
-      characterSpacing: 0.2,
-      margin: [0, 0, 0, 0.5] as [number, number, number, number],
-    });
-  }
-
-  // التركيب (composition)
-  if (has('composition') && roll.composition_description) {
-    content.push({
-      text: `التركيب: ${roll.composition_description}`,
-      fontSize: 5.5,
-      alignment: 'center' as const,
-      characterSpacing: 0.2,
-    });
-  }
-
-  return content;
+    ],
+    margin: [9, 5, 9, 4] as PdfMargin,
+  };
 }
+
+function formatWeight(weightKg: string): string {
+  const value = Number(weightKg);
+  return `${Number.isFinite(value) ? value.toFixed(3) : weightKg} كجم`;
+}
+
+const hairlineGrid = {
+  hLineWidth: () => 0.5,
+  vLineWidth: () => 0.5,
+  hLineColor: () => '#BBBBBB',
+  vLineColor: () => '#BBBBBB',
+  paddingLeft: () => 0,
+  paddingRight: () => 0,
+  paddingTop: () => 0,
+  paddingBottom: () => 0,
+};
 
 // ── Public API ──────────────────────────────────────────────────────────────
 
 export async function buildSingleLabelPdf(roll: RollWithLabelDetails): Promise<Buffer> {
   ensureFonts();
   const [sizeRaw, fieldsRaw] = await Promise.all([
-    getSetting<string>(undefined, 'barcode_label_size', '50x30mm'),
+    getSetting<string>(undefined, 'barcode_label_size', DEFAULT_LABEL_SIZE),
     getSetting<string[]>(undefined, 'barcode_label_fields', DEFAULT_FIELDS),
   ]);
   const { width, height } = parseLabelSize(sizeRaw);
@@ -207,7 +283,7 @@ export async function buildSingleLabelPdf(roll: RollWithLabelDetails): Promise<B
 export async function buildBatchLabelPdf(rolls: RollWithLabelDetails[]): Promise<Buffer> {
   ensureFonts();
   const [sizeRaw, fieldsRaw] = await Promise.all([
-    getSetting<string>(undefined, 'barcode_label_size', '50x30mm'),
+    getSetting<string>(undefined, 'barcode_label_size', DEFAULT_LABEL_SIZE),
     getSetting<string[]>(undefined, 'barcode_label_fields', DEFAULT_FIELDS),
   ]);
   const { width, height } = parseLabelSize(sizeRaw);
