@@ -120,10 +120,10 @@ function buildOneLabelContent(
   const colorDisplay = [colorName, colorCode].filter(Boolean).join(' / ');
 
   const specCells: PdfNode[] = [
-    has('weight') && roll.weight_kg ? infoCell('الوزن', formatWeight(roll.weight_kg)) : emptyInfoCell(),
-    has('fabric_code') && roll.fabric_code ? infoCell('كود الخامة', roll.fabric_code) : emptyInfoCell(),
-    roll.width_cm ? infoCell('العرض', `${roll.width_cm} سم`) : emptyInfoCell(),
-    has('lot_no') && roll.lot_no ? infoCell('رقم اللوت', roll.lot_no) : emptyInfoCell(),
+    infoCell('الوزن', has('weight') && roll.weight_kg ? formatWeight(roll.weight_kg) : '—'),
+    infoCell('كود الخامة', has('fabric_code') && roll.fabric_code ? roll.fabric_code : '—'),
+    infoCell('العرض', roll.width_cm ? `${roll.width_cm} سم` : '—'),
+    infoCell('رقم اللوت', has('lot_no') && roll.lot_no ? roll.lot_no : '—'),
   ];
 
   return [{
