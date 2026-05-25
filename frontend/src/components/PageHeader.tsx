@@ -8,12 +8,14 @@ type Props = {
   description?: string;
   /** Trailing-edge slot for primary action button(s). */
   actions?: ReactNode;
+  /** Extra content rendered below the description (e.g. location badge). */
+  extra?: ReactNode;
   className?: string;
   /** Parent route — when provided a "رجوع" breadcrumb link appears above the title. */
   backTo?: string;
 };
 
-export function PageHeader({ title, description, actions, className, backTo }: Props) {
+export function PageHeader({ title, description, actions, extra, className, backTo }: Props) {
   return (
     <header
       className={cn(
@@ -35,6 +37,7 @@ export function PageHeader({ title, description, actions, className, backTo }: P
         {description && (
           <p className="text-sm text-foreground-muted mt-1">{description}</p>
         )}
+        {extra && <div className="mt-3">{extra}</div>}
       </div>
       {actions && (
         <div className="flex items-center gap-2 shrink-0">{actions}</div>

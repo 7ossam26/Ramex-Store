@@ -7,6 +7,8 @@ type PageShellProps = {
   description?: string;
   backTo?: string;
   actions?: ReactNode;
+  /** Extra content rendered below the description in the page header. */
+  extra?: ReactNode;
   /** Compact filter row card rendered between header and content. */
   filters?: ReactNode;
   children: ReactNode;
@@ -27,6 +29,7 @@ export function PageShell({
   description,
   backTo,
   actions,
+  extra,
   filters,
   children,
   className,
@@ -38,6 +41,7 @@ export function PageShell({
         description={description}
         backTo={backTo}
         actions={actions}
+        extra={extra}
       />
 
       {filters && (

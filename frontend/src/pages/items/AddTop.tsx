@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, Plus, Trash2, X } from 'lucide-react';
+import { Copy, MapPin, Plus, Trash2, X } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
 import { extractApiError } from '@/lib/api-error';
@@ -320,9 +320,9 @@ function LotCell({
   const disabled = !colorId;
 
   return (
-    <div className="flex items-center gap-1 min-w-0">
+    <div className="flex items-center gap-1.5 min-w-0">
       <select
-        className="flex-1 h-7 rounded border border-border bg-canvas px-1.5 text-xs min-w-0 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex-1 h-12 rounded border border-border bg-canvas px-3 text-base min-w-0 disabled:opacity-50 disabled:cursor-not-allowed"
         value={lot_id === null ? '' : String(lot_id)}
         onChange={(e) => onChangeLot(e.target.value ? Number(e.target.value) : null)}
         disabled={disabled}
@@ -339,7 +339,7 @@ function LotCell({
         title={ar.lots.createNew}
         disabled={disabled || createMut.isPending}
         onClick={() => createMut.mutate()}
-        className="shrink-0 h-7 px-1.5 text-xs rounded border border-border bg-canvas hover:bg-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+        className="shrink-0 h-12 px-3 text-sm rounded border border-border bg-canvas hover:bg-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
       >
         {createMut.isPending ? ar.addTop.lotCreating : ar.addTop.lotNewInline}
       </button>
@@ -410,16 +410,16 @@ function FabricSubGroup({
 
   const lots = lotsQ.data ?? [];
 
-  // column count: checkbox + color + width + weight + (length?) + lot + actions
-  const colCount = 6 + (isMeter ? 1 : 0) + 1; // +1 for checkbox
+  const selectClass =
+    'flex h-12 w-full rounded border border-border bg-canvas px-3 py-2 text-base focus-visible:outline-none focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 cursor-pointer appearance-none';
 
   return (
-    <Card className="overflow-hidden">
-      {/* Sub-group header */}
-      <CardHeader className="py-2 px-3 flex-row items-center gap-2 space-y-0 bg-surface-elevated border-b border-border-subtle">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
+    <div className="rounded-xl border-2 border-dashed border-border-subtle bg-surface-elevated">
+      {/* ── Sticky fabric header ─────────────────────────────────────────── */}
+      <div className="sticky top-[52px] md:top-14 z-10 bg-surface-elevated rounded-t-xl border-b border-border-subtle px-5 pt-4 pb-3">
+        <div className="flex items-center gap-2" dir="rtl">
           <select
-            className="flex-1 h-9 rounded border border-border bg-canvas px-2 text-sm font-medium"
+            className={`${selectClass} flex-1 font-medium`}
             value={group.fabricId === null ? '' : String(group.fabricId)}
             onChange={(e) => {
               const newId = e.target.value ? Number(e.target.value) : null;
@@ -433,34 +433,50 @@ function FabricSubGroup({
               </option>
             ))}
           </select>
-          <Button type="button" variant="outline" size="sm" className="h-9 w-9 shrink-0 p-0" title="إضافة خامة جديدة" onClick={onOpenFabricDialog}>
-            <Plus className="size-4" />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-12 w-12 shrink-0 p-0"
+            title="إضافة خامة جديدة"
+            onClick={onOpenFabricDialog}
+          >
+            <Plus className="size-5" />
           </Button>
           {fabric && (
-            <span className="text-xs text-foreground-muted whitespace-nowrap">
+            <span className="text-sm text-foreground-muted whitespace-nowrap shrink-0 font-medium">
               {isMeter ? ar.addTop.meterUnit : ar.addTop.kgUnit}
             </span>
           )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-12 w-12 p-0 text-foreground-muted hover:text-danger-foreground shrink-0 [&_svg]:size-5"
+            title={ar.addTop.removeFabricGroup}
+            onClick={onRemoveGroup}
+          >
+            <X className="size-4" />
+          </Button>
         </div>
-        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-foreground-muted hover:text-danger-foreground shrink-0" title={ar.addTop.removeFabricGroup} onClick={onRemoveGroup}>
-          <X className="size-4" />
-        </Button>
-      </CardHeader>
+      </div>
 
+      {/* ── Body ────────────────────────────────────────────────────────── */}
+      <div className="p-5 space-y-5">
       {!group.fabricId && (
-        <CardContent className="py-4 text-center text-sm text-foreground-muted">
+        <div className="rounded-lg border border-dashed border-border-subtle py-10 text-center text-base text-foreground-muted">
           {ar.addTop.errors.fabricGroupRequired}
-        </CardContent>
+        </div>
       )}
 
       {group.fabricId && (
-        <CardContent className="p-0">
+        <div className="space-y-4">
           {/* Bulk color bar */}
           {selectedCount > 0 && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-accent/20 border-b border-border-subtle" dir="rtl">
-              <span className="text-xs font-medium">{selectedCount} {ar.addTop.selectedRows}</span>
+            <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-accent/20 border border-border-subtle" dir="rtl">
+              <span className="text-sm font-semibold">{selectedCount} {ar.addTop.selectedRows}</span>
               <select
-                className="h-7 rounded border border-border bg-canvas px-1.5 text-xs"
+                className="h-11 rounded border border-border bg-canvas px-3 text-base"
                 value={bulkColorId === null ? '' : String(bulkColorId)}
                 onChange={(e) => setBulkColorId(e.target.value ? Number(e.target.value) : null)}
               >
@@ -469,188 +485,170 @@ function FabricSubGroup({
                   <option key={c.id} value={c.id}>{c.name_ar} ({c.code})</option>
                 ))}
               </select>
-              <Button type="button" size="sm" className="h-7 text-xs" onClick={applyBulkColor} disabled={!bulkColorId}>
+              <Button type="button" className="h-11 text-sm" onClick={applyBulkColor} disabled={!bulkColorId}>
                 {ar.addTop.bulkSetColor}
               </Button>
-              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => group.rows.forEach((r) => r.selected && onRowChange(r.uid, { selected: false }))}>
+              <Button type="button" variant="ghost" className="h-11 text-sm" onClick={() => group.rows.forEach((r) => r.selected && onRowChange(r.uid, { selected: false }))}>
                 {ar.common.cancel}
               </Button>
             </div>
           )}
 
-          {/* Compact table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse" dir="rtl">
-              <thead>
-                <tr className="border-b border-border-subtle bg-surface-elevated/50 text-xs text-foreground-muted">
-                  <th className="py-1.5 px-2 text-right font-medium w-36 shrink-0">{ar.addTop.colColor}</th>
-                  <th className="py-1.5 px-2 text-right font-medium w-20">{ar.addTop.colWidthCm}</th>
-                  <th className="py-1.5 px-2 text-right font-medium w-24">{ar.addTop.colWeightKg}</th>
-                  {isMeter && <th className="py-1.5 px-2 text-right font-medium w-20">{ar.addTop.colLengthM}</th>}
-                  <th className="py-1.5 px-2 text-right font-medium w-40">{ar.addTop.colLot}</th>
-                  <th className="py-1.5 px-2 text-center font-medium w-16">—</th>
-                  <th className="py-1.5 px-2 text-center font-medium w-6">
-                    <input type="checkbox" className="h-3.5 w-3.5 cursor-pointer"
-                      checked={group.rows.length > 0 && group.rows.every((r) => r.selected)}
-                      onChange={(e) => group.rows.forEach((r) => onRowChange(r.uid, { selected: e.target.checked }))}
+          {/* Roll cards grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4" dir="rtl">
+            {group.rows.map((row, rowIdx) => {
+              const prevRow = group.rows[rowIdx - 1];
+              const hasErrors = submitted && Object.keys(validateRow(row, isMeter)).length > 0;
+              const rowErrors = submitted ? validateRow(row, isMeter) : {};
+
+              return (
+                <div
+                  key={row.uid}
+                  className={[
+                    'rounded-lg border bg-canvas p-5 space-y-4',
+                    hasErrors
+                      ? 'border-danger/40 bg-danger-subtle/10'
+                      : row.selected
+                      ? 'border-ring/50 bg-accent/5'
+                      : 'border-border-subtle',
+                  ].join(' ')}
+                >
+                  {/* Card header: roll index + controls */}
+                  <div className="flex items-center justify-between pb-1 border-b border-border-subtle">
+                    <span className="text-base font-bold text-foreground">
+                      {ar.addTop.rollIndexPrefix} {rowIdx + 1}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 cursor-pointer ml-1"
+                        checked={row.selected}
+                        onChange={(e) => onRowChange(row.uid, { selected: e.target.checked })}
+                      />
+                      <button
+                        type="button"
+                        title={ar.addTop.duplicate}
+                        className="h-9 w-9 flex items-center justify-center rounded hover:bg-accent transition-colors cursor-pointer text-foreground-muted"
+                        onClick={() => onDuplicateRow(row.uid)}
+                      >
+                        <Copy className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        title={ar.addTop.removeRow}
+                        className="h-9 w-9 flex items-center justify-center rounded hover:bg-danger-subtle transition-colors cursor-pointer text-foreground-muted hover:text-danger-foreground"
+                        onClick={() => onRemoveRow(row.uid)}
+                        disabled={group.rows.length === 1}
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Color */}
+                  <div className="space-y-2">
+                    <Label className="text-base font-semibold text-foreground">{ar.addTop.colColor}</Label>
+                    <div className="flex items-center gap-2">
+                      <select
+                        className={[
+                          'flex-1 h-12 rounded border px-3 text-base bg-canvas min-w-0',
+                          rowErrors.color ? 'border-danger-foreground' : 'border-border',
+                        ].join(' ')}
+                        value={row.colorId === null ? '' : String(row.colorId)}
+                        onChange={(e) => {
+                          const colorId = e.target.value ? Number(e.target.value) : null;
+                          onRowChange(row.uid, { colorId, lot_id: null });
+                        }}
+                      >
+                        <option value="">—</option>
+                        {colors.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name_ar}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        title="إضافة لون جديد"
+                        className="h-12 w-12 flex items-center justify-center rounded border border-border bg-canvas hover:bg-accent transition-colors cursor-pointer text-foreground-muted shrink-0"
+                        onClick={() => onOpenColorDialog(row.uid)}
+                      >
+                        <Plus className="size-4" />
+                      </button>
+                    </div>
+                    {rowErrors.color && <p className="text-sm text-danger-foreground mt-1">{rowErrors.color}</p>}
+                  </div>
+
+                  {/* Width cm */}
+                  <div className="space-y-2">
+                    <Label className="text-base font-semibold text-foreground">{ar.addTop.colWidthCm}</Label>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      step="1"
+                      dir="ltr"
+                      className={['h-12 text-base', rowErrors.width_cm ? 'border-danger-foreground ring-1 ring-danger-foreground' : ''].join(' ')}
+                      value={row.width_cm}
+                      onChange={(e) => onRowChange(row.uid, { width_cm: e.target.value })}
                     />
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {group.rows.map((row, rowIdx) => {
-                  const prevRow = group.rows[rowIdx - 1];
-                  const hasErrors = submitted && Object.keys(validateRow(row, isMeter)).length > 0;
-                  const rowErrors = submitted ? validateRow(row, isMeter) : {};
+                    {rowErrors.width_cm && <p className="text-sm text-danger-foreground mt-1">{rowErrors.width_cm}</p>}
+                  </div>
 
-                  return (
-                    <tr
-                      key={row.uid}
-                      className={[
-                        'border-b border-border-subtle transition-colors',
-                        row.selected ? 'bg-accent/10' : 'hover:bg-surface-elevated/40',
-                        hasErrors ? 'bg-danger-subtle/20' : '',
-                      ].join(' ')}
-                    >
-                      {/* Color */}
-                      <td className="px-2 py-1">
-                        <div className="flex items-center gap-1">
-                          <select
-                            className={[
-                              'flex-1 h-7 rounded border px-1.5 text-xs bg-canvas min-w-0',
-                              rowErrors.color ? 'border-danger-foreground' : 'border-border',
-                            ].join(' ')}
-                            value={row.colorId === null ? '' : String(row.colorId)}
-                            onChange={(e) => {
-                              const colorId = e.target.value ? Number(e.target.value) : null;
-                              onRowChange(row.uid, { colorId, lot_id: null });
-                            }}
-                          >
-                            <option value="">—</option>
-                            {colors.map((c) => (
-                              <option key={c.id} value={c.id}>{c.name_ar}</option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            title="إضافة لون جديد"
-                            className="h-7 w-7 flex items-center justify-center rounded border border-border bg-canvas hover:bg-accent transition-colors cursor-pointer text-foreground-muted shrink-0"
-                            onClick={() => onOpenColorDialog(row.uid)}
-                          >
-                            <Plus className="size-3" />
-                          </button>
-                        </div>
-                        {rowErrors.color && <p className="text-xs text-danger-foreground mt-0.5">{rowErrors.color}</p>}
-                      </td>
+                  {/* Weight kg */}
+                  <div className="space-y-2">
+                    <Label className="text-base font-semibold text-foreground">{ar.addTop.colWeightKg}</Label>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.001"
+                      dir="ltr"
+                      className={['h-12 text-base', rowErrors.weight_kg ? 'border-danger-foreground ring-1 ring-danger-foreground' : ''].join(' ')}
+                      value={row.weight_kg}
+                      placeholder={prevRow?.weight_kg || ar.addTop.weightPlaceholder}
+                      onChange={(e) => onRowChange(row.uid, { weight_kg: e.target.value })}
+                    />
+                    {rowErrors.weight_kg && <p className="text-sm text-danger-foreground mt-1">{rowErrors.weight_kg}</p>}
+                  </div>
 
-                      {/* Width cm */}
-                      <td className="px-2 py-1">
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          step="1"
-                          dir="ltr"
-                          className={['h-7 text-xs px-2', rowErrors.width_cm ? 'border-danger-foreground ring-1 ring-danger-foreground' : ''].join(' ')}
-                          value={row.width_cm}
-                          onChange={(e) => onRowChange(row.uid, { width_cm: e.target.value })}
-                        />
-                        {rowErrors.width_cm && <p className="text-xs text-danger-foreground mt-0.5">{rowErrors.width_cm}</p>}
-                      </td>
+                  {/* Length m — meter-fabric only */}
+                  {isMeter && (
+                    <div className="space-y-2">
+                      <Label className="text-base font-semibold text-foreground">{ar.addTop.colLengthM}</Label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        dir="ltr"
+                        className={['h-12 text-base', rowErrors.length_m ? 'border-danger-foreground ring-1 ring-danger-foreground' : ''].join(' ')}
+                        value={row.length_m}
+                        onChange={(e) => onRowChange(row.uid, { length_m: e.target.value })}
+                      />
+                      {rowErrors.length_m && <p className="text-sm text-danger-foreground mt-1">{rowErrors.length_m}</p>}
+                    </div>
+                  )}
 
-                      {/* Weight kg */}
-                      <td className="px-2 py-1">
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          step="0.001"
-                          dir="ltr"
-                          className={['h-7 text-xs px-2', rowErrors.weight_kg ? 'border-danger-foreground ring-1 ring-danger-foreground' : ''].join(' ')}
-                          value={row.weight_kg}
-                          placeholder={prevRow?.weight_kg || ar.addTop.weightPlaceholder}
-                          onChange={(e) => onRowChange(row.uid, { weight_kg: e.target.value })}
-                        />
-                        {rowErrors.weight_kg && <p className="text-xs text-danger-foreground mt-0.5">{rowErrors.weight_kg}</p>}
-                      </td>
-
-                      {/* Length m — meter-fabric only */}
-                      {isMeter && (
-                        <td className="px-2 py-1">
-                          <Input
-                            type="number"
-                            inputMode="decimal"
-                            step="0.01"
-                            dir="ltr"
-                            className={['h-7 text-xs px-2', rowErrors.length_m ? 'border-danger-foreground ring-1 ring-danger-foreground' : ''].join(' ')}
-                            value={row.length_m}
-                            onChange={(e) => onRowChange(row.uid, { length_m: e.target.value })}
-                          />
-                          {rowErrors.length_m && <p className="text-xs text-danger-foreground mt-0.5">{rowErrors.length_m}</p>}
-                        </td>
-                      )}
-
-                      {/* Lot */}
-                      <td className="px-2 py-1">
-                        <LotCell
-                          fabricId={group.fabricId!}
-                          colorId={row.colorId}
-                          lot_id={row.lot_id}
-                          lots={lots}
-                          onChangeLot={(id) => onRowChange(row.uid, { lot_id: id })}
-                          onLotCreated={(lot) => handleLotCreated(row.uid, lot)}
-                        />
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-2 py-1 text-center">
-                        <div className="flex items-center justify-center gap-0.5">
-                          <button
-                            type="button"
-                            title={ar.addTop.duplicate}
-                            className="h-7 w-7 flex items-center justify-center rounded hover:bg-accent transition-colors cursor-pointer text-foreground-muted"
-                            onClick={() => onDuplicateRow(row.uid)}
-                          >
-                            <Copy className="size-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            title={ar.addTop.removeRow}
-                            className="h-7 w-7 flex items-center justify-center rounded hover:bg-danger-subtle transition-colors cursor-pointer text-foreground-muted hover:text-danger-foreground"
-                            onClick={() => onRemoveRow(row.uid)}
-                            disabled={group.rows.length === 1}
-                          >
-                            <Trash2 className="size-3.5" />
-                          </button>
-                        </div>
-                      </td>
-
-                      {/* Checkbox */}
-                      <td className="px-2 py-1 text-center">
-                        <input
-                          type="checkbox"
-                          className="h-3.5 w-3.5 cursor-pointer"
-                          checked={row.selected}
-                          onChange={(e) => onRowChange(row.uid, { selected: e.target.checked })}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  {/* Lot */}
+                  <div className="space-y-2">
+                    <Label className="text-base font-semibold text-foreground">{ar.addTop.colLot}</Label>
+                    <LotCell
+                      fabricId={group.fabricId!}
+                      colorId={row.colorId}
+                      lot_id={row.lot_id}
+                      lots={lots}
+                      onChangeLot={(id) => onRowChange(row.uid, { lot_id: id })}
+                      onLotCreated={(lot) => handleLotCreated(row.uid, lot)}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
-          {/* Sub-group footer */}
-          <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-t border-border-subtle" dir="rtl">
-            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => onAddRows(1)}>
-              + {ar.addTop.addRoll}
+          {/* Add rows footer */}
+          <div className="flex flex-wrap items-center gap-2 pt-1" dir="rtl">
+            <Button type="button" variant="outline" className="h-12 gap-2 border-dashed text-base font-semibold px-6" onClick={() => onAddRows(1)}>
+              <Plus className="size-5" />
+              {ar.addTop.addRoll}
             </Button>
-            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => onAddRows(5)}>
-              {ar.addTop.addRows5}
-            </Button>
-            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => onAddRows(10)}>
-              {ar.addTop.addRows10}
-            </Button>
-            <span className="text-xs text-foreground-muted mr-auto">
+            <span className="text-sm text-foreground-muted mr-auto font-medium">
               {group.rows.length} {ar.addTop.rollIndexPrefix}
               {isMeter && (() => {
                 const totalL = group.rows.reduce((s, r) => s + (num(r.length_m) ?? 0), 0);
@@ -658,9 +656,10 @@ function FabricSubGroup({
               })()}
             </span>
           </div>
-        </CardContent>
+        </div>
       )}
-    </Card>
+      </div>{/* /body */}
+    </div>
   );
 }
 
@@ -737,7 +736,7 @@ export function AddTopPage() {
       rows: g.rows.map((r) => ({
         ...r,
         width_cm: defaultWidth,
-        lot_id: null, // lot scope changed
+        lot_id: null,
         length_m: '',
       })),
     }));
@@ -764,7 +763,6 @@ export function AddTopPage() {
       if (idx === -1) return g;
       const src = g.rows[idx];
       const newRow = blankRow({ colorId: src.colorId, width_cm: src.width_cm });
-      // weight starts empty per spec
       const next = [...g.rows];
       next.splice(idx + 1, 0, newRow);
       return { ...g, rows: next };
@@ -895,8 +893,9 @@ export function AddTopPage() {
       description={ar.hubs.itemsAddTopDesc}
       backTo="/items"
       className="max-w-5xl"
-      actions={
-        <span className="shrink-0 text-xs font-medium px-2 py-0.5 rounded-full bg-accent text-accent-foreground">
+      extra={
+        <span className="inline-flex items-center gap-2 text-base font-semibold px-4 py-2 rounded-lg bg-accent text-accent-foreground w-fit">
+          <MapPin className="size-5" />
           {ar.addTop.factoryBadge}
         </span>
       }
@@ -925,7 +924,39 @@ export function AddTopPage() {
         }}
       />
 
-      {/* Sub-groups */}
+      {/* Used fabrics summary — read-only */}
+      {groups.some((g) => g.fabricId) && (
+        <div className="rounded-lg border border-border-subtle bg-surface-elevated px-5 py-4 space-y-3" dir="rtl">
+          <p className="text-sm font-semibold text-foreground-muted uppercase tracking-wide">الخامات المستخدمة</p>
+          <div className="flex flex-wrap gap-2">
+            {groups
+              .filter((g) => g.fabricId)
+              .map((g) => {
+                const f = fabricsFull.find((x) => x.id === g.fabricId)!;
+                const rollCount = g.rows.length;
+                return (
+                  <span
+                    key={g.uid}
+                    className="inline-flex flex-col gap-0.5 px-4 py-3 rounded-lg border border-border-subtle bg-canvas select-none cursor-default"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="text-base font-semibold text-foreground">{f.name_ar}</span>
+                      <span className="text-sm text-foreground-muted">({f.code})</span>
+                      <span className="text-sm text-foreground-muted">· {rollCount} {ar.addTop.rollIndexPrefix}</span>
+                    </span>
+                    {f.composition.length > 0 && (
+                      <span className="text-sm text-foreground-muted">
+                        {f.composition.map((c) => `${c.percent}% ${c.material}`).join(' · ')}
+                      </span>
+                    )}
+                  </span>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
+      {/* Fabric groups */}
       {groups.map((group) => (
         <FabricSubGroup
           key={group.uid}
@@ -944,10 +975,15 @@ export function AddTopPage() {
         />
       ))}
 
-      {/* Add fabric group */}
-      <Button type="button" variant="outline" className="w-full h-10 border-dashed" onClick={handleAddGroup}>
+      {/* Add fabric group drop area */}
+      <button
+        type="button"
+        className="w-full rounded-xl border-2 border-dashed border-border-subtle bg-surface-elevated/40 hover:bg-surface-elevated transition-colors py-6 flex items-center justify-center gap-2 text-base font-semibold text-foreground-muted hover:text-foreground cursor-pointer"
+        onClick={handleAddGroup}
+      >
+        <Plus className="size-4" />
         {ar.addTop.addFabricGroup}
-      </Button>
+      </button>
 
       {/* Global error */}
       {globalError && (
