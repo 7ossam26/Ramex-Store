@@ -112,7 +112,7 @@ describe('v2 - modern barcode label PDF', () => {
       width: 100 * MM_TO_PT,
       height: 150 * MM_TO_PT,
     });
-    expect(definition.pageMargins).toEqual([12, 12, 12, 12]);
+    expect(definition.pageMargins).toEqual([16, 16, 16, 16]);
     expect(definition.defaultStyle).toMatchObject({ font: 'Cairo' });
 
     expect(definition.content).toHaveLength(1);
@@ -123,7 +123,7 @@ describe('v2 - modern barcode label PDF', () => {
     const barcodeImages = collectNodes(definition.content, (node) => node.image === 'barcodeImg');
     expect(barcodeImages).toHaveLength(1);
     expect(barcodeImages[0]).toMatchObject({
-      fit: [235, 58],
+      fit: [235, 75],
     });
 
     const text = collectText(definition.content).join(' ');
