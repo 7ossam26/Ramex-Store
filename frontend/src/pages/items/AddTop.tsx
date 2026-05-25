@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/dialog';
 import { Code128 } from '@/components/Code128';
 import { PageShell } from '@/components/Layout/PageShell';
+import { openPdfBlob } from '@/lib/pdf';
 
 // ---------- helpers ----------
 
@@ -36,12 +37,6 @@ function num(s: string): number | undefined {
   if (s === '' || s == null) return undefined;
   const n = Number(s);
   return Number.isFinite(n) ? n : undefined;
-}
-
-function openPdfBlob(blob: Blob) {
-  const url = URL.createObjectURL(blob);
-  window.open(url, '_blank', 'noreferrer');
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 // ---------- types ----------
@@ -509,138 +504,135 @@ function FabricSubGroup({
                   const rowErrors = submitted ? validateRow(row, isMeter) : {};
 
                   return (
-                    <>
-                      <tr
-                        key={row.uid}
-                        className={[
-                          'border-b border-border-subtle transition-colors',
-                          row.selected ? 'bg-accent/10' : 'hover:bg-surface-elevated/40',
-                          hasErrors ? 'bg-danger-subtle/20' : '',
-                        ].join(' ')}
-                      >
-                        {/* Color */}
-                        <td className="px-2 py-1">
-                          <div className="flex items-center gap-1">
-                            <select
-                              className={[
-                                'flex-1 h-7 rounded border px-1.5 text-xs bg-canvas min-w-0',
-                                rowErrors.color ? 'border-danger-foreground' : 'border-border',
-                              ].join(' ')}
-                              value={row.colorId === null ? '' : String(row.colorId)}
-                              onChange={(e) => {
-                                const colorId = e.target.value ? Number(e.target.value) : null;
-                                onRowChange(row.uid, { colorId, lot_id: null });
-                              }}
-                            >
-                              <option value="">—</option>
-                              {colors.map((c) => (
-                                <option key={c.id} value={c.id}>{c.name_ar}</option>
-                              ))}
-                            </select>
-                            <button
-                              type="button"
-                              title="إضافة لون جديد"
-                              className="h-7 w-7 flex items-center justify-center rounded border border-border bg-canvas hover:bg-accent transition-colors cursor-pointer text-foreground-muted shrink-0"
-                              onClick={() => onOpenColorDialog(row.uid)}
-                            >
-                              <Plus className="size-3" />
-                            </button>
-                          </div>
-                          {rowErrors.color && <p className="text-xs text-danger-foreground mt-0.5">{rowErrors.color}</p>}
-                        </td>
+                    <tr
+                      key={row.uid}
+                      className={[
+                        'border-b border-border-subtle transition-colors',
+                        row.selected ? 'bg-accent/10' : 'hover:bg-surface-elevated/40',
+                        hasErrors ? 'bg-danger-subtle/20' : '',
+                      ].join(' ')}
+                    >
+                      {/* Color */}
+                      <td className="px-2 py-1">
+                        <div className="flex items-center gap-1">
+                          <select
+                            className={[
+                              'flex-1 h-7 rounded border px-1.5 text-xs bg-canvas min-w-0',
+                              rowErrors.color ? 'border-danger-foreground' : 'border-border',
+                            ].join(' ')}
+                            value={row.colorId === null ? '' : String(row.colorId)}
+                            onChange={(e) => {
+                              const colorId = e.target.value ? Number(e.target.value) : null;
+                              onRowChange(row.uid, { colorId, lot_id: null });
+                            }}
+                          >
+                            <option value="">—</option>
+                            {colors.map((c) => (
+                              <option key={c.id} value={c.id}>{c.name_ar}</option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            title="إضافة لون جديد"
+                            className="h-7 w-7 flex items-center justify-center rounded border border-border bg-canvas hover:bg-accent transition-colors cursor-pointer text-foreground-muted shrink-0"
+                            onClick={() => onOpenColorDialog(row.uid)}
+                          >
+                            <Plus className="size-3" />
+                          </button>
+                        </div>
+                        {rowErrors.color && <p className="text-xs text-danger-foreground mt-0.5">{rowErrors.color}</p>}
+                      </td>
 
-                        {/* Width cm */}
+                      {/* Width cm */}
+                      <td className="px-2 py-1">
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          step="1"
+                          dir="ltr"
+                          className={['h-7 text-xs px-2', rowErrors.width_cm ? 'border-danger-foreground ring-1 ring-danger-foreground' : ''].join(' ')}
+                          value={row.width_cm}
+                          onChange={(e) => onRowChange(row.uid, { width_cm: e.target.value })}
+                        />
+                        {rowErrors.width_cm && <p className="text-xs text-danger-foreground mt-0.5">{rowErrors.width_cm}</p>}
+                      </td>
+
+                      {/* Weight kg */}
+                      <td className="px-2 py-1">
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          step="0.001"
+                          dir="ltr"
+                          className={['h-7 text-xs px-2', rowErrors.weight_kg ? 'border-danger-foreground ring-1 ring-danger-foreground' : ''].join(' ')}
+                          value={row.weight_kg}
+                          placeholder={prevRow?.weight_kg || ar.addTop.weightPlaceholder}
+                          onChange={(e) => onRowChange(row.uid, { weight_kg: e.target.value })}
+                        />
+                        {rowErrors.weight_kg && <p className="text-xs text-danger-foreground mt-0.5">{rowErrors.weight_kg}</p>}
+                      </td>
+
+                      {/* Length m — meter-fabric only */}
+                      {isMeter && (
                         <td className="px-2 py-1">
                           <Input
                             type="number"
                             inputMode="decimal"
-                            step="1"
+                            step="0.01"
                             dir="ltr"
-                            className={['h-7 text-xs px-2', rowErrors.width_cm ? 'border-danger-foreground ring-1 ring-danger-foreground' : ''].join(' ')}
-                            value={row.width_cm}
-                            onChange={(e) => onRowChange(row.uid, { width_cm: e.target.value })}
+                            className={['h-7 text-xs px-2', rowErrors.length_m ? 'border-danger-foreground ring-1 ring-danger-foreground' : ''].join(' ')}
+                            value={row.length_m}
+                            onChange={(e) => onRowChange(row.uid, { length_m: e.target.value })}
                           />
-                          {rowErrors.width_cm && <p className="text-xs text-danger-foreground mt-0.5">{rowErrors.width_cm}</p>}
+                          {rowErrors.length_m && <p className="text-xs text-danger-foreground mt-0.5">{rowErrors.length_m}</p>}
                         </td>
+                      )}
 
-                        {/* Weight kg */}
-                        <td className="px-2 py-1">
-                          <Input
-                            type="number"
-                            inputMode="decimal"
-                            step="0.001"
-                            dir="ltr"
-                            className={['h-7 text-xs px-2', rowErrors.weight_kg ? 'border-danger-foreground ring-1 ring-danger-foreground' : ''].join(' ')}
-                            value={row.weight_kg}
-                            placeholder={prevRow?.weight_kg || ar.addTop.weightPlaceholder}
-                            onChange={(e) => onRowChange(row.uid, { weight_kg: e.target.value })}
-                          />
-                          {rowErrors.weight_kg && <p className="text-xs text-danger-foreground mt-0.5">{rowErrors.weight_kg}</p>}
-                        </td>
+                      {/* Lot */}
+                      <td className="px-2 py-1">
+                        <LotCell
+                          fabricId={group.fabricId!}
+                          colorId={row.colorId}
+                          lot_id={row.lot_id}
+                          lots={lots}
+                          onChangeLot={(id) => onRowChange(row.uid, { lot_id: id })}
+                          onLotCreated={(lot) => handleLotCreated(row.uid, lot)}
+                        />
+                      </td>
 
-                        {/* Length m — meter-fabric only */}
-                        {isMeter && (
-                          <td className="px-2 py-1">
-                            <Input
-                              type="number"
-                              inputMode="decimal"
-                              step="0.01"
-                              dir="ltr"
-                              className={['h-7 text-xs px-2', rowErrors.length_m ? 'border-danger-foreground ring-1 ring-danger-foreground' : ''].join(' ')}
-                              value={row.length_m}
-                              onChange={(e) => onRowChange(row.uid, { length_m: e.target.value })}
-                            />
-                            {rowErrors.length_m && <p className="text-xs text-danger-foreground mt-0.5">{rowErrors.length_m}</p>}
-                          </td>
-                        )}
+                      {/* Actions */}
+                      <td className="px-2 py-1 text-center">
+                        <div className="flex items-center justify-center gap-0.5">
+                          <button
+                            type="button"
+                            title={ar.addTop.duplicate}
+                            className="h-7 w-7 flex items-center justify-center rounded hover:bg-accent transition-colors cursor-pointer text-foreground-muted"
+                            onClick={() => onDuplicateRow(row.uid)}
+                          >
+                            <Copy className="size-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            title={ar.addTop.removeRow}
+                            className="h-7 w-7 flex items-center justify-center rounded hover:bg-danger-subtle transition-colors cursor-pointer text-foreground-muted hover:text-danger-foreground"
+                            onClick={() => onRemoveRow(row.uid)}
+                            disabled={group.rows.length === 1}
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </div>
+                      </td>
 
-                        {/* Lot */}
-                        <td className="px-2 py-1">
-                          <LotCell
-                            fabricId={group.fabricId!}
-                            colorId={row.colorId}
-                            lot_id={row.lot_id}
-                            lots={lots}
-                            onChangeLot={(id) => onRowChange(row.uid, { lot_id: id })}
-                            onLotCreated={(lot) => handleLotCreated(row.uid, lot)}
-                          />
-                        </td>
-
-                        {/* Actions */}
-                        <td className="px-2 py-1 text-center">
-                          <div className="flex items-center justify-center gap-0.5">
-                            <button
-                              type="button"
-                              title={ar.addTop.duplicate}
-                              className="h-7 w-7 flex items-center justify-center rounded hover:bg-accent transition-colors cursor-pointer text-foreground-muted"
-                              onClick={() => onDuplicateRow(row.uid)}
-                            >
-                              <Copy className="size-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              title={ar.addTop.removeRow}
-                              className="h-7 w-7 flex items-center justify-center rounded hover:bg-danger-subtle transition-colors cursor-pointer text-foreground-muted hover:text-danger-foreground"
-                              onClick={() => onRemoveRow(row.uid)}
-                              disabled={group.rows.length === 1}
-                            >
-                              <Trash2 className="size-3.5" />
-                            </button>
-                          </div>
-                        </td>
-
-                        {/* Checkbox */}
-                        <td className="px-2 py-1 text-center">
-                          <input
-                            type="checkbox"
-                            className="h-3.5 w-3.5 cursor-pointer"
-                            checked={row.selected}
-                            onChange={(e) => onRowChange(row.uid, { selected: e.target.checked })}
-                          />
-                        </td>
-                      </tr>
-
-</>
+                      {/* Checkbox */}
+                      <td className="px-2 py-1 text-center">
+                        <input
+                          type="checkbox"
+                          className="h-3.5 w-3.5 cursor-pointer"
+                          checked={row.selected}
+                          onChange={(e) => onRowChange(row.uid, { selected: e.target.checked })}
+                        />
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>
@@ -672,10 +664,6 @@ function FabricSubGroup({
   );
 }
 
-// ---------- LabelPrint state ----------
-
-type LabelPrintState = { open: boolean; format: 'thermal' | 'a4'; perPage: string };
-
 // ---------- AddTopPage ----------
 
 export function AddTopPage() {
@@ -692,8 +680,6 @@ export function AddTopPage() {
   const [colorDialogRowKey, setColorDialogRowKey] = useState<{ groupUid: string; rowUid: string } | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [results, setResults] = useState<CreateTopBatchResult[]>([]);
-  const [labelPrint, setLabelPrint] = useState<LabelPrintState>({ open: false, format: 'thermal', perPage: '24' });
-  const [labelPrinting, setLabelPrinting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
 
   const submitMut = useMutation({
@@ -854,16 +840,6 @@ export function AddTopPage() {
 
   const allResultRollIds = results.flatMap((r) => r.rolls.map((roll) => roll.id));
 
-  async function openSupplierLabelsPdf(rollIds: number[]) {
-    setLabelPrinting(true);
-    try {
-      const blob = await itemsApi.batchFabricLabels(rollIds, labelPrint.format, num(labelPrint.perPage) ?? 24);
-      openPdfBlob(blob);
-    } finally {
-      setLabelPrinting(false);
-    }
-  }
-
   // ----- Success view -----
 
   if (results.length > 0) {
@@ -901,33 +877,10 @@ export function AddTopPage() {
               <Button size="sm" variant="outline" onClick={() => itemsApi.batchLabelsPdf(allResultRollIds).then((b) => openPdfBlob(b))}>
                 {ar.addTop.printAllBarcodes}
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setLabelPrint((s) => ({ ...s, open: !s.open }))}>
-                {ar.addTop.printSupplierLabels}
-              </Button>
               <Button size="sm" variant="outline" onClick={() => setResults([])}>
                 {ar.addTop.addFabricGroup}
               </Button>
             </div>
-            {labelPrint.open && (
-              <div className="flex flex-wrap items-center gap-3 p-3 rounded-md border border-border-subtle bg-surface-elevated">
-                <div className="flex gap-2">
-                  {(['thermal', 'a4'] as const).map((fmt) => (
-                    <Button key={fmt} size="sm" variant={labelPrint.format === fmt ? 'default' : 'outline'} onClick={() => setLabelPrint((s) => ({ ...s, format: fmt }))}>
-                      {fmt === 'thermal' ? ar.addTop.printFormatThermal : ar.addTop.printFormatA4}
-                    </Button>
-                  ))}
-                </div>
-                {labelPrint.format === 'a4' && (
-                  <div className="flex items-center gap-2">
-                    <Label className="text-sm whitespace-nowrap">{ar.addTop.perPageLabel}</Label>
-                    <Input type="number" inputMode="numeric" value={labelPrint.perPage} onChange={(e) => setLabelPrint((s) => ({ ...s, perPage: e.target.value }))} dir="ltr" className="h-9 w-20" min={1} max={100} />
-                  </div>
-                )}
-                <Button size="sm" onClick={() => openSupplierLabelsPdf(allResultRollIds)} disabled={labelPrinting}>
-                  {labelPrinting ? ar.loading : ar.labels.print}
-                </Button>
-              </div>
-            )}
           </CardContent>
         </Card>
       </PageShell>
