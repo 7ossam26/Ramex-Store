@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { extractApiError } from '@/lib/api-error';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -157,6 +157,7 @@ function rollMatchesDestination(r: RollLookup, dest: FulfillmentDestination): bo
 
 export function POSPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
 
   const [endDayShift, setEndDayShift] = useState<Shift | null>(null);
 
@@ -203,7 +204,6 @@ export function POSPage() {
   const [cartSheetOpen, setCartSheetOpen] = useState(false);
   const [labelRoll, setLabelRoll] = useState<RollLookup | null>(null);
 
-  const [completed, setCompleted] = useState<Invoice | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   // v2 Phase 5 — no-lines deposit dialog state.
@@ -485,9 +485,10 @@ export function POSPage() {
     },
     onSuccess: (invoice) => {
       qc.invalidateQueries({ queryKey: ['invoices'] });
-      setCompleted(invoice);
       setPaymentSheetOpen(false);
       setSubmitError(null);
+      resetSale();
+      navigate(`/invoices/${invoice.id}/draft`);
     },
     onError: (e: unknown) => {
       const msg = extractApiError(e);
@@ -525,7 +526,6 @@ export function POSPage() {
     setChequeState(emptyCheque());
     setSaveAsOpen(false);
     setNotesAr('');
-    setCompleted(null);
     setSubmitError(null);
     setPaymentSheetOpen(false);
     setCartSheetOpen(false);
@@ -848,45 +848,6 @@ export function POSPage() {
       {/* Label preview modal */}
       <LabelPreviewModal roll={labelRoll} onClose={() => setLabelRoll(null)} />
 
-      {/* Completed */}
-      <Dialog open={!!completed} onOpenChange={(o) => !o && resetSale()}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{ar.pos.completed}</DialogTitle>
-          </DialogHeader>
-          {completed && (
-            <div className="space-y-3 text-center">
-              <CheckCircle2 className="size-12 mx-auto text-success" />
-              <p className="text-2xl font-bold tabular-num">{completed.invoice_no}</p>
-              <p className="text-foreground-muted">
-                {ar.pos.total}:{' '}
-                <span className="tabular-num" dir="ltr">
-                  {fmtMoney(completed.total_egp)}
-                </span>{' '}
-                ج.م
-              </p>
-              <div className="flex flex-col sm:flex-row gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  className="flex-1 h-12 cursor-pointer"
-                  onClick={() => window.open(`/invoices/${completed.id}/draft`, '_blank', 'noopener')}
-                >
-                  {ar.pos.print}
-                </Button>
-                <Button onClick={resetSale} className="flex-1 h-12 cursor-pointer">
-                  {ar.pos.newSale}
-                </Button>
-              </div>
-              <Link
-                to={`/invoices/${completed.id}`}
-                className="text-xs text-accent hover:underline inline-block py-2"
-              >
-                {ar.invoices.view}
-              </Link>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* Bottom-of-viewport error toast (functional motion — auto-dismiss 4s). */}
       <Toast
@@ -973,7 +934,8 @@ export function POSPage() {
         onCreated={(invoice) => {
           qc.invalidateQueries({ queryKey: ['invoices'] });
           setDepositOpen(false);
-          setCompleted(invoice);
+          resetSale();
+          navigate(`/invoices/${invoice.id}/draft`);
         }}
       />
     </div>

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { salesApi } from '@/lib/sales-api';
 import type { InvoiceDetail, InvoiceLineDetail } from '@/lib/sales-types';
@@ -53,6 +53,7 @@ function mapInvoiceToDraft(inv: InvoiceDetail): DraftInvoiceDocumentProps {
 export function DraftInvoicePrintPage() {
   const { id } = useParams<{ id: string }>();
   const [params] = useSearchParams();
+  const navigate = useNavigate();
   const isPreview = params.get('preview') === '1';
   const variant = params.get('variant');
   const isReprint = variant === 'reprint';
@@ -109,15 +110,14 @@ export function DraftInvoicePrintPage() {
         >
           طباعة
         </Button>
-        <Link to={isPreview ? '/invoices' : `/invoices/${id}`}>
-          <Button
-            size="sm"
-            variant="outline"
-            style={{ color: '#fff', borderColor: '#9ca3af', backgroundColor: 'transparent' }}
-          >
-            رجوع
-          </Button>
-        </Link>
+        <Button
+          size="sm"
+          variant="outline"
+          style={{ color: '#fff', borderColor: '#9ca3af', backgroundColor: 'transparent' }}
+          onClick={() => navigate(-1)}
+        >
+          رجوع
+        </Button>
         {isPreview && (
           <span style={{ color: '#9ca3af', fontSize: '12px' }}>
             معاينة — بيانات تجريبية
