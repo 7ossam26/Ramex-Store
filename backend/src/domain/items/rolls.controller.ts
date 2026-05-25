@@ -60,10 +60,9 @@ export async function getRollDetail(req: Request, res: Response): Promise<void> 
   res.json(roll);
 }
 
-// Legacy barcode label (existing simple label)
 export async function getLabelPdf(req: Request, res: Response): Promise<void> {
   const id = Number(req.params.id);
-  const roll = await svc.getRoll(id);
+  const roll = await svc.getRollWithLabel(id);
   if (!roll) { res.status(404).json({ error: 'not_found' }); return; }
   const pdf = await buildSingleLabelPdf(roll);
   res.setHeader('Content-Type', 'application/pdf');
@@ -77,10 +76,9 @@ export async function getBatchLabelsPdf(req: Request, res: Response): Promise<vo
     res.status(400).json({ error: 'rollIds must be a non-empty array' });
     return;
   }
-  const rolls = await Promise.all(rollIds.map((id) => svc.getRoll(id)));
-  const valid = rolls.filter((r): r is NonNullable<typeof r> => r !== undefined);
-  if (valid.length === 0) { res.status(404).json({ error: 'no_rolls_found' }); return; }
-  const pdf = await buildBatchLabelPdf(valid);
+  const rolls = await svc.getRollsWithLabel(rollIds);
+  if (rolls.length === 0) { res.status(404).json({ error: 'no_rolls_found' }); return; }
+  const pdf = await buildBatchLabelPdf(rolls);
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', 'inline; filename="labels-batch.pdf"');
   res.end(pdf);
@@ -88,7 +86,7 @@ export async function getBatchLabelsPdf(req: Request, res: Response): Promise<vo
 
 export async function reprintLabel(req: Request, res: Response): Promise<void> {
   const id = Number(req.params.id);
-  const roll = await svc.getRoll(id);
+  const roll = await svc.getRollWithLabel(id);
   if (!roll) { res.status(404).json({ error: 'not_found' }); return; }
   const reason = (req.body as { reason?: string }).reason ?? 'lost_label';
   const pdf = await buildSingleLabelPdf(roll);
