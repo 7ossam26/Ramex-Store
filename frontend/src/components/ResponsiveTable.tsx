@@ -134,7 +134,7 @@ export function ResponsiveTable<T>({
                   {c.header}
                 </th>
               ))}
-              {actions && <th className="px-3 py-3 w-px" aria-label="actions" />}
+              {actions && <th className="px-3 py-3 w-px text-center font-medium">إجراءات</th>}
             </tr>
           </thead>
           <tbody key={mountTick}>

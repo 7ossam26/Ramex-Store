@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Printer, RotateCcw } from 'lucide-react';
+import { Printer, RotateCcw, ScanBarcode, X } from 'lucide-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { itemsApi } from '@/lib/items-api';
+import { inventoryApi } from '@/lib/inventory-api';
 import { openPdfBlob } from '@/lib/pdf';
 import type { RollWithDetails } from '@/lib/items-types';
 import { Button } from '@/components/ui/button';
@@ -20,11 +21,14 @@ import { PageShell } from '@/components/Layout/PageShell';
 import { RollStatusPill } from '@/components/items/RollStatusPill';
 
 export function LabelsPage() {
-  const [filters, setFilters] = useState({ fabric: '', color: '', rollSrNo: '' });
-  const [applied, setApplied] = useState<typeof filters | null>({ fabric: '', color: '', rollSrNo: '' });
+  const [filters, setFilters] = useState({ barcode: '', fabric: '', color: '', rollSrNo: '', status: '' });
+  const [applied, setApplied] = useState<typeof filters | null>({ barcode: '', fabric: '', color: '', rollSrNo: '', status: '' });
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [reprintTarget, setReprintTarget] = useState<RollWithDetails | null>(null);
   const [reprintReason, setReprintReason] = useState('');
+
+  const fabricsQ = useQuery({ queryKey: ['fabrics-list'], queryFn: inventoryApi.listFabrics });
+  const colorsQ = useQuery({ queryKey: ['colors-list'], queryFn: inventoryApi.listColors });
 
   const q = useQuery({
     queryKey: ['rolls-search', applied],
@@ -34,6 +38,7 @@ export function LabelsPage() {
             fabric: applied.fabric || undefined,
             color: applied.color || undefined,
             rollSrNo: applied.rollSrNo || undefined,
+            barcodePartial: applied.barcode || undefined,
           })
         : Promise.resolve<RollWithDetails[]>([]),
     enabled: applied !== null,
@@ -59,7 +64,7 @@ export function LabelsPage() {
     },
   });
 
-  const rolls = q.data ?? [];
+  const rolls = (q.data ?? []).filter((r) => !applied?.status || r.status === applied.status);
   const activeFilters = Object.values(filters).filter((v) => v.trim()).length;
   const resetKey = JSON.stringify(applied);
 
@@ -81,44 +86,111 @@ export function LabelsPage() {
     setApplied({ ...filters });
   }
 
+  function handleReset() {
+    const empty = { barcode: '', fabric: '', color: '', rollSrNo: '', status: '' };
+    setFilters(empty);
+    setApplied(empty);
+    setSelected(new Set());
+  }
+
+  const selectClass =
+    'flex h-11 md:h-10 w-full rounded border border-border bg-canvas px-3 py-2 text-sm focus-visible:outline-none focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 cursor-pointer appearance-none';
+
   const filterControls = (
     <div className="rounded-lg border border-border-subtle bg-surface-elevated p-3 space-y-3">
       <h2 className="text-base font-semibold text-foreground">{ar.labels.title}</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+
+      {/* Barcode — primary filter, always autofocused */}
+      <div className="space-y-1">
+        <Label className="text-sm font-medium text-foreground">{ar.labels.barcode}</Label>
+        <div className="relative">
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center">
+            <span className="absolute size-6 rounded-full bg-ring/20 animate-ping" />
+            <ScanBarcode className="relative size-4 text-ring" aria-hidden />
+          </span>
+          <Input
+            autoFocus
+            value={filters.barcode}
+            onChange={(e) => setFilters((f) => ({ ...f, barcode: e.target.value }))}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            placeholder="RMX-R-000001"
+            dir="ltr"
+            className="h-11 md:h-10 pr-10"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="space-y-1">
           <Label className="text-sm font-medium text-foreground">{ar.labels.fabricFilter}</Label>
-          <Input
+          <select
             value={filters.fabric}
             onChange={(e) => setFilters((f) => ({ ...f, fabric: e.target.value }))}
-            placeholder={ar.labels.fabricFilter}
             dir="rtl"
-            className="h-11 md:h-10"
-          />
+            className={selectClass}
+          >
+            <option value="">{ar.labels.fabricFilter}</option>
+            {(fabricsQ.data ?? []).map((fab) => (
+              <option key={fab.id} value={fab.name_ar}>{fab.name_ar}</option>
+            ))}
+          </select>
         </div>
         <div className="space-y-1">
           <Label className="text-sm font-medium text-foreground">{ar.labels.colorFilter}</Label>
-          <Input
+          <select
             value={filters.color}
             onChange={(e) => setFilters((f) => ({ ...f, color: e.target.value }))}
-            placeholder={ar.labels.colorFilter}
             dir="rtl"
-            className="h-11 md:h-10"
-          />
+            className={selectClass}
+          >
+            <option value="">{ar.labels.colorFilter}</option>
+            {(colorsQ.data ?? []).map((col) => (
+              <option key={col.id} value={col.name_ar}>{col.name_ar}</option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-sm font-medium text-foreground">{ar.labels.status}</Label>
+          <select
+            value={filters.status}
+            onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
+            dir="rtl"
+            className={selectClass}
+          >
+            <option value="">{ar.labels.status}</option>
+            {Object.entries(ar.rollStatuses as Record<string, string>).map(([key, label]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+          </select>
         </div>
         <div className="space-y-1">
           <Label className="text-sm font-medium text-foreground">{ar.labels.rollSrNoFilter}</Label>
           <Input
             value={filters.rollSrNo}
             onChange={(e) => setFilters((f) => ({ ...f, rollSrNo: e.target.value }))}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             placeholder="SR-001"
             dir="ltr"
             className="h-11 md:h-10"
           />
         </div>
       </div>
-      <Button onClick={handleSearch} disabled={q.isFetching} className="h-11 md:h-10 w-full md:w-auto">
-        {q.isFetching ? ar.loading : ar.labels.search}
-      </Button>
+
+      <div className="flex gap-2 flex-wrap">
+        <Button onClick={handleSearch} disabled={q.isFetching} className="h-11 md:h-10">
+          {q.isFetching ? ar.loading : ar.labels.search}
+        </Button>
+        {activeFilters > 0 && (
+          <Button
+            variant="outline"
+            onClick={handleReset}
+            className="h-11 md:h-10 gap-1.5"
+          >
+            <X className="size-3.5" aria-hidden />
+            مسح الفلاتر
+          </Button>
+        )}
+      </div>
     </div>
   );
 

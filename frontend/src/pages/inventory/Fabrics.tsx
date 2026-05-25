@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pencil } from 'lucide-react';
+import { Pencil, Plus, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
@@ -92,6 +92,9 @@ export function FabricsPage() {
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<FormState>(blank());
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
+  const [filterUnit, setFilterUnit] = useState<'' | 'kg' | 'meter'>('');
 
   const isOpen = creating || editing !== null;
 
@@ -186,6 +189,20 @@ export function FabricsPage() {
 
   const fabrics = fabricsQ.data ?? [];
 
+  const filtered = useMemo(() => {
+    return fabrics.filter((f) => {
+      if (filterStatus === 'active' && !f.is_active) return false;
+      if (filterStatus === 'inactive' && f.is_active) return false;
+      if (filterUnit && f.unit !== filterUnit) return false;
+      return true;
+    });
+  }, [fabrics, filterStatus, filterUnit]);
+
+  const activeFilters = (filterStatus !== 'all' ? 1 : 0) + (filterUnit ? 1 : 0);
+
+  const selectClass =
+    'flex h-11 md:h-10 w-full rounded border border-border bg-canvas px-3 py-2 text-sm focus-visible:outline-none focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 cursor-pointer appearance-none';
+
   const columns: Column<FabricFull>[] = useMemo(
     () => [
       {
@@ -235,30 +252,94 @@ export function FabricsPage() {
       title={ar.fabrics.title}
       description={ar.hubs.inventoryFabricsDesc}
       backTo="/items"
-      actions={
-        isOwner && (
-          <Button onClick={openCreate}>+ {ar.fabrics.addFabric}</Button>
-        )
-      }
     >
+      {/* Box-style add button */}
+      {isOwner && (
+        <button
+          onClick={openCreate}
+          className="group flex w-full items-center gap-4 rounded-xl border-2 border-dashed border-accent/40 bg-accent/5 px-5 py-4 text-right transition-all duration-150 hover:border-accent/70 hover:bg-accent/10 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground shadow-sm">
+            <Plus className="size-5" />
+          </div>
+          <div className="text-right">
+            <div className="font-semibold text-foreground">{ar.fabrics.addFabric}</div>
+            <div className="text-sm text-foreground-muted">أضف خامة جديدة للكتالوج</div>
+          </div>
+        </button>
+      )}
 
-      <div className="text-sm text-foreground-muted">
-        {ar.fabrics.hint}{' '}
-        <Link to="/items/tops/add" className="text-accent hover:text-accent-hover underline underline-offset-2">
-          {ar.addTop.navTitle}
-        </Link>
-        .
+      {/* Filters card */}
+      <div className="rounded-lg border border-border-subtle bg-surface-elevated p-3 space-y-3">
+        <h2 className="text-base font-semibold text-foreground">{ar.fabrics.title}</h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label className="text-sm font-medium text-foreground">الحالة</Label>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as 'all' | 'active' | 'inactive')}
+              dir="rtl"
+              className={selectClass}
+            >
+              <option value="all">الكل</option>
+              <option value="active">مفعّل</option>
+              <option value="inactive">غير مفعّل</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-sm font-medium text-foreground">{ar.fabrics.unit}</Label>
+            <select
+              value={filterUnit}
+              onChange={(e) => setFilterUnit(e.target.value as '' | 'kg' | 'meter')}
+              dir="rtl"
+              className={selectClass}
+            >
+              <option value="">الكل</option>
+              <option value="kg">{ar.fabrics.unitKg}</option>
+              <option value="meter">{ar.fabrics.unitMeter}</option>
+            </select>
+          </div>
+        </div>
+
+        {activeFilters > 0 && (
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              onClick={() => { setFilterStatus('all'); setFilterUnit(''); }}
+              className="h-11 md:h-10 gap-1.5"
+            >
+              <X className="size-3.5" aria-hidden />
+              مسح الفلاتر
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between text-sm text-foreground-muted">
+        <span>
+          {ar.labels.results}:{' '}
+          <span className="tabular-num font-medium text-foreground">{filtered.length}</span>
+        </span>
+        <span>
+          {ar.fabrics.hint}{' '}
+          <Link to="/items/tops/add" className="text-accent hover:underline underline-offset-2">
+            {ar.addTop.navTitle}
+          </Link>
+          .
+        </span>
       </div>
 
       <ResponsiveTable
         columns={columns}
-        rows={fabrics}
+        rows={filtered}
         rowKey={(f) => String(f.id)}
         onRowClick={isOwner ? openEdit : undefined}
         empty={ar.common.none}
         isLoading={fabricsQ.isLoading}
         isError={fabricsQ.isError}
         onRetry={() => fabricsQ.refetch()}
+        resetKey={`${filterStatus}|${filterUnit}`}
         actions={
           isOwner
             ? (f) => (

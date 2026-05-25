@@ -186,6 +186,12 @@
   animation: rmx-shake 150ms linear 1;
 }
 
+/* Pulsing ring on the barcode input to signal it's the primary scanner field. */
+@keyframes barcode-pulse {
+  0%, 100% { box-shadow: 0 0 0 0px hsl(var(--ring) / 0); }
+  50%       { box-shadow: 0 0 0 4px hsl(var(--ring) / 0.25); }
+}
+
 /* Progress-bar drain used by the POS error toast (4s auto-dismiss). */
 @keyframes rmx-toast-progress {
   from { transform: scaleX(1); }

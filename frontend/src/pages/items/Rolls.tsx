@@ -7,6 +7,8 @@ import { inventoryApi } from '@/lib/inventory-api';
 import { openPdfBlob } from '@/lib/pdf';
 import type { RollWithDetails } from '@/lib/items-types';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -17,7 +19,6 @@ import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
 import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { RollStatusPill } from '@/components/items/RollStatusPill';
-import { cn } from '@/lib/utils';
 
 // ── Label card helpers ──────────────────────────────────────────────────────
 function LabelRow({ label, value }: { label: string; value: string | number | null | undefined }) {
@@ -135,93 +136,6 @@ function fmtMoney(n: string | number) {
   return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// ── Barcode scanner input ────────────────────────────────────────────────────
-function BarcodeScanner({
-  value,
-  onChange,
-  onScan,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  onScan: () => void;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [focused, setFocused] = useState(false);
-  const [flash, setFlash] = useState(false);
-
-  // Auto-focus on mount
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      setFlash(true);
-      setTimeout(() => setFlash(false), 400);
-      onScan();
-    }
-  }
-
-  return (
-    <div className="space-y-1.5">
-      <label className="text-sm font-medium text-foreground">الباركود</label>
-      <div
-        className={cn(
-          'relative flex items-center rounded-lg border-2 bg-surface-elevated transition-all duration-150',
-          focused
-            ? 'border-[hsl(var(--rmx-success))] shadow-[0_0_0_3px_hsl(var(--rmx-success)/0.15)]'
-            : 'border-border-default',
-          flash && 'bg-[hsl(var(--rmx-success-subtle))]',
-        )}
-      >
-        {/* Scan icon + ready indicator */}
-        <div className="flex items-center gap-2 pr-4 pl-2 shrink-0">
-          <ScanBarcode
-            className={cn(
-              'size-5 transition-colors duration-150',
-              focused ? 'text-[hsl(var(--rmx-success))]' : 'text-foreground-muted',
-            )}
-          />
-          {/* Pulsing dot when focused */}
-          {focused && (
-            <span className="relative flex size-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[hsl(var(--rmx-success))] opacity-60" />
-              <span className="relative inline-flex rounded-full size-2 bg-[hsl(var(--rmx-success))]" />
-            </span>
-          )}
-        </div>
-
-        <input
-          ref={inputRef}
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          placeholder={focused ? 'جاهز للمسح… اضغط Enter للبحث' : 'امسح باركود التوب…'}
-          dir="ltr"
-          className="flex-1 bg-transparent py-3 text-base font-mono text-foreground placeholder:text-foreground-muted focus:outline-none"
-        />
-
-        {value && (
-          <button
-            type="button"
-            onClick={() => { onChange(''); onScan(); inputRef.current?.focus(); }}
-            className="flex items-center justify-center size-8 ml-2 rounded-md text-foreground-muted hover:text-foreground hover:bg-surface-hover transition-colors"
-          >
-            <X className="size-4" />
-          </button>
-        )}
-      </div>
-      <p className="text-xs text-foreground-muted">
-        {focused ? 'جاهز — امسح الباركود أو اكتبه ثم اضغط Enter' : 'انقر للتفعيل ثم امسح الباركود'}
-      </p>
-    </div>
-  );
-}
-
 // ── Main page ────────────────────────────────────────────────────────────────
 export function RollsPage() {
   const [barcode, setBarcode] = useState('');
@@ -231,6 +145,15 @@ export function RollsPage() {
   // Applied state — dropdowns apply immediately, scanner applies on Enter
   const [applied, setApplied] = useState({ barcode: '', fabricId: '', colorId: '' });
   const [detail, setDetail] = useState<RollWithDetails | null>(null);
+
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
+
+  // Refocus barcode input whenever the detail dialog closes
+  useEffect(() => {
+    if (!detail) {
+      setTimeout(() => barcodeInputRef.current?.focus(), 2000);
+    }
+  }, [detail]);
 
   const fabricsQ = useQuery({ queryKey: ['fabrics'], queryFn: inventoryApi.listFabrics });
   const colorsQ  = useQuery({ queryKey: ['colors'],  queryFn: inventoryApi.listColors });
@@ -254,48 +177,59 @@ export function RollsPage() {
   const rolls = q.data ?? [];
   const resetKey = JSON.stringify(applied);
 
-  const activeFilters = [applied.barcode, applied.fabricId, applied.colorId].filter(Boolean).length;
+  const activeFilters = [barcode, fabricId, colorId].filter(Boolean).length;
 
   const labelPdfMut = useMutation({
     mutationFn: (rollId: number) => itemsApi.labelPdfBlob(rollId),
     onSuccess: (blob) => openPdfBlob(blob),
   });
 
-  function applyBarcode() {
-    setApplied((a) => ({ ...a, barcode }));
+  function handleSearch() {
+    setApplied({ barcode, fabricId, colorId });
   }
 
-  function handleFabricChange(id: string) {
-    setFabricId(id);
-    setApplied((a) => ({ ...a, fabricId: id }));
+  function handleReset() {
+    setBarcode(''); setFabricId(''); setColorId('');
+    setApplied({ barcode: '', fabricId: '', colorId: '' });
+    setTimeout(() => barcodeInputRef.current?.focus(), 2000);
   }
 
-  function handleColorChange(id: string) {
-    setColorId(id);
-    setApplied((a) => ({ ...a, colorId: id }));
-  }
+  const selectClass =
+    'flex h-11 md:h-10 w-full rounded border border-border bg-canvas px-3 py-2 text-sm focus-visible:outline-none focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 cursor-pointer appearance-none';
 
   const filterControls = (
-    <div className="rounded-lg border border-border-subtle bg-surface-elevated p-4 space-y-4">
+    <div className="rounded-lg border border-border-subtle bg-surface-elevated p-3 space-y-3">
       <h2 className="text-base font-semibold text-foreground">{ar.labels.rollsTitle}</h2>
 
-      {/* Barcode scanner — primary action */}
-      <BarcodeScanner
-        value={barcode}
-        onChange={setBarcode}
-        onScan={applyBarcode}
-      />
+      <div className="space-y-1">
+        <Label className="text-sm font-medium text-foreground">{ar.labels.barcode}</Label>
+        <div className="relative">
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center">
+            <span className="absolute size-6 rounded-full bg-ring/20 animate-ping" />
+            <ScanBarcode className="relative size-4 text-ring" aria-hidden />
+          </span>
+          <Input
+            ref={barcodeInputRef}
+            autoFocus
+            value={barcode}
+            onChange={(e) => setBarcode(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            placeholder="RMX-R-000001"
+            dir="ltr"
+            className="h-11 md:h-10 pr-10"
+          />
+        </div>
+      </div>
 
-      {/* Dropdowns row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {/* Fabric dropdown */}
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">{ar.labels.fabricFilter}</label>
+        <div className="space-y-1">
+          <Label className="text-sm font-medium text-foreground">{ar.labels.fabricFilter}</Label>
           <select
             value={fabricId}
-            onChange={(e) => handleFabricChange(e.target.value)}
+            onChange={(e) => setFabricId(e.target.value)}
             disabled={fabricsQ.isLoading}
-            className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 transition-colors"
+            dir="rtl"
+            className={selectClass}
           >
             <option value="">كل الخامات</option>
             {fabrics.map((f) => (
@@ -303,15 +237,14 @@ export function RollsPage() {
             ))}
           </select>
         </div>
-
-        {/* Color dropdown */}
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">{ar.labels.colorFilter}</label>
+        <div className="space-y-1">
+          <Label className="text-sm font-medium text-foreground">{ar.labels.colorFilter}</Label>
           <select
             value={colorId}
-            onChange={(e) => handleColorChange(e.target.value)}
+            onChange={(e) => setColorId(e.target.value)}
             disabled={colorsQ.isLoading}
-            className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 transition-colors"
+            dir="rtl"
+            className={selectClass}
           >
             <option value="">كل الألوان</option>
             {colors.map((c) => (
@@ -321,27 +254,17 @@ export function RollsPage() {
         </div>
       </div>
 
-      {/* Footer: results count + clear */}
-      {(activeFilters > 0 || rolls.length > 0) && (
-        <div className="flex items-center justify-between gap-3 pt-1">
-          <span className="text-sm text-foreground-muted">
-            {ar.labels.results}:{' '}
-            <span className="tabular-num font-medium text-foreground">{rolls.length}</span>
-          </span>
-          {activeFilters > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                setBarcode(''); setFabricId(''); setColorId('');
-                setApplied({ barcode: '', fabricId: '', colorId: '' });
-              }}
-              className="text-xs text-foreground-muted hover:text-foreground underline underline-offset-2 transition-colors"
-            >
-              مسح الفلاتر
-            </button>
-          )}
-        </div>
-      )}
+      <div className="flex gap-2 flex-wrap">
+        <Button onClick={handleSearch} disabled={q.isFetching} className="h-11 md:h-10">
+          {q.isFetching ? ar.loading : ar.labels.search}
+        </Button>
+        {activeFilters > 0 && (
+          <Button variant="outline" onClick={handleReset} className="h-11 md:h-10 gap-1.5">
+            <X className="size-3.5" aria-hidden />
+            مسح الفلاتر
+          </Button>
+        )}
+      </div>
     </div>
   );
 
@@ -378,6 +301,10 @@ export function RollsPage() {
   return (
     <PageShell title={ar.labels.rollsTitle} description={ar.hubs.itemsRollsDesc} backTo="/items">
       <MobileFilterSheet activeCount={activeFilters}>{filterControls}</MobileFilterSheet>
+
+      <div className="text-sm text-foreground-muted">
+        {ar.labels.results}: <span className="tabular-num font-medium text-foreground">{rolls.length}</span>
+      </div>
 
       <SectionCard noPadding>
         <ResponsiveTable
