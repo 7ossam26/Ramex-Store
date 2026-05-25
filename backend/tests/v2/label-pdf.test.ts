@@ -112,7 +112,7 @@ describe('v2 - modern barcode label PDF', () => {
       width: 100 * MM_TO_PT,
       height: 150 * MM_TO_PT,
     });
-    expect(definition.pageMargins).toEqual([16, 16, 16, 16]);
+    expect(definition.pageMargins).toEqual([8, 8, 8, 8]);
     expect(definition.defaultStyle).toMatchObject({ font: 'Cairo' });
 
     expect(definition.content).toHaveLength(1);

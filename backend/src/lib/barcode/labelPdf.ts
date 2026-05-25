@@ -123,18 +123,19 @@ function buildOneLabelContent(
   if (has('roll_sr_no') && roll.roll_sr_no) specCells.push(infoCell('كود التوب', roll.roll_sr_no));
   if (has('weight') && roll.weight_kg) specCells.push(infoCell('الوزن', formatWeight(roll.weight_kg)));
   if (has('fabric_code') && roll.fabric_code) specCells.push(infoCell('كود الخامة', roll.fabric_code));
-  if (has('lot_no') && roll.lot_no) specCells.push(infoCell('اللوت', roll.lot_no));
-  while (specCells.length < 4) specCells.push(emptyInfoCell());
+  if (has('lot_no') && roll.lot_no) specCells.push(infoCell('رقم اللوت', roll.lot_no));
+  if (roll.width_cm) specCells.push(infoCell('العرض', `${roll.width_cm} سم`));
+  while (specCells.length < 5) specCells.push(emptyInfoCell());
 
   return [{
     table: {
-      widths: [67, 67, 67, 67],
+      widths: [53.6, 53.6, 53.6, 53.6, 53.6],
       heights: [40, 40, 55, 45, 125],
       dontBreakRows: true,
       body: [
         [
           {
-            colSpan: 4,
+            colSpan: 5,
             stack: [
               {
                 text: has('logo') ? 'رامكس' : '',
@@ -145,37 +146,18 @@ function buildOneLabelContent(
                 margin: [0, 2, 0, 0] as PdfMargin,
                 textDirection: 'rtl',
               },
-              {
-                canvas: [{ type: 'line', x1: 0, y1: 0, x2: pageWidth - PAGE_MARGIN * 2 - 16, y2: 0, lineWidth: 0.5, lineColor: '#CCCCCC' }],
-                margin: [8, 5, 8, 0] as PdfMargin,
-              },
-              {
-                text: 'باركود',
-                fontSize: 16,
-                color: '#9CA3AF',
-                bold: false,
-                alignment: 'center' as const,
-                margin: [0, 2, 0, 0] as PdfMargin,
-                textDirection: 'rtl',
-              },
-              {
-                text: 'جاهز للمسح',
-                fontSize: 7,
-                color: '#666666',
-                alignment: 'center' as const,
-                margin: [0, 1, 0, 0] as PdfMargin,
-                textDirection: 'rtl',
-              },
             ],
             margin: [8, 6, 8, 6] as PdfMargin,
           },
           emptySpanCell(),
           emptySpanCell(),
           emptySpanCell(),
+          emptySpanCell(),
         ],
-        specCells.slice(0, 4),
+        specCells.slice(0, 5),
         [
-          { ...valueBlock('الخامة', fabricDisplay, 14), colSpan: 2 },
+          { ...valueBlock('الخامة', fabricDisplay, 14), colSpan: 3 },
+          emptySpanCell(),
           emptySpanCell(),
           { ...valueBlock('اللون', colorDisplay || '—', 12), colSpan: 2 },
           emptySpanCell(),
@@ -183,8 +165,9 @@ function buildOneLabelContent(
         [
           {
             ...valueBlock('التركيب', roll.composition_description ?? '—', 10.5),
-            colSpan: 4,
+            colSpan: 5,
           },
+          emptySpanCell(),
           emptySpanCell(),
           emptySpanCell(),
           emptySpanCell(),
@@ -192,8 +175,9 @@ function buildOneLabelContent(
         [
           {
             ...barcodeBlock(imageKey, roll.internal_barcode),
-            colSpan: 4,
+            colSpan: 5,
           },
+          emptySpanCell(),
           emptySpanCell(),
           emptySpanCell(),
           emptySpanCell(),
