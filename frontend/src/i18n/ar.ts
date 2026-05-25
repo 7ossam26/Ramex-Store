@@ -760,6 +760,8 @@ export const ar = {
   },
   reports: {
     title: 'التقارير',
+    general: 'التقرير العام',
+    generalDesc: 'ملخص أداء المبيعات والمخزون لأي فترة',
     daily: 'التقرير اليومي',
     // existing
     salesByFabricColor: 'مبيعات حسب الخامة / اللون',

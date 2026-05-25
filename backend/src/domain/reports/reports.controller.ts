@@ -4,6 +4,7 @@ import { buildReportPdf } from '../../lib/reports/pdfExport.js';
 import { buildReportExcel } from '../../lib/reports/excelExport.js';
 import { buildPrintableHtml } from '../../lib/reports/printableHtml.js';
 import { getDailyReport, dailyReportToExportSections } from './dailyReportService.js';
+import { getGeneralReport, generalReportToExportSections } from './generalReportService.js';
 import { getSalesByFabricColor, salesByFabricColorToExport } from './secondaryReports/salesByFabricColor.js';
 import { getCustomerLedger, customerLedgerToExport } from './secondaryReports/customerLedger.js';
 import { getOutstandingOpenInvoices, outstandingOpenInvoicesToExport } from './secondaryReports/outstandingOpenInvoices.js';
@@ -11,7 +12,6 @@ import { getStocktakeInventory, stocktakeInventoryToExport } from './secondaryRe
 import { getCashFlow, cashFlowToExport } from './secondaryReports/cashFlow.js';
 import { getBankReconciliation, bankReconciliationToExport } from './secondaryReports/bankReconciliation.js';
 import { getExpenses, expensesToExport } from './secondaryReports/expenses.js';
-import { getDamageLoss, damageLossToExport } from './secondaryReports/damageLoss.js';
 import { getSalesByPaymentMethod, salesByPaymentMethodToExport } from './secondaryReports/salesByPaymentMethod.js';
 import { getAuditLog, auditLogToExport } from './secondaryReports/auditLog.js';
 import { getReturnsReport, returnsReportToExport } from './secondaryReports/returnsReport.js';
@@ -32,6 +32,45 @@ function dateParam(val: unknown, fallback: string): string {
   if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
   return fallback;
 }
+
+// ─── General Report ───────────────────────────────────────────────────────────
+
+export const getGeneralReportJson: RequestHandler = async (req, res) => {
+  try {
+    const today = cairoToday();
+    const from = dateParam(req.query['from'], today);
+    const to = dateParam(req.query['to'], today);
+    const report = await getGeneralReport(from, to);
+    res.json(report);
+  } catch (e) { handleErr(res, e); }
+};
+
+export const exportGeneralReport: RequestHandler = async (req, res) => {
+  try {
+    const today = cairoToday();
+    const from = dateParam(req.query['from'], today);
+    const to = dateParam(req.query['to'], today);
+    const format = req.query['format'] as string;
+    const report = await getGeneralReport(from, to);
+    const opts = generalReportToExportSections(report);
+
+    if (format === 'excel') {
+      const buf = await buildReportExcel(opts);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="general-report-${from}.xlsx"`);
+      res.send(buf);
+    } else if (format === 'print') {
+      const html = buildPrintableHtml(opts);
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(html);
+    } else {
+      const buf = await buildReportPdf(opts);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="general-report-${from}.pdf"`);
+      res.send(buf);
+    }
+  } catch (e) { handleErr(res, e); }
+};
 
 // ─── Daily Report ─────────────────────────────────────────────────────────────
 
@@ -89,7 +128,6 @@ export const getSecondaryReportJson: RequestHandler = async (req, res) => {
       case 'cashFlow': res.json(await getCashFlow(from, to)); break;
       case 'bankReconciliation': res.json(await getBankReconciliation(from, to)); break;
       case 'expenses': res.json(await getExpenses(from, to)); break;
-      case 'damageLoss': res.json(await getDamageLoss(from, to)); break;
       case 'salesByPaymentMethod': res.json(await getSalesByPaymentMethod(from, to)); break;
       case 'auditLog': {
         const opts = {
@@ -166,11 +204,6 @@ export const exportSecondaryReport: RequestHandler = async (req, res) => {
       case 'expenses': {
         const data = await getExpenses(from, to);
         opts = expensesToExport(data, fromDisplay, toDisplay, generatedAt);
-        break;
-      }
-      case 'damageLoss': {
-        const data = await getDamageLoss(from, to);
-        opts = damageLossToExport(data, fromDisplay, toDisplay, generatedAt);
         break;
       }
       case 'salesByPaymentMethod': {

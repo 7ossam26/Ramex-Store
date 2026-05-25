@@ -62,17 +62,18 @@ export function buildPrintableHtml(opts: ReportPdfOptions): string {
   h1 { font-size: 16pt; text-align: center; margin-bottom: 4px; }
   .subtitle, .generated { text-align: center; color: #555; font-size: 10pt; margin-bottom: 4px; }
   hr { border: none; border-top: 0.5px solid #aaa; margin: 12px 0; }
-  h2 { font-size: 12pt; margin: 12px 0 6px; }
+  h2 { font-size: 12pt; margin: 12px 0 6px; text-align: center; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
   th { background: #D9E1F2; padding: 5px 8px; font-weight: bold; border: 0.5px solid #bbb; }
   td { padding: 4px 8px; border: 0.5px solid #ddd; }
   .totals-row td { font-weight: bold; background: #f5f5f5; }
   .empty { color: #888; font-style: italic; text-align: center; padding: 12px; }
   @media print {
-    @page { size: A4; margin: 15mm; }
+    @page { size: A4 portrait; margin: 15mm; }
     body { padding: 0; }
-    section { page-break-inside: avoid; }
     button { display: none; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; page-break-after: auto; }
   }
 </style>
 </head>

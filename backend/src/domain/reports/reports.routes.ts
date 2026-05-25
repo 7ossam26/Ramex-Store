@@ -23,6 +23,18 @@ function requireReportAccess(reportKey: string): RequestHandler {
   };
 }
 
+// ─── General report ──────────────────────────────────────────────────────────
+reportsRouter.get(
+  '/general',
+  requireRole('owner', 'shop_seller'),
+  ctl.getGeneralReportJson,
+);
+reportsRouter.get(
+  '/general/export',
+  requireRole('owner', 'shop_seller'),
+  ctl.exportGeneralReport,
+);
+
 // ─── Daily report ────────────────────────────────────────────────────────────
 reportsRouter.get(
   '/daily',

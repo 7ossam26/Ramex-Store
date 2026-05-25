@@ -49,6 +49,9 @@ import { ShiftReportPage } from './pages/shifts/ShiftReport';
 /* Chart-heavy report routes are lazy-loaded so Recharts is only fetched
  * when the user navigates into Reports. Saves ~250kb gzipped from the
  * initial bundle for everyone who never opens a sub-report. */
+const GeneralReportPage = lazy(() =>
+  import('./pages/reports/GeneralReport').then((m) => ({ default: m.GeneralReportPage })),
+);
 const DailyReportPage = lazy(() =>
   import('./pages/reports/DailyReport').then((m) => ({ default: m.DailyReportPage })),
 );
@@ -140,6 +143,7 @@ export function App() {
                 <Route path="/notifications" element={<NotificationsPage />} />
 
                 <Route path="/reports" element={<ReportsHubPage />} />
+                <Route path="/reports/general" element={<GeneralReportPage />} />
                 <Route path="/reports/daily" element={<DailyReportPage />} />
                 <Route path="/reports/secondary/:reportKey" element={<SecondaryReportPage />} />
 

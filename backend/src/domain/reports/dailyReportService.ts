@@ -389,7 +389,6 @@ export function dailyReportToExportSections(report: DailyReport) {
           { label: 'عدد الفواتير المكتملة', value: String(ss.invoice_count) },
           { label: 'إجمالي المبيعات (قبل الخصم)', value: ss.gross_subtotal_egp },
           { label: 'إجمالي الخصم على الفاتورة', value: ss.total_cart_discount_egp },
-          { label: 'الضريبة', value: ss.total_tax_egp },
           { label: 'الصافي', value: ss.total_net_egp },
           { label: 'عدد المرتجعات', value: String(ss.refund_count) },
           { label: 'إجمالي المرتجعات', value: ss.refund_total_egp },

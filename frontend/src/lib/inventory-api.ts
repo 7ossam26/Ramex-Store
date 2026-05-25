@@ -131,6 +131,7 @@ export const inventoryApi = {
   listStockMovements: (params: {
     roll_id?: number;
     event_type?: string;
+    barcode?: string;
     limit?: number;
     offset?: number;
   }) =>

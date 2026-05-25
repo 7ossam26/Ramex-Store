@@ -80,7 +80,7 @@ export function DailyReportContent({ report }: { report: DailyReport }) {
   const ss = report.sales_summary;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-3xl mx-auto">
       {/* Shift window meta */}
       <p className="text-xs text-foreground-tertiary tabular-num" dir="ltr">
         {ar.reports.shiftWindow}: {report.shift_start_cairo} → {report.shift_end_cairo} ·{' '}
@@ -98,7 +98,6 @@ export function DailyReportContent({ report }: { report: DailyReport }) {
           { label: 'عدد الفواتير المكتملة', value: ss.invoice_count },
           { label: 'إجمالي المبيعات (قبل الخصم)', value: fmt(ss.gross_subtotal_egp) },
           { label: 'إجمالي الخصم على الفاتورة', value: fmt(ss.total_cart_discount_egp) },
-          { label: 'الضريبة', value: fmt(ss.total_tax_egp) },
           { label: 'الصافي', value: fmt(ss.total_net_egp) },
           { label: 'عدد المرتجعات', value: ss.refund_count },
           { label: 'إجمالي المرتجعات', value: fmt(ss.refund_total_egp) },

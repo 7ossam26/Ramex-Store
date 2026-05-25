@@ -177,9 +177,9 @@ function RollDetailsPanel({ row }: { row: StockSummaryRow }) {
   return (
     <>
       <div className="overflow-x-auto rounded-md border border-border-subtle bg-surface">
-        <table className="w-full text-xs">
+        <table className="w-full text-xs" style={{ textAlign: 'center' }}>
           <thead>
-            <tr className="text-start text-[11px] text-foreground-muted border-b border-border-subtle">
+            <tr className="text-[11px] text-foreground-muted border-b border-border-subtle">
               <th className="px-3 py-2 font-medium">الباركود</th>
               <th className="px-3 py-2 font-medium">رقم الروول</th>
               <th className="px-3 py-2 font-medium text-end">الوزن (kg)</th>

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { PackageCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
@@ -481,8 +482,9 @@ function PendingPickupTab() {
               size="sm"
               onClick={() => setPendingDeliverId(r.id)}
               disabled={deliverMut.isPending}
+              aria-label={ar.invoices.markDelivered}
             >
-              {ar.invoices.markDelivered}
+              <PackageCheck className="size-4" aria-hidden />
             </Button>
           )}
         />

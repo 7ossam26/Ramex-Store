@@ -257,19 +257,19 @@ export function ExpensesPage() {
                 variant="outline"
                 disabled={approveMut.isPending}
                 onClick={() => approveMut.mutate(e.id)}
-                className="gap-1 text-success-foreground border-success/40 hover:bg-success-subtle"
+                className="text-success-foreground border-success/40 hover:bg-success-subtle"
+                aria-label="موافقة"
               >
-                <Check className="size-3.5" aria-hidden />
-                موافقة
+                <Check className="size-4" aria-hidden />
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => setRejectTarget(e.id)}
-                className="gap-1 text-danger-foreground border-danger/40 hover:bg-danger-subtle"
+                className="text-danger-foreground border-danger/40 hover:bg-danger-subtle"
+                aria-label="رفض"
               >
-                <X className="size-3.5" aria-hidden />
-                رفض
+                <X className="size-4" aria-hidden />
               </Button>
             </div>
           );
