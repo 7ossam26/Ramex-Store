@@ -187,7 +187,7 @@ function buildOneLabelContent(
 function infoCell(label: string, value: string): PdfNode {
   return {
     stack: [
-      { text: label, fontSize: 8, color: '#666666', bold: false, alignment: 'center' as const, textDirection: 'rtl' },
+      { text: label, fontSize: 8, color: '#000000', bold: false, alignment: 'center' as const, textDirection: 'rtl' },
       { text: value, fontSize: 11, bold: true, color: '#000000', alignment: 'center' as const, margin: [0, 3, 0, 0] as PdfMargin, textDirection: 'rtl' },
     ],
     margin: [5, 6, 5, 5] as PdfMargin,
@@ -205,7 +205,7 @@ function emptySpanCell(): PdfNode {
 function valueBlock(label: string, value: string, valueSize: number): PdfNode {
   return {
     stack: [
-      { text: label, fontSize: 8.5, color: '#666666', bold: false, textDirection: 'rtl' },
+      { text: label, fontSize: 8.5, color: '#000000', bold: false, textDirection: 'rtl' },
       { text: value, fontSize: valueSize, bold: true, color: '#000000', alignment: 'center' as const, margin: [0, 4, 0, 0] as PdfMargin, lineHeight: 1.05, textDirection: 'rtl' },
     ],
     margin: [8, 9, 8, 8] as PdfMargin,
@@ -242,8 +242,8 @@ function formatWeight(weightKg: string): string {
 const hairlineGrid = {
   hLineWidth: () => 0.5,
   vLineWidth: () => 0.5,
-  hLineColor: () => '#BBBBBB',
-  vLineColor: () => '#BBBBBB',
+  hLineColor: () => '#000000',
+  vLineColor: () => '#000000',
   paddingLeft: () => 0,
   paddingRight: () => 0,
   paddingTop: () => 0,
