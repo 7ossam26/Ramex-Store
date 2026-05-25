@@ -119,11 +119,13 @@ function buildOneLabelContent(
   const fabricDisplay = fabricName || 'توب قماش';
   const colorDisplay = [colorName, colorCode].filter(Boolean).join(' / ');
 
+  // pdfmake renders Arabic words in source order (no bidi pass), so multi-word
+  // labels must be written with words reversed to read correctly RTL.
   const specCells: PdfNode[] = [
     infoCell('الوزن', has('weight') && roll.weight_kg ? formatWeight(roll.weight_kg) : '—'),
-    infoCell('كود الخامة', has('fabric_code') && roll.fabric_code ? roll.fabric_code : '—'),
+    infoCell('الخامة كود', has('fabric_code') && roll.fabric_code ? roll.fabric_code : '—'),
     infoCell('العرض', roll.width_cm ? `${roll.width_cm} سم` : '—'),
-    infoCell('رقم اللوت', has('lot_no') && roll.lot_no ? roll.lot_no : '—'),
+    infoCell('اللوت رقم', has('lot_no') && roll.lot_no ? roll.lot_no : '—'),
   ];
 
   return [{
@@ -143,7 +145,6 @@ function buildOneLabelContent(
                 alignment: 'center' as const,
                 lineHeight: 0.95,
                 margin: [0, 4, 0, 0] as PdfMargin,
-                textDirection: 'rtl',
               },
             ],
             margin: [8, 6, 8, 6] as PdfMargin,
@@ -187,8 +188,8 @@ function buildOneLabelContent(
 function infoCell(label: string, value: string): PdfNode {
   return {
     stack: [
-      { text: label, fontSize: 8, color: '#000000', bold: false, alignment: 'center' as const, textDirection: 'rtl' },
-      { text: value, fontSize: 11, bold: true, color: '#000000', alignment: 'center' as const, margin: [0, 3, 0, 0] as PdfMargin, textDirection: 'rtl' },
+      { text: label, fontSize: 8, color: '#000000', bold: false, alignment: 'center' as const },
+      { text: value, fontSize: 11, bold: true, color: '#000000', alignment: 'center' as const, margin: [0, 3, 0, 0] as PdfMargin },
     ],
     margin: [5, 6, 5, 5] as PdfMargin,
   };
@@ -205,8 +206,8 @@ function emptySpanCell(): PdfNode {
 function valueBlock(label: string, value: string, valueSize: number): PdfNode {
   return {
     stack: [
-      { text: label, fontSize: 8.5, color: '#000000', bold: false, textDirection: 'rtl' },
-      { text: value, fontSize: valueSize, bold: true, color: '#000000', alignment: 'center' as const, margin: [0, 4, 0, 0] as PdfMargin, lineHeight: 1.05, textDirection: 'rtl' },
+      { text: label, fontSize: 8.5, color: '#000000', bold: false, alignment: 'center' as const },
+      { text: value, fontSize: valueSize, bold: true, color: '#000000', alignment: 'center' as const, margin: [0, 4, 0, 0] as PdfMargin, lineHeight: 1.05 },
     ],
     margin: [8, 9, 8, 8] as PdfMargin,
   };
