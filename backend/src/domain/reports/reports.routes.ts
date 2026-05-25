@@ -29,6 +29,11 @@ reportsRouter.get(
   requireRole('owner', 'shop_seller'),
   ctl.getGeneralReportJson,
 );
+reportsRouter.get(
+  '/general/export',
+  requireRole('owner', 'shop_seller'),
+  ctl.exportGeneralReport,
+);
 
 // ─── Daily report ────────────────────────────────────────────────────────────
 reportsRouter.get(

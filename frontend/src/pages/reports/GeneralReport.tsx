@@ -4,6 +4,8 @@ import {
   TrendingUp,
   ShoppingCart,
   FileText,
+  Download,
+  Printer,
   RefreshCw,
 } from 'lucide-react';
 import { reportsApi, type GeneralReport } from '@/lib/reports-api';
@@ -11,6 +13,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ar } from '@/i18n/ar';
 import { Skeleton } from '@/components/Skeleton';
 import { ReportTable } from './ReportShell';
 import { SecondaryReportChart } from './SecondaryReportChart';
@@ -200,16 +203,44 @@ export function GeneralReportPage() {
     setCommittedTo(to);
   }
 
+  const token = localStorage.getItem('ramex_token') ?? '';
+  const exportBase = `/api/reports/general/export?from=${committedFrom}&to=${committedTo}&token=${token}`;
+  const pdfUrl   = `${exportBase}&format=pdf`;
+  const excelUrl = `${exportBase}&format=excel`;
+  const printUrl = `${exportBase}&format=print`;
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       <PageHeader
         title="التقرير العام"
         description="ملخص أداء المبيعات والمخزون"
         backTo="/reports"
+        actions={
+          <span className="contents print:hidden">
+            <Button asChild variant="outline" size="sm">
+              <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="gap-1.5">
+                <FileText className="size-4" aria-hidden />
+                {ar.reports.exportPdf}
+              </a>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <a href={excelUrl} target="_blank" rel="noopener noreferrer" className="gap-1.5">
+                <Download className="size-4" aria-hidden />
+                {ar.reports.exportExcel}
+              </a>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <a href={printUrl} target="_blank" rel="noopener noreferrer" className="gap-1.5">
+                <Printer className="size-4" aria-hidden />
+                {ar.reports.print}
+              </a>
+            </Button>
+          </span>
+        }
       />
 
       {/* Filter bar */}
-      <div className="rounded-xl border border-border-subtle bg-surface-elevated p-4 shadow-sm flex flex-wrap items-end gap-4">
+      <div className="rounded-xl border border-border-subtle bg-surface-elevated p-4 shadow-sm flex flex-wrap items-end gap-4 print:hidden">
         <div className="space-y-1">
           <Label className="text-xs text-foreground-muted">من تاريخ</Label>
           <Input

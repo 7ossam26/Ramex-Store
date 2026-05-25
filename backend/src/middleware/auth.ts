@@ -7,12 +7,21 @@ declare module 'express-serve-static-core' {
 
 export const requireAuth: RequestHandler = (req, res, next) => {
   const h = req.headers.authorization;
-  if (!h?.startsWith('Bearer ')) {
+  let token: string | undefined;
+
+  if (h?.startsWith('Bearer ')) {
+    token = h.slice(7);
+  } else if (typeof req.query['token'] === 'string' && req.query['token']) {
+    // Fallback for export/print links opened in new tabs (can't set headers via <a>)
+    token = req.query['token'] as string;
+  }
+
+  if (!token) {
     res.status(401).json({ error: 'unauthorized' });
     return;
   }
   try {
-    req.user = verifyJwt(h.slice(7));
+    req.user = verifyJwt(token);
     next();
   } catch {
     res.status(401).json({ error: 'invalid token' });

@@ -1,6 +1,7 @@
 import { db } from '../../db/connection.js';
 import { cairoDayWindow, formatCairo } from '../../lib/datetime/cairo.js';
 import { toZonedTime } from 'date-fns-tz';
+import type { ReportPdfOptions } from '../../lib/reports/pdfExport.js';
 
 const CAIRO_TZ = 'Africa/Cairo';
 
@@ -143,5 +144,49 @@ export async function getGeneralReport(fromDate: string, toDate: string): Promis
     hourly_sales: hourlySales,
     sales_by_fabric: salesByFabric,
     store_rows: storeRows,
+  };
+}
+
+export function generalReportToExportSections(report: GeneralReport): ReportPdfOptions {
+  const { summary, store_rows, sales_by_fabric } = report;
+
+  return {
+    titleAr: 'التقرير العام',
+    subtitleAr: `من ${report.from} إلى ${report.to}`,
+    generatedAt: report.generated_at,
+    sections: [
+      {
+        titleAr: 'ملخص الأداء',
+        columns: [
+          { label: 'البيان', key: 'label', width: '*' },
+          { label: 'القيمة', key: 'value', width: 'auto' },
+        ],
+        rows: [
+          { label: 'إجمالي المبيعات (ج.م)', value: summary.total_sales_egp },
+          { label: 'صافي الربح التقريبي (ج.م)', value: summary.net_profit_egp },
+          { label: 'عدد الفواتير', value: String(summary.invoice_count) },
+        ],
+      },
+      {
+        titleAr: 'تفاصيل المبيعات',
+        columns: [
+          { label: 'الفرع', key: 'store_name_ar', width: '*' },
+          { label: 'المبيعات (ج.م)', key: 'total_sales_egp', width: 'auto' },
+          { label: 'عدد الفواتير', key: 'invoice_count', width: 'auto' },
+          { label: 'متوسط الفاتورة (ج.م)', key: 'avg_invoice_egp', width: 'auto' },
+        ],
+        rows: store_rows.map((r) => ({ ...r, invoice_count: String(r.invoice_count) })),
+        emptyAr: 'لا توجد مبيعات',
+      },
+      {
+        titleAr: 'توزيع المبيعات حسب الخامة',
+        columns: [
+          { label: 'الخامة', key: 'name', width: '*' },
+          { label: 'الإيراد (ج.م)', key: 'value', width: 'auto' },
+        ],
+        rows: sales_by_fabric.map((r) => ({ name: r.name, value: String(r.value.toFixed(2)) })),
+        emptyAr: 'لا توجد بيانات',
+      },
+    ],
   };
 }
