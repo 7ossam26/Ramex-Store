@@ -5,7 +5,6 @@ import {
   Palette,
   AlertOctagon,
   ShieldCheck,
-  ChevronLeft,
   Warehouse,
   Clock4,
   PackageSearch,
@@ -19,12 +18,13 @@ type ReportCard = {
   desc: string;
   href: string;
   icon: LucideIcon;
-  featured?: boolean;
+  spanFull?: boolean;
 };
 
 type Section = {
   heading: string;
   cards: ReportCard[];
+  gridClass?: string;
 };
 
 const sections: Section[] = [
@@ -36,12 +36,13 @@ const sections: Section[] = [
         desc: ar.hubs.reportsDailyDesc,
         href: '/reports/daily',
         icon: CalendarClock,
-        featured: true,
+        spanFull: true,
       },
     ],
   },
   {
     heading: ar.hubs.reportsInventorySection,
+    gridClass: 'grid grid-cols-2 gap-4',
     cards: [
       { label: ar.reports.stockByWarehouse, desc: ar.reports.stockByWarehouseDesc, href: '/reports/secondary/stockByWarehouse', icon: Warehouse },
       { label: ar.reports.agingInventory, desc: ar.reports.agingInventoryDesc, href: '/reports/secondary/agingInventory', icon: Clock4 },
@@ -52,13 +53,13 @@ const sections: Section[] = [
   {
     heading: ar.hubs.reportsSalesSection,
     cards: [
-      { label: ar.reports.salesByFabricColor, desc: ar.reports.salesByFabricColorDesc, href: '/reports/secondary/salesByFabricColor', icon: Palette },
+      { label: ar.reports.salesByFabricColor, desc: ar.reports.salesByFabricColorDesc, href: '/reports/secondary/salesByFabricColor', icon: Palette, spanFull: true },
     ],
   },
   {
     heading: ar.hubs.reportsSystemSection,
     cards: [
-      { label: ar.reports.auditLog, desc: ar.reports.auditLogDesc, href: '/reports/secondary/auditLog', icon: ShieldCheck },
+      { label: ar.reports.auditLog, desc: ar.reports.auditLogDesc, href: '/reports/secondary/auditLog', icon: ShieldCheck, spanFull: true },
     ],
   },
 ];
@@ -75,34 +76,21 @@ const cardVariants = {
 function ReportCardLink({ card }: { card: ReportCard }) {
   const Icon = card.icon;
   return (
-    <motion.div variants={cardVariants}>
+    <motion.div variants={cardVariants} className={`h-full${card.spanFull ? ' col-span-full' : ''}`}>
       <Link
         to={card.href}
-        className={[
-          'group flex items-start gap-4 rounded-xl border bg-surface-elevated p-5 shadow-sm',
-          'hover:shadow-md hover:-translate-y-0.5 transition-all duration-150 ease-decelerate',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-          card.featured
-            ? 'border-border-subtle border-s-4 border-s-accent'
-            : 'border-border-subtle',
-        ].join(' ')}
+        className="group flex flex-col items-center justify-center gap-4 rounded-xl border border-border-subtle bg-surface-elevated px-6 h-[220px] shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-150 ease-decelerate text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
         <span
-          className="size-11 shrink-0 rounded-lg bg-accent-subtle text-accent inline-flex items-center justify-center group-hover:bg-accent group-hover:text-accent-foreground transition-colors duration-150"
+          className="size-16 shrink-0 rounded-full bg-surface-hover text-foreground-muted inline-flex items-center justify-center group-hover:bg-accent-subtle group-hover:text-accent transition-colors duration-150"
           aria-hidden
         >
-          <Icon className="size-5" />
+          <Icon className="size-7" />
         </span>
-        <div className="flex-1 min-w-0">
-          <p className={['font-semibold text-foreground', card.featured ? 'text-lg' : 'text-base'].join(' ')}>
-            {card.label}
-          </p>
-          <p className="text-sm text-foreground-muted mt-0.5 leading-relaxed line-clamp-2">{card.desc}</p>
+        <div className="space-y-1.5">
+          <p className="text-xl font-semibold text-foreground">{card.label}</p>
+          <p className="text-sm text-foreground-muted leading-relaxed">{card.desc}</p>
         </div>
-        <ChevronLeft
-          className="size-5 text-foreground-tertiary shrink-0 mt-0.5 group-hover:text-accent transition-colors duration-150"
-          aria-hidden
-        />
       </Link>
     </motion.div>
   );
@@ -121,11 +109,7 @@ export function ReportsHubPage() {
             initial="hidden"
             animate="show"
             style={{ ['--section-delay' as string]: `${si * 0.05}s` }}
-            className={
-              section.cards.length === 1
-                ? 'grid grid-cols-1'
-                : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4'
-            }
+            className={section.gridClass ?? 'grid grid-cols-2 sm:grid-cols-3 gap-4'}
           >
             {section.cards.map((c) => (
               <ReportCardLink key={c.href} card={c} />

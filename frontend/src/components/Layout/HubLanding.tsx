@@ -28,7 +28,7 @@ function resolveGridCols(count: number): { cols: 1 | 2 | 3; gridCols: string } {
   if (count <= 1) return { cols: 1, gridCols: 'grid-cols-1' };
   if (count === 2) return { cols: 2, gridCols: 'grid-cols-1 sm:grid-cols-2' };
   if (count === 3) return { cols: 3, gridCols: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' };
-  if (count === 4) return { cols: 2, gridCols: 'grid-cols-1 sm:grid-cols-2' };
+  if (count === 4) return { cols: 3, gridCols: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' };
   if (count === 5) return { cols: 2, gridCols: 'grid-cols-1 sm:grid-cols-2' };
   if (count === 6) return { cols: 3, gridCols: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' };
   return             { cols: 3, gridCols: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' };
@@ -88,29 +88,23 @@ function StandardCard({ card }: { card: HubCard }) {
   return (
     <Link
       to={card.href}
-      className="group block rounded-lg border border-border-subtle bg-surface-elevated p-5 shadow-sm hover:shadow-md hover:border-border-default transition-all duration-150 ease-decelerate hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      className="group flex flex-col items-center justify-center gap-4 rounded-xl border border-border-subtle bg-surface-elevated px-6 h-[220px] shadow-sm hover:shadow-md hover:border-border-default transition-all duration-150 ease-decelerate hover:-translate-y-0.5 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
-      <div className="flex items-start gap-4">
-        {Icon && (
-          <span
-            className="size-11 shrink-0 rounded-md bg-accent-subtle text-accent inline-flex items-center justify-center group-hover:bg-accent group-hover:text-accent-foreground transition-colors duration-150"
-            aria-hidden
-          >
-            <Icon className="size-5" />
-          </span>
-        )}
-        <div className="flex-1 min-w-0">
-          <p className="text-base font-semibold text-foreground">{card.label}</p>
-          {card.description && (
-            <p className="text-sm text-foreground-muted mt-1 leading-relaxed line-clamp-2">
-              {card.description}
-            </p>
-          )}
-        </div>
-        <ChevronLeft
-          className="size-5 text-foreground-tertiary shrink-0 mt-0.5 group-hover:text-accent transition-colors duration-150"
+      {Icon && (
+        <span
+          className="size-16 shrink-0 rounded-full bg-surface-hover text-foreground-muted inline-flex items-center justify-center group-hover:bg-accent-subtle group-hover:text-accent transition-colors duration-150"
           aria-hidden
-        />
+        >
+          <Icon className="size-7" />
+        </span>
+      )}
+      <div className="space-y-1.5">
+        <p className="text-xl font-semibold text-foreground">{card.label}</p>
+        {card.description && (
+          <p className="text-sm text-foreground-muted leading-relaxed">
+            {card.description}
+          </p>
+        )}
       </div>
     </Link>
   );
