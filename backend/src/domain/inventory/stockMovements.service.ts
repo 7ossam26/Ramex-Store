@@ -18,6 +18,7 @@ export async function listStockMovements(
 
   if (filters.roll_id !== undefined) base.where('sm.roll_id', filters.roll_id);
   if (filters.event_type !== undefined) base.where('sm.event_type', filters.event_type);
+  if (filters.barcode !== undefined) base.whereILike('r.internal_barcode', `%${filters.barcode}%`);
   if (filters.reference_type !== undefined) base.where('sm.reference_type', filters.reference_type);
   if (filters.reference_id !== undefined) base.where('sm.reference_id', filters.reference_id);
   if (filters.from_date !== undefined) base.where('sm.created_at', '>=', filters.from_date);

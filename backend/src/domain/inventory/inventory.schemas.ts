@@ -109,6 +109,7 @@ export const StockMovementsQuerySchema = z.object({
     'adjustment', 'damage', 'loss_writeoff', 'sample_set',
     'return_in', 'sale_out', 'reserve', 'unreserve',
   ]).optional(),
+  barcode: z.string().max(64).optional(),
   reference_type: z.string().max(32).optional(),
   reference_id: z.coerce.number().int().positive().optional(),
   from_date: z.string().datetime().optional(),

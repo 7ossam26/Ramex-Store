@@ -1,13 +1,12 @@
-import { useState } from 'react';
-import { Printer } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Printer, ScanBarcode, X } from 'lucide-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { itemsApi } from '@/lib/items-api';
+import { inventoryApi } from '@/lib/inventory-api';
 import { openPdfBlob } from '@/lib/pdf';
 import type { RollWithDetails } from '@/lib/items-types';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -18,6 +17,7 @@ import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
 import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { RollStatusPill } from '@/components/items/RollStatusPill';
+import { cn } from '@/lib/utils';
 
 // ── Label card helpers ──────────────────────────────────────────────────────
 function LabelRow({ label, value }: { label: string; value: string | number | null | undefined }) {
@@ -58,9 +58,7 @@ function FabricLabelCard({ rollId }: { rollId: number }) {
       roll.width_cm);
 
   if (!hasLabelData) {
-    return (
-      <p className="text-sm text-foreground-muted py-2">{ar.labels.noLabelData}</p>
-    );
+    return <p className="text-sm text-foreground-muted py-2">{ar.labels.noLabelData}</p>;
   }
 
   function openLabel(format: 'thermal' | 'a4') {
@@ -70,34 +68,22 @@ function FabricLabelCard({ rollId }: { rollId: number }) {
 
   return (
     <div className="space-y-3">
-      {/* Label preview card */}
       <div className="rounded-md border border-border-subtle bg-surface-hover/40 p-3 space-y-2 text-sm">
-        {/* Brand header */}
         {roll!.brand_arabic_name && (
           <div className="font-bold text-base text-foreground">{roll!.brand_arabic_name}</div>
         )}
         {roll!.brand_arabic_name && roll!.brand_product_line && (
           <div className="text-foreground-muted text-xs -mt-1">{roll!.brand_product_line}</div>
         )}
-        {/* Supplier name */}
         {roll!.supplier_arabic_name && (
           <div className="text-foreground-muted text-xs">{roll!.supplier_arabic_name}</div>
         )}
-        {/* Field grid */}
         <div className="grid grid-cols-2 gap-x-3 gap-y-1 pt-1">
-          {roll!.supplier_order_no && (
-            <LabelRow label="أمر الشراء" value={roll!.supplier_order_no} />
-          )}
-          {roll!.top_number != null && (
-            <LabelRow label="رقم التوب" value={roll!.top_number} />
-          )}
+          {roll!.supplier_order_no && <LabelRow label="أمر الشراء" value={roll!.supplier_order_no} />}
+          {roll!.top_number != null && <LabelRow label="رقم التوب" value={roll!.top_number} />}
           <LabelRow label="الصنف" value={roll!.fabric_name_ar} />
-          {roll!.grade_arabic_name && (
-            <LabelRow label="الدرجة" value={roll!.grade_arabic_name} />
-          )}
-          {roll!.width_cm != null && (
-            <LabelRow label="العرض" value={`${roll!.width_cm} سم`} />
-          )}
+          {roll!.grade_arabic_name && <LabelRow label="الدرجة" value={roll!.grade_arabic_name} />}
+          {roll!.width_cm != null && <LabelRow label="العرض" value={`${roll!.width_cm} سم`} />}
           <LabelRow label="اللون" value={`${roll!.color_name_ar} / ${roll!.color_code}`} />
           {roll!.composition_description && (
             <div className="col-span-2">
@@ -105,22 +91,16 @@ function FabricLabelCard({ rollId }: { rollId: number }) {
             </div>
           )}
         </div>
-        {/* Roll SR + barcode */}
         {roll!.roll_sr_no && (
-          <div className="text-xs text-foreground-muted font-mono" dir="ltr">
-            SR: {roll!.roll_sr_no}
-          </div>
+          <div className="text-xs text-foreground-muted font-mono" dir="ltr">SR: {roll!.roll_sr_no}</div>
         )}
         <div className="text-xs font-mono text-foreground" dir="ltr">{roll!.internal_barcode}</div>
-        {/* Arabic warning text */}
         {roll!.supplier_arabic_warning_text && (
           <div className="text-xs text-foreground-muted border-t border-border-subtle pt-2 mt-2">
             {roll!.supplier_arabic_warning_text}
           </div>
         )}
       </div>
-
-      {/* Print menu */}
       <div className="relative">
         <Button
           variant="outline"
@@ -155,94 +135,217 @@ function fmtMoney(n: string | number) {
   return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// ── Barcode scanner input ────────────────────────────────────────────────────
+function BarcodeScanner({
+  value,
+  onChange,
+  onScan,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onScan: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [focused, setFocused] = useState(false);
+  const [flash, setFlash] = useState(false);
+
+  // Auto-focus on mount
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      setFlash(true);
+      setTimeout(() => setFlash(false), 400);
+      onScan();
+    }
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <label className="text-sm font-medium text-foreground">الباركود</label>
+      <div
+        className={cn(
+          'relative flex items-center rounded-lg border-2 bg-surface-elevated transition-all duration-150',
+          focused
+            ? 'border-[hsl(var(--rmx-success))] shadow-[0_0_0_3px_hsl(var(--rmx-success)/0.15)]'
+            : 'border-border-default',
+          flash && 'bg-[hsl(var(--rmx-success-subtle))]',
+        )}
+      >
+        {/* Scan icon + ready indicator */}
+        <div className="flex items-center gap-2 pr-4 pl-2 shrink-0">
+          <ScanBarcode
+            className={cn(
+              'size-5 transition-colors duration-150',
+              focused ? 'text-[hsl(var(--rmx-success))]' : 'text-foreground-muted',
+            )}
+          />
+          {/* Pulsing dot when focused */}
+          {focused && (
+            <span className="relative flex size-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[hsl(var(--rmx-success))] opacity-60" />
+              <span className="relative inline-flex rounded-full size-2 bg-[hsl(var(--rmx-success))]" />
+            </span>
+          )}
+        </div>
+
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder={focused ? 'جاهز للمسح… اضغط Enter للبحث' : 'امسح باركود التوب…'}
+          dir="ltr"
+          className="flex-1 bg-transparent py-3 text-base font-mono text-foreground placeholder:text-foreground-muted focus:outline-none"
+        />
+
+        {value && (
+          <button
+            type="button"
+            onClick={() => { onChange(''); onScan(); inputRef.current?.focus(); }}
+            className="flex items-center justify-center size-8 ml-2 rounded-md text-foreground-muted hover:text-foreground hover:bg-surface-hover transition-colors"
+          >
+            <X className="size-4" />
+          </button>
+        )}
+      </div>
+      <p className="text-xs text-foreground-muted">
+        {focused ? 'جاهز — امسح الباركود أو اكتبه ثم اضغط Enter' : 'انقر للتفعيل ثم امسح الباركود'}
+      </p>
+    </div>
+  );
+}
+
+// ── Main page ────────────────────────────────────────────────────────────────
 export function RollsPage() {
-  const [filters, setFilters] = useState({ fabric: '', color: '', rollSrNo: '', barcodePartial: '' });
-  const [applied, setApplied] = useState<typeof filters>({ fabric: '', color: '', rollSrNo: '', barcodePartial: '' });
+  const [barcode, setBarcode] = useState('');
+  const [fabricId, setFabricId] = useState('');
+  const [colorId, setColorId] = useState('');
+
+  // Applied state — dropdowns apply immediately, scanner applies on Enter
+  const [applied, setApplied] = useState({ barcode: '', fabricId: '', colorId: '' });
   const [detail, setDetail] = useState<RollWithDetails | null>(null);
+
+  const fabricsQ = useQuery({ queryKey: ['fabrics'], queryFn: inventoryApi.listFabrics });
+  const colorsQ  = useQuery({ queryKey: ['colors'],  queryFn: inventoryApi.listColors });
+
+  const fabrics = Array.isArray(fabricsQ.data) ? fabricsQ.data : [];
+  const colors  = Array.isArray(colorsQ.data)  ? colorsQ.data  : [];
+
+  const fabricName = fabrics.find((f) => String(f.id) === fabricId)?.name_ar ?? '';
+  const colorName  = colors.find((c)  => String(c.id) === colorId)?.name_ar  ?? '';
 
   const q = useQuery({
     queryKey: ['rolls-search', applied],
     queryFn: () =>
       itemsApi.searchRolls({
-        fabric: applied.fabric || undefined,
-        color: applied.color || undefined,
-        rollSrNo: applied.rollSrNo || undefined,
-        barcodePartial: applied.barcodePartial || undefined,
+        fabric:         fabricName  || undefined,
+        color:          colorName   || undefined,
+        barcodePartial: applied.barcode || undefined,
       }),
   });
 
   const rolls = q.data ?? [];
-  const activeFilters = Object.values(applied).filter((v) => v.trim()).length;
   const resetKey = JSON.stringify(applied);
+
+  const activeFilters = [applied.barcode, applied.fabricId, applied.colorId].filter(Boolean).length;
 
   const labelPdfMut = useMutation({
     mutationFn: (rollId: number) => itemsApi.labelPdfBlob(rollId),
     onSuccess: (blob) => openPdfBlob(blob),
   });
 
+  function applyBarcode() {
+    setApplied((a) => ({ ...a, barcode }));
+  }
+
+  function handleFabricChange(id: string) {
+    setFabricId(id);
+    setApplied((a) => ({ ...a, fabricId: id }));
+  }
+
+  function handleColorChange(id: string) {
+    setColorId(id);
+    setApplied((a) => ({ ...a, colorId: id }));
+  }
+
   const filterControls = (
-    <div className="rounded-lg border border-border-subtle bg-surface-elevated p-3 space-y-3">
+    <div className="rounded-lg border border-border-subtle bg-surface-elevated p-4 space-y-4">
       <h2 className="text-base font-semibold text-foreground">{ar.labels.rollsTitle}</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="space-y-1">
-          <Label className="text-sm font-medium text-foreground">{ar.labels.fabricFilter}</Label>
-          <Input
-            value={filters.fabric}
-            onChange={(e) => setFilters((f) => ({ ...f, fabric: e.target.value }))}
-            placeholder={ar.labels.fabricFilter}
-            dir="rtl"
-            className="h-11 md:h-10"
-          />
+
+      {/* Barcode scanner — primary action */}
+      <BarcodeScanner
+        value={barcode}
+        onChange={setBarcode}
+        onScan={applyBarcode}
+      />
+
+      {/* Dropdowns row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Fabric dropdown */}
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">{ar.labels.fabricFilter}</label>
+          <select
+            value={fabricId}
+            onChange={(e) => handleFabricChange(e.target.value)}
+            disabled={fabricsQ.isLoading}
+            className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 transition-colors"
+          >
+            <option value="">كل الخامات</option>
+            {fabrics.map((f) => (
+              <option key={f.id} value={String(f.id)}>{f.name_ar}</option>
+            ))}
+          </select>
         </div>
-        <div className="space-y-1">
-          <Label className="text-sm font-medium text-foreground">{ar.labels.colorFilter}</Label>
-          <Input
-            value={filters.color}
-            onChange={(e) => setFilters((f) => ({ ...f, color: e.target.value }))}
-            placeholder={ar.labels.colorFilter}
-            dir="rtl"
-            className="h-11 md:h-10"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-sm font-medium text-foreground">{ar.labels.rollSrNoFilter}</Label>
-          <Input
-            value={filters.rollSrNo}
-            onChange={(e) => setFilters((f) => ({ ...f, rollSrNo: e.target.value }))}
-            dir="ltr"
-            inputMode="text"
-            className="h-11 md:h-10"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-sm font-medium text-foreground">{ar.labels.barcodeFilter}</Label>
-          <Input
-            value={filters.barcodePartial}
-            onChange={(e) => setFilters((f) => ({ ...f, barcodePartial: e.target.value }))}
-            dir="ltr"
-            inputMode="text"
-            className="h-11 md:h-10"
-          />
-        </div>
-      </div>
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <Button onClick={() => setApplied({ ...filters })} disabled={q.isFetching} className="h-11 md:h-10 w-full md:w-auto">
-          {q.isFetching ? ar.loading : ar.labels.search}
-        </Button>
-        <div className="text-sm text-foreground-muted">
-          {ar.labels.results}: <span className="tabular-num text-foreground" dir="ltr">{rolls.length}</span>
+
+        {/* Color dropdown */}
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">{ar.labels.colorFilter}</label>
+          <select
+            value={colorId}
+            onChange={(e) => handleColorChange(e.target.value)}
+            disabled={colorsQ.isLoading}
+            className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 transition-colors"
+          >
+            <option value="">كل الألوان</option>
+            {colors.map((c) => (
+              <option key={c.id} value={String(c.id)}>{c.name_ar}</option>
+            ))}
+          </select>
         </div>
       </div>
+
+      {/* Footer: results count + clear */}
+      {(activeFilters > 0 || rolls.length > 0) && (
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <span className="text-sm text-foreground-muted">
+            {ar.labels.results}:{' '}
+            <span className="tabular-num font-medium text-foreground">{rolls.length}</span>
+          </span>
+          {activeFilters > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setBarcode(''); setFabricId(''); setColorId('');
+                setApplied({ barcode: '', fabricId: '', colorId: '' });
+              }}
+              className="text-xs text-foreground-muted hover:text-foreground underline underline-offset-2 transition-colors"
+            >
+              مسح الفلاتر
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 
   const columns: Column<RollWithDetails>[] = [
-    {
-      key: 'sr_no',
-      header: ar.labels.rollSrNoFilter,
-      cell: (r) => <span className="font-mono text-sm text-foreground">{r.roll_sr_no ?? '—'}</span>,
-      secondary: true,
-    },
     {
       key: 'fabric',
       header: ar.labels.fabricFilter,
@@ -277,28 +380,28 @@ export function RollsPage() {
       <MobileFilterSheet activeCount={activeFilters}>{filterControls}</MobileFilterSheet>
 
       <SectionCard noPadding>
-      <ResponsiveTable
-        columns={columns}
-        rows={rolls}
-        rowKey={(r) => String(r.id)}
-        onRowClick={(r) => setDetail(r)}
-        empty={ar.common.none}
-        isLoading={q.isLoading}
-        isError={q.isError}
-        onRetry={() => q.refetch()}
-        resetKey={resetKey}
-        actions={(r) => (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={labelPdfMut.isPending && labelPdfMut.variables === r.id}
-            onClick={(e) => { e.stopPropagation(); labelPdfMut.mutate(r.id); }}
-            aria-label={ar.labels.print}
-          >
-            <Printer className="size-4" aria-hidden />
-          </Button>
-        )}
-      />
+        <ResponsiveTable
+          columns={columns}
+          rows={rolls}
+          rowKey={(r) => String(r.id)}
+          onRowClick={(r) => setDetail(r)}
+          empty={ar.common.none}
+          isLoading={q.isLoading}
+          isError={q.isError}
+          onRetry={() => q.refetch()}
+          resetKey={resetKey}
+          actions={(r) => (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={labelPdfMut.isPending && labelPdfMut.variables === r.id}
+              onClick={(e) => { e.stopPropagation(); labelPdfMut.mutate(r.id); }}
+              aria-label={ar.labels.print}
+            >
+              <Printer className="size-4" aria-hidden />
+            </Button>
+          )}
+        />
       </SectionCard>
 
       {/* Roll detail drawer */}
@@ -317,10 +420,6 @@ export function RollsPage() {
                 <div>
                   <span className="text-foreground-muted">{ar.labels.colorFilter}: </span>
                   <span className="font-medium text-foreground">{detail.color_name_ar}</span>
-                </div>
-                <div>
-                  <span className="text-foreground-muted">{ar.labels.rollSrNoFilter}: </span>
-                  <span className="font-mono text-foreground">{detail.roll_sr_no ?? '—'}</span>
                 </div>
                 <div>
                   <span className="text-foreground-muted">{ar.labels.weight}: </span>
@@ -354,8 +453,6 @@ export function RollsPage() {
                   {ar.labels.printLabel}
                 </Button>
               </div>
-
-              {/* Fabric label section */}
               <div className="pt-2 border-t border-border-subtle space-y-2">
                 <p className="font-semibold text-sm text-foreground">{ar.labels.fabricLabelSection}</p>
                 <FabricLabelCard rollId={detail.id} />
