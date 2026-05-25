@@ -25,9 +25,15 @@ function rollLabelQuery() {
     .join('fabrics as f', 'r.fabric_id', 'f.id')
     .join('colors as c', 'r.color_id', 'c.id')
     .leftJoin('lots as l', 'r.lot_id', 'l.id')
-    .leftJoin('fabric_grades as g', 'r.grade_id', 'g.id')
-    .leftJoin('compositions as comp', 'r.composition_id', 'comp.id')
-    .leftJoin('brands as br', 'r.brand_id', 'br.id')
+    .leftJoin('fabric_grades as g', function () {
+      this.on('g.id', '=', db.raw('COALESCE(r.grade_id, f.default_grade_id)'));
+    })
+    .leftJoin('compositions as comp', function () {
+      this.on('comp.id', '=', db.raw('COALESCE(r.composition_id, f.default_composition_id)'));
+    })
+    .leftJoin('brands as br', function () {
+      this.on('br.id', '=', db.raw('COALESCE(r.brand_id, f.default_brand_id)'));
+    })
     .leftJoin('suppliers as sup', 'br.supplier_id', 'sup.id')
     .select(
       'r.*',
