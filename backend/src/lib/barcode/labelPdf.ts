@@ -119,23 +119,22 @@ function buildOneLabelContent(
   const fabricDisplay = fabricName || 'توب قماش';
   const colorDisplay = [colorName, colorCode].filter(Boolean).join(' / ');
 
-  const specCells: PdfNode[] = [];
-  if (has('roll_sr_no') && roll.roll_sr_no) specCells.push(infoCell('كود التوب', roll.roll_sr_no));
-  if (has('weight') && roll.weight_kg) specCells.push(infoCell('الوزن', formatWeight(roll.weight_kg)));
-  if (has('fabric_code') && roll.fabric_code) specCells.push(infoCell('كود الخامة', roll.fabric_code));
-  if (has('lot_no') && roll.lot_no) specCells.push(infoCell('رقم اللوت', roll.lot_no));
-  if (roll.width_cm) specCells.push(infoCell('العرض', `${roll.width_cm} سم`));
-  while (specCells.length < 5) specCells.push(emptyInfoCell());
+  const specCells: PdfNode[] = [
+    has('weight') && roll.weight_kg ? infoCell('الوزن', formatWeight(roll.weight_kg)) : emptyInfoCell(),
+    has('fabric_code') && roll.fabric_code ? infoCell('كود الخامة', roll.fabric_code) : emptyInfoCell(),
+    roll.width_cm ? infoCell('العرض', `${roll.width_cm} سم`) : emptyInfoCell(),
+    has('lot_no') && roll.lot_no ? infoCell('رقم اللوت', roll.lot_no) : emptyInfoCell(),
+  ];
 
   return [{
     table: {
-      widths: [53.6, 53.6, 53.6, 53.6, 53.6],
+      widths: [67, 67, 67, 67],
       heights: [40, 40, 55, 45, 125],
       dontBreakRows: true,
       body: [
         [
           {
-            colSpan: 5,
+            colSpan: 4,
             stack: [
               {
                 text: has('logo') ? 'رامكس' : '',
@@ -152,12 +151,10 @@ function buildOneLabelContent(
           emptySpanCell(),
           emptySpanCell(),
           emptySpanCell(),
-          emptySpanCell(),
         ],
-        specCells.slice(0, 5),
+        specCells,
         [
-          { ...valueBlock('الخامة', fabricDisplay, 14), colSpan: 3 },
-          emptySpanCell(),
+          { ...valueBlock('الخامة', fabricDisplay, 14), colSpan: 2 },
           emptySpanCell(),
           { ...valueBlock('اللون', colorDisplay || '—', 12), colSpan: 2 },
           emptySpanCell(),
@@ -165,9 +162,8 @@ function buildOneLabelContent(
         [
           {
             ...valueBlock('التركيب', roll.composition_description ?? '—', 10.5),
-            colSpan: 5,
+            colSpan: 4,
           },
-          emptySpanCell(),
           emptySpanCell(),
           emptySpanCell(),
           emptySpanCell(),
@@ -175,9 +171,8 @@ function buildOneLabelContent(
         [
           {
             ...barcodeBlock(imageKey, roll.internal_barcode),
-            colSpan: 5,
+            colSpan: 4,
           },
-          emptySpanCell(),
           emptySpanCell(),
           emptySpanCell(),
           emptySpanCell(),
