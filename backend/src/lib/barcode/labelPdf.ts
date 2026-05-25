@@ -10,7 +10,7 @@ const DEFAULT_LABEL_HEIGHT_MM = 150;
 const DEFAULT_LABEL_SIZE = `${DEFAULT_LABEL_WIDTH_MM}x${DEFAULT_LABEL_HEIGHT_MM}mm`;
 const DEFAULT_LABEL_WIDTH = DEFAULT_LABEL_WIDTH_MM * MM_TO_PT;
 const DEFAULT_LABEL_HEIGHT = DEFAULT_LABEL_HEIGHT_MM * MM_TO_PT;
-const PAGE_MARGIN = 16;
+const PAGE_MARGIN = 8;
 const BARCODE_FIT: [number, number] = [235, 75];
 const LEGACY_COMPACT_LABEL_SIZE = '50x30mm';
 
@@ -128,8 +128,8 @@ function buildOneLabelContent(
 
   return [{
     table: {
-      widths: ['*', '*', '*', '*'],
-      heights: [70, 40, 55, 45, 125],
+      widths: [67, 67, 67, 67],
+      heights: [40, 40, 55, 45, 125],
       dontBreakRows: true,
       body: [
         [
