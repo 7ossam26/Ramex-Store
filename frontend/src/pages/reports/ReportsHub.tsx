@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
+  LayoutDashboard,
   CalendarClock,
   Palette,
-  AlertOctagon,
   ShieldCheck,
   Warehouse,
   Clock4,
@@ -32,6 +32,13 @@ const sections: Section[] = [
     heading: 'الرئيسية',
     cards: [
       {
+        label: ar.reports.general,
+        desc: ar.reports.generalDesc,
+        href: '/reports/general',
+        icon: LayoutDashboard,
+        spanFull: true,
+      },
+      {
         label: ar.reports.daily,
         desc: ar.hubs.reportsDailyDesc,
         href: '/reports/daily',
@@ -42,12 +49,10 @@ const sections: Section[] = [
   },
   {
     heading: ar.hubs.reportsInventorySection,
-    gridClass: 'grid grid-cols-2 gap-4',
     cards: [
       { label: ar.reports.stockByWarehouse, desc: ar.reports.stockByWarehouseDesc, href: '/reports/secondary/stockByWarehouse', icon: Warehouse },
       { label: ar.reports.agingInventory, desc: ar.reports.agingInventoryDesc, href: '/reports/secondary/agingInventory', icon: Clock4 },
       { label: ar.reports.shipmentsSummary, desc: ar.reports.shipmentsSummaryDesc, href: '/reports/secondary/shipmentsSummary', icon: PackageSearch },
-      { label: ar.reports.damageLoss, desc: ar.reports.damageLossDesc, href: '/reports/secondary/damageLoss', icon: AlertOctagon },
     ],
   },
   {

@@ -286,46 +286,6 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
       },
     },
   },
-  damageLoss: {
-    titleAr: ar.reports.damageLoss,
-    needsDateRange: true,
-    columns: [
-      { label: 'التاريخ', key: 'created_at' },
-      { label: 'السبب', key: 'reason_code' },
-      { label: 'التصرف', key: 'disposition' },
-      { label: 'الخامة', key: 'fabric_name_ar' },
-      { label: 'اللون', key: 'color_name_ar' },
-      { label: 'الوزن (كجم)', key: 'weight_kg' },
-      { label: 'التقييم (ج.م)', key: 'valuation_egp' },
-      { label: 'ملاحظات', key: 'notes_ar' },
-    ],
-    flatten: (d) => {
-      const res = d as { rows: Record<string, unknown>[] };
-      return res.rows.map((r) => ({
-        ...(r as Record<string, string | number>),
-        valuation_egp: fmt((r as Record<string, unknown>)['valuation_egp'] as string),
-        roll_sr_no: String((r as Record<string, unknown>)['roll_sr_no'] ?? ''),
-        notes_ar: String((r as Record<string, unknown>)['notes_ar'] ?? ''),
-      }));
-    },
-    chart: {
-      type: 'bar',
-      title: 'القيمة المالية حسب السبب',
-      seriesLabel: 'التقييم',
-      isCurrency: true,
-      derive: (raw) => {
-        const res = raw as { rows: Array<{ reason_code: string; valuation_egp: string }> };
-        const byReason = new Map<string, number>();
-        for (const r of res.rows) {
-          byReason.set(r.reason_code, (byReason.get(r.reason_code) ?? 0) + Number(r.valuation_egp));
-        }
-        return Array.from(byReason.entries()).map(([name, value]) => ({
-          name: truncate(name, 18),
-          value,
-        }));
-      },
-    },
-  },
   salesByPaymentMethod: {
     titleAr: ar.reports.salesByPaymentMethod,
     needsDateRange: true,

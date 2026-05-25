@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   ArrowLeftRight,
   BarChart3,
+  LayoutDashboard,
   Banknote,
   Calculator,
   CalendarDays,
@@ -348,6 +349,14 @@ export const NAV: NavTop[] = [
       {
         items: [
           {
+            id: 'reports.general',
+            labelAr: 'التقرير العام',
+            descAr: 'ملخص أداء المبيعات والمخزون',
+            icon: LayoutDashboard,
+            route: '/reports/general',
+            permission: 'reports.daily',
+          },
+          {
             id: 'reports.daily',
             labelAr: 'التقرير اليومي',
             descAr: 'ملخص اليوم: مبيعات وخصومات وحركات الخزنة',
@@ -388,13 +397,6 @@ export const NAV: NavTop[] = [
             icon: Truck,
             route: '/reports/secondary/shipmentsSummary',
             permission: 'shipments',
-          },
-          {
-            id: 'reports.damageLoss',
-            labelAr: 'التلف والفقد',
-            icon: AlertTriangle,
-            route: '/reports/secondary/damageLoss',
-            permission: 'reports.damageLoss',
           },
         ],
       },
