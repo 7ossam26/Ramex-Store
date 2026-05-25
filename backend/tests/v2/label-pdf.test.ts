@@ -123,7 +123,7 @@ describe('v2 - modern barcode label PDF', () => {
     const barcodeImages = collectNodes(definition.content, (node) => node.image === 'barcodeImg');
     expect(barcodeImages).toHaveLength(1);
     expect(barcodeImages[0]).toMatchObject({
-      fit: [235, 75],
+      fit: [240, 95],
     });
 
     const text = collectText(definition.content).join(' ');
