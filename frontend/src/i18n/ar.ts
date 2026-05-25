@@ -403,6 +403,7 @@ export const ar = {
     total: 'الإجمالي',
     paid: 'المدفوع',
     balance: 'الباقي',
+    change: 'الباقي للعميل',
     sumMustEqualTotal: 'مجموع الدفعات يجب أن يساوي الإجمالي',
     depositBelowMin: 'العربون أقل من الحد الأدنى',
     notes: 'ملاحظات',

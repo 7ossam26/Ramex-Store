@@ -417,7 +417,7 @@ export function POSPage() {
   const { data: customerResults = { rows: [] as Customer[], total: 0 } } = useQuery({
     queryKey: ['customers-pick', customerSearch],
     queryFn: () => customersApi.list({ search: customerSearch || undefined, limit: 20 }),
-    enabled: pickerOpen,
+    enabled: pickerOpen || (paymentSheetOpen && customerSearch.length > 0),
   });
 
   const total = preview?.total_egp ?? subtotal;
@@ -434,6 +434,17 @@ export function POSPage() {
   const submit = useMutation({
     mutationFn: () => {
       if (!customer) throw new Error('NO_CUSTOMER');
+      // Cap payments at total so backend never sees an overpayment.
+      // For split mode, excess is absorbed from cash first.
+      const changeAmt = Math.max(0, paymentSum - total);
+      const cappedCash =
+        paymentMode === 'split'
+          ? Math.max(0, cashNum - changeAmt)
+          : Math.min(cashNum, total);
+      const cappedInsta =
+        paymentMode === 'split'
+          ? Math.min(instaNum, total - cappedCash)
+          : Math.min(instaNum, total);
       const payments: Array<{
         method: 'cash' | 'instapay' | 'bank_transfer' | 'cheque';
         amount: number;
@@ -442,21 +453,21 @@ export function POSPage() {
         chequeDetails?: ChequeDetails | null;
       }> = [];
       if (paymentMode === 'cash' || paymentMode === 'split') {
-        if (cashNum > 0) payments.push({ method: 'cash', amount: cashNum });
+        if (cappedCash > 0) payments.push({ method: 'cash', amount: cappedCash });
       }
       if (paymentMode === 'instapay' || paymentMode === 'split') {
-        if (instaNum > 0) {
-          payments.push({ method: 'instapay', amount: instaNum, bankAccountId: bankAccountId || null });
+        if (cappedInsta > 0) {
+          payments.push({ method: 'instapay', amount: cappedInsta, bankAccountId: bankAccountId || null });
         }
       }
       if (paymentMode === 'bank_transfer') {
-        if (instaNum > 0) {
-          payments.push({ method: 'bank_transfer', amount: instaNum, bankAccountId: bankAccountId || null, reference: reference || null });
+        if (cappedInsta > 0) {
+          payments.push({ method: 'bank_transfer', amount: cappedInsta, bankAccountId: bankAccountId || null, reference: reference || null });
         }
       }
       if (paymentMode === 'cheque') {
-        if (cashNum > 0) {
-          payments.push({ method: 'cheque', amount: cashNum, chequeDetails: chequeStateToDetails(chequeState) });
+        if (cappedCash > 0) {
+          payments.push({ method: 'cheque', amount: cappedCash, chequeDetails: chequeStateToDetails(chequeState) });
         }
       }
       return salesApi.create({
@@ -485,14 +496,18 @@ export function POSPage() {
     },
   });
 
-  const validation = (() => {
+  // Gates the Pay button — only requires a non-empty cart.
+  const openValidation = cart.length === 0 ? ar.pos.cartEmpty : null;
+
+  // Gates the Submit button inside the payment dialog — full check.
+  const submitValidation = (() => {
     if (cart.length === 0) return ar.pos.cartEmpty;
     if (!customer) return ar.pos.customerRequired;
     // v2 Phase 5: every cart line must carry a per-unit final price.
     if (cart.some((l) => effectivePerUnit(l) <= 0)) return ar.pos.finalPriceRequired;
     if (paymentSum <= 0) return ar.pos.payment;
     if (saveAsOpen) return null;
-    if (Math.abs(paymentSum - total) > 0.01) return ar.pos.sumMustEqualTotal;
+    if (paymentSum < total - 0.01) return ar.pos.sumMustEqualTotal; // allow overpayment
     return null;
   })();
 
@@ -665,7 +680,7 @@ export function POSPage() {
             flashRowId={flashRowId}
             onShowLabel={setLabelRoll}
             onPay={() => setPaymentSheetOpen(true)}
-            disabled={cart.length === 0}
+            disabled={!!openValidation}
             destination={destination}
             onChangeDestination={requestDestinationChange}
             customer={customer}
@@ -694,7 +709,7 @@ export function POSPage() {
                 setCartSheetOpen(false);
                 setPaymentSheetOpen(true);
               }}
-              disabled={cart.length === 0}
+              disabled={!!openValidation}
               embedded
               destination={destination}
               onChangeDestination={requestDestinationChange}
@@ -738,11 +753,18 @@ export function POSPage() {
               setNotesAr={setNotesAr}
               preview={preview}
               paymentSum={paymentSum}
-              validation={validation}
+              validation={submitValidation}
               submitError={submitError}
               submitting={submit.isPending}
               onSubmit={() => submit.mutate()}
               total={total}
+              customer={customer}
+              customerSearch={customerSearch}
+              setCustomerSearch={setCustomerSearch}
+              customerResults={customerResults}
+              onPickCustomer={(c: Customer) => { setCustomer(c); setCustomerSearch(''); }}
+              onQuickCustomer={() => setQuickOpen(true)}
+              onClearCustomer={() => setCustomer(null)}
             />
           </div>
         </DialogContent>
@@ -767,7 +789,7 @@ export function POSPage() {
           <Button
             size="lg"
             className="h-12 flex-1 cursor-pointer"
-            disabled={cart.length === 0}
+            disabled={!!openValidation}
             onClick={() => setPaymentSheetOpen(true)}
           >
             {ar.pos.payment}
@@ -818,6 +840,7 @@ export function POSPage() {
         onOpenChange={setQuickOpen}
         onCreated={(c) => {
           setCustomer(c);
+          setCustomerSearch('');
           setQuickOpen(false);
         }}
       />
@@ -1608,6 +1631,13 @@ function PaymentForm({
   onSubmit,
   total,
   compact = false,
+  customer,
+  customerSearch,
+  setCustomerSearch,
+  customerResults,
+  onPickCustomer,
+  onQuickCustomer,
+  onClearCustomer,
 }: {
   banks: BankAccount[];
   paymentMode: PaymentMode;
@@ -1634,6 +1664,13 @@ function PaymentForm({
   onSubmit: () => void;
   total: number;
   compact?: boolean;
+  customer?: Customer | null;
+  customerSearch?: string;
+  setCustomerSearch?: (s: string) => void;
+  customerResults?: { rows: Customer[]; total: number };
+  onPickCustomer?: (c: Customer) => void;
+  onQuickCustomer?: () => void;
+  onClearCustomer?: () => void;
 }) {
   const ALL_TILES: { value: PaymentMode; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
     { value: 'cash', label: ar.pos.cash, Icon: Banknote },
@@ -1645,6 +1682,70 @@ function PaymentForm({
 
   return (
     <div className={compact ? 'space-y-4' : 'space-y-4 max-w-2xl mx-auto'}>
+      {/* Inline customer selection — shown when props provided (payment dialog, not compact invoice form) */}
+      {onPickCustomer !== undefined && (
+        <div className="space-y-2">
+          <Label>{ar.pos.customer}</Label>
+          {customer ? (
+            <div className="flex items-center gap-2 rounded-md border border-border-default bg-surface-elevated px-3 py-2 min-h-11">
+              <UserRound className="size-4 text-foreground-muted shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm text-foreground truncate">{customer.name_ar}</p>
+                <p className="text-xs font-mono text-foreground-tertiary" dir="ltr">{customer.phone}</p>
+              </div>
+              <button
+                type="button"
+                onClick={onClearCustomer}
+                className="shrink-0 rounded p-1 hover:bg-surface-hover text-foreground-muted"
+                aria-label="إزالة العميل"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <div className="flex gap-1">
+                <Input
+                  placeholder={ar.customers.search}
+                  value={customerSearch ?? ''}
+                  onChange={(e) => setCustomerSearch?.(e.target.value)}
+                  dir="rtl"
+                  className="h-11 flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onQuickCustomer}
+                  className="h-11 shrink-0 gap-1 px-3"
+                  title={ar.pos.quickCustomer}
+                >
+                  <UserRound className="size-4" />
+                  <span className="text-sm">+</span>
+                </Button>
+              </div>
+              {(customerSearch ?? '').length > 0 && (customerResults?.rows ?? []).length > 0 && (
+                <div className="border border-border-subtle rounded-md max-h-48 overflow-y-auto">
+                  {(customerResults?.rows ?? []).map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => onPickCustomer(c)}
+                      className="w-full text-start px-3 py-2 hover:bg-surface-hover border-b border-border-subtle last:border-0 min-h-11"
+                    >
+                      <p className="font-medium text-sm text-foreground">{c.name_ar}</p>
+                      <p className="text-xs font-mono text-foreground-tertiary" dir="ltr">{c.phone}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {(customerSearch ?? '').length > 0 && (customerResults?.rows ?? []).length === 0 && (
+                <p className="text-sm text-foreground-tertiary px-1 py-1">{ar.customers.empty}</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Payment method selector */}
       {compact ? (
         /* Inline panel: 5 methods in a clean 2-col grid */
@@ -1774,7 +1875,11 @@ function PaymentForm({
           {preview.rounding_egp !== 0 && <Row label={ar.pos.rounding} value={fmtMoney(preview.rounding_egp)} />}
           <Row label={ar.pos.total} value={fmtMoney(preview.total_egp)} size="lg" />
           <Row label={ar.pos.paid} value={fmtMoney(paymentSum)} />
-          <Row label={ar.pos.balance} value={fmtMoney(Math.max(0, total - paymentSum))} />
+          {paymentSum > total + 0.01 ? (
+            <Row label={ar.pos.change} value={fmtMoney(paymentSum - total)} tone="warning" />
+          ) : (
+            <Row label={ar.pos.balance} value={fmtMoney(Math.max(0, total - paymentSum))} />
+          )}
         </div>
       )}
 
@@ -2629,10 +2734,12 @@ function Row({
   label: string;
   value: string;
   size?: 'sm' | 'lg';
-  tone?: 'success';
+  tone?: 'success' | 'warning';
 }) {
   const bold = size === 'lg';
-  const toneCls = tone === 'success' ? 'text-success-foreground' : '';
+  const toneCls =
+    tone === 'success' ? 'text-success-foreground' :
+    tone === 'warning' ? 'text-amber-600 dark:text-amber-400' : '';
   return (
     <div
       className={`flex justify-between ${
