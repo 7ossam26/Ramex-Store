@@ -21,7 +21,7 @@ export function Rail() {
     >
       <Link
         to="/"
-        className="size-10 rounded-md flex items-center justify-center mb-3 text-chrome-text hover:bg-chrome-elevated transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-chrome"
+        className="size-11 rounded-md flex items-center justify-center mb-3 text-chrome-text hover:bg-chrome-elevated transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-chrome"
         aria-label="الرئيسية"
       >
         <img

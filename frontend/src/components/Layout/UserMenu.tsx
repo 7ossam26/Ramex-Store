@@ -12,7 +12,7 @@ export function UserMenu() {
   const { user, logout } = useAuth();
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="size-9 rounded-full bg-primary/10 inline-flex items-center justify-center text-primary">
+      <DropdownMenuTrigger className="size-10 md:size-9 rounded-full bg-primary/10 inline-flex items-center justify-center text-primary">
         <User className="size-5" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

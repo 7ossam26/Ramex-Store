@@ -691,7 +691,7 @@ export function POSPage() {
 
       {/* Cart sheet (sm/md): right slide-in */}
       <Sheet open={cartSheetOpen} onOpenChange={setCartSheetOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-md">
+        <SheetContent side="right" className="w-full sm:max-w-md pb-[max(env(safe-area-inset-bottom),1rem)]">
           <SheetHeader>
             <SheetTitle>{ar.pos.cart}</SheetTitle>
           </SheetHeader>
@@ -770,17 +770,19 @@ export function POSPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Mobile sticky bottom bar — cart count + pay */}
+      {/* Mobile sticky bottom bar — cart count + pay. Stacks to two rows on narrow phones. */}
       {cart.length > 0 && (
-        <div className="lg:hidden fixed bottom-0 inset-x-0 z-sticky bg-surface/95 backdrop-blur border-t border-border-subtle px-3 py-2 flex items-center gap-3 pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-lg">
+        <div className="lg:hidden fixed bottom-0 inset-x-0 z-sticky bg-surface/95 backdrop-blur border-t border-border-subtle px-3 py-2 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-lg">
           <button
             onClick={() => setCartSheetOpen(true)}
-            className="flex items-center gap-2 cursor-pointer min-h-11 px-2 text-foreground"
+            className="flex items-center justify-between sm:justify-start gap-2 cursor-pointer min-h-11 px-2 text-foreground w-full sm:w-auto"
             aria-label={ar.pos.cart}
           >
-            <ShoppingCart className="size-5" />
-            <span className="font-medium text-sm">
-              {cart.length} · {ar.pos.subtotal}
+            <span className="flex items-center gap-2">
+              <ShoppingCart className="size-5" />
+              <span className="font-medium text-sm">
+                {cart.length} · {ar.pos.subtotal}
+              </span>
             </span>
             <span className="font-semibold text-base tabular-num" dir="ltr">
               {fmtMoney(preview?.total_egp ?? subtotal)}
@@ -788,7 +790,7 @@ export function POSPage() {
           </button>
           <Button
             size="lg"
-            className="h-12 flex-1 cursor-pointer"
+            className="h-12 w-full sm:flex-1 cursor-pointer"
             disabled={!!openValidation}
             onClick={() => setPaymentSheetOpen(true)}
           >
@@ -1016,15 +1018,15 @@ function TopBar({
 
       {/* Discount inline */}
       <div className="flex items-center gap-2 rounded-md border border-border-default bg-surface-elevated px-3 py-1 min-h-11">
-        <Tag className="size-4 text-foreground-muted" />
-        <span className="text-xs text-foreground-muted">{ar.pos.targetFinal}</span>
+        <Tag className="size-4 text-foreground-muted shrink-0" />
+        <span className="text-xs text-foreground-muted shrink-0">{ar.pos.targetFinal}</span>
         <Input
           value={targetFinalRaw}
           onChange={(e) => setTargetFinalRaw(e.target.value)}
           placeholder={fmtMoney(subtotalForPlaceholder)}
           dir="ltr"
           inputMode="decimal"
-          className="h-8 w-28 text-sm border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-1 tabular-num"
+          className="h-8 w-24 sm:w-28 text-base sm:text-sm border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-1 tabular-num"
         />
       </div>
 
