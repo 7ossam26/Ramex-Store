@@ -930,9 +930,9 @@ export function AddTopPage() {
           <p className="text-sm font-semibold text-foreground-muted uppercase tracking-wide">الخامات المستخدمة</p>
           <div className="flex flex-wrap gap-2">
             {groups
-              .filter((g) => g.fabricId)
-              .map((g) => {
-                const f = fabricsFull.find((x) => x.id === g.fabricId)!;
+              .map((g) => ({ g, f: fabricsFull.find((x) => x.id === g.fabricId) }))
+              .filter((entry): entry is { g: typeof entry.g; f: NonNullable<typeof entry.f> } => Boolean(entry.f))
+              .map(({ g, f }) => {
                 const rollCount = g.rows.length;
                 return (
                   <span

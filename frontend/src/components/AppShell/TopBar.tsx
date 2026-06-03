@@ -97,7 +97,7 @@ export function TopBar({ onOpenCommandPalette, onOpenMobileDrawer }: Props) {
         </>
       )}
 
-      <div className="flex-1" />
+      <div className="hidden md:block flex-1" />
 
       {/* RTL trailing edge (left) */}
       <button
