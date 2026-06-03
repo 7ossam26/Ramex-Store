@@ -11,10 +11,10 @@ shiftsRouter.use(requireAuth, requireActiveSession);
 shiftsRouter.get('/current', ctl.getCurrentShift);
 
 // Open a new shift (seller or owner)
-shiftsRouter.post('/open', requireRole('owner', 'shop_seller'), ctl.openShift);
+shiftsRouter.post('/open', requireRole('owner', 'shop_seller', 'super_admin'), ctl.openShift);
 
 // Close the current shift (seller or owner)
-shiftsRouter.post('/close', requireRole('owner', 'shop_seller'), ctl.closeShift);
+shiftsRouter.post('/close', requireRole('owner', 'shop_seller', 'super_admin'), ctl.closeShift);
 
 // List past shifts (owner or seller with read access)
 shiftsRouter.get('/', ctl.listShifts);

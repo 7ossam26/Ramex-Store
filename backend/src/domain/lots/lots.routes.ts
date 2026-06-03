@@ -11,5 +11,5 @@ lotsRouter.use(requireAuth, requireActiveSession);
 // Read endpoints open to any authenticated user (inventory grid uses them).
 lotsRouter.get('/lots', lotsCtl.listLots);
 lotsRouter.get('/lots/:id', lotsCtl.getLot);
-lotsRouter.post('/lots', requireRole('owner', 'factory_sender'), lotsCtl.createLot);
-lotsRouter.patch('/lots/:id', requireRole('owner', 'factory_sender'), lotsCtl.updateLot);
+lotsRouter.post('/lots', requireRole('owner', 'factory_sender', 'super_admin'), lotsCtl.createLot);
+lotsRouter.patch('/lots/:id', requireRole('owner', 'factory_sender', 'super_admin'), lotsCtl.updateLot);

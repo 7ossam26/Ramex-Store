@@ -11,13 +11,13 @@ customersRouter.use(requireAuth, requireActiveSession);
 customersRouter.get('/customers/by-phone/:phone', ctl.getCustomerByPhone);
 customersRouter.post(
   '/customers/quick',
-  requireRole('owner', 'shop_seller'),
+  requireRole('owner', 'shop_seller', 'super_admin'),
   ctl.quickCreateCustomer,
 );
 
 customersRouter.get('/customers', ctl.listCustomers);
-customersRouter.post('/customers', requireRole('owner', 'shop_seller'), ctl.createCustomer);
+customersRouter.post('/customers', requireRole('owner', 'shop_seller', 'super_admin'), ctl.createCustomer);
 
 customersRouter.get('/customers/:id', ctl.getCustomer);
-customersRouter.patch('/customers/:id', requireRole('owner', 'shop_seller'), ctl.updateCustomer);
+customersRouter.patch('/customers/:id', requireRole('owner', 'shop_seller', 'super_admin'), ctl.updateCustomer);
 customersRouter.get('/customers/:id/ledger', ctl.getCustomerLedger);
