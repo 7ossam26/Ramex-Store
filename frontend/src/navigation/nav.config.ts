@@ -337,8 +337,8 @@ export const NAV: NavTop[] = [
           },
           {
             id: 'treasury.suppliers',
-            labelAr: 'ذمم الموردين',
-            descAr: 'متابعة ديون الموردين والدفعات',
+            labelAr: 'الديون',
+            descAr: 'تسجيل الديون والمدفوعات للموردين',
             icon: CreditCard,
             route: '/treasury/suppliers',
             permission: 'suppliers',

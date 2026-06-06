@@ -84,7 +84,7 @@ export const ar = {
     banksDesc: 'الحسابات البنكية وحركات الانستاباي',
     expensesDesc: 'تسجيل المصروفات بحسب الفئة',
     reconcileDesc: 'إغلاق اليوم: مقارنة الرصيد المتوقع بالفعلي',
-    supplierPayablesDesc: 'ذمم الموردين والدفعات',
+    supplierPayablesDesc: 'تسجيل الديون والمدفوعات للموردين',
     reportsTitle: 'التقارير',
     reportsDescription: 'التقرير اليومي والتقارير الفرعية',
     reportsDailyDesc: 'ملخص اليوم: مبيعات، خصومات، حركات الخزنة',
@@ -1320,7 +1320,7 @@ export const ar = {
     },
   },
   supplierPayables: {
-    title: 'ذمم الموردين',
+    title: 'الديون',
     suppliersHub: 'الموردين',
     balance: 'الرصيد المستحق',
     totalInvoiced: 'إجمالي المشتريات',
