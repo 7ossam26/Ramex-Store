@@ -524,9 +524,9 @@ export function visibleNav(
 }
 
 /** Flat list of all reachable leaves (for the command palette). */
-export function allLeaves(role: Role | undefined): NavLeaf[] {
+export function allLeaves(role: Role | undefined, can?: (resource: string) => boolean): NavLeaf[] {
   const out: NavLeaf[] = [];
-  for (const section of visibleNav(role)) {
+  for (const section of visibleNav(role, can)) {
     // Treat the section itself as a navigable leaf as well — picking "الأصناف"
     // in ⌘K lands on /items hub.
     out.push({

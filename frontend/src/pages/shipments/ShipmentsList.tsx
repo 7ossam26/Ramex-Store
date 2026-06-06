@@ -10,6 +10,7 @@ import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { ShipmentStatusPill } from '@/components/shipments/ShipmentStatusPill';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { usePermissions } from '@/lib/permissions';
 
 const STATUSES: Array<ShipmentStatus | ''> = [
   '', 'draft', 'pending_approval', 'partial_approved', 'approved', 'rejected', 'cancelled',
@@ -26,6 +27,15 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
   const [status, setStatus] = useState<ShipmentStatus | ''>(defaultStatus ?? '');
   const [pendingDelete, setPendingDelete] = useState<ShipmentRow | null>(null);
   const navigate = useNavigate();
+  const { can } = usePermissions();
+  const canApprove = can('shipments', 'approve');
+
+  function shipmentUrl(s: ShipmentRow): string {
+    if (canApprove && (s.status === 'pending_approval' || s.status === 'partial_approved')) {
+      return `/shipments/${s.id}`;
+    }
+    return `/shipments/${s.id}/view`;
+  }
   const qc = useQueryClient();
   const q = useQuery({
     queryKey: ['shipments', status],
@@ -47,7 +57,7 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
       key: 'shipment_no',
       header: ar.shipments.shipmentNo,
       cell: (s) => (
-        <Link to={`/shipments/${s.id}`} className="text-accent hover:text-accent-hover underline underline-offset-2 font-mono tabular-num">
+        <Link to={shipmentUrl(s)} className="text-accent hover:text-accent-hover underline underline-offset-2 font-mono tabular-num">
           {s.shipment_no}
         </Link>
       ),
@@ -99,7 +109,7 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate(`/shipments/${s.id}`)}
+              onClick={() => navigate(shipmentUrl(s))}
               title={ar.shipments.view}
               aria-label={ar.shipments.view}
             >

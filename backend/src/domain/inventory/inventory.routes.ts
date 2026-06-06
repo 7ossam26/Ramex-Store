@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
 import { requireActiveSession } from '../../middleware/concurrent-session.js';
+import { requirePermission } from '../../middleware/requirePermission.js';
 import * as shipmentsCtl from './shipments.controller.js';
 import * as damageCtl from './damage.controller.js';
 import * as stocktakeCtl from './stocktake.controller.js';
@@ -40,15 +41,15 @@ inventoryRouter.post(
   shipmentsCtl.submit,
 );
 
-// Ziad (shop_seller) reviews + accepts; Owner can also.
+// Review + accept are gated by the matrix: requires shipments.approve permission.
 inventoryRouter.post(
   '/shipments/:id/lines/:lineId/review',
-  requireRole('shop_seller', 'owner', 'super_admin'),
+  requirePermission('shipments', 'approve'),
   shipmentsCtl.reviewLine,
 );
 inventoryRouter.post(
   '/shipments/:id/accept',
-  requireRole('shop_seller', 'owner', 'super_admin'),
+  requirePermission('shipments', 'approve'),
   shipmentsCtl.acceptShipment,
 );
 

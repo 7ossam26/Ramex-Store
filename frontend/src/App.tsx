@@ -119,6 +119,7 @@ export function App() {
                   element={<ShipmentsListPage defaultStatus="pending_approval" />}
                 />
                 <Route path="/shipments/:id/continue" element={<CreateShipmentPage />} />
+                <Route path="/shipments/:id/view" element={<ReviewShipmentPage readOnly />} />
                 <Route path="/shipments/:id" element={<ReviewShipmentPage />} />
 
                 <Route path="/customers" element={<PermGate resource="customers"><CustomersListPage /></PermGate>} />

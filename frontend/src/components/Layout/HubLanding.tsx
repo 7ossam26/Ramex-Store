@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { ChevronLeft, type LucideIcon } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import type { Role } from '@/lib/auth';
+import { usePermissions } from '@/lib/permissions';
 
 export type HubCard = {
   label: string;
@@ -10,6 +11,8 @@ export type HubCard = {
   href: string;
   icon?: LucideIcon;
   visibleTo?: Role[];
+  /** If set, card is hidden when user lacks `read` access to this resource. */
+  permission?: string;
   featured?: boolean;
   group?: string;
 };
@@ -123,7 +126,12 @@ export function HubLanding({
 }) {
   const { user } = useAuth();
   const role = user?.role;
-  const visible = cards.filter((c) => !c.visibleTo || (role && c.visibleTo.includes(role)));
+  const { can } = usePermissions();
+  const visible = cards.filter(
+    (c) =>
+      (!c.visibleTo || (role && c.visibleTo.includes(role))) &&
+      (!c.permission || can(c.permission, 'read')),
+  );
 
   // Determine which card (if any) gets featured treatment, and split the array
   let featuredCard: HubCard | null = null;

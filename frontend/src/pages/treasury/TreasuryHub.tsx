@@ -16,24 +16,28 @@ const cards: HubCard[] = [
     description: ar.hubs.cashDesc,
     href: '/cash',
     icon: Banknote,
+    permission: 'cash_drawer',
   },
   {
     label: ar.cash.banks,
     description: ar.hubs.banksDesc,
     href: '/banks',
     icon: Landmark,
+    permission: 'cash_drawer',
   },
   {
     label: ar.cash.expenses,
     description: ar.hubs.expensesDesc,
     href: '/expenses',
     icon: Receipt,
+    permission: 'cash_drawer',
   },
   {
     label: ar.cash.reconcile,
     description: ar.hubs.reconcileDesc,
     href: '/reconcile',
     icon: Calculator,
+    permission: 'cash_drawer',
   },
 ];
 

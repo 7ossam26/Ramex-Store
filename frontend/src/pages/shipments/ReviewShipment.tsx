@@ -18,7 +18,7 @@ const LINE_STATUS_TONE: Record<string, StatusTone> = {
   rejected: 'danger',
 };
 
-export function ReviewShipmentPage() {
+export function ReviewShipmentPage({ readOnly = false }: { readOnly?: boolean }) {
   const { id } = useParams<{ id: string }>();
   const shipmentId = Number(id);
   const qc = useQueryClient();
@@ -120,7 +120,7 @@ export function ReviewShipmentPage() {
                       {isKg ? ar.shipments.rollWeight : 'الطول (م)'}
                     </th>
                     <th className="font-medium">الحالة</th>
-                    {isReviewable && <th />}
+                    {isReviewable && !readOnly && <th />}
                   </tr>
                 </thead>
                 <tbody>
@@ -149,7 +149,7 @@ export function ReviewShipmentPage() {
                             {ar.shipments.lineStatus[l.status]}
                           </StatusPill>
                         </td>
-                        {isReviewable && (
+                        {isReviewable && !readOnly && (
                           <td>
                             {l.status === 'pending' ? (
                               <div className="flex flex-col gap-1.5 py-1 min-w-[220px]">
@@ -211,7 +211,7 @@ export function ReviewShipmentPage() {
         );
       })}
 
-      {isReviewable && (
+      {isReviewable && !readOnly && (
         <div className="flex justify-end pt-2">
           <Button
             size="lg"

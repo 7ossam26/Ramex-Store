@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useAuth } from '@/lib/auth';
+import { usePermissions } from '@/lib/permissions';
 import { allLeaves } from '@/navigation/nav.config';
 import type { NavLeaf } from '@/navigation/nav.config';
 import { cn } from '@/lib/utils';
@@ -69,6 +70,7 @@ function pushRecent(leafId: string) {
 
 export function CommandPalette({ open, onOpenChange }: Props) {
   const { user } = useAuth();
+  const { can } = usePermissions();
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const listRef = useRef<HTMLUListElement | null>(null);
@@ -76,7 +78,16 @@ export function CommandPalette({ open, onOpenChange }: Props) {
   const [query, setQuery] = useState('');
   const [selectedIdx, setSelectedIdx] = useState(0);
 
-  const leaves = useMemo(() => allLeaves(user?.role), [user?.role]);
+  // Use a ref so the memoized leaves stay stable between renders without
+  // needing `can` in the dependency array (can is redefined each render).
+  const canRef = useRef(can);
+  canRef.current = can;
+
+  const leaves = useMemo(
+    () => allLeaves(user?.role, (r) => canRef.current(r)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user?.role],
+  );
   const leafById = useMemo(() => {
     const map = new Map<string, NavLeaf>();
     for (const leaf of leaves) map.set(leaf.id, leaf);
