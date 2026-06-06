@@ -34,7 +34,7 @@ type DisburseDialogProps = {
 function DisburseDialog({ preview, month, onClose, onDone }: DisburseDialogProps) {
   const [paidVia, setPaidVia] = useState<'cash' | 'instapay' | 'bank_transfer'>('cash');
   const [bankAccountId, setBankAccountId] = useState<string>('');
-  const [advanceRepayment, setAdvanceRepayment] = useState<string>('0');
+  const [advanceRepayment, setAdvanceRepayment] = useState<string>('');
   const [notesAr, setNotesAr] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -115,29 +115,41 @@ function DisburseDialog({ preview, month, onClose, onDone }: DisburseDialogProps
 
             {/* Outstanding advance + repayment input */}
             {preview.outstanding_advance_egp > 0 && (
-              <div className="rounded-lg border border-warning/40 bg-warning-subtle p-3 space-y-2.5">
-                <div className="flex justify-between text-sm">
+              <div className="rounded-lg border border-warning/40 bg-warning-subtle p-3 space-y-0">
+                {/* Balance row */}
+                <div className="flex items-center justify-between text-sm py-1">
                   <span className="text-warning-foreground font-medium">{ar.hr.salary.outstandingAdvance}</span>
                   <span className="tabular-num font-semibold text-warning-foreground" dir="ltr">
                     {fmt(preview.outstanding_advance_egp)} ج.م
                   </span>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-foreground">{ar.hr.salary.deductFromAdvance}</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={preview.outstanding_advance_egp}
-                    step={1}
-                    className={cn(inputCls, 'w-40')}
-                    style={{ unicodeBidi: 'plaintext' }}
-                    value={advanceRepayment}
-                    onChange={(e) => setAdvanceRepayment(e.target.value)}
-                    placeholder="0"
-                  />
-                  <p className="text-xs text-foreground-muted">
-                    الحد الأقصى: {fmt(preview.outstanding_advance_egp)} ج.م
-                  </p>
+
+                {/* Divider */}
+                <div className="border-t border-warning/30 my-1.5" />
+
+                {/* Repayment input row — same layout as balance row above */}
+                <div className="flex items-center justify-between gap-3 text-sm py-1">
+                  <label
+                    htmlFor="advance-repayment-input"
+                    className="text-foreground-muted shrink-0 cursor-pointer"
+                  >
+                    {ar.hr.salary.deductFromAdvance}
+                  </label>
+                  <div className="flex items-center gap-1.5" dir="ltr">
+                    <input
+                      id="advance-repayment-input"
+                      type="number"
+                      min={0}
+                      max={preview.outstanding_advance_egp}
+                      step={1}
+                      className="h-8 w-28 rounded-md border border-warning/60 bg-surface-elevated px-2 text-sm text-foreground tabular-num text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                      value={advanceRepayment}
+                      placeholder="0"
+                      onChange={(e) => setAdvanceRepayment(e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                    />
+                    <span className="text-sm text-foreground-muted">ج.م</span>
+                  </div>
                 </div>
               </div>
             )}
