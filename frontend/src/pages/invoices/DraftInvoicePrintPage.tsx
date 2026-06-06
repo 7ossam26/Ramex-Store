@@ -16,12 +16,18 @@ import { ErrorBanner } from '@/components/ErrorBanner';
 function mapLineToDraft(l: InvoiceLineDetail): DraftInvoiceLine {
   const unit = l.fabric_unit === 'meter' ? 'm' : 'kg';
   const qty = unit === 'kg' ? Number(l.weight_kg) : Number(l.length_m ?? l.weight_kg);
+  const perUnit =
+    l.final_price_per_unit != null
+      ? Number(l.final_price_per_unit)
+      : qty > 0
+        ? Number(l.selling_price_egp) / qty
+        : 0;
   return {
     description: `${l.fabric_name_ar} / ${l.color_name_ar}`,
     bolts: 1,
     quantity: qty,
     quantityUnit: unit,
-    unitPrice: Number(l.selling_price_egp),
+    unitPrice: perUnit,
     discountPct: 0,
     amount: Number(l.line_total_egp),
   };
@@ -44,6 +50,7 @@ function mapInvoiceToDraft(inv: InvoiceDetail): DraftInvoiceDocumentProps {
     totalQuantity: totalQty,
     customerCode: inv.customer_code,
     lines: inv.lines.map(mapLineToDraft),
+    issuedAt: inv.created_at,
     subtotal: Number(inv.subtotal_egp),
     rounding: Number(inv.rounding_egp),
     total: Number(inv.total_egp),

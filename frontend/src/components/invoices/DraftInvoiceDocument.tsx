@@ -22,6 +22,7 @@ export interface DraftInvoiceDocumentProps {
   subtotal: number;
   rounding: number;
   total: number;
+  issuedAt?: string;
   notes?: string[];
   footerWarning?: string;
   currencyLabel?: string;
@@ -57,6 +58,17 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return result;
 }
 
+function fmtIssuedAt(iso: string): string {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString('en-GB', {
+    timeZone: 'Africa/Cairo', day: '2-digit', month: '2-digit', year: 'numeric',
+  });
+  const time = d.toLocaleTimeString('en-US', {
+    timeZone: 'Africa/Cairo', hour: 'numeric', minute: '2-digit', hour12: true,
+  });
+  return `${date}  ${time}`;
+}
+
 /* Forces LTR reading direction for digits/currency codes inside RTL cells. */
 function Num({ v }: { v: string }) {
   return (
@@ -89,13 +101,13 @@ function InvoicePage({
     subtotal,
     rounding,
     total,
+    issuedAt,
     notes = DEFAULT_NOTES,
     footerWarning = DEFAULT_FOOTER,
     currencyLabel = 'EGP',
   } = props;
 
   const infoItems: { label: string; value: string; ltr?: boolean }[] = [
-    { label: INFO_LABELS.phone, value: phone, ltr: true },
     { label: INFO_LABELS.bolts, value: fmtInt(totalBolts) },
     { label: INFO_LABELS.qty, value: fmtWeight(totalQuantity) },
   ];
@@ -110,10 +122,31 @@ function InvoicePage({
 
       {/* ── Masthead: document title, right-aligned, large gray ── */}
       <div className="rmx-draft-masthead">
-        <h1 className="rmx-draft-title">مسودة فاتورة</h1>
+        <h1 className="rmx-draft-title">فاتورة مبيعات</h1>
+        {issuedAt && (
+          <div className="rmx-draft-issued-at" dir="ltr">{fmtIssuedAt(issuedAt)}</div>
+        )}
       </div>
 
-      {/* ── Info grid: phone + bolts + quantity (+ warehouse if provided) ── */}
+      {/* ── Customer block: name (right) · code (center) · phone (left) ── */}
+      <div className="rmx-draft-cust-block">
+        {customerName && (
+          <div className="rmx-draft-cust-cell">
+            <span className="rmx-draft-cust-label">{CUSTOMER_LABELS.name}</span>
+            <span className="rmx-draft-cust-value">{customerName}</span>
+          </div>
+        )}
+        <div className="rmx-draft-cust-cell" style={{ alignItems: 'center', textAlign: 'center' }}>
+          <span className="rmx-draft-cust-label">{CUSTOMER_LABELS.code}</span>
+          <span className="rmx-draft-cust-value" dir="ltr">{customerCode}</span>
+        </div>
+        <div className="rmx-draft-cust-cell" style={{ alignItems: 'flex-end', textAlign: 'left' }}>
+          <span className="rmx-draft-cust-label">{INFO_LABELS.phone}</span>
+          <span className="rmx-draft-cust-value" dir="ltr">{phone}</span>
+        </div>
+      </div>
+
+      {/* ── Info grid: phone + bolts + quantity ── */}
       <div
         className="rmx-draft-info-grid"
         style={{ gridTemplateColumns: `repeat(${infoItems.length}, 1fr)` }}
@@ -126,21 +159,6 @@ function InvoicePage({
             </span>
           </div>
         ))}
-      </div>
-
-      {/* ── Customer block: stacked label-above-value (no colon) ──
-          DOM order [name][code] + direction:rtl → name lands right, code left. */}
-      <div className="rmx-draft-cust-block">
-        {customerName && (
-          <div className="rmx-draft-cust-cell">
-            <span className="rmx-draft-cust-label">{CUSTOMER_LABELS.name}</span>
-            <span className="rmx-draft-cust-value">{customerName}</span>
-          </div>
-        )}
-        <div className="rmx-draft-cust-cell">
-          <span className="rmx-draft-cust-label">{CUSTOMER_LABELS.code}</span>
-          <span className="rmx-draft-cust-value" dir="ltr">{customerCode}</span>
-        </div>
       </div>
 
       {/* ── Line items table ── */}
@@ -158,7 +176,7 @@ function InvoicePage({
             <th>الوصف</th>
             <th>عدد الاتواب</th>
             <th>الكمية</th>
-            <th>سعر الوحدة</th>
+            <th>سعر الكيلو/المتر</th>
             <th>خصم %</th>
             <th>المبلغ</th>
           </tr>
@@ -185,12 +203,6 @@ function InvoicePage({
               <span className="rmx-draft-totals-label">المبلغ</span>
               <span className="rmx-draft-totals-value">
                 <Num v={`${currencyLabel} ${fmtMoney(subtotal)}`} />
-              </span>
-            </div>
-            <div className="rmx-draft-totals-row">
-              <span className="rmx-draft-totals-label">تقريب</span>
-              <span className="rmx-draft-totals-value">
-                <Num v={`${currencyLabel} ${fmtMoney(rounding)}`} />
               </span>
             </div>
             <div className="rmx-draft-totals-row rmx-draft-totals-row--total">
@@ -261,6 +273,7 @@ export const demoDraftInvoice: DraftInvoiceDocumentProps = {
   totalBolts: 14,
   totalQuantity: 222.2,
   customerCode: 'B6123',
+  issuedAt: '2026-05-25T11:30:00.000Z',
   lines: [
     {
       description: 'ميلتون للبيع (nt, 4121, nd, 1K)',
