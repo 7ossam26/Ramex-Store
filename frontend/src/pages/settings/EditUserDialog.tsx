@@ -59,6 +59,7 @@ export function EditUserDialog({ user, onClose }: Props) {
                 <option value="owner">{ar.settings.users.roles.owner}</option>
                 <option value="shop_seller">{ar.settings.users.roles.shop_seller}</option>
                 <option value="factory_sender">{ar.settings.users.roles.factory_sender}</option>
+                <option value="accountant">{ar.settings.users.roles.accountant}</option>
               </select>
             </div>
             {error && <p className="text-xs text-destructive">{error}</p>}

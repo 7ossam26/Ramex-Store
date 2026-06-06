@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth, requireRole } from '../../middleware/auth.js';
+import { requireAuth } from '../../middleware/auth.js';
 import { requireActiveSession } from '../../middleware/concurrent-session.js';
 import { can } from '../permissions/permissionsService.js';
 import type { RequestHandler } from 'express';
@@ -24,28 +24,12 @@ function requireReportAccess(reportKey: string): RequestHandler {
 }
 
 // ─── General report ──────────────────────────────────────────────────────────
-reportsRouter.get(
-  '/general',
-  requireRole('owner', 'shop_seller'),
-  ctl.getGeneralReportJson,
-);
-reportsRouter.get(
-  '/general/export',
-  requireRole('owner', 'shop_seller'),
-  ctl.exportGeneralReport,
-);
+reportsRouter.get('/general',        requireReportAccess('general'), ctl.getGeneralReportJson);
+reportsRouter.get('/general/export', requireReportAccess('general'), ctl.exportGeneralReport);
 
 // ─── Daily report ────────────────────────────────────────────────────────────
-reportsRouter.get(
-  '/daily',
-  requireRole('owner', 'shop_seller'),
-  ctl.getDailyReportJson,
-);
-reportsRouter.get(
-  '/daily/export',
-  requireRole('owner', 'shop_seller'),
-  ctl.exportDailyReport,
-);
+reportsRouter.get('/daily',          requireReportAccess('daily'),   ctl.getDailyReportJson);
+reportsRouter.get('/daily/export',   requireReportAccess('daily'),   ctl.exportDailyReport);
 
 // ─── Secondary reports ───────────────────────────────────────────────────────
 reportsRouter.get('/secondary/:reportKey', (req, res, next) => {

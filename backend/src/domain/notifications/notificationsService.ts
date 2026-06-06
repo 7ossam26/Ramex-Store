@@ -5,7 +5,7 @@ import { dispatch } from './approvalDispatcher.js';
 export type NotifySeverity = 'low' | 'medium' | 'high' | 'critical';
 export type NotifyRecipient =
   | { recipientUserId: number; recipientRole?: never }
-  | { recipientRole: 'owner' | 'shop_seller' | 'factory_sender'; recipientUserId?: never };
+  | { recipientRole: 'owner' | 'shop_seller' | 'factory_sender' | 'accountant'; recipientUserId?: never };
 
 export type NotifyInput = {
   severity: NotifySeverity;

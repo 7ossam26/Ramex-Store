@@ -267,7 +267,7 @@ function GeneralSection({ settings, onSave, notifySaved }: SectionProps) {
 
 // RESOURCE_GROUPS is the single source of truth — imported from @/lib/permissions-config
 
-const MATRIX_ROLES = ['owner', 'shop_seller', 'factory_sender'] as const;
+const MATRIX_ROLES = ['owner', 'shop_seller', 'factory_sender', 'accountant'] as const;
 type MatrixRole = (typeof MATRIX_ROLES)[number];
 
 function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
@@ -395,6 +395,7 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
                 <option value="owner">{ar.settings.users.roles.owner}</option>
                 <option value="shop_seller">{ar.settings.users.roles.shop_seller}</option>
                 <option value="factory_sender">{ar.settings.users.roles.factory_sender}</option>
+                <option value="accountant">{ar.settings.users.roles.accountant}</option>
               </SelectInput>
             </FieldRow>
             <FieldRow label={ar.settings.users.password}>
@@ -491,12 +492,13 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
 
 // ─── Role Permissions Panel ──────────────────────────────────────────────────
 
-// Owner/super_admin short-circuit to allow — show only the two configurable roles.
-const DISPLAY_ROLES: Array<'shop_seller' | 'factory_sender'> = ['shop_seller', 'factory_sender'];
+// Owner/super_admin short-circuit to allow — show only the configurable roles.
+const DISPLAY_ROLES: Array<'shop_seller' | 'factory_sender' | 'accountant'> = ['shop_seller', 'factory_sender', 'accountant'];
 
 const DISPLAY_ROLE_LABELS: Record<string, string> = {
   shop_seller:    ar.settings.permissions.shopSeller,
   factory_sender: ar.settings.permissions.factorySender,
+  accountant:     ar.settings.permissions.accountant,
 };
 
 function RolePermissionsPanel({
@@ -514,7 +516,7 @@ function RolePermissionsPanel({
   onSave: () => void;
   saving: boolean;
 }) {
-  const [activeRole, setActiveRole] = useState<'shop_seller' | 'factory_sender'>('shop_seller');
+  const [activeRole, setActiveRole] = useState<'shop_seller' | 'factory_sender' | 'accountant'>('shop_seller');
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 

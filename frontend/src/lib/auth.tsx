@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { api } from './api';
 
-export type Role = 'owner' | 'shop_seller' | 'factory_sender' | 'super_admin';
+export type Role = 'owner' | 'shop_seller' | 'factory_sender' | 'super_admin' | 'accountant';
 export type User = { id: number; username: string; full_name_ar: string; role: Role };
 
 type Ctx = {

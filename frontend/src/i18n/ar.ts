@@ -1075,6 +1075,7 @@ export const ar = {
         owner: 'مالك',
         shop_seller: 'بائع',
         factory_sender: 'مصنع',
+        accountant: 'محاسب',
       },
     },
     permissions: {
@@ -1083,6 +1084,7 @@ export const ar = {
       owner: 'المالك',
       shopSeller: 'البائع',
       factorySender: 'المصنع',
+      accountant: 'المحاسب',
       read: 'قراءة',
       write: 'كتابة',
       approve: 'موافقة',

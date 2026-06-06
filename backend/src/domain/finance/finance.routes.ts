@@ -33,6 +33,10 @@ financeRouter.get('/treasuries-overview', requireRole('owner', 'super_admin'), c
 
 // ─── Expenses ─────────────────────────────────────────────────────────────────
 financeRouter.get('/expenses', ctl.listExpenses);
-financeRouter.post('/expenses', requireRole('owner', 'shop_seller', 'super_admin'), requireOpenShift, ctl.createExpense);
+// Accountant can create expenses without an open shift (they don't operate the POS shift).
+financeRouter.post('/expenses', requireRole('owner', 'shop_seller', 'super_admin', 'accountant'), (req, res, next) => {
+  if (req.user!.role === 'accountant') return next();
+  return requireOpenShift(req, res, next);
+}, ctl.createExpense);
 financeRouter.post('/expenses/:id/approve', requireRole('owner', 'super_admin'), ctl.approveExpense);
 financeRouter.post('/expenses/:id/reject', requireRole('owner', 'super_admin'), ctl.rejectExpense);
