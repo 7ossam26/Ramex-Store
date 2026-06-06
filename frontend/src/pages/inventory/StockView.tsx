@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import JsBarcode from 'jsbarcode';
 import { inventoryApi } from '@/lib/inventory-api';
 import { salesApi } from '@/lib/sales-api';
 import { itemsApi } from '@/lib/items-api';
+import { extractApiError } from '@/lib/api-error';
 import { openPdfBlob } from '@/lib/pdf';
 import type { StockSummaryRow, Warehouse } from '@/lib/inventory-types';
 import type { RollLookup } from '@/lib/sales-types';
+import { usePermissions } from '@/lib/permissions';
 import { PageShell } from '@/components/Layout/PageShell';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { StatusPill, type StatusTone } from '@/components/StatusPill';
@@ -24,6 +26,7 @@ import {
   ArrowUpDown,
   ChevronDown,
   ChevronUp,
+  Factory,
   Layers,
   Package,
   PiggyBank,
@@ -145,7 +148,13 @@ function BarcodeModal({
 }
 
 function RollDetailsPanel({ row }: { row: StockSummaryRow }) {
+  const qc = useQueryClient();
+  const { can } = usePermissions();
+  const canReturn = can('inventory', 'write');
+
   const [barcodeRoll, setBarcodeRoll] = useState<RollLookup | null>(null);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [returnError, setReturnError] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery<RollLookup[]>({
     queryKey: ['rolls-for-stock', row.fabric_id, row.color_id],
@@ -156,6 +165,41 @@ function RollDetailsPanel({ row }: { row: StockSummaryRow }) {
         status: 'in_stock',
       }),
     staleTime: 30_000,
+  });
+
+  // Clear selection whenever the roll list refreshes
+  useEffect(() => { setSelected(new Set()); }, [data]);
+
+  const rolls = data ?? [];
+  const shopRolls = useMemo(() => rolls.filter((r) => r.warehouse === 'shop'), [rolls]);
+  const allShopSelected = shopRolls.length > 0 && shopRolls.every((r) => selected.has(r.id));
+  const someSelected = selected.size > 0;
+
+  function toggleRoll(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllShop() {
+    setSelected(allShopSelected ? new Set() : new Set(shopRolls.map((r) => r.id)));
+  }
+
+  const returnMut = useMutation({
+    mutationFn: async (ids: number[]) => {
+      for (const id of ids) {
+        await itemsApi.returnRollToFactory(id);
+      }
+    },
+    onSuccess: () => {
+      setSelected(new Set());
+      setReturnError(null);
+      qc.invalidateQueries({ queryKey: ['rolls-for-stock', row.fabric_id, row.color_id] });
+      qc.invalidateQueries({ queryKey: ['stock-summary'] });
+    },
+    onError: (e: unknown) => setReturnError(extractApiError(e)),
   });
 
   const labelMut = useMutation({
@@ -169,17 +213,57 @@ function RollDetailsPanel({ row }: { row: StockSummaryRow }) {
   if (isError) {
     return <div className="text-xs text-danger-foreground py-2">تعذر تحميل تفاصيل الاتواب.</div>;
   }
-  const rolls = data ?? [];
   if (rolls.length === 0) {
     return <div className="text-xs text-foreground-muted py-2">لا توجد اتواب متاحة لهذه الخامة.</div>;
   }
 
   return (
     <>
+      {/* Bulk action bar — shown when at least one shop roll is selected */}
+      {canReturn && someSelected && (
+        <div className="flex items-center justify-between gap-3 rounded-md border border-warning/40 bg-warning-subtle px-3 py-2 text-sm" dir="rtl">
+          <span className="font-medium text-warning-foreground tabular-num">
+            {selected.size} {selected.size === 1 ? 'توب محدد' : 'اتواب محددة'}
+          </span>
+          <div className="flex items-center gap-2">
+            {returnError && (
+              <span className="text-xs text-danger-foreground">{returnError}</span>
+            )}
+            <button
+              type="button"
+              onClick={() => setSelected(new Set())}
+              className="text-xs text-foreground-muted hover:text-foreground transition-colors cursor-pointer"
+            >
+              إلغاء
+            </button>
+            <button
+              type="button"
+              disabled={returnMut.isPending}
+              onClick={() => returnMut.mutate(Array.from(selected))}
+              className="inline-flex items-center gap-1.5 rounded-md bg-warning text-white px-3 py-1.5 text-xs font-medium hover:bg-warning/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+            >
+              <Factory className="size-3.5" />
+              {returnMut.isPending ? 'جاري الإرجاع…' : 'إرجاع إلى المصنع'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-md border border-border-subtle bg-surface">
         <table className="w-full text-xs" style={{ textAlign: 'center' }}>
           <thead>
             <tr className="text-[11px] text-foreground-muted border-b border-border-subtle">
+              {canReturn && shopRolls.length > 0 && (
+                <th className="px-3 py-2">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 cursor-pointer"
+                    checked={allShopSelected}
+                    onChange={toggleAllShop}
+                    title="تحديد كل اتواب المعرض"
+                  />
+                </th>
+              )}
               <th className="px-3 py-2 font-medium">الباركود</th>
               <th className="px-3 py-2 font-medium">رقم التوب</th>
               <th className="px-3 py-2 font-medium text-end">الوزن (kg)</th>
@@ -190,38 +274,62 @@ function RollDetailsPanel({ row }: { row: StockSummaryRow }) {
             </tr>
           </thead>
           <tbody>
-            {rolls.map((r) => (
-              <tr key={r.id} className="border-b border-border-subtle last:border-0">
-                <td className="px-3 py-2 font-mono text-foreground" dir="ltr">
-                  {r.internal_barcode}
-                </td>
-                <td className="px-3 py-2 text-foreground-muted">{r.roll_sr_no ?? '—'}</td>
-                <td className="px-3 py-2 text-end tabular-num" dir="ltr">
-                  {fmtWeight(num(r.weight_kg))}
-                </td>
-                <td className="px-3 py-2 text-end tabular-num" dir="ltr">
-                  {fmtMoney(num(r.selling_price_egp))} {EGP}
-                </td>
-                <td className="px-3 py-2 text-foreground-muted">
-                  {WAREHOUSE_OPTIONS.find((w) => w.value === r.warehouse)?.label ?? r.warehouse}
-                </td>
-                <td className="px-3 py-2">
-                  <StatusPill tone="success">
-                    {ROLL_STATUS_LABEL[r.status] ?? r.status}
-                  </StatusPill>
-                </td>
-                <td className="px-3 py-2 text-end">
-                  <button
-                    type="button"
-                    onClick={() => setBarcodeRoll(r)}
-                    className="inline-flex items-center gap-1 rounded-md border border-border-default px-2 py-1 text-[11px] text-foreground-muted hover:bg-surface-hover hover:text-foreground transition-colors"
-                  >
-                    <Printer className="size-3" />
-                    باركود
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {rolls.map((r) => {
+              const isShop = r.warehouse === 'shop';
+              const isChecked = selected.has(r.id);
+              return (
+                <tr
+                  key={r.id}
+                  className={cn(
+                    'border-b border-border-subtle last:border-0 transition-colors',
+                    isChecked ? 'bg-warning-subtle/40' : 'hover:bg-surface-hover/40',
+                  )}
+                >
+                  {canReturn && shopRolls.length > 0 && (
+                    <td className="px-3 py-2">
+                      {isShop ? (
+                        <input
+                          type="checkbox"
+                          className="h-3.5 w-3.5 cursor-pointer"
+                          checked={isChecked}
+                          onChange={() => toggleRoll(r.id)}
+                        />
+                      ) : (
+                        <span className="block h-3.5 w-3.5" />
+                      )}
+                    </td>
+                  )}
+                  <td className="px-3 py-2 font-mono text-foreground" dir="ltr">
+                    {r.internal_barcode}
+                  </td>
+                  <td className="px-3 py-2 text-foreground-muted">{r.roll_sr_no ?? '—'}</td>
+                  <td className="px-3 py-2 text-end tabular-num" dir="ltr">
+                    {fmtWeight(num(r.weight_kg))}
+                  </td>
+                  <td className="px-3 py-2 text-end tabular-num" dir="ltr">
+                    {fmtMoney(num(r.selling_price_egp))} {EGP}
+                  </td>
+                  <td className="px-3 py-2 text-foreground-muted">
+                    {WAREHOUSE_OPTIONS.find((w) => w.value === r.warehouse)?.label ?? r.warehouse}
+                  </td>
+                  <td className="px-3 py-2">
+                    <StatusPill tone="success">
+                      {ROLL_STATUS_LABEL[r.status] ?? r.status}
+                    </StatusPill>
+                  </td>
+                  <td className="px-3 py-2 text-end">
+                    <button
+                      type="button"
+                      onClick={() => setBarcodeRoll(r)}
+                      className="inline-flex items-center gap-1 rounded-md border border-border-default px-2 py-1 text-[11px] text-foreground-muted hover:bg-surface-hover hover:text-foreground transition-colors"
+                    >
+                      <Printer className="size-3" />
+                      باركود
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
