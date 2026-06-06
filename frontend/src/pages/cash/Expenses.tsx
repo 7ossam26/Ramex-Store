@@ -201,7 +201,6 @@ export function ExpensesPage() {
 
   const filters: { value: StatusFilter; label: string }[] = [
     { value: 'all', label: 'الكل' },
-    { value: 'pending', label: 'بانتظار الموافقة' },
     { value: 'approved', label: 'معتمدة' },
   ];
 

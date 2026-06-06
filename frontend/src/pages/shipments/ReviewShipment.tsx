@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
 import { extractApiError } from '@/lib/api-error';
+import { usePermissions } from '@/lib/permissions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +23,10 @@ export function ReviewShipmentPage({ readOnly = false }: { readOnly?: boolean })
   const { id } = useParams<{ id: string }>();
   const shipmentId = Number(id);
   const qc = useQueryClient();
+  const { can, loading: permsLoading } = usePermissions();
+  // Default to false (safe) while permissions are loading — prevents controls
+  // from flashing for factory_sender before the permission fetch resolves.
+  const canApprove = !permsLoading && can('shipments', 'approve');
 
   const [reasons, setReasons] = useState<Record<number, string>>({});
   const [acceptError, setAcceptError] = useState<string | null>(null);
@@ -120,7 +125,7 @@ export function ReviewShipmentPage({ readOnly = false }: { readOnly?: boolean })
                       {isKg ? ar.shipments.rollWeight : 'الطول (م)'}
                     </th>
                     <th className="font-medium">الحالة</th>
-                    {isReviewable && !readOnly && <th />}
+                    {isReviewable && !readOnly && canApprove && <th />}
                   </tr>
                 </thead>
                 <tbody>
@@ -149,7 +154,7 @@ export function ReviewShipmentPage({ readOnly = false }: { readOnly?: boolean })
                             {ar.shipments.lineStatus[l.status]}
                           </StatusPill>
                         </td>
-                        {isReviewable && !readOnly && (
+                        {isReviewable && !readOnly && canApprove && (
                           <td>
                             {l.status === 'pending' ? (
                               <div className="flex flex-col gap-1.5 py-1 min-w-[220px]">
@@ -211,7 +216,7 @@ export function ReviewShipmentPage({ readOnly = false }: { readOnly?: boolean })
         );
       })}
 
-      {isReviewable && !readOnly && (
+      {isReviewable && !readOnly && canApprove && (
         <div className="flex justify-end pt-2">
           <Button
             size="lg"

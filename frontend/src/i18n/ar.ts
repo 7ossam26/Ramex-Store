@@ -82,7 +82,7 @@ export const ar = {
     treasuriesOverviewDesc: 'ملخص أرصدة الكاش والبنوك وآخر الحركات',
     cashDesc: 'الرصيد والحركات اليومية لخزنة الكاش',
     banksDesc: 'الحسابات البنكية وحركات الانستاباي',
-    expensesDesc: 'تسجيل المصروفات بحسب الفئة والمراجعة',
+    expensesDesc: 'تسجيل المصروفات بحسب الفئة',
     reconcileDesc: 'إغلاق اليوم: مقارنة الرصيد المتوقع بالفعلي',
     reportsTitle: 'التقارير',
     reportsDescription: 'التقرير اليومي والتقارير الفرعية',

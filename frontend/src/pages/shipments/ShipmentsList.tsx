@@ -27,14 +27,13 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
   const [status, setStatus] = useState<ShipmentStatus | ''>(defaultStatus ?? '');
   const [pendingDelete, setPendingDelete] = useState<ShipmentRow | null>(null);
   const navigate = useNavigate();
-  const { can } = usePermissions();
-  const canApprove = can('shipments', 'approve');
+  const { can, loading: permsLoading } = usePermissions();
+  // Default false (safe) while loading — prevents factory_sender from landing on
+  // the review route during the brief optimistic-true window.
+  const canApprove = !permsLoading && can('shipments', 'approve');
 
   function shipmentUrl(s: ShipmentRow): string {
-    if (canApprove && (s.status === 'pending_approval' || s.status === 'partial_approved')) {
-      return `/shipments/${s.id}`;
-    }
-    return `/shipments/${s.id}/view`;
+    return canApprove ? `/shipments/${s.id}` : `/shipments/${s.id}/view`;
   }
   const qc = useQueryClient();
   const q = useQuery({

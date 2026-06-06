@@ -345,6 +345,7 @@ export const NAV: NavTop[] = [
     descAr: 'التقرير اليومي والتقارير الفرعية',
     icon: BarChart3,
     route: '/reports',
+    permission: 'reports.daily',
     children: [
       {
         items: [
@@ -396,7 +397,7 @@ export const NAV: NavTop[] = [
             labelAr: 'ملخص الطلبيات',
             icon: Truck,
             route: '/reports/secondary/shipmentsSummary',
-            permission: 'shipments',
+            permission: 'reports.shipmentsSummary',
           },
         ],
       },

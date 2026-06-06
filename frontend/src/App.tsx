@@ -143,10 +143,10 @@ export function App() {
 
                 <Route path="/notifications" element={<NotificationsPage />} />
 
-                <Route path="/reports" element={<ReportsHubPage />} />
-                <Route path="/reports/general" element={<GeneralReportPage />} />
-                <Route path="/reports/daily" element={<DailyReportPage />} />
-                <Route path="/reports/secondary/:reportKey" element={<SecondaryReportPage />} />
+                <Route path="/reports" element={<PermGate resource="reports.daily"><ReportsHubPage /></PermGate>} />
+                <Route path="/reports/general" element={<PermGate resource="reports.daily"><GeneralReportPage /></PermGate>} />
+                <Route path="/reports/daily" element={<PermGate resource="reports.daily"><DailyReportPage /></PermGate>} />
+                <Route path="/reports/secondary/:reportKey" element={<PermGate resource="reports.daily"><SecondaryReportPage /></PermGate>} />
 
                 <Route path="/hr" element={<HrHubPage />} />
                 <Route path="/hr/employees" element={<EmployeesPage />} />
