@@ -118,7 +118,7 @@ export const NAV: NavTop[] = [
     descAr: 'فتح فاتورة جديدة ومسح الباركود',
     icon: ShoppingCart,
     route: '/pos',
-    visibleTo: ['owner', 'shop_seller'],
+    permission: 'invoices',
   },
   {
     id: 'items',
@@ -301,7 +301,7 @@ export const NAV: NavTop[] = [
             descAr: 'ملخص أرصدة الكاش والبنوك',
             icon: PieChart,
             route: '/treasury/overview',
-            visibleTo: ['owner'],
+            permission: 'cash_drawer',
           },
           {
             id: 'treasury.cash',
@@ -441,7 +441,7 @@ export const NAV: NavTop[] = [
     descAr: 'الموظفون، الرواتب، والسُّلف والخصومات',
     icon: UserCheck,
     route: '/hr',
-    visibleTo: ['owner'],
+    permission: 'hr',
     children: [
       {
         items: [
@@ -476,7 +476,7 @@ export const NAV: NavTop[] = [
     descAr: 'إعدادات النظام والمستخدمين',
     icon: SettingsIcon,
     route: '/settings',
-    visibleTo: ['owner', 'super_admin'],
+    visibleTo: ['super_admin'],
   },
 ];
 

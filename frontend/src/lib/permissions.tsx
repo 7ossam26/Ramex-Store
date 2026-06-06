@@ -64,3 +64,18 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
 export function usePermissions() {
   return useContext(PermContext);
 }
+
+/** Renders children only when the user has the given permission; renders nothing otherwise. */
+export function Can({
+  resource,
+  action = 'write',
+  children,
+}: {
+  resource: string;
+  action?: PermAction;
+  children: ReactNode;
+}) {
+  const { can } = usePermissions();
+  return can(resource, action) ? <>{children}</> : null;
+}
+
