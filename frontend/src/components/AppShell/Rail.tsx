@@ -8,9 +8,9 @@ import { cn } from '@/lib/utils';
 
 export function Rail() {
   const { user } = useAuth();
-  const { can } = usePermissions();
+  const { canSee } = usePermissions();
   const location = useLocation();
-  const sections = useMemo(() => visibleNav(user?.role, can), [user?.role, can]);
+  const sections = useMemo(() => visibleNav(user?.role, canSee), [user?.role, canSee]);
   const activeId = activeSectionForPath(location.pathname);
 
   return (

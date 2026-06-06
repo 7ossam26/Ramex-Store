@@ -22,7 +22,7 @@ type Props = {
 
 export function TopBar({ onOpenCommandPalette, onOpenMobileDrawer }: Props) {
   const { user } = useAuth();
-  const { can } = usePermissions();
+  const { canSee } = usePermissions();
   const location = useLocation();
   const [isMac, setIsMac] = useState(false);
 
@@ -30,7 +30,7 @@ export function TopBar({ onOpenCommandPalette, onOpenMobileDrawer }: Props) {
     setIsMac(detectIsMac());
   }, []);
 
-  const title = pageTitleForPath(location.pathname, user?.role, can);
+  const title = pageTitleForPath(location.pathname, user?.role, canSee);
   const shortcut = isMac ? '⌘K' : 'Ctrl+K';
 
   return (

@@ -14,9 +14,9 @@ type Props = {
 
 export function MobileDrawer({ open, onClose }: Props) {
   const { user } = useAuth();
-  const { can } = usePermissions();
+  const { canSee } = usePermissions();
   const location = useLocation();
-  const sections = useMemo(() => visibleNav(user?.role, can), [user?.role, can]);
+  const sections = useMemo(() => visibleNav(user?.role, canSee), [user?.role, canSee]);
   const activeId = activeSectionForPath(location.pathname);
 
   // Auto-close on route change: capture pathname at the moment we open, close

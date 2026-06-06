@@ -126,11 +126,11 @@ export function HubLanding({
 }) {
   const { user } = useAuth();
   const role = user?.role;
-  const { can } = usePermissions();
+  const { canSee } = usePermissions();
   const visible = cards.filter(
     (c) =>
       (!c.visibleTo || (role && c.visibleTo.includes(role))) &&
-      (!c.permission || can(c.permission, 'read')),
+      (!c.permission || canSee(c.permission)),
   );
 
   // Determine which card (if any) gets featured treatment, and split the array

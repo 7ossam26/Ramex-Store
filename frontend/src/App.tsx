@@ -60,11 +60,13 @@ const SecondaryReportPage = lazy(() =>
   import('./pages/reports/SecondaryReport').then((m) => ({ default: m.SecondaryReportPage })),
 );
 
-/** Redirects to "/" if the user doesn't have read access to the given resource. */
+/** Redirects to "/" if the user doesn't have any read-level access to the given
+ *  resource. Uses canSee so resources whose read-equivalent action is `view`
+ *  (hr, suppliers) are still admitted. */
 function PermGate({ resource, children }: { resource: string; children: ReactNode }) {
-  const { can, loading } = usePermissions();
+  const { canSee, loading } = usePermissions();
   if (loading) return null;
-  if (!can(resource, 'read')) return <Navigate to="/" replace />;
+  if (!canSee(resource)) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 

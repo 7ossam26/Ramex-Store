@@ -70,7 +70,7 @@ function pushRecent(leafId: string) {
 
 export function CommandPalette({ open, onOpenChange }: Props) {
   const { user } = useAuth();
-  const { can } = usePermissions();
+  const { canSee } = usePermissions();
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const listRef = useRef<HTMLUListElement | null>(null);
@@ -79,12 +79,12 @@ export function CommandPalette({ open, onOpenChange }: Props) {
   const [selectedIdx, setSelectedIdx] = useState(0);
 
   // Use a ref so the memoized leaves stay stable between renders without
-  // needing `can` in the dependency array (can is redefined each render).
-  const canRef = useRef(can);
-  canRef.current = can;
+  // needing `canSee` in the dependency array (it is redefined each render).
+  const canSeeRef = useRef(canSee);
+  canSeeRef.current = canSee;
 
   const leaves = useMemo(
-    () => allLeaves(user?.role, (r) => canRef.current(r)),
+    () => allLeaves(user?.role, (r) => canSeeRef.current(r)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [user?.role],
   );

@@ -10,11 +10,16 @@ type PermData =
 type PermCtx = {
   /** Returns true if the current user is allowed to perform action on resource. */
   can: (resource: string, action?: PermAction) => boolean;
+  /** True if the user can see/access the resource at all. Some resources expose their
+   *  "read-equivalent" action as `view` (hr, suppliers) rather than `read` — this
+   *  helper accepts either, so navigation and route gates show the resource whenever
+   *  the user has any read-level access to it. */
+  canSee: (resource: string) => boolean;
   /** True while the initial permissions fetch is in-flight. */
   loading: boolean;
 };
 
-const PermContext = createContext<PermCtx>({ can: () => false, loading: true });
+const PermContext = createContext<PermCtx>({ can: () => false, canSee: () => false, loading: true });
 
 export function PermissionsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -45,8 +50,12 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     return Boolean(data.permissions[resource]?.[action]);
   }
 
+  function canSee(resource: string): boolean {
+    return can(resource, 'read') || can(resource, 'view');
+  }
+
   return (
-    <PermContext.Provider value={{ can, loading }}>
+    <PermContext.Provider value={{ can, canSee, loading }}>
       {children}
     </PermContext.Provider>
   );
