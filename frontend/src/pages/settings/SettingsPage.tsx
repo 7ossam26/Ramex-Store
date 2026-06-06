@@ -591,16 +591,28 @@ function RolePermissionsPanel({
                         <div className="flex gap-1.5 flex-shrink-0 flex-wrap justify-end">
                           {def.actions.map((action) => {
                             const allowed = isAllowed(activeRole, def.key, action);
+                            // Hard invariant: factory_sender can never be granted shipments.approve.
+                            const isHardLocked =
+                              activeRole === 'factory_sender' &&
+                              def.key === 'shipments' &&
+                              action === 'approve';
                             return (
                               <button
                                 key={action}
                                 type="button"
-                                onClick={() => onToggle(activeRole, def.key, action)}
+                                disabled={isHardLocked}
+                                onClick={() => !isHardLocked && onToggle(activeRole, def.key, action)}
+                                title={isHardLocked ? 'لا يمكن منح هذه الصلاحية لدور مرسل المصنع' : undefined}
                                 className={cn(
-                                  'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-150 whitespace-nowrap border',
-                                  allowed
-                                    ? 'bg-accent/10 text-accent border-accent/30 hover:bg-accent/20'
-                                    : 'bg-surface-elevated text-foreground-muted border-border-default hover:border-foreground-muted/40',
+                                  'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap border',
+                                  isHardLocked
+                                    ? 'bg-surface-elevated text-foreground-tertiary border-border-default cursor-not-allowed opacity-50'
+                                    : cn(
+                                        'transition-all duration-150',
+                                        allowed
+                                          ? 'bg-accent/10 text-accent border-accent/30 hover:bg-accent/20'
+                                          : 'bg-surface-elevated text-foreground-muted border-border-default hover:border-foreground-muted/40',
+                                      ),
                                 )}
                               >
                                 <span className="text-[10px]">{allowed ? '✓' : '✕'}</span>

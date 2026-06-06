@@ -97,6 +97,14 @@ usersRouter.get('/me/permissions', async (req, res, next) => {
       return;
     }
     const permissions = await permSvc.getEffectivePermissionsForUser(userId, role);
+
+    // Hard invariant: factory_sender must never receive shipments.approve=true
+    // even if a DB override or misconfigured role row says otherwise.
+    if (role === 'factory_sender') {
+      if (!permissions['shipments']) permissions['shipments'] = {};
+      permissions['shipments']['approve'] = false;
+    }
+
     res.json({ all: false, permissions });
   } catch (e) { next(e); }
 });

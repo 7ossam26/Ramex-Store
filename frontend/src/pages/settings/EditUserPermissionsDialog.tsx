@@ -123,18 +123,37 @@ export function EditUserPermissionsDialog({ user, onClose }: Props) {
                               )}
                             </div>
                             <div className="flex gap-3 flex-wrap justify-end">
-                              {def.actions.map((action) => (
-                                <div key={action} className="flex items-center gap-1.5">
-                                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                                    {(ar.settings.permissions.actions as Record<string, string>)[action] ?? action}
-                                  </span>
-                                  <TriStateControl
-                                    state={getState(def.key, action)}
-                                    roleDefault={getRoleDefault(def.key, action)}
-                                    onChange={(next) => toggle(def.key, action, next)}
-                                  />
-                                </div>
-                              ))}
+                              {def.actions.map((action) => {
+                                // Hard invariant: factory_sender users can never be granted
+                                // shipments.approve, even via per-user override.
+                                const isHardLocked =
+                                  data.role === 'factory_sender' &&
+                                  def.key === 'shipments' &&
+                                  action === 'approve';
+                                return (
+                                  <div key={action} className="flex items-center gap-1.5">
+                                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                      {(ar.settings.permissions.actions as Record<string, string>)[action] ?? action}
+                                    </span>
+                                    {isHardLocked ? (
+                                      <span
+                                        className="inline-flex rounded border border-border overflow-hidden text-[10px] font-medium opacity-50 cursor-not-allowed"
+                                        title="لا يمكن منح هذه الصلاحية لدور مرسل المصنع"
+                                      >
+                                        <span className="px-1.5 py-0.5 bg-danger/20 text-danger-foreground font-semibold">
+                                          {ar.settings.users.deny}
+                                        </span>
+                                      </span>
+                                    ) : (
+                                      <TriStateControl
+                                        state={getState(def.key, action)}
+                                        roleDefault={getRoleDefault(def.key, action)}
+                                        onChange={(next) => toggle(def.key, action, next)}
+                                      />
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         </div>
