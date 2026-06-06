@@ -144,4 +144,18 @@ export const inventoryApi = {
     api
       .get<{ rows: StockSummaryRow[] }>('/inventory/stock-summary', { params })
       .then((r) => r.data.rows),
+
+  // Factory Sender dashboard KPIs
+  getFactorySenderDashboard: () =>
+    api
+      .get<FactorySenderDashboardData>('/inventory/factory-sender/dashboard')
+      .then((r) => r.data),
+};
+
+export type FactorySenderDashboardData = {
+  factory_stock: { roll_count: number; total_kg: number; total_meters: number };
+  available_rolls: number;
+  shipments_this_week: number;
+  pending_shipments: number;
+  rejected_lines_30d: number;
 };

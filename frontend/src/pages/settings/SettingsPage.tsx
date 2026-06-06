@@ -8,7 +8,7 @@
  * Form behavior, CRUD logic, and permission gating are preserved verbatim.
  * Tokens only — no hex literals, no legacy palette utilities.
  * ============================================================= */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
@@ -343,6 +343,20 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
     setMatrixDirty((prev) => new Map(prev).set(k, !current));
   }
 
+  function bulkSetPerms(
+    role: string,
+    updates: Array<{ resource: string; action: string }>,
+    allowed: boolean,
+  ) {
+    setMatrixDirty((prev) => {
+      const next = new Map(prev);
+      for (const { resource, action } of updates) {
+        next.set(matrixKey(role, resource, action), allowed);
+      }
+      return next;
+    });
+  }
+
   function savePerms() {
     const updates: Array<{ role: string; resource: string; action: string; is_allowed: boolean }> = [];
     for (const [k, v] of matrixDirty.entries()) {
@@ -465,6 +479,7 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
         <RolePermissionsPanel
           isAllowed={isAllowed}
           onToggle={togglePerm}
+          onBulkSet={bulkSetPerms}
           dirty={matrixDirty}
           onSave={savePerms}
           saving={savePermsMut.isPending}
@@ -476,8 +491,10 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
 
 // ─── Role Permissions Panel ──────────────────────────────────────────────────
 
-const ROLE_LABELS: Record<MatrixRole, string> = {
-  owner:          ar.settings.permissions.owner,
+// Owner/super_admin short-circuit to allow — show only the two configurable roles.
+const DISPLAY_ROLES: Array<'shop_seller' | 'factory_sender'> = ['shop_seller', 'factory_sender'];
+
+const DISPLAY_ROLE_LABELS: Record<string, string> = {
   shop_seller:    ar.settings.permissions.shopSeller,
   factory_sender: ar.settings.permissions.factorySender,
 };
@@ -485,150 +502,209 @@ const ROLE_LABELS: Record<MatrixRole, string> = {
 function RolePermissionsPanel({
   isAllowed,
   onToggle,
+  onBulkSet,
   dirty,
   onSave,
   saving,
 }: {
   isAllowed: (role: string, resource: string, action: string) => boolean;
   onToggle: (role: string, resource: string, action: string) => void;
+  onBulkSet: (role: string, updates: Array<{ resource: string; action: string }>, allowed: boolean) => void;
   dirty: Map<string, boolean>;
   onSave: () => void;
   saving: boolean;
 }) {
-  const [activeRole, setActiveRole] = useState<MatrixRole>('owner');
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
-    new Set(['core', 'admin', 'hr']),
-  );
+  const [activeGroup, setActiveGroup] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
-  function toggleGroup(groupKey: string) {
-    setExpandedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(groupKey)) next.delete(groupKey);
-      else next.add(groupKey);
-      return next;
-    });
-  }
+  const filteredGroups = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return RESOURCE_GROUPS
+      .filter((g) => !activeGroup || g.groupKey === activeGroup)
+      .map((g) => ({
+        ...g,
+        rows: g.resources.flatMap((def) =>
+          def.actions
+            .filter((action) => {
+              if (!q) return true;
+              const resLabel = ((ar.settings.permissions.resources as Record<string, string>)[def.key] ?? def.key).toLowerCase();
+              const actLabel = ((ar.settings.permissions.actions as Record<string, string>)[action] ?? action).toLowerCase();
+              return resLabel.includes(q) || actLabel.includes(q) || def.key.includes(q);
+            })
+            .map((action) => ({ def, action })),
+        ),
+      }))
+      .filter((g) => g.rows.length > 0);
+  }, [activeGroup, search]);
+
+  const allVisibleRows = useMemo(
+    () => filteredGroups.flatMap((g) => g.rows),
+    [filteredGroups],
+  );
 
   return (
     <div className="space-y-4">
-      {/* Role tab selector */}
-      <div className="relative flex border-b border-border-subtle">
-        {MATRIX_ROLES.map((role) => (
+      <p className="text-xs text-foreground-muted">{ar.settings.permissions.legend}</p>
+
+      {/* Group filter chips */}
+      <div className="flex gap-2 flex-wrap">
+        <button
+          type="button"
+          onClick={() => setActiveGroup(null)}
+          className={cn(
+            'px-3 py-1 rounded-full text-xs font-medium border transition-colors duration-150',
+            !activeGroup
+              ? 'bg-accent/10 text-accent border-accent/30'
+              : 'bg-surface-elevated text-foreground-muted border-border-subtle hover:border-foreground-muted/40',
+          )}
+        >
+          الكل
+        </button>
+        {RESOURCE_GROUPS.map((g) => (
           <button
-            key={role}
+            key={g.groupKey}
             type="button"
-            onClick={() => setActiveRole(role)}
+            onClick={() => setActiveGroup(activeGroup === g.groupKey ? null : g.groupKey)}
             className={cn(
-              'relative px-4 py-2.5 text-sm transition-colors duration-150 ease-standard',
-              activeRole === role
-                ? 'text-foreground font-semibold'
-                : 'text-foreground-muted hover:text-foreground',
+              'px-3 py-1 rounded-full text-xs font-medium border transition-colors duration-150',
+              activeGroup === g.groupKey
+                ? 'bg-accent/10 text-accent border-accent/30'
+                : 'bg-surface-elevated text-foreground-muted border-border-subtle hover:border-foreground-muted/40',
             )}
           >
-            {activeRole === role && (
-              <motion.span
-                layoutId="role-permissions-tab"
-                className="absolute -bottom-px inset-x-2 h-0.5 bg-accent rounded-full"
-                transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
-              />
-            )}
-            <span className="relative">{ROLE_LABELS[role]}</span>
+            {(ar.settings.permissions.groups as Record<string, string>)[g.groupKey] ?? g.groupKey}
           </button>
         ))}
       </div>
 
-      {/* Legend */}
-      <p className="text-xs text-foreground-muted">{ar.settings.permissions.legend}</p>
+      {/* Search */}
+      <input
+        type="search"
+        placeholder="بحث عن صلاحية…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        dir="rtl"
+        className="h-9 w-full max-w-xs rounded-md border border-border-subtle bg-surface-elevated px-3 text-sm text-foreground placeholder:text-foreground-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:border-accent transition-colors"
+      />
 
-      {/* Module groups */}
-      <div className="space-y-2">
-        {RESOURCE_GROUPS.map((group) => {
-          const isExpanded = expandedGroups.has(group.groupKey);
-          const isReports = group.groupKey === 'reports';
-          const allowedReportsCount = isReports
-            ? group.resources.filter((r) => isAllowed(activeRole, r.key, 'read')).length
-            : 0;
-
-          return (
-            <div key={group.groupKey} className="rounded-lg border border-border-subtle overflow-hidden">
-              {/* Group header */}
-              <button
-                type="button"
-                className="w-full flex items-center justify-between px-3 py-2.5 bg-surface-row-alt hover:bg-surface-hover transition-colors duration-150"
-                onClick={() => toggleGroup(group.groupKey)}
-              >
-                <span className="text-sm font-semibold text-foreground-muted">
-                  {ar.settings.permissions.groups[group.groupKey] ?? group.groupKey}
-                  {isReports && (
-                    <span className="ms-2 text-xs font-normal text-foreground-muted/70">
-                      ({allowedReportsCount}/{group.resources.length} مسموح)
-                    </span>
-                  )}
-                </span>
-                <span className="text-foreground-muted/60 text-xs">{isExpanded ? '▲' : '▼'}</span>
-              </button>
-
-              {/* Resource rows */}
-              {isExpanded && (
-                <div className="divide-y divide-border-subtle">
-                  {group.resources.map((def) => {
-                    const desc = (ar.settings.permissions.descriptions as Record<string, string>)[
-                      def.descriptionKey ?? def.key
-                    ];
-                    return (
-                      <div
-                        key={def.key}
-                        className="px-3 py-2.5 flex items-center justify-between gap-4 bg-surface-elevated hover:bg-surface-hover/50 transition-colors duration-150"
-                      >
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium text-foreground">
-                            {(ar.settings.permissions.resources as Record<string, string>)[def.key] ?? def.key}
-                          </div>
-                          {desc && (
-                            <div className="text-xs text-foreground-muted/70 mt-0.5">{desc}</div>
-                          )}
-                        </div>
-                        <div className="flex gap-1.5 flex-shrink-0 flex-wrap justify-end">
-                          {def.actions.map((action) => {
-                            const allowed = isAllowed(activeRole, def.key, action);
-                            // Hard invariant: factory_sender can never be granted shipments.approve.
-                            const isHardLocked =
-                              activeRole === 'factory_sender' &&
-                              def.key === 'shipments' &&
-                              action === 'approve';
-                            return (
-                              <button
-                                key={action}
-                                type="button"
-                                disabled={isHardLocked}
-                                onClick={() => !isHardLocked && onToggle(activeRole, def.key, action)}
-                                title={isHardLocked ? 'لا يمكن منح هذه الصلاحية لدور مرسل المصنع' : undefined}
-                                className={cn(
-                                  'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap border',
-                                  isHardLocked
-                                    ? 'bg-surface-elevated text-foreground-tertiary border-border-default cursor-not-allowed opacity-50'
-                                    : cn(
-                                        'transition-all duration-150',
-                                        allowed
-                                          ? 'bg-accent/10 text-accent border-accent/30 hover:bg-accent/20'
-                                          : 'bg-surface-elevated text-foreground-muted border-border-default hover:border-foreground-muted/40',
-                                      ),
-                                )}
-                              >
-                                <span className="text-[10px]">{allowed ? '✓' : '✕'}</span>
-                                {(ar.settings.permissions.actions as Record<string, string>)[action] ?? action}
-                              </button>
-                            );
-                          })}
-                        </div>
+      {/* 2-axis matrix table */}
+      <div className="overflow-x-auto rounded-lg border border-border-subtle">
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr className="bg-surface-row-alt border-b border-border-subtle">
+              <th className="sticky right-0 z-10 bg-surface-row-alt px-3 py-2.5 text-start font-medium text-foreground-muted min-w-[220px]">
+                الصلاحية
+              </th>
+              {DISPLAY_ROLES.map((role) => (
+                <th key={role} className="px-4 py-2.5 text-center font-medium text-foreground-muted min-w-[130px]">
+                  <div className="flex flex-col items-center gap-1.5">
+                    <span>{DISPLAY_ROLE_LABELS[role]}</span>
+                    {allVisibleRows.length > 0 && (
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onBulkSet(role, allVisibleRows.map(({ def, action }) => ({ resource: def.key, action })), true)
+                          }
+                          className="text-[9px] px-1.5 py-0.5 rounded border border-success/40 text-success-foreground bg-success/10 hover:bg-success/20 transition-colors leading-none"
+                          title="سماح للكل"
+                        >
+                          ✓ الكل
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onBulkSet(role, allVisibleRows.map(({ def, action }) => ({ resource: def.key, action })), false)
+                          }
+                          className="text-[9px] px-1.5 py-0.5 rounded border border-danger/40 text-danger-foreground bg-danger/10 hover:bg-danger/20 transition-colors leading-none"
+                          title="منع الكل"
+                        >
+                          ✕ الكل
+                        </button>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
+                    )}
+                  </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border-subtle">
+            {filteredGroups.map((group) => (
+              <>
+                <tr key={`grp-${group.groupKey}`} className="bg-muted/40">
+                  <td
+                    colSpan={DISPLAY_ROLES.length + 1}
+                    className="px-3 py-1.5 text-xs font-semibold text-foreground-muted uppercase tracking-wide sticky right-0"
+                  >
+                    {(ar.settings.permissions.groups as Record<string, string>)[group.groupKey] ?? group.groupKey}
+                  </td>
+                </tr>
+                {group.rows.map(({ def, action }) => {
+                  const desc = (ar.settings.permissions.descriptions as Record<string, string>)[
+                    def.descriptionKey ?? def.key
+                  ];
+                  return (
+                    <tr
+                      key={`${def.key}:${action}`}
+                      className="bg-surface-elevated hover:bg-surface-hover/50 transition-colors duration-100"
+                    >
+                      <td className="sticky right-0 bg-inherit px-3 py-2.5 min-w-[220px]">
+                        <div className="text-sm font-medium text-foreground">
+                          {(ar.settings.permissions.resources as Record<string, string>)[def.key] ?? def.key}
+                        </div>
+                        <div className="text-xs text-foreground-muted">
+                          {(ar.settings.permissions.actions as Record<string, string>)[action] ?? action}
+                          {desc && <span className="mx-1 opacity-50">·</span>}
+                          {desc && <span className="text-foreground-tertiary">{desc}</span>}
+                        </div>
+                      </td>
+                      {DISPLAY_ROLES.map((role) => {
+                        const isHardLocked =
+                          role === 'factory_sender' &&
+                          def.key === 'shipments' &&
+                          action === 'approve';
+                        const allowed = isAllowed(role, def.key, action);
+                        return (
+                          <td key={role} className="px-4 py-2.5 text-center">
+                            {isHardLocked ? (
+                              <span
+                                className="inline-flex size-5 items-center justify-center rounded border border-border-subtle bg-surface-row-alt opacity-40 cursor-not-allowed mx-auto"
+                                title="لا يمكن منح هذه الصلاحية لمرسل المصنع"
+                              >
+                                <span className="text-[10px] text-danger-foreground">✕</span>
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => onToggle(role, def.key, action)}
+                                className={cn(
+                                  'inline-flex size-5 items-center justify-center rounded border transition-colors duration-150 mx-auto',
+                                  allowed
+                                    ? 'bg-accent/20 border-accent/40 hover:bg-accent/30'
+                                    : 'bg-surface-elevated border-border-subtle hover:border-foreground-muted/40',
+                                )}
+                                aria-label={`${allowed ? 'إلغاء' : 'منح'} صلاحية ${def.key}.${action} لـ${DISPLAY_ROLE_LABELS[role]}`}
+                              >
+                                {allowed && <span className="text-[10px] text-accent">✓</span>}
+                              </button>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </>
+            ))}
+            {filteredGroups.length === 0 && (
+              <tr>
+                <td colSpan={DISPLAY_ROLES.length + 1} className="py-8 text-center text-sm text-foreground-tertiary">
+                  لا توجد نتائج
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
       <StickySaveBar onSave={onSave} saving={saving} disabled={dirty.size === 0} />

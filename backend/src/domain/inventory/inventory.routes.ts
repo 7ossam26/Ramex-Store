@@ -8,6 +8,7 @@ import * as stocktakeCtl from './stocktake.controller.js';
 import * as adjustmentsCtl from './adjustments.controller.js';
 import * as stockMovementsCtl from './stockMovements.controller.js';
 import * as stockSummaryCtl from './stockSummary.controller.js';
+import * as fsDashboardCtl from './factorySenderDashboard.controller.js';
 
 export const inventoryRouter = Router();
 
@@ -115,3 +116,10 @@ inventoryRouter.get('/stock-movements', stockMovementsCtl.listStockMovements);
 
 // --- Stock Summary (inventory landing) ---
 inventoryRouter.get('/inventory/stock-summary', stockSummaryCtl.stockSummary);
+
+// --- Factory Sender Dashboard ---
+inventoryRouter.get(
+  '/factory-sender/dashboard',
+  requireRole('factory_sender', 'owner', 'super_admin'),
+  fsDashboardCtl.getFactorySenderDashboard,
+);

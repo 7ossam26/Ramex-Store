@@ -1,5 +1,6 @@
 export { OwnerDashboard } from './OwnerDashboard';
 export { SellerDashboard } from './SellerDashboard';
+export { FactorySenderDashboard } from './FactorySenderDashboard';
 export { DashboardShell } from './DashboardShell';
 export { FoldSection } from './FoldSection';
 export { KpiGrid } from './KpiGrid';
