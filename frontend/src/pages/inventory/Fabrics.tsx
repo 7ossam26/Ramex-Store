@@ -7,6 +7,7 @@ import { inventoryApi } from '@/lib/inventory-api';
 import { codesApi } from '@/lib/codes-api';
 import type {
   CreateFabricInput,
+  FabricCategory,
   FabricFull,
   FabricUnit,
   UpdateFabricInput,
@@ -33,6 +34,7 @@ type FormState = {
   name_ar: string;
   width_cm: string;
   unit: FabricUnit;
+  category: FabricCategory;
   notes: string;
   composition: CompositionRow[];
   is_active: boolean;
@@ -45,6 +47,7 @@ const blank = (): FormState => ({
   name_ar: '',
   width_cm: '',
   unit: 'kg',
+  category: 'main',
   notes: '',
   composition: [{ material: '', percent: '100' }],
   is_active: true,
@@ -58,6 +61,7 @@ function fromFabric(f: FabricFull & { default_grade_id?: number | null; default_
     name_ar: f.name_ar,
     width_cm: String(f.width_cm),
     unit: f.unit,
+    category: f.category ?? 'main',
     notes: f.notes ?? '',
     composition:
       f.composition.length > 0
@@ -95,6 +99,7 @@ export function FabricsPage() {
 
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [filterUnit, setFilterUnit] = useState<'' | 'kg' | 'meter'>('');
+  const [filterCategory, setFilterCategory] = useState<'' | 'main' | 'rib' | 'accessory'>('');
 
   const isOpen = creating || editing !== null;
 
@@ -169,6 +174,7 @@ export function FabricsPage() {
       composition,
       notes: form.notes.trim() || null,
       unit: form.unit,
+      category: form.category,
     };
   }
 
@@ -194,11 +200,12 @@ export function FabricsPage() {
       if (filterStatus === 'active' && !f.is_active) return false;
       if (filterStatus === 'inactive' && f.is_active) return false;
       if (filterUnit && f.unit !== filterUnit) return false;
+      if (filterCategory && (f.category ?? 'main') !== filterCategory) return false;
       return true;
     });
-  }, [fabrics, filterStatus, filterUnit]);
+  }, [fabrics, filterStatus, filterUnit, filterCategory]);
 
-  const activeFilters = (filterStatus !== 'all' ? 1 : 0) + (filterUnit ? 1 : 0);
+  const activeFilters = (filterStatus !== 'all' ? 1 : 0) + (filterUnit ? 1 : 0) + (filterCategory ? 1 : 0);
 
   const selectClass =
     'flex h-11 md:h-10 w-full rounded border border-border bg-canvas px-3 py-2 text-sm focus-visible:outline-none focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 cursor-pointer appearance-none';
@@ -226,6 +233,16 @@ export function FabricsPage() {
         key: 'unit',
         header: ar.fabrics.unit,
         cell: (f) => (f.unit === 'meter' ? ar.fabrics.unitMeter : ar.fabrics.unitKg),
+      },
+      {
+        key: 'category',
+        header: ar.fabrics.category,
+        cell: (f) => {
+          const cat = f.category ?? 'main';
+          if (cat === 'rib') return ar.fabrics.categoryRib;
+          if (cat === 'accessory') return ar.fabrics.categoryAccessory;
+          return ar.fabrics.categoryMain;
+        },
       },
       {
         key: 'composition',
@@ -273,7 +290,7 @@ export function FabricsPage() {
       <div className="rounded-lg border border-border-subtle bg-surface-elevated p-3 space-y-3">
         <h2 className="text-base font-semibold text-foreground">{ar.fabrics.title}</h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1">
             <Label className="text-sm font-medium text-foreground">الحالة</Label>
             <select
@@ -300,13 +317,27 @@ export function FabricsPage() {
               <option value="meter">{ar.fabrics.unitMeter}</option>
             </select>
           </div>
+          <div className="space-y-1">
+            <Label className="text-sm font-medium text-foreground">{ar.fabrics.category}</Label>
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value as '' | 'main' | 'rib' | 'accessory')}
+              dir="rtl"
+              className={selectClass}
+            >
+              <option value="">{ar.fabrics.categoryAll}</option>
+              <option value="main">{ar.fabrics.categoryMain}</option>
+              <option value="rib">{ar.fabrics.categoryRib}</option>
+              <option value="accessory">{ar.fabrics.categoryAccessory}</option>
+            </select>
+          </div>
         </div>
 
         {activeFilters > 0 && (
           <div className="flex gap-2 flex-wrap">
             <Button
               variant="outline"
-              onClick={() => { setFilterStatus('all'); setFilterUnit(''); }}
+              onClick={() => { setFilterStatus('all'); setFilterUnit(''); setFilterCategory(''); }}
               className="h-11 md:h-10 gap-1.5"
             >
               <X className="size-3.5" aria-hidden />
@@ -339,7 +370,7 @@ export function FabricsPage() {
         isLoading={fabricsQ.isLoading}
         isError={fabricsQ.isError}
         onRetry={() => fabricsQ.refetch()}
-        resetKey={`${filterStatus}|${filterUnit}`}
+        resetKey={`${filterStatus}|${filterUnit}|${filterCategory}`}
         actions={
           isOwner
             ? (f) => (
@@ -390,7 +421,7 @@ export function FabricsPage() {
                   className="h-11 md:h-10"
                 />
               </div>
-              <div className="space-y-1 md:col-span-2">
+              <div className="space-y-1">
                 <Label>{ar.fabrics.unit}</Label>
                 <div
                   className="inline-flex rounded border border-border bg-canvas p-0.5 h-11 md:h-10"
@@ -425,6 +456,35 @@ export function FabricsPage() {
                   >
                     {ar.fabrics.unitMeter}
                   </button>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label>{ar.fabrics.category}</Label>
+                <div
+                  className="inline-flex rounded border border-border bg-canvas p-0.5 h-11 md:h-10"
+                  role="radiogroup"
+                  aria-label={ar.fabrics.category}
+                >
+                  {(['main', 'rib', 'accessory'] as const).map((cat) => {
+                    const label = cat === 'main' ? ar.fabrics.categoryMain : cat === 'rib' ? ar.fabrics.categoryRib : ar.fabrics.categoryAccessory;
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        role="radio"
+                        aria-checked={form.category === cat}
+                        onClick={() => setForm({ ...form, category: cat })}
+                        className={
+                          'cursor-pointer px-3 rounded-sm text-sm transition-colors ' +
+                          (form.category === cat
+                            ? 'bg-accent text-accent-foreground'
+                            : 'text-foreground-muted hover:text-foreground')
+                        }
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
 import { requireActiveSession } from '../../middleware/concurrent-session.js';
+import { requirePermission } from '../../middleware/requirePermission.js';
 import * as fabricsCtl from './fabrics.controller.js';
 import * as colorsCtl from './colors.controller.js';
 import * as pricesCtl from './prices.controller.js';
@@ -45,3 +46,4 @@ itemsRouter.get('/rolls/:id/label-pdf', rollsCtl.getLabelPdf);
 itemsRouter.post('/rolls/:id/reprint-label', rollsCtl.reprintLabel);
 itemsRouter.patch('/rolls/:id', requireRole('owner', 'super_admin'), rollsCtl.updateRoll);
 itemsRouter.post('/rolls/:id/toggle-pos-visibility', requireRole('owner', 'super_admin'), rollsCtl.togglePosVisibility);
+itemsRouter.post('/rolls/:id/return-to-factory', requirePermission('inventory', 'write'), rollsCtl.returnToFactory);

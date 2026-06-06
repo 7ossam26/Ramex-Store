@@ -2,6 +2,12 @@ import { db } from '../../db/connection.js';
 import type { Roll, RollWithDetails, RollWithLabelDetails } from './items.types.js';
 import type { UpdateRollInput } from './items.schemas.js';
 
+export class RollValidationError extends Error {
+  constructor(public readonly code: string, message: string) {
+    super(message);
+  }
+}
+
 const ROLL_DETAIL_COLS = [
   'r.*',
   'f.code as fabric_code',
@@ -147,6 +153,38 @@ export async function findByBarcode(
     )
     .first();
   return row ? normalizeLabelRow(row) : undefined;
+}
+
+export async function returnRollToFactory(
+  rollId: number,
+  actorUserId: number,
+): Promise<Roll> {
+  const roll = await db('rolls').where({ id: rollId }).first();
+  if (!roll) throw new RollValidationError('not_found', 'Roll not found');
+  if (roll.warehouse !== 'shop' || roll.status !== 'in_stock') {
+    throw new RollValidationError(
+      'invalid_state',
+      'Only in-stock shop rolls can be returned to the factory',
+    );
+  }
+
+  await db.transaction(async (trx) => {
+    await trx('rolls').where({ id: rollId }).update({
+      warehouse: 'factory',
+      updated_at: trx.fn.now(),
+    });
+    await trx('stock_movements').insert({
+      roll_id: rollId,
+      from_warehouse: 'shop',
+      to_warehouse: 'factory',
+      event_type: 'shop_to_factory_return',
+      actor_user_id: actorUserId,
+      notes_ar: null,
+      created_at: trx.fn.now(),
+    });
+  });
+
+  return db('rolls').where({ id: rollId }).first() as Promise<Roll>;
 }
 
 export async function searchRolls(filters: {

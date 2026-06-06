@@ -131,6 +131,11 @@ export const ar = {
     defaultGrade: 'الدرجة الافتراضية',
     defaultComposition: 'التركيب الافتراضي',
     defaultBrand: 'الماركة الافتراضية',
+    category: 'الفئة',
+    categoryMain: 'أساسية',
+    categoryRib: 'ريب',
+    categoryAccessory: 'إكسسوار',
+    categoryAll: 'كل الفئات',
   },
   lots: {
     title: 'اللوتات',
@@ -275,6 +280,7 @@ export const ar = {
       sale_out: 'بيع',
       reserve: 'حجز',
       unreserve: 'إلغاء حجز',
+      shop_to_factory_return: 'إرجاع للمصنع',
     },
   },
   warehouses: {
@@ -673,6 +679,12 @@ export const ar = {
     printThermal: 'طباعة (حرارية)',
     printA4: 'طباعة (A4)',
     noLabelData: 'لا توجد بيانات ملصق لهذا التوب',
+    markAsSample: 'تحويل إلى عيّنة',
+    unmarkSample: 'إلغاء العيّنة',
+    returnToFactory: 'إرجاع إلى المصنع',
+    returnToFactoryConfirm: 'هل تريد إرجاع هذا التوب إلى مخزن المصنع؟',
+    sampleConfirm: 'سيتم تعيين حالة التوب إلى «عيّنة» وإخفاؤه من شاشة البيع. هل تريد المتابعة؟',
+    unmarkSampleConfirm: 'سيتم تحويل التوب من عيّنة إلى «في المخزن» وسيظهر في شاشة البيع. هل تريد المتابعة؟',
   },
   addTop: {
     navTitle: 'إضافة توب',

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Printer, ScanBarcode, X } from 'lucide-react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { itemsApi } from '@/lib/items-api';
 import { inventoryApi } from '@/lib/inventory-api';
@@ -19,6 +19,9 @@ import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
 import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { RollStatusPill } from '@/components/items/RollStatusPill';
+import { useAuth } from '@/lib/auth';
+import { isOwnerOrAbove } from '@/lib/roles';
+import { usePermissions } from '@/lib/permissions';
 
 // ── Label card helpers ──────────────────────────────────────────────────────
 function LabelRow({ label, value }: { label: string; value: string | number | null | undefined }) {
@@ -138,6 +141,10 @@ function fmtMoney(n: string | number) {
 
 // ── Main page ────────────────────────────────────────────────────────────────
 export function RollsPage() {
+  const { user } = useAuth();
+  const { can } = usePermissions();
+  const isOwner = isOwnerOrAbove(user?.role);
+
   const [barcode, setBarcode] = useState('');
   const [fabricId, setFabricId] = useState('');
   const [colorId, setColorId] = useState('');
@@ -145,6 +152,8 @@ export function RollsPage() {
   // Applied state — dropdowns apply immediately, scanner applies on Enter
   const [applied, setApplied] = useState({ barcode: '', fabricId: '', colorId: '' });
   const [detail, setDetail] = useState<RollWithDetails | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<'sample' | 'unsample' | 'return' | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
@@ -179,9 +188,34 @@ export function RollsPage() {
 
   const activeFilters = [barcode, fabricId, colorId].filter(Boolean).length;
 
+  const qc = useQueryClient();
+
   const labelPdfMut = useMutation({
     mutationFn: (rollId: number) => itemsApi.labelPdfBlob(rollId),
     onSuccess: (blob) => openPdfBlob(blob),
+  });
+
+  const updateRollMut = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: { status?: import('@/lib/inventory-types').RollStatus; is_visible_at_pos?: boolean } }) =>
+      itemsApi.updateRoll(id, data),
+    onSuccess: (updated) => {
+      setDetail((prev) => prev ? { ...prev, ...updated } : null);
+      qc.invalidateQueries({ queryKey: ['rolls-search'] });
+      setPendingConfirm(null);
+      setActionError(null);
+    },
+    onError: () => setActionError(ar.common.error),
+  });
+
+  const returnToFactoryMut = useMutation({
+    mutationFn: (id: number) => itemsApi.returnRollToFactory(id),
+    onSuccess: (updated) => {
+      setDetail((prev) => prev ? { ...prev, ...updated } : null);
+      qc.invalidateQueries({ queryKey: ['rolls-search'] });
+      setPendingConfirm(null);
+      setActionError(null);
+    },
+    onError: () => setActionError(ar.common.error),
   });
 
   function handleSearch() {
@@ -332,7 +366,7 @@ export function RollsPage() {
       </SectionCard>
 
       {/* Roll detail drawer */}
-      <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
+      <Dialog open={!!detail} onOpenChange={(o) => { if (!o) { setDetail(null); setPendingConfirm(null); setActionError(null); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{ar.labels.rollDetail}</DialogTitle>
@@ -384,6 +418,83 @@ export function RollsPage() {
                 <p className="font-semibold text-sm text-foreground">{ar.labels.fabricLabelSection}</p>
                 <FabricLabelCard rollId={detail.id} />
               </div>
+
+              {/* Roll actions — sample + return to factory */}
+              {(isOwner || can('inventory', 'write')) && (
+                <div className="pt-2 border-t border-border-subtle space-y-2">
+                  {isOwner && detail.status === 'in_stock' && !pendingConfirm && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-11 md:h-10"
+                      onClick={() => { setPendingConfirm('sample'); setActionError(null); }}
+                    >
+                      {ar.labels.markAsSample}
+                    </Button>
+                  )}
+                  {isOwner && detail.status === 'sample' && !pendingConfirm && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-11 md:h-10"
+                      onClick={() => { setPendingConfirm('unsample'); setActionError(null); }}
+                    >
+                      {ar.labels.unmarkSample}
+                    </Button>
+                  )}
+                  {can('inventory', 'write') && detail.status === 'in_stock' && detail.warehouse === 'shop' && !pendingConfirm && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-11 md:h-10 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950"
+                      onClick={() => { setPendingConfirm('return'); setActionError(null); }}
+                    >
+                      {ar.labels.returnToFactory}
+                    </Button>
+                  )}
+
+                  {pendingConfirm && (
+                    <div className="rounded-md border border-border-subtle bg-surface-hover p-3 space-y-2">
+                      <p className="text-sm text-foreground">
+                        {pendingConfirm === 'sample'
+                          ? ar.labels.sampleConfirm
+                          : pendingConfirm === 'unsample'
+                            ? ar.labels.unmarkSampleConfirm
+                            : ar.labels.returnToFactoryConfirm}
+                      </p>
+                      {actionError && (
+                        <p className="text-sm text-danger-foreground">{actionError}</p>
+                      )}
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 h-9"
+                          onClick={() => { setPendingConfirm(null); setActionError(null); }}
+                        >
+                          {ar.common.cancel}
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="flex-1 h-9"
+                          disabled={updateRollMut.isPending || returnToFactoryMut.isPending}
+                          onClick={() => {
+                            if (pendingConfirm === 'sample') {
+                              updateRollMut.mutate({ id: detail.id, data: { status: 'sample', is_visible_at_pos: false } });
+                            } else if (pendingConfirm === 'unsample') {
+                              updateRollMut.mutate({ id: detail.id, data: { status: 'in_stock', is_visible_at_pos: true } });
+                            } else {
+                              returnToFactoryMut.mutate(detail.id);
+                            }
+                          }}
+                        >
+                          {updateRollMut.isPending || returnToFactoryMut.isPending ? ar.loading : ar.common.confirm}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

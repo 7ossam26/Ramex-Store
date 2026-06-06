@@ -125,7 +125,8 @@ export type StocktakeWithLines = Stocktake & { lines: StocktakeLine[] };
 export type StockEventType =
   | 'factory_in' | 'shipment_out' | 'shipment_in' | 'shipment_reject_back'
   | 'adjustment' | 'damage' | 'loss_writeoff' | 'sample_set'
-  | 'return_in' | 'sale_out' | 'reserve' | 'unreserve';
+  | 'return_in' | 'sale_out' | 'reserve' | 'unreserve'
+  | 'shop_to_factory_return';
 
 export type StockMovement = {
   id: number;
@@ -144,8 +145,9 @@ export type StockMovement = {
 };
 
 export type FabricUnit = 'kg' | 'meter';
+export type FabricCategory = 'main' | 'rib' | 'accessory';
 
-export type Fabric = { id: number; code: string; name_ar: string; unit: FabricUnit };
+export type Fabric = { id: number; code: string; name_ar: string; unit: FabricUnit; category: FabricCategory | null };
 export type Color = { id: number; name_ar: string; code: string };
 
 export type FabricFull = {
@@ -158,6 +160,7 @@ export type FabricFull = {
   notes: string | null;
   is_active: boolean;
   unit: FabricUnit;
+  category: FabricCategory | null;
   supplier_code: string | null;
   created_at: string;
   updated_at: string;
@@ -170,6 +173,7 @@ export type CreateFabricInput = {
   grade: string;
   notes?: string | null;
   unit: FabricUnit;
+  category?: FabricCategory | null;
   supplier_code?: string | null;
 };
 

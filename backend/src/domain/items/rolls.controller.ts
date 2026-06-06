@@ -4,6 +4,7 @@ import {
   FabricLabelQuerySchema, BatchFabricLabelSchema,
 } from './items.schemas.js';
 import * as svc from './rolls.service.js';
+import { RollValidationError } from './rolls.service.js';
 import { auditLog } from '../../middleware/audit.js';
 import { buildSingleLabelPdf, buildBatchLabelPdf } from '../../lib/barcode/labelPdf.js';
 import { renderRollLabelThermal, renderRollLabelsThermal, renderRollLabelA4 } from '../../lib/barcode/fabricLabelService.js';
@@ -94,6 +95,24 @@ export async function reprintLabel(req: Request, res: Response): Promise<void> {
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `inline; filename="label-reprint-${roll.internal_barcode}.pdf"`);
   res.end(pdf);
+}
+
+export async function returnToFactory(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  const actorUserId = (req.user as { sub: number }).sub;
+  const before = await svc.getRoll(id);
+  if (!before) { res.status(404).json({ error: 'not_found' }); return; }
+  try {
+    const after = await svc.returnRollToFactory(id, actorUserId);
+    await auditLog(req, 'return_to_factory', 'roll', id, before, after, { severity: 'medium' });
+    res.json(after);
+  } catch (err) {
+    if (err instanceof RollValidationError) {
+      res.status(422).json({ error: err.code, message: err.message });
+      return;
+    }
+    throw err;
+  }
 }
 
 // Fabric label — full 12-field supplier sticker

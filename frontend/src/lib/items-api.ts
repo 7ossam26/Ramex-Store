@@ -1,5 +1,6 @@
 import { api } from './api';
 import type { RollWithDetails, RollWithLabelDetails } from './items-types';
+import type { RollStatus } from './inventory-types';
 
 export const itemsApi = {
   searchRolls: (params: {
@@ -39,4 +40,10 @@ export const itemsApi = {
     api
       .post<Blob>('/rolls/fabric-labels/batch', { rollIds, format, perPage }, { responseType: 'blob' })
       .then((r) => r.data),
+
+  updateRoll: (rollId: number, data: { status?: RollStatus; is_visible_at_pos?: boolean }) =>
+    api.patch<RollWithDetails>(`/rolls/${rollId}`, data).then((r) => r.data),
+
+  returnRollToFactory: (rollId: number) =>
+    api.post<RollWithDetails>(`/rolls/${rollId}/return-to-factory`).then((r) => r.data),
 };

@@ -1,4 +1,5 @@
 export type FabricUnit = 'kg' | 'meter';
+export type FabricCategory = 'main' | 'rib' | 'accessory';
 
 export type Fabric = {
   id: number;
@@ -10,6 +11,7 @@ export type Fabric = {
   notes: string | null;
   is_active: boolean;
   unit: FabricUnit;
+  category: FabricCategory | null;
   supplier_code: string | null;
   default_width_cm: number | null;
   default_grade_id: number | null;

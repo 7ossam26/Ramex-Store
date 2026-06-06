@@ -14,22 +14,24 @@ const ALL_EVENTS: StockEventType[] = [
   'factory_in', 'shipment_out', 'shipment_in', 'shipment_reject_back',
   'adjustment', 'damage', 'loss_writeoff', 'sample_set',
   'return_in', 'sale_out', 'reserve', 'unreserve',
+  'shop_to_factory_return',
 ];
 
 // Event category → visual style
 const EVENT_CATEGORY: Record<StockEventType, 'inbound' | 'outbound' | 'transfer' | 'reserve'> = {
-  factory_in:          'inbound',
-  shipment_in:         'inbound',
-  return_in:           'inbound',
-  shipment_out:        'outbound',
-  sale_out:            'outbound',
-  damage:              'outbound',
-  loss_writeoff:       'outbound',
-  shipment_reject_back:'transfer',
-  adjustment:          'transfer',
-  reserve:             'reserve',
-  unreserve:           'reserve',
-  sample_set:          'reserve',
+  factory_in:             'inbound',
+  shipment_in:            'inbound',
+  return_in:              'inbound',
+  shipment_out:           'outbound',
+  sale_out:               'outbound',
+  damage:                 'outbound',
+  loss_writeoff:          'outbound',
+  shipment_reject_back:   'transfer',
+  adjustment:             'transfer',
+  shop_to_factory_return: 'transfer',
+  reserve:                'reserve',
+  unreserve:              'reserve',
+  sample_set:             'reserve',
 };
 
 const BADGE_STYLES: Record<'inbound' | 'outbound' | 'transfer' | 'reserve', string> = {

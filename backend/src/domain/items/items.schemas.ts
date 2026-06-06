@@ -14,6 +14,7 @@ const defaultLabelFields = {
 };
 
 export const FabricUnitEnum = z.enum(['kg', 'meter']);
+export const FabricCategoryEnum = z.enum(['main', 'rib', 'accessory']);
 
 export const CreateFabricSchema = z.object({
   name_ar: z.string().min(1).max(128),
@@ -22,6 +23,7 @@ export const CreateFabricSchema = z.object({
   grade: z.string().min(1).max(16),
   notes: z.string().nullable().optional(),
   unit: FabricUnitEnum.default('kg'),
+  category: FabricCategoryEnum.nullable().optional(),
   supplier_code: z.string().max(64).nullable().optional(),
   ...defaultLabelFields,
 });
