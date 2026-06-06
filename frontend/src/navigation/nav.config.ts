@@ -122,7 +122,7 @@ export const NAV: NavTop[] = [
   },
   {
     id: 'items',
-    labelAr: 'الأصناف',
+    labelAr: 'الاتواب',
     descAr: 'إدارة الاتواب والملصقات',
     icon: Package,
     route: '/items',
@@ -429,7 +429,7 @@ export const NAV: NavTop[] = [
   {
     id: 'hr',
     labelAr: 'الموارد البشرية',
-    descAr: 'الموظفون، الرواتب، والتسويات',
+    descAr: 'الموظفون، الرواتب، والسُّلف والخصومات',
     icon: UserCheck,
     route: '/hr',
     visibleTo: ['owner'],
@@ -452,8 +452,8 @@ export const NAV: NavTop[] = [
           },
           {
             id: 'hr.adjustments',
-            labelAr: 'التسويات',
-            descAr: 'السُّلف والخصومات',
+            labelAr: 'السُّلف والخصومات',
+            descAr: 'السُّلف والخصومات المرتبطة بالراتب',
             icon: ArrowDownUp,
             route: '/hr/adjustments',
           },

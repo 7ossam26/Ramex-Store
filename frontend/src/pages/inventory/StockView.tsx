@@ -164,14 +164,14 @@ function RollDetailsPanel({ row }: { row: StockSummaryRow }) {
   });
 
   if (isLoading) {
-    return <div className="text-xs text-foreground-muted py-2">جاري تحميل تفاصيل الرولات…</div>;
+    return <div className="text-xs text-foreground-muted py-2">جاري تحميل تفاصيل الاتواب…</div>;
   }
   if (isError) {
-    return <div className="text-xs text-danger-foreground py-2">تعذر تحميل تفاصيل الرولات.</div>;
+    return <div className="text-xs text-danger-foreground py-2">تعذر تحميل تفاصيل الاتواب.</div>;
   }
   const rolls = data ?? [];
   if (rolls.length === 0) {
-    return <div className="text-xs text-foreground-muted py-2">لا توجد رولات متاحة لهذا الصنف.</div>;
+    return <div className="text-xs text-foreground-muted py-2">لا توجد اتواب متاحة لهذه الخامة.</div>;
   }
 
   return (
@@ -181,7 +181,7 @@ function RollDetailsPanel({ row }: { row: StockSummaryRow }) {
           <thead>
             <tr className="text-[11px] text-foreground-muted border-b border-border-subtle">
               <th className="px-3 py-2 font-medium">الباركود</th>
-              <th className="px-3 py-2 font-medium">رقم الروول</th>
+              <th className="px-3 py-2 font-medium">رقم التوب</th>
               <th className="px-3 py-2 font-medium text-end">الوزن (kg)</th>
               <th className="px-3 py-2 font-medium text-end">سعر البيع</th>
               <th className="px-3 py-2 font-medium">المخزن</th>
@@ -381,7 +381,7 @@ export function StockViewPage() {
                   : 'text-success-foreground',
             )}
           >
-            {row.count_in_stock} رولات
+            {row.count_in_stock} توب
           </span>
           <span className="text-[11px] text-foreground-muted tabular-num">
             {fmtWeight(row.weight_kg_in_stock)} kg

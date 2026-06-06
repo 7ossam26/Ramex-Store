@@ -11,7 +11,6 @@ function fmtEgp(n: number | string | null | undefined): string {
 
 export type GeneralReportSummary = {
   total_sales_egp: string;
-  net_profit_egp: string;
   invoice_count: number;
 };
 
@@ -49,36 +48,20 @@ export async function getGeneralReport(fromDate: string, toDate: string): Promis
   const endIso = endUtc.toISOString();
 
   // ── 1. Summary ────────────────────────────────────────────────────────────────
-  const [salesAgg, refundsAgg, expensesAgg] = await Promise.all([
-    db('invoices')
-      .where('status', 'completed')
-      .whereBetween('created_at', [startIso, endIso])
-      .select(
-        db.raw('COUNT(*) as invoice_count'),
-        db.raw('COALESCE(SUM(total_egp), 0) as total_sales_egp'),
-      )
-      .first() as Promise<Record<string, string>>,
-
-    db('returns')
-      .whereBetween('processed_at', [startIso, endIso])
-      .where('kind', 'refund')
-      .select(db.raw('COALESCE(SUM(total_refund_egp), 0) as total_refunds_egp'))
-      .first() as Promise<Record<string, string>>,
-
-    db('expenses')
-      .whereBetween('created_at', [startIso, endIso])
-      .select(db.raw('COALESCE(SUM(amount_egp), 0) as total_expenses_egp'))
-      .first() as Promise<Record<string, string>>,
-  ]);
+  const salesAgg = await db('invoices')
+    .where('status', 'completed')
+    .whereBetween('created_at', [startIso, endIso])
+    .select(
+      db.raw('COUNT(*) as invoice_count'),
+      db.raw('COALESCE(SUM(total_egp), 0) as total_sales_egp'),
+    )
+    .first() as Record<string, string>;
 
   const totalSales = Number(salesAgg?.total_sales_egp ?? 0);
-  const totalRefunds = Number(refundsAgg?.total_refunds_egp ?? 0);
-  const totalExpenses = Number(expensesAgg?.total_expenses_egp ?? 0);
   const invoiceCount = Number(salesAgg?.invoice_count ?? 0);
 
   const summary: GeneralReportSummary = {
     total_sales_egp: fmtEgp(totalSales),
-    net_profit_egp: fmtEgp(totalSales - totalRefunds - totalExpenses),
     invoice_count: invoiceCount,
   };
 
@@ -163,7 +146,6 @@ export function generalReportToExportSections(report: GeneralReport): ReportPdfO
         ],
         rows: [
           { label: 'إجمالي المبيعات (ج.م)', value: summary.total_sales_egp },
-          { label: 'صافي الربح التقريبي (ج.م)', value: summary.net_profit_egp },
           { label: 'عدد الفواتير', value: String(summary.invoice_count) },
         ],
       },

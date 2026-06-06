@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  TrendingUp,
   ShoppingCart,
   FileText,
   Download,
@@ -128,19 +127,13 @@ function GeneralReportContent({ report }: { report: GeneralReport }) {
   return (
     <div className="space-y-6">
       {/* Stat cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <StatCard
           label="إجمالي المبيعات"
           value={fmt(summary.total_sales_egp)}
           suffix="ج.م"
           icon={<ShoppingCart className="size-5" />}
           highlight
-        />
-        <StatCard
-          label="صافي الربح (التقريبي)"
-          value={fmt(summary.net_profit_egp)}
-          suffix="ج.م"
-          icon={<TrendingUp className="size-5" />}
         />
         <StatCard
           label="عدد الفواتير"
@@ -159,7 +152,7 @@ function GeneralReportContent({ report }: { report: GeneralReport }) {
             isCurrency
           />
         </ChartCard>
-        <ChartCard title="توزيع المبيعات حسب الصنف">
+        <ChartCard title="توزيع المبيعات حسب الخامة">
           <SecondaryReportChart
             type="pie"
             data={sales_by_fabric}

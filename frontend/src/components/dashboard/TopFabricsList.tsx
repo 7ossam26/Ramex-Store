@@ -64,7 +64,7 @@ export function TopFabricsList({
                     />
                   </div>
                   <span dir="ltr" className="text-xs text-foreground-tertiary tabular-num w-10 text-end">
-                    {fmtInt(r.roll_count)} لفة
+                    {fmtInt(r.roll_count)} توب
                   </span>
                 </div>
               </li>

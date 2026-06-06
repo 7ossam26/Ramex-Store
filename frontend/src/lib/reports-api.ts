@@ -89,7 +89,6 @@ export type GeneralReport = {
   generated_at: string;
   summary: {
     total_sales_egp: string;
-    net_profit_egp: string;
     invoice_count: number;
   };
   hourly_sales: Array<{ hour: string; total_egp: number }>;
