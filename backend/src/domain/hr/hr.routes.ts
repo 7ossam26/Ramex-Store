@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import type { RequestHandler } from 'express';
 import { requireAuth } from '../../middleware/auth.js';
 import { requireActiveSession } from '../../middleware/concurrent-session.js';
+import { requirePermission } from '../../middleware/requirePermission.js';
 import { can } from '../permissions/permissionsService.js';
 import * as employeesSvc from './employees.service.js';
 import * as salariesSvc from './salaries.service.js';
@@ -16,22 +16,9 @@ import {
 export const hrRouter = Router();
 hrRouter.use(requireAuth, requireActiveSession);
 
-function requireHrPerm(action: string): RequestHandler {
-  return async (req, res, next) => {
-    const role = req.user!.role;
-    if (role === 'owner' || role === 'super_admin') return next();
-    const allowed = await can(role, 'hr', action);
-    if (!allowed) {
-      res.status(403).json({ error: 'forbidden' });
-      return;
-    }
-    next();
-  };
-}
-
 // ─── Employees ────────────────────────────────────────────────────────────────
 
-hrRouter.get('/employees', requireHrPerm('view'), async (req, res, next) => {
+hrRouter.get('/employees', requirePermission('hr', 'view'), async (req, res, next) => {
   try {
     const isActive = req.query['is_active'] === undefined
       ? undefined
@@ -46,7 +33,7 @@ hrRouter.get('/employees', requireHrPerm('view'), async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-hrRouter.post('/employees', requireHrPerm('manage'), async (req, res, next) => {
+hrRouter.post('/employees', requirePermission('hr', 'manage'), async (req, res, next) => {
   try {
     const data = CreateEmployeeSchema.parse(req.body);
     const emp = await employeesSvc.createEmployee(data, req.user!.sub);
@@ -54,7 +41,7 @@ hrRouter.post('/employees', requireHrPerm('manage'), async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-hrRouter.get('/employees/:id', requireHrPerm('view'), async (req, res, next) => {
+hrRouter.get('/employees/:id', requirePermission('hr', 'view'), async (req, res, next) => {
   try {
     const emp = await employeesSvc.getEmployee(Number(req.params['id']));
     const lastSalaries = await salariesSvc.listDisbursements({
@@ -65,7 +52,7 @@ hrRouter.get('/employees/:id', requireHrPerm('view'), async (req, res, next) => 
   } catch (e) { next(e); }
 });
 
-hrRouter.patch('/employees/:id', requireHrPerm('manage'), async (req, res, next) => {
+hrRouter.patch('/employees/:id', requirePermission('hr', 'manage'), async (req, res, next) => {
   try {
     const data = UpdateEmployeeSchema.parse(req.body);
     const emp = await employeesSvc.updateEmployee(Number(req.params['id']), data, req.user!.sub);
@@ -75,7 +62,7 @@ hrRouter.patch('/employees/:id', requireHrPerm('manage'), async (req, res, next)
 
 // ─── Salaries ─────────────────────────────────────────────────────────────────
 
-hrRouter.get('/salaries', requireHrPerm('view'), async (req, res, next) => {
+hrRouter.get('/salaries', requirePermission('hr', 'view'), async (req, res, next) => {
   try {
     const result = await salariesSvc.listDisbursements({
       employeeId: req.query['employee_id'] ? Number(req.query['employee_id']) : undefined,
@@ -88,7 +75,7 @@ hrRouter.get('/salaries', requireHrPerm('view'), async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-hrRouter.get('/salaries/preview', requireHrPerm('view'), async (req, res, next) => {
+hrRouter.get('/salaries/preview', requirePermission('hr', 'view'), async (req, res, next) => {
   try {
     const month = req.query['month'] as string;
     if (!month) { res.status(400).json({ error: 'month required' }); return; }
@@ -97,14 +84,14 @@ hrRouter.get('/salaries/preview', requireHrPerm('view'), async (req, res, next) 
   } catch (e) { next(e); }
 });
 
-hrRouter.get('/salaries/:id', requireHrPerm('view'), async (req, res, next) => {
+hrRouter.get('/salaries/:id', requirePermission('hr', 'view'), async (req, res, next) => {
   try {
     const d = await salariesSvc.getDisbursement(Number(req.params['id']));
     res.json(d);
   } catch (e) { next(e); }
 });
 
-hrRouter.post('/salaries', requireHrPerm('salary.disburse'), async (req, res, next) => {
+hrRouter.post('/salaries', requirePermission('hr', 'salary.disburse'), async (req, res, next) => {
   try {
     const data = DisburseSchema.parse(req.body);
     const d = await salariesSvc.disburse(data, req.user!.sub);
@@ -126,7 +113,7 @@ hrRouter.post('/salaries', requireHrPerm('salary.disburse'), async (req, res, ne
   }
 });
 
-hrRouter.get('/employees/:id/advance-balance', requireHrPerm('view'), async (req, res, next) => {
+hrRouter.get('/employees/:id/advance-balance', requirePermission('hr', 'view'), async (req, res, next) => {
   try {
     const balance = await adjustmentsSvc.getOutstandingAdvanceBalance(Number(req.params['id']));
     res.json({ outstanding_advance_egp: balance });
@@ -135,7 +122,7 @@ hrRouter.get('/employees/:id/advance-balance', requireHrPerm('view'), async (req
 
 // ─── Adjustments ──────────────────────────────────────────────────────────────
 
-hrRouter.get('/adjustments', requireHrPerm('view'), async (req, res, next) => {
+hrRouter.get('/adjustments', requirePermission('hr', 'view'), async (req, res, next) => {
   try {
     const kind = req.query['kind'] as 'advance' | 'deduction' | undefined;
     const result = await adjustmentsSvc.listAdjustments({
@@ -149,16 +136,15 @@ hrRouter.get('/adjustments', requireHrPerm('view'), async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// POST /adjustments — action depends on body.kind so we check inline after parsing the body.
 hrRouter.post('/adjustments', async (req, res, next) => {
   try {
     const body = CreateAdjustmentSchema.parse(req.body);
     const neededAction = body.kind === 'advance' ? 'advance.create' : 'deduction.create';
-    const role = req.user!.role;
-    if (role !== 'owner' && role !== 'super_admin') {
-      const allowed = await can(role, 'hr', neededAction);
-      if (!allowed) { res.status(403).json({ error: 'forbidden' }); return; }
-    }
-    const adj = await adjustmentsSvc.createAdjustment(body, req.user!.sub);
+    const user = req.user!;
+    const allowed = await can(user.role, 'hr', neededAction, user.sub);
+    if (!allowed) { res.status(403).json({ error: 'forbidden' }); return; }
+    const adj = await adjustmentsSvc.createAdjustment(body, user.sub);
     res.status(201).json(adj);
   } catch (e) { next(e); }
 });

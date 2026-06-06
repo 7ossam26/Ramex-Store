@@ -31,8 +31,8 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
       setData(null);
       return;
     }
-    // owner and super_admin have unconditional access — no fetch needed
-    if (user.role === 'owner' || user.role === 'super_admin') {
+    // super_admin has unconditional access — no fetch needed
+    if (user.role === 'super_admin') {
       setData({ all: true });
       return;
     }

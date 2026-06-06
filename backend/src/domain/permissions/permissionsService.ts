@@ -4,8 +4,9 @@ const _cache = new Map<string, { allowed: boolean; expiresAt: number }>();
 const TTL = 60_000;
 
 /** Check if a role/user is allowed to perform an action on a resource.
- *  Owner and super_admin are unconditionally allowed. Per-user overrides
- *  take precedence over role defaults when userId is provided. */
+ *  Only super_admin is unconditionally allowed (short-circuits before any DB lookup).
+ *  owner and all other roles are evaluated against the permissions matrix (role_permissions
+ *  table + per-user overrides). Per-user overrides take precedence over role defaults. */
 // Business-critical invariant: factory_sender can never approve shipments.
 // This fires before any DB lookup or per-user override, so no DB misconfiguration
 // or admin mistake can grant this permission to factory_sender.

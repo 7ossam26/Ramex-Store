@@ -100,15 +100,20 @@ This repo exposes **Owner read-only API endpoints** (Module 13) for the Dashboar
 
 | Role | Purpose | Access |
 |---|---|---|
-| **Super Admin** | Platform bootstrap account | Everything Owner can do, PLUS user CRUD and role-permissions matrix |
-| **Owner** | Business owner | Full admin for ops: see + edit settings, items, finance, inventory, reports — but NOT user management or permissions |
+| **Super Admin** | Platform bootstrap account | Unconditional access to everything. Sole authority for: user CRUD, role-permissions matrix, `/settings`. |
+| **Owner** | Business owner | Full operational access (all modules) controlled via the permissions matrix. **Cannot** access `/settings`, user management, or the permissions matrix — those are Super Admin only. |
 | **Shop Seller** (Ziad) | Daily POS operator | POS + customers + receive shipments + cash drawer |
 | **Factory Sender** (Ahmed) | Factory side | Create outbound shipments only; sees Factory Warehouse stock |
+| **Accountant** | Accounting / payroll | Read-only on operations; full HR + suppliers access; all reports except audit log |
 
-> **Amendment 2026-05-24**: A 4th role `super_admin` was introduced above Owner at the explicit request of the business owner. Owner remains the business-side full admin for day-to-day ops. User CRUD and the role-permissions matrix moved from Owner to Super Admin exclusively. The Settings → "المستخدمون والصلاحيات" sub-section is hidden from Owner entirely and only visible to Super Admin. Super Admin is seeded once at install (`username: superadmin`, default password `ChangeMe123!` — must be changed on first login).
+> **Amendment 2026-05-24**: A 4th role `super_admin` was introduced above Owner at the explicit request of the business owner. User CRUD and the role-permissions matrix moved from Owner to Super Admin exclusively. Super Admin is seeded once at install (`username: superadmin`, default password `ChangeMe123!` — must be changed on first login).
+
+> **Amendment 2026-06-07 (Permissions Enforcement)**: All roles — **including `owner`** — are now governed by the permissions matrix. No role is unconditionally unrestricted except `super_admin`. The `can()` service short-circuits only `super_admin`; every other role (including `owner`) resolves permissions from `role_permissions` + per-user overrides. Owner's default matrix grants full operational access but explicitly denies `settings.read`, `settings.write`, `users.read`, `users.write`. The entire `/settings` area is `super_admin`-only. If operational settings need to be exposed to `owner` in the future, they must be split into a separate page/route — not through `/settings`. The `accountant` role (5th role) was formally added. Role defaults are now the single source of truth in `shared/permissions/catalog.ts`.
 
 - User CRUD: Super Admin only.
 - Password reset: Super Admin only (no self-service "forgot password").
+- `/settings`: Super Admin only.
+- Permissions matrix editing: Super Admin only.
 - Concurrent sessions: blocked (same user cannot be logged into 2 devices simultaneously).
 - No auto-logout on inactivity.
 - Online-only (no offline mode); notify user if connectivity lost.
@@ -277,6 +282,10 @@ This repo exposes **Owner read-only API endpoints** (Module 13) for the Dashboar
 - Cross-branch aggs to expose: daily totals, hourly sales curve, inventory turnover ratio.
 
 ### Module 14 — Settings
+**Access: Super Admin only.** The entire `/settings` area is restricted to `super_admin`.
+Owner cannot access `/settings`. Any operational setting that needs to be exposed to Owner
+in the future must be split into a dedicated page/route outside of `/settings`.
+
 | Section | Items |
 |---|---|
 | General | Logo upload, Address, Phone, Tax ID, Receipt warning text |
@@ -285,7 +294,7 @@ This repo exposes **Owner read-only API endpoints** (Module 13) for the Dashboar
 | Cash Drawer | Initial opening balance (set once) |
 | Bank Accounts | CRUD + active flag |
 | Receipt | Logo, header field toggles, warning text, A4 layout |
-| Users & Roles | User CRUD, role permissions matrix **(super admin only — hidden from Owner)** |
+| Users & Roles | User CRUD, role permissions matrix **(super admin only)** |
 | Reason Codes | Damage/loss codes (editable), expense categories (editable), cancellation reasons (editable) |
 | Day Rollover | Time of day for daily report cutoff |
 | System | Audit retention=forever (read-only display) |

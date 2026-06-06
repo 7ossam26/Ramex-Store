@@ -17,4 +17,4 @@ notificationsRouter.get('/', listNotifications);
 notificationsRouter.get('/unread-count', getUnreadCount);
 notificationsRouter.post('/read-all', markAllRead);
 notificationsRouter.post('/:id/read', markRead);
-notificationsRouter.post('/:id/resolve', requireRole('owner', 'super_admin'), resolveNotification);
+notificationsRouter.post('/:id/resolve', requireRole('super_admin'), resolveNotification);
