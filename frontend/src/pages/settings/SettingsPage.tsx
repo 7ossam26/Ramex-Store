@@ -514,6 +514,7 @@ function RolePermissionsPanel({
   onSave: () => void;
   saving: boolean;
 }) {
+  const [activeRole, setActiveRole] = useState<'shop_seller' | 'factory_sender'>('shop_seller');
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
@@ -523,31 +524,73 @@ function RolePermissionsPanel({
       .filter((g) => !activeGroup || g.groupKey === activeGroup)
       .map((g) => ({
         ...g,
-        rows: g.resources.flatMap((def) =>
-          def.actions
-            .filter((action) => {
-              if (!q) return true;
-              const resLabel = ((ar.settings.permissions.resources as Record<string, string>)[def.key] ?? def.key).toLowerCase();
-              const actLabel = ((ar.settings.permissions.actions as Record<string, string>)[action] ?? action).toLowerCase();
-              return resLabel.includes(q) || actLabel.includes(q) || def.key.includes(q);
-            })
-            .map((action) => ({ def, action })),
-        ),
+        resources: g.resources.filter((def) => {
+          if (!q) return true;
+          const resLabel = ((ar.settings.permissions.resources as Record<string, string>)[def.key] ?? def.key).toLowerCase();
+          const desc = ((ar.settings.permissions.descriptions as Record<string, string>)[def.descriptionKey ?? def.key] ?? '').toLowerCase();
+          return resLabel.includes(q) || def.key.includes(q) || desc.includes(q);
+        }),
       }))
-      .filter((g) => g.rows.length > 0);
+      .filter((g) => g.resources.length > 0);
   }, [activeGroup, search]);
 
-  const allVisibleRows = useMemo(
-    () => filteredGroups.flatMap((g) => g.rows),
+  const allVisibleResources = useMemo(
+    () => filteredGroups.flatMap((g) =>
+      g.resources.flatMap((def) => def.actions.map((action) => ({ resource: def.key, action }))),
+    ),
     [filteredGroups],
   );
 
   return (
-    <div className="space-y-4">
-      <p className="text-xs text-foreground-muted">{ar.settings.permissions.legend}</p>
+    <div className="space-y-5">
+      {/* Role tabs */}
+      <div className="relative flex border-b border-border-subtle">
+        {DISPLAY_ROLES.map((role) => (
+          <button
+            key={role}
+            type="button"
+            onClick={() => setActiveRole(role)}
+            className={cn(
+              'relative px-4 py-2.5 text-sm transition-colors duration-150 ease-standard',
+              activeRole === role
+                ? 'text-foreground font-semibold'
+                : 'text-foreground-muted hover:text-foreground',
+            )}
+          >
+            {activeRole === role && (
+              <motion.span
+                layoutId="role-permissions-tab"
+                className="absolute -bottom-px inset-x-2 h-0.5 bg-accent rounded-full"
+                transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+              />
+            )}
+            <span className="relative">{DISPLAY_ROLE_LABELS[role]}</span>
+          </button>
+        ))}
 
-      {/* Group filter chips */}
-      <div className="flex gap-2 flex-wrap">
+        {/* Bulk actions aligned to the opposite end */}
+        {allVisibleResources.length > 0 && (
+          <div className="me-auto flex items-center gap-2 px-4">
+            <button
+              type="button"
+              onClick={() => onBulkSet(activeRole, allVisibleResources, true)}
+              className="text-xs px-2.5 py-1 rounded-full border border-success/40 text-success-foreground bg-success/10 hover:bg-success/20 transition-colors"
+            >
+              سماح للكل
+            </button>
+            <button
+              type="button"
+              onClick={() => onBulkSet(activeRole, allVisibleResources, false)}
+              className="text-xs px-2.5 py-1 rounded-full border border-danger/40 text-danger-foreground bg-danger/10 hover:bg-danger/20 transition-colors"
+            >
+              منع الكل
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Group filter chips + search in one row */}
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => setActiveGroup(null)}
@@ -575,137 +618,89 @@ function RolePermissionsPanel({
             {(ar.settings.permissions.groups as Record<string, string>)[g.groupKey] ?? g.groupKey}
           </button>
         ))}
+        <input
+          type="search"
+          placeholder="بحث…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          dir="rtl"
+          className="h-8 w-36 rounded-md border border-border-subtle bg-surface-elevated px-2.5 text-xs text-foreground placeholder:text-foreground-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:border-accent transition-colors ms-auto"
+        />
       </div>
 
-      {/* Search */}
-      <input
-        type="search"
-        placeholder="بحث عن صلاحية…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        dir="rtl"
-        className="h-9 w-full max-w-xs rounded-md border border-border-subtle bg-surface-elevated px-3 text-sm text-foreground placeholder:text-foreground-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:border-accent transition-colors"
-      />
+      {/* Card grid sections */}
+      {filteredGroups.length === 0 ? (
+        <p className="py-8 text-center text-sm text-foreground-tertiary">لا توجد نتائج</p>
+      ) : (
+        <div className="space-y-6">
+          {filteredGroups.map((group) => (
+            <section key={group.groupKey}>
+              {/* Section header */}
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-foreground-muted uppercase tracking-wide">
+                  {(ar.settings.permissions.groups as Record<string, string>)[group.groupKey] ?? group.groupKey}
+                </h4>
+              </div>
 
-      {/* 2-axis matrix table */}
-      <div className="overflow-x-auto rounded-lg border border-border-subtle">
-        <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr className="bg-surface-row-alt border-b border-border-subtle">
-              <th className="sticky right-0 z-10 bg-surface-row-alt px-3 py-2.5 text-start font-medium text-foreground-muted min-w-[220px]">
-                الصلاحية
-              </th>
-              {DISPLAY_ROLES.map((role) => (
-                <th key={role} className="px-4 py-2.5 text-center font-medium text-foreground-muted min-w-[130px]">
-                  <div className="flex flex-col items-center gap-1.5">
-                    <span>{DISPLAY_ROLE_LABELS[role]}</span>
-                    {allVisibleRows.length > 0 && (
-                      <div className="flex gap-1">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onBulkSet(role, allVisibleRows.map(({ def, action }) => ({ resource: def.key, action })), true)
-                          }
-                          className="text-[9px] px-1.5 py-0.5 rounded border border-success/40 text-success-foreground bg-success/10 hover:bg-success/20 transition-colors leading-none"
-                          title="سماح للكل"
-                        >
-                          ✓ الكل
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onBulkSet(role, allVisibleRows.map(({ def, action }) => ({ resource: def.key, action })), false)
-                          }
-                          className="text-[9px] px-1.5 py-0.5 rounded border border-danger/40 text-danger-foreground bg-danger/10 hover:bg-danger/20 transition-colors leading-none"
-                          title="منع الكل"
-                        >
-                          ✕ الكل
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border-subtle">
-            {filteredGroups.map((group) => (
-              <>
-                <tr key={`grp-${group.groupKey}`} className="bg-muted/40">
-                  <td
-                    colSpan={DISPLAY_ROLES.length + 1}
-                    className="px-3 py-1.5 text-xs font-semibold text-foreground-muted uppercase tracking-wide sticky right-0"
-                  >
-                    {(ar.settings.permissions.groups as Record<string, string>)[group.groupKey] ?? group.groupKey}
-                  </td>
-                </tr>
-                {group.rows.map(({ def, action }) => {
+              {/* Resource cards grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {group.resources.map((def) => {
                   const desc = (ar.settings.permissions.descriptions as Record<string, string>)[
                     def.descriptionKey ?? def.key
                   ];
                   return (
-                    <tr
-                      key={`${def.key}:${action}`}
-                      className="bg-surface-elevated hover:bg-surface-hover/50 transition-colors duration-100"
+                    <div
+                      key={def.key}
+                      className="rounded-lg border border-border-subtle bg-surface-elevated p-4 space-y-3 hover:border-border-default transition-colors duration-150"
                     >
-                      <td className="sticky right-0 bg-inherit px-3 py-2.5 min-w-[220px]">
-                        <div className="text-sm font-medium text-foreground">
+                      {/* Card header */}
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">
                           {(ar.settings.permissions.resources as Record<string, string>)[def.key] ?? def.key}
-                        </div>
-                        <div className="text-xs text-foreground-muted">
-                          {(ar.settings.permissions.actions as Record<string, string>)[action] ?? action}
-                          {desc && <span className="mx-1 opacity-50">·</span>}
-                          {desc && <span className="text-foreground-tertiary">{desc}</span>}
-                        </div>
-                      </td>
-                      {DISPLAY_ROLES.map((role) => {
-                        const isHardLocked =
-                          role === 'factory_sender' &&
-                          def.key === 'shipments' &&
-                          action === 'approve';
-                        const allowed = isAllowed(role, def.key, action);
-                        return (
-                          <td key={role} className="px-4 py-2.5 text-center">
-                            {isHardLocked ? (
-                              <span
-                                className="inline-flex size-5 items-center justify-center rounded border border-border-subtle bg-surface-row-alt opacity-40 cursor-not-allowed mx-auto"
-                                title="لا يمكن منح هذه الصلاحية لمرسل المصنع"
-                              >
-                                <span className="text-[10px] text-danger-foreground">✕</span>
+                        </p>
+                        {desc && (
+                          <p className="text-xs text-foreground-muted mt-0.5">{desc}</p>
+                        )}
+                      </div>
+
+                      {/* Action toggles */}
+                      <div className="space-y-2 pt-1 border-t border-border-subtle">
+                        {def.actions.map((action) => {
+                          const isHardLocked =
+                            activeRole === 'factory_sender' &&
+                            def.key === 'shipments' &&
+                            action === 'approve';
+                          const allowed = isAllowed(activeRole, def.key, action);
+                          return (
+                            <div key={action} className="flex items-center justify-between gap-3">
+                              <span className="text-xs text-foreground-muted">
+                                {(ar.settings.permissions.actions as Record<string, string>)[action] ?? action}
                               </span>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => onToggle(role, def.key, action)}
-                                className={cn(
-                                  'inline-flex size-5 items-center justify-center rounded border transition-colors duration-150 mx-auto',
-                                  allowed
-                                    ? 'bg-accent/20 border-accent/40 hover:bg-accent/30'
-                                    : 'bg-surface-elevated border-border-subtle hover:border-foreground-muted/40',
-                                )}
-                                aria-label={`${allowed ? 'إلغاء' : 'منح'} صلاحية ${def.key}.${action} لـ${DISPLAY_ROLE_LABELS[role]}`}
-                              >
-                                {allowed && <span className="text-[10px] text-accent">✓</span>}
-                              </button>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
+                              {isHardLocked ? (
+                                <span
+                                  title="لا يمكن منح هذه الصلاحية لمرسل المصنع"
+                                  className="cursor-not-allowed opacity-40"
+                                >
+                                  <Toggle checked={false} onChange={() => {}} disabled />
+                                </span>
+                              ) : (
+                                <Toggle
+                                  checked={allowed}
+                                  onChange={() => onToggle(activeRole, def.key, action)}
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   );
                 })}
-              </>
-            ))}
-            {filteredGroups.length === 0 && (
-              <tr>
-                <td colSpan={DISPLAY_ROLES.length + 1} className="py-8 text-center text-sm text-foreground-tertiary">
-                  لا توجد نتائج
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
 
       <StickySaveBar onSave={onSave} saving={saving} disabled={dirty.size === 0} />
     </div>
