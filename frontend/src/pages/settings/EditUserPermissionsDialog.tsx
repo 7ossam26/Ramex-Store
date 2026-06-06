@@ -7,7 +7,7 @@ import { usersApi, type UserRow } from '@/lib/settings-api';
 import { extractApiError } from '@/lib/api-error';
 import { Toast } from '@/components/Toast';
 import { cn } from '@/lib/utils';
-import { RESOURCE_GROUPS } from '@/lib/permissions-config';
+import { RESOURCE_GROUPS, type ResourceDef, type ResourceGroup } from '@/lib/permissions-config';
 
 type Props = {
   user: UserRow | null;
@@ -16,10 +16,21 @@ type Props = {
 
 type CellState = 'default' | 'allow' | 'deny';
 
+const resourceLabel = (key: string) =>
+  (ar.settings.permissions.resources as Record<string, string>)[key] ?? key;
+
+const actionLabel = (key: string) =>
+  (ar.settings.permissions.actions as Record<string, string>)[key] ?? key;
+
+const descriptionLabel = (key: string | undefined) =>
+  key ? (ar.settings.permissions.descriptions as Record<string, string>)[key] : undefined;
+
+const groupLabel = (key: string) =>
+  (ar.settings.permissions.groups as Record<string, string>)[key] ?? key;
+
 export function EditUserPermissionsDialog({ user, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  // dirty map: `${resource}:${action}` → boolean | null (null = revert to role default)
   const [dirty, setDirty] = useState<Map<string, boolean | null>>(new Map());
 
   const { data, isLoading } = useQuery({
@@ -66,6 +77,18 @@ export function EditUserPermissionsDialog({ user, onClose }: Props) {
     });
   }
 
+  function resetGroupToDefault(group: ResourceGroup) {
+    setDirty((prev) => {
+      const m = new Map(prev);
+      for (const res of group.resources) {
+        for (const act of res.actions) {
+          m.set(`${res.key}:${act}`, null);
+        }
+      }
+      return m;
+    });
+  }
+
   function handleSave() {
     if (dirty.size === 0) { onClose(); return; }
     const updates: Array<{ resource: string; action: string; is_allowed: boolean | null }> = [];
@@ -78,100 +101,85 @@ export function EditUserPermissionsDialog({ user, onClose }: Props) {
 
   if (!user) return null;
 
+  const roleLabel = data
+    ? (ar.settings.users.roles[data.role as keyof typeof ar.settings.users.roles] ?? data.role)
+    : '';
+
   return (
     <>
       <Dialog open={!!user} onOpenChange={(v) => { if (!v) onClose(); }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
-          <DialogHeader>
-            <DialogTitle>{ar.settings.users.editPermissions} — {user.username}</DialogTitle>
-          </DialogHeader>
-          <p className="text-xs text-muted-foreground pb-1">{ar.settings.users.permissionsHint}</p>
-
-          {isLoading && (
-            <div className="py-8 text-center text-sm text-muted-foreground">جارٍ التحميل...</div>
-          )}
-
-          {!isLoading && data && (
-            <div className="space-y-2">
-              {/* Role context */}
-              <p className="text-xs text-muted-foreground">
-                الدور: {ar.settings.users.roles[data.role as keyof typeof ar.settings.users.roles] ?? data.role} — التعديلات أدناه تتجاوز افتراضي الدور
-              </p>
-
-              {RESOURCE_GROUPS.map((group) => (
-                <div key={group.groupKey} className="rounded-lg border border-border overflow-hidden">
-                  {/* Group header */}
-                  <div className="px-3 py-2 bg-muted/60 text-xs font-semibold text-muted-foreground">
-                    {ar.settings.permissions.groups[group.groupKey] ?? group.groupKey}
-                  </div>
-
-                  {/* Resource rows */}
-                  <div className="divide-y divide-border">
-                    {group.resources.map((def) => {
-                      const desc = (ar.settings.permissions.descriptions as Record<string, string>)[
-                        def.descriptionKey ?? def.key
-                      ];
-                      return (
-                        <div key={def.key} className="px-3 py-2.5 bg-background">
-                          <div className="flex items-start justify-between gap-3 flex-wrap">
-                            <div>
-                              <span className="text-xs font-medium text-foreground">
-                                {(ar.settings.permissions.resources as Record<string, string>)[def.key] ?? def.key}
-                              </span>
-                              {desc && (
-                                <div className="text-[10px] text-muted-foreground mt-0.5">{desc}</div>
-                              )}
-                            </div>
-                            <div className="flex gap-3 flex-wrap justify-end">
-                              {def.actions.map((action) => {
-                                // Hard invariant: factory_sender users can never be granted
-                                // shipments.approve, even via per-user override.
-                                const isHardLocked =
-                                  data.role === 'factory_sender' &&
-                                  def.key === 'shipments' &&
-                                  action === 'approve';
-                                return (
-                                  <div key={action} className="flex items-center gap-1.5">
-                                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                                      {(ar.settings.permissions.actions as Record<string, string>)[action] ?? action}
-                                    </span>
-                                    {isHardLocked ? (
-                                      <span
-                                        className="inline-flex rounded border border-border overflow-hidden text-[10px] font-medium opacity-50 cursor-not-allowed"
-                                        title="لا يمكن منح هذه الصلاحية لدور مرسل المصنع"
-                                      >
-                                        <span className="px-1.5 py-0.5 bg-danger/20 text-danger-foreground font-semibold">
-                                          {ar.settings.users.deny}
-                                        </span>
-                                      </span>
-                                    ) : (
-                                      <TriStateControl
-                                        state={getState(def.key, action)}
-                                        roleDefault={getRoleDefault(def.key, action)}
-                                        onChange={(next) => toggle(def.key, action, next)}
-                                      />
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+        <DialogContent className="max-w-5xl max-h-[92vh] overflow-hidden p-0" dir="rtl">
+          {/* Sticky header */}
+          <div className="px-5 pt-5 pb-3 border-b border-border-subtle bg-surface-elevated">
+            <DialogHeader>
+              <DialogTitle className="text-base">
+                {ar.settings.users.editPermissions} — <span className="font-mono text-foreground-muted">{user.username}</span>
+              </DialogTitle>
+            </DialogHeader>
+            <div className="mt-2 space-y-0.5">
+              <p className="text-xs text-foreground-muted">{ar.settings.users.permissionsHint}</p>
+              {data && (
+                <p className="text-xs text-foreground-muted">
+                  الدور: <span className="font-medium text-foreground">{roleLabel}</span>
+                  {' '}— التعديلات أدناه تتجاوز افتراضي الدور
+                </p>
+              )}
             </div>
-          )}
+          </div>
 
-          {error && <p className="text-xs text-destructive mt-2">{error}</p>}
+          {/* Scrollable body */}
+          <div className="overflow-y-auto px-5 py-4 space-y-6" style={{ maxHeight: 'calc(92vh - 170px)' }}>
+            {isLoading && (
+              <div className="py-12 text-center text-sm text-foreground-muted">جارٍ التحميل...</div>
+            )}
 
-          <div className="flex justify-end gap-2 pt-3">
-            <Button variant="outline" size="sm" onClick={onClose}>{ar.common.cancel}</Button>
-            <Button size="sm" onClick={handleSave} disabled={saveMut.isPending}>
-              {ar.common.save}
-            </Button>
+            {!isLoading && data && RESOURCE_GROUPS.map((group) => (
+              <section key={group.groupKey}>
+                {/* Group header */}
+                <div className="flex items-center justify-between mb-3 pb-2 border-b border-border-subtle">
+                  <h3 className="text-sm font-bold text-foreground">{groupLabel(group.groupKey)}</h3>
+                  <button
+                    type="button"
+                    onClick={() => resetGroupToDefault(group)}
+                    className="text-xs text-accent hover:underline cursor-pointer"
+                  >
+                    استعادة الافتراضي
+                  </button>
+                </div>
+
+                {/* Resource cards grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {group.resources.map((def) => (
+                    <ResourceCard
+                      key={def.key}
+                      def={def}
+                      role={data.role}
+                      getState={getState}
+                      getRoleDefault={getRoleDefault}
+                      onToggle={toggle}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+
+          {/* Sticky footer */}
+          <div className="px-5 py-3 border-t border-border-subtle bg-surface-elevated flex items-center justify-between gap-3">
+            <div className="text-xs text-foreground-muted">
+              {dirty.size > 0 ? (
+                <span><span className="font-semibold text-foreground tabular-num">{dirty.size}</span> تغيير غير محفوظ</span>
+              ) : (
+                <span>لا توجد تعديلات</span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              {error && <span className="text-xs text-destructive self-center">{error}</span>}
+              <Button variant="outline" size="sm" onClick={onClose}>{ar.common.cancel}</Button>
+              <Button size="sm" onClick={handleSave} disabled={saveMut.isPending}>
+                {saveMut.isPending ? ar.loading : ar.common.save}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -187,6 +195,60 @@ export function EditUserPermissionsDialog({ user, onClose }: Props) {
   );
 }
 
+// ─── Resource card ───────────────────────────────────────────────────────────
+
+function ResourceCard({
+  def,
+  role,
+  getState,
+  getRoleDefault,
+  onToggle,
+}: {
+  def: ResourceDef;
+  role: string;
+  getState: (resource: string, action: string) => CellState;
+  getRoleDefault: (resource: string, action: string) => boolean;
+  onToggle: (resource: string, action: string, next: CellState) => void;
+}) {
+  const desc = descriptionLabel(def.descriptionKey ?? def.key);
+  return (
+    <div className="rounded-xl border border-border-subtle bg-surface-elevated overflow-hidden flex flex-col">
+      <header className="px-4 py-3 border-b border-border-subtle bg-surface">
+        <h4 className="text-sm font-semibold text-foreground">{resourceLabel(def.key)}</h4>
+        {desc && <p className="text-[11px] text-foreground-muted mt-0.5 leading-snug">{desc}</p>}
+      </header>
+      <div className="p-3 space-y-2 flex-1">
+        {def.actions.map((action) => {
+          // Hard invariant: factory_sender users can never be granted shipments.approve.
+          const isHardLocked =
+            role === 'factory_sender' && def.key === 'shipments' && action === 'approve';
+          return (
+            <div key={action} className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-foreground">{actionLabel(action)}</span>
+              {isHardLocked ? (
+                <span
+                  className="inline-flex rounded-md border border-border-subtle px-2 py-1 text-[10px] font-medium bg-danger/15 text-danger-foreground opacity-70 cursor-not-allowed"
+                  title="لا يمكن منح هذه الصلاحية لدور مرسل المصنع"
+                >
+                  {ar.settings.users.deny}
+                </span>
+              ) : (
+                <TriStateControl
+                  state={getState(def.key, action)}
+                  roleDefault={getRoleDefault(def.key, action)}
+                  onChange={(next) => onToggle(def.key, action, next)}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Tri-state segmented control ─────────────────────────────────────────────
+
 function TriStateControl({
   state,
   roleDefault,
@@ -196,32 +258,39 @@ function TriStateControl({
   roleDefault: boolean;
   onChange: (next: CellState) => void;
 }) {
-  const options: Array<{ value: CellState; label: string }> = [
-    { value: 'default', label: ar.settings.users.useRoleDefault },
-    { value: 'allow',   label: ar.settings.users.allow },
-    { value: 'deny',    label: ar.settings.users.deny },
+  const options: Array<{ value: CellState; label: string; activeCls: string }> = [
+    {
+      value: 'default',
+      label: `${ar.settings.users.useRoleDefault} (${roleDefault ? ar.settings.users.allow : ar.settings.users.deny})`,
+      activeCls: 'bg-accent/15 text-accent border-accent/40',
+    },
+    {
+      value: 'allow',
+      label: ar.settings.users.allow,
+      activeCls: 'bg-success/15 text-success-foreground border-success/40',
+    },
+    {
+      value: 'deny',
+      label: ar.settings.users.deny,
+      activeCls: 'bg-danger/15 text-danger-foreground border-danger/40',
+    },
   ];
 
   return (
-    <div className="inline-flex rounded border border-border overflow-hidden text-[10px] font-medium">
-      {options.map(({ value, label }) => (
+    <div className="inline-flex rounded-md border border-border-subtle overflow-hidden bg-surface">
+      {options.map(({ value, label, activeCls }) => (
         <button
           key={value}
+          type="button"
           onClick={() => onChange(value)}
           className={cn(
-            'px-1.5 py-0.5 transition-colors',
+            'px-2 py-1 text-[10px] font-medium transition-colors cursor-pointer border-s border-border-subtle first:border-s-0 whitespace-nowrap',
             state === value
-              ? value === 'allow'
-                ? 'bg-success/20 text-success-foreground font-semibold'
-                : value === 'deny'
-                  ? 'bg-danger/20 text-danger-foreground font-semibold'
-                  : 'bg-accent/20 text-accent-foreground font-semibold'
-              : 'bg-background text-muted-foreground hover:bg-muted',
+              ? `${activeCls} font-semibold`
+              : 'bg-surface text-foreground-muted hover:bg-surface-hover',
           )}
         >
-          {value === 'default'
-            ? `${label} (${roleDefault ? ar.settings.users.allow : ar.settings.users.deny})`
-            : label}
+          {label}
         </button>
       ))}
     </div>
