@@ -14,7 +14,7 @@ type PermCtx = {
   loading: boolean;
 };
 
-const PermContext = createContext<PermCtx>({ can: () => true, loading: false });
+const PermContext = createContext<PermCtx>({ can: () => false, loading: true });
 
 export function PermissionsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -40,7 +40,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
   }, [user?.id, user?.role]);
 
   function can(resource: string, action: PermAction = 'read'): boolean {
-    if (!data) return true; // optimistic while loading
+    if (!data) return false; // deny until resolved
     if (data.all) return true;
     return Boolean(data.permissions[resource]?.[action]);
   }
