@@ -34,7 +34,7 @@ const defaultForm: EmployeeFormData = {
   name_ar: '',
   phone: '',
   role_ar: '',
-  base_salary_egp: '0',
+  base_salary_egp: '',
   is_active: true,
 };
 
@@ -109,8 +109,10 @@ function EmployeeForm({
             step={1}
             className={cn(inputCls, 'w-40')}
             style={{ unicodeBidi: 'plaintext' }}
+            placeholder="0"
             value={form.base_salary_egp}
             onChange={(e) => field('base_salary_egp', e.target.value)}
+            onFocus={(e) => e.target.select()}
           />
         </div>
 
