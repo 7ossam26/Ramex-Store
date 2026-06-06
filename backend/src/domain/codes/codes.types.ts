@@ -70,6 +70,7 @@ export type Supplier = {
   arabic_name: string;
   english_name: string | null;
   arabic_warning_text: string | null;
+  phone: string | null;
   is_active: boolean;
   created_by_user_id: number | null;
   created_at: Date;

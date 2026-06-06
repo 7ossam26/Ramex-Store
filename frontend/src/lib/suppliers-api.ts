@@ -4,6 +4,7 @@ export type SupplierWithBalance = {
   id: number;
   arabic_name: string;
   english_name: string | null;
+  phone: string | null;
   is_active: boolean;
   total_invoiced_egp: number;
   total_paid_egp: number;

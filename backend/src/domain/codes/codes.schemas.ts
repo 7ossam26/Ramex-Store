@@ -34,6 +34,7 @@ export const CreateSupplierSchema = z.object({
   arabic_name: z.string().min(1, 'الاسم العربي مطلوب').max(128, 'الاسم طويل جداً'),
   english_name: z.string().max(128).nullable().optional(),
   arabic_warning_text: z.string().nullable().optional(),
+  phone: z.string().max(20).nullable().optional(),
 });
 
 export const UpdateGradeSchema = CreateGradeSchema.extend({

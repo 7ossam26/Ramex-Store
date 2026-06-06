@@ -4,7 +4,7 @@ import type { SupplierInvoice, SupplierPayment, SupplierWithBalance } from './su
 import type { CreateSupplierInvoiceInput, CreateSupplierPaymentInput } from './suppliers.schemas.js';
 
 export async function listSuppliersWithBalance(): Promise<SupplierWithBalance[]> {
-  const suppliers = await db('suppliers').where({ is_active: true }).select('id', 'arabic_name', 'english_name', 'is_active').orderBy('arabic_name');
+  const suppliers = await db('suppliers').where({ is_active: true }).select('id', 'arabic_name', 'english_name', 'phone', 'is_active').orderBy('arabic_name');
 
   if (suppliers.length === 0) return [];
 
@@ -28,6 +28,7 @@ export async function listSuppliersWithBalance(): Promise<SupplierWithBalance[]>
       id: s.id,
       arabic_name: s.arabic_name,
       english_name: s.english_name,
+      phone: s.phone ?? null,
       is_active: s.is_active,
       total_invoiced_egp: invoiced,
       total_paid_egp: paid,

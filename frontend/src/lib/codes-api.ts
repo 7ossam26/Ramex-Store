@@ -39,6 +39,7 @@ export type CodeSupplier = {
   arabic_name: string;
   english_name: string | null;
   arabic_warning_text: string | null;
+  phone: string | null;
   is_active: boolean;
   usage_count: number;
   created_at: string;

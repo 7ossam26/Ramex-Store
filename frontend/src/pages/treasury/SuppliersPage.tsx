@@ -234,7 +234,7 @@ function RecordPaymentDialog({
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-type AddSupplierForm = { arabic_name: string; english_name: string };
+type AddSupplierForm = { arabic_name: string; phone: string };
 
 export function SuppliersPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -244,7 +244,7 @@ export function SuppliersPage() {
   const [addSupplierError, setAddSupplierError] = useState<string | null>(null);
 
   const supplierForm = useForm<AddSupplierForm>({
-    defaultValues: { arabic_name: '', english_name: '' },
+    defaultValues: { arabic_name: '', phone: '' },
   });
   const qc = useQueryClient();
 
@@ -263,7 +263,7 @@ export function SuppliersPage() {
     mutationFn: (v: AddSupplierForm) =>
       codesApi.create('suppliers', {
         arabic_name: v.arabic_name.trim(),
-        english_name: v.english_name.trim() || null,
+        phone: v.phone.trim() || null,
       }),
     onSuccess: (data: unknown) => {
       qc.invalidateQueries({ queryKey: ['suppliers-list'] });
@@ -349,7 +349,12 @@ export function SuppliersPage() {
                         {s.balance_egp > 0 ? 'مستحق' : 'مسدد'}
                       </p>
                     </div>
-                    <p className="text-sm font-medium text-foreground truncate text-end">{s.arabic_name}</p>
+                    <div className="text-end truncate">
+                      <p className="text-sm font-medium text-foreground">{s.arabic_name}</p>
+                      {s.phone && (
+                        <p className="text-xs text-foreground-muted tabular-num mt-0.5" dir="ltr">{s.phone}</p>
+                      )}
+                    </div>
                   </div>
                 </button>
               ))
@@ -494,14 +499,14 @@ export function SuppliersPage() {
           >
             <div className="space-y-1">
               <Label className="text-sm font-medium text-foreground">
-                اسم المورد بالعربي
+                اسم المورد
                 <span className="text-danger ms-1" aria-hidden>*</span>
               </Label>
               <Input {...supplierForm.register('arabic_name', { required: true })} dir="rtl" />
             </div>
             <div className="space-y-1">
-              <Label className="text-sm font-medium text-foreground">الاسم بالإنجليزي</Label>
-              <Input {...supplierForm.register('english_name')} dir="ltr" />
+              <Label className="text-sm font-medium text-foreground">رقم الهاتف</Label>
+              <Input {...supplierForm.register('phone')} placeholder="01012345678" dir="ltr" inputMode="tel" />
             </div>
             {addSupplierError && (
               <p className="text-sm text-danger" role="alert">{addSupplierError}</p>
