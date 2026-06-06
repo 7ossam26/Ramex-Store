@@ -1,13 +1,24 @@
 /**
  * backend/scripts/audit-routes.ts
  *
- * Route permission coverage audit — REPORT ONLY (no CI failure in Phase 1-4).
- * Phase 5 will add the CI failure gate once all routes are mapped.
+ * Route permission coverage audit — CI GATE (fails with exit code 1 if any route
+ * has no guard and is not explicitly exempted).
  *
  * Usage:  npx tsx backend/scripts/audit-routes.ts
+ *         npx tsx backend/scripts/audit-routes.ts --ci   (same behaviour, explicit)
  *
- * Output: A table showing every HTTP route in the backend, its file, and
- * which guard protects it (requirePermission, requireRole, requireAuth, or NONE).
+ * Guard classification:
+ *   requirePermission  — matrix-enforced (desired)
+ *   requireRole        — hardcoded role gate (acceptable for super_admin-only operations)
+ *   inline-check       — manual can() call in route body (acceptable, annotated)
+ *   requireAuth        — pre-auth or personal-data endpoint (acceptable)
+ *   NONE               — no guard detected → CI failure
+ *
+ * Known-exempt NONE routes (router-level or inline guards the script cannot statically detect):
+ *   These are NOT listed as NONE in the output — the script detects them via improved heuristics.
+ *   owner.routes.ts: router-level requireRole('owner','super_admin') on ownerRouter.use(...)
+ *   hr.routes.ts POST /adjustments: inline can() call
+ *   users.routes.ts GET /me/permissions: protected by router-level requireAuth
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -38,9 +49,7 @@ function findRouteFiles(dir: string): string[] {
 type GuardType =
   | 'requirePermission'
   | 'requireRole'
-  | 'requireHrPerm'        // custom wrapper — not yet migrated
-  | 'requireSupplierPerm'  // custom wrapper — not yet migrated
-  | 'requireReportAccess'  // custom wrapper — not yet migrated
+  | 'inline-check'
   | 'requireAuth'
   | 'NONE';
 
@@ -52,7 +61,7 @@ type RouteEntry = {
   file: string;
 };
 
-// Match any identifier.<method>(...) — router names vary per file (authRouter, usersRouter, etc.)
+// Match any identifier.<method>(...) — router names vary per file
 const METHOD_RE = /\w+Router?\.(get|post|put|patch|delete)\s*\(\s*['"`]([^'"`]+)['"`]/g;
 
 function detectGuard(block: string): { guard: GuardType; detail: string } {
@@ -60,17 +69,9 @@ function detectGuard(block: string): { guard: GuardType; detail: string } {
     const m = block.match(/requirePermission\s*\(\s*['"`]([^'"`]+)['"`]\s*,\s*['"`]([^'"`]+)['"`]/);
     return { guard: 'requirePermission', detail: m ? `${m[1]}.${m[2]}` : '?' };
   }
-  if (/requireHrPerm\s*\(/.test(block)) {
-    const m = block.match(/requireHrPerm\s*\(\s*['"`]([^'"`]+)['"`]/);
-    return { guard: 'requireHrPerm', detail: m ? `hr.${m[1]}` : '?' };
-  }
-  if (/requireSupplierPerm\s*\(/.test(block)) {
-    const m = block.match(/requireSupplierPerm\s*\(\s*['"`]([^'"`]+)['"`]/);
-    return { guard: 'requireSupplierPerm', detail: m ? `suppliers.${m[1]}` : '?' };
-  }
-  if (/requireReportAccess\s*\(/.test(block)) {
-    const m = block.match(/requireReportAccess\s*\(\s*['"`]([^'"`]+)['"`]/);
-    return { guard: 'requireReportAccess', detail: m ? `reports.${m[1]}` : '?' };
+  // Inline can() call — e.g. POST /adjustments in hr.routes.ts
+  if (/\bcan\s*\(/.test(block)) {
+    return { guard: 'inline-check', detail: 'can()' };
   }
   if (/requireRole\s*\(/.test(block)) {
     const m = block.match(/requireRole\s*\(([^)]+)\)/);
@@ -83,15 +84,28 @@ function detectGuard(block: string): { guard: GuardType; detail: string } {
   return { guard: 'NONE', detail: '' };
 }
 
+/** Scan the full file for the router-level .use() guard (not just the first block). */
+function detectRouterLevelGuard(src: string): { guard: GuardType; detail: string } {
+  // Match <Router>.use(...requireAuth...) or <Router>.use(...requireRole...)
+  const useRe = /\w+Router?\.use\s*\(([^;]+)\)/g;
+  let bestGuard: GuardType = 'NONE';
+  let bestDetail = '';
+  let m: RegExpExecArray | null;
+  while ((m = useRe.exec(src)) !== null) {
+    const { guard, detail } = detectGuard(m[0]);
+    if (guard === 'requirePermission') { bestGuard = guard; bestDetail = detail; break; }
+    if (guard === 'requireRole' && bestGuard !== 'requirePermission') { bestGuard = guard; bestDetail = detail; }
+    if (guard === 'requireAuth' && bestGuard === 'NONE') { bestGuard = guard; bestDetail = detail; }
+  }
+  return { guard: bestGuard, detail: bestDetail };
+}
+
 function parseRouteFile(filePath: string): RouteEntry[] {
   const src = readFileSync(filePath, 'utf-8');
   const rel = relative(ROOT, filePath).replace(/\\/g, '/');
   const entries: RouteEntry[] = [];
 
-  // Check for router-level middleware (applies to all routes in the file)
-  const routerLevelGuard = detectGuard(
-    src.slice(0, Math.min(src.indexOf('\n\n'), 1500)),
-  );
+  const routerLevelGuard = detectRouterLevelGuard(src);
 
   let match: RegExpExecArray | null;
   METHOD_RE.lastIndex = 0;
@@ -99,19 +113,17 @@ function parseRouteFile(filePath: string): RouteEntry[] {
   while ((match = METHOD_RE.exec(src)) !== null) {
     const method = match[1].toUpperCase();
     const path = match[2];
-    // Extract a block of code after the route registration (enough to find guards)
     const blockStart = match.index;
     const blockEnd = Math.min(blockStart + 600, src.length);
     const block = src.slice(blockStart, blockEnd);
 
     let { guard, detail } = detectGuard(block);
 
-    // If no specific guard found on this route, fall back to router-level guard
-    if (guard === 'requireAuth' && routerLevelGuard.guard !== 'requireAuth' && routerLevelGuard.guard !== 'NONE') {
-      // still show requireAuth explicitly
+    // Inherit router-level guard when no per-route guard is found
+    if (guard === 'NONE' && routerLevelGuard.guard !== 'NONE') {
+      guard = routerLevelGuard.guard;
+      detail = routerLevelGuard.detail;
     }
-
-    if (method === 'USE') continue; // skip middleware registrations
 
     entries.push({ method, path, guard, detail, file: rel });
   }
@@ -134,9 +146,7 @@ for (const f of routeFiles) {
 const counts: Record<GuardType, number> = {
   requirePermission: 0,
   requireRole: 0,
-  requireHrPerm: 0,
-  requireSupplierPerm: 0,
-  requireReportAccess: 0,
+  'inline-check': 0,
   requireAuth: 0,
   NONE: 0,
 };
@@ -145,28 +155,29 @@ for (const r of allRoutes) counts[r.guard]++;
 // ─── Output ───────────────────────────────────────────────────────────────────
 
 console.log('\n═══════════════════════════════════════════════════════════════════════');
-console.log(' Ramex Store — Route Permission Audit (REPORT ONLY — not a CI gate yet)');
+console.log(' Ramex Store — Route Permission Audit (CI gate — fails on NONE routes)');
 console.log('═══════════════════════════════════════════════════════════════════════\n');
 
-// Group by guard type for readability
 const guardOrder: GuardType[] = [
-  'NONE', 'requireRole', 'requireHrPerm', 'requireSupplierPerm', 'requireReportAccess',
-  'requireAuth', 'requirePermission',
+  'NONE', 'requireRole', 'inline-check', 'requireAuth', 'requirePermission',
 ];
 
 for (const guardType of guardOrder) {
   const routes = allRoutes.filter((r) => r.guard === guardType);
   if (routes.length === 0) continue;
 
-  const header = guardType === 'NONE'
-    ? '⚠  NONE (no auth guard at all)'
-    : guardType === 'requireRole'
-    ? '⚙  requireRole (hardcoded — migrate to requirePermission in Phase 2-3)'
-    : guardType === 'requirePermission'
-    ? '✓  requirePermission (matrix-enforced)'
-    : `⚙  ${guardType} (custom wrapper — migrate to requirePermission in Phase 2)`;
+  const header =
+    guardType === 'NONE'
+      ? '✗  NONE — no auth guard detected (CI failure)'
+      : guardType === 'requireRole'
+      ? '⚙  requireRole — hardcoded role gate (intentional for admin-only operations)'
+      : guardType === 'inline-check'
+      ? '⚙  inline-check — manual can() in route body (intentional)'
+      : guardType === 'requireAuth'
+      ? '⚙  requireAuth — pre-auth or personal-data endpoint'
+      : '✓  requirePermission — matrix-enforced';
 
-  console.log(`${header}`);
+  console.log(header);
   console.log('─'.repeat(70));
   for (const r of routes) {
     const detail = r.detail ? `  [${r.detail}]` : '';
@@ -177,17 +188,26 @@ for (const guardType of guardOrder) {
 
 console.log('─'.repeat(70));
 console.log('Summary:');
-for (const [guard, count] of Object.entries(counts)) {
+const guardPrintOrder: GuardType[] = [
+  'requirePermission', 'requireRole', 'inline-check', 'requireAuth', 'NONE',
+];
+for (const guard of guardPrintOrder) {
+  const count = counts[guard];
   if (count === 0) continue;
-  const flag = guard === 'NONE' ? ' ⚠' : guard === 'requirePermission' ? ' ✓' : '';
+  const flag = guard === 'NONE' ? ' ✗' : guard === 'requirePermission' ? ' ✓' : '';
   console.log(`  ${guard.padEnd(25)} ${count}${flag}`);
 }
 console.log(`  ${'TOTAL'.padEnd(25)} ${allRoutes.length}`);
 console.log();
 
-const unmapped = counts['NONE'] + counts['requireRole'] + counts['requireHrPerm'] +
-  counts['requireSupplierPerm'] + counts['requireReportAccess'];
-console.log(`Matrix coverage: ${counts['requirePermission']}/${allRoutes.length} routes`);
-if (unmapped > 0) {
-  console.log(`Needs migration: ${unmapped} routes (Phase 2-5 work)\n`);
+const matrixCoverage = counts['requirePermission'];
+console.log(`Matrix coverage: ${matrixCoverage}/${allRoutes.length} routes`);
+
+// ─── CI gate ─────────────────────────────────────────────────────────────────
+
+if (counts['NONE'] > 0) {
+  console.error(`\n✗ CI FAILURE: ${counts['NONE']} route(s) have no permission guard.\n`);
+  process.exit(1);
 }
+
+console.log('✓ All routes have permission guards.\n');
