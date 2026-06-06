@@ -17,6 +17,7 @@ import { adminRouter } from '../domain/admin/admin.routes.js';
 import { codesRouter } from '../domain/codes/codes.routes.js';
 import { hrRouter } from '../domain/hr/hr.routes.js';
 import { shiftsRouter } from '../domain/shifts/shifts.routes.js';
+import { suppliersRouter } from '../domain/treasury/suppliers/suppliers.routes.js';
 
 export const apiRouter = Router();
 apiRouter.use('/health',       healthRouter);
@@ -37,3 +38,4 @@ apiRouter.use('/admin',        adminRouter);
 apiRouter.use('/codes',        codesRouter);
 apiRouter.use('/hr',           hrRouter);
 apiRouter.use('/shifts',       shiftsRouter);
+apiRouter.use('/treasury/suppliers', suppliersRouter);

@@ -35,6 +35,7 @@ export type Shipment = {
   reviewed_at: string | null;
   status: ShipmentStatus;
   notes_ar: string | null;
+  supplier_id: number | null;
   created_at: string;
   updated_at: string;
 };

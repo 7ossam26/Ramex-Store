@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
+import { codesApi } from '@/lib/codes-api';
 import { extractApiError } from '@/lib/api-error';
 import { useAuth } from '@/lib/auth';
 import type { Shipment } from '@/lib/inventory-types';
@@ -27,12 +28,16 @@ export function CreateShipmentPage() {
   const [addError, setAddError] = useState<string | null>(null);
   const initRef = useRef(false);
 
+  const [setupMode, setSetupMode] = useState(false);
+  const [supplierId, setSupplierId] = useState<number | null>(null);
+
   const [fabricFilter, setFabricFilter] = useState<number | null>(null);
   const [colorFilter, setColorFilter] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   const fabricsQ = useQuery({ queryKey: ['fabrics'], queryFn: inventoryApi.listFabrics });
   const colorsQ = useQuery({ queryKey: ['colors'], queryFn: inventoryApi.listColors });
+  const suppliersQ = useQuery({ queryKey: ['code-suppliers'], queryFn: codesApi.listSuppliers });
 
   const factoryRollsQ = useQuery({
     queryKey: ['factory-rolls', fabricFilter, colorFilter, searchTerm],
@@ -53,8 +58,12 @@ export function CreateShipmentPage() {
   });
 
   const createDraft = useMutation({
-    mutationFn: () => inventoryApi.createShipmentDraft(),
-    onSuccess: (s) => setShipment(s),
+    mutationFn: (vars?: { supplier_id?: number | null }) =>
+      inventoryApi.createShipmentDraft(vars),
+    onSuccess: (s) => {
+      setShipment(s);
+      setSetupMode(false);
+    },
   });
 
   const addById = useMutation({
@@ -120,7 +129,7 @@ export function CreateShipmentPage() {
       if (mine.length > 0) {
         setShipment(mine[0]!);
       } else {
-        createDraft.mutate();
+        setSetupMode(true);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -148,10 +157,46 @@ export function CreateShipmentPage() {
                 setShipment(null);
                 setSubmittedNo(null);
                 setAddError(null);
-                createDraft.mutate();
+                setSupplierId(null);
+                setSetupMode(true);
               }}
             >
               {ar.shipments.new}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (setupMode && !shipment) {
+    const selectCls = 'w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
+    return (
+      <div className="max-w-md mx-auto space-y-4" dir="rtl">
+        <PageHeader title={ar.shipments.create} backTo="/shipments" />
+        <Card>
+          <CardHeader>
+            <CardTitle>إعداد الشحنة</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium text-foreground">المورد (اختياري)</Label>
+              <select
+                value={supplierId === null ? '' : String(supplierId)}
+                onChange={(e) => setSupplierId(e.target.value ? Number(e.target.value) : null)}
+                className={selectCls}
+              >
+                <option value="">— بدون مورد —</option>
+                {suppliersQ.data?.map((s) => (
+                  <option key={s.id} value={s.id}>{s.arabic_name}</option>
+                ))}
+              </select>
+            </div>
+            <Button
+              onClick={() => createDraft.mutate({ supplier_id: supplierId })}
+              disabled={createDraft.isPending}
+            >
+              {createDraft.isPending ? ar.loading : ar.shipments.create}
             </Button>
           </CardContent>
         </Card>

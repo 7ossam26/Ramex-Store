@@ -1,6 +1,7 @@
 export type PermAction =
   | 'read' | 'write' | 'approve'
-  | 'view' | 'manage' | 'salary.disburse' | 'advance.create' | 'deduction.create';
+  | 'view' | 'manage' | 'salary.disburse' | 'advance.create' | 'deduction.create'
+  | 'payments.write';
 
 export type ResourceDef = {
   key: string;
@@ -63,6 +64,16 @@ export const RESOURCE_GROUPS: ResourceGroup[] = [
         key: 'hr',
         actions: ['view', 'manage', 'salary.disburse', 'advance.create', 'deduction.create'],
         descriptionKey: 'hr',
+      },
+    ],
+  },
+  {
+    groupKey: 'treasury',
+    resources: [
+      {
+        key: 'suppliers',
+        actions: ['view', 'write', 'payments.write'],
+        descriptionKey: 'suppliers',
       },
     ],
   },

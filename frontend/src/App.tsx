@@ -30,6 +30,8 @@ import { ExpensesPage } from './pages/cash/Expenses';
 import { CashReconcilePage } from './pages/cash/CashReconcile';
 import { TreasuryHubPage } from './pages/treasury/TreasuryHub';
 import { TreasuriesOverviewPage } from './pages/treasury/TreasuriesOverview';
+import { SuppliersListPage } from './pages/treasury/SuppliersListPage';
+import { SupplierLedgerPage } from './pages/treasury/SupplierLedgerPage';
 import { ReturnsListPage } from './pages/returns/ReturnsList';
 import { ReturnDetailPage } from './pages/returns/ReturnDetail';
 import { LabelsPage } from './pages/items/Labels';
@@ -136,6 +138,8 @@ export function App() {
 
                 <Route path="/treasury" element={<TreasuryHubPage />} />
                 <Route path="/treasury/overview" element={<TreasuriesOverviewPage />} />
+                <Route path="/treasury/suppliers" element={<PermGate resource="suppliers"><SuppliersListPage /></PermGate>} />
+                <Route path="/treasury/suppliers/:id" element={<PermGate resource="suppliers"><SupplierLedgerPage /></PermGate>} />
                 <Route path="/cash" element={<PermGate resource="cash_drawer"><CashDrawerPage /></PermGate>} />
                 <Route path="/banks" element={<PermGate resource="cash_drawer"><BanksPage /></PermGate>} />
                 <Route path="/expenses" element={<PermGate resource="cash_drawer"><ExpensesPage /></PermGate>} />
