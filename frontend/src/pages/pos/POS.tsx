@@ -665,6 +665,10 @@ export function POSPage() {
               setFlashRowId(roll.id);
             }
           }}
+          onRemoveManual={(rollId) => {
+            const idx = cart.findIndex((l) => l.roll.id === rollId);
+            if (idx !== -1) removeLine(idx);
+          }}
           onShowLabel={setLabelRoll}
         />
 
@@ -1072,6 +1076,7 @@ function ScanColumn({
   cart,
   destination,
   onPickManual,
+  onRemoveManual,
   onShowLabel,
 }: {
   onScan: (b: string) => Promise<void>;
@@ -1082,6 +1087,7 @@ function ScanColumn({
   cart: CartLine[];
   destination: FulfillmentDestination;
   onPickManual: (r: RollLookup) => void;
+  onRemoveManual: (rollId: number) => void;
   onShowLabel: (r: RollLookup) => void;
 }) {
   // Border-color class on the scan input wrapper.
@@ -1141,6 +1147,7 @@ function ScanColumn({
           cart={cart}
           destination={destination}
           onPick={onPickManual}
+          onRemove={onRemoveManual}
           onShowLabel={onShowLabel}
         />
       </CardContent>
@@ -1872,11 +1879,13 @@ function ProductsGrid({
   cart,
   destination,
   onPick,
+  onRemove,
   onShowLabel,
 }: {
   cart: CartLine[];
   destination: FulfillmentDestination;
   onPick: (r: RollLookup) => void;
+  onRemove: (rollId: number) => void;
   onShowLabel: (r: RollLookup) => void;
 }) {
   const [search, setSearch] = useState('');
@@ -2007,14 +2016,14 @@ function ProductsGrid({
                   <Button
                     size="sm"
                     variant={inCart ? 'outline' : 'default'}
-                    disabled={inCart || wrongWarehouse}
-                    onClick={() => onPick(r)}
+                    disabled={!inCart && wrongWarehouse}
+                    onClick={() => inCart ? onRemove(r.id) : onPick(r)}
                     className="h-9 flex-1 cursor-pointer gap-1 disabled:cursor-not-allowed"
                     title={factoryInShopMode ? ar.pos.factoryRollBadge : undefined}
                   >
                     {inCart ? (
                       <>
-                        <CheckCircle2 className="size-4" />
+                        <X className="size-4" />
                         {ar.pos.inCart}
                       </>
                     ) : factoryInShopMode ? (

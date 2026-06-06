@@ -1,4 +1,4 @@
-import type { Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import {
   UpdateRollSchema, ListRollsQuerySchema,
   FabricLabelQuerySchema, BatchFabricLabelSchema,
@@ -97,7 +97,7 @@ export async function reprintLabel(req: Request, res: Response): Promise<void> {
   res.end(pdf);
 }
 
-export async function returnToFactory(req: Request, res: Response): Promise<void> {
+export async function returnToFactory(req: Request, res: Response, next: NextFunction): Promise<void> {
   const id = Number(req.params.id);
   const actorUserId = (req.user as { sub: number }).sub;
   const before = await svc.getRoll(id);
@@ -111,7 +111,7 @@ export async function returnToFactory(req: Request, res: Response): Promise<void
       res.status(422).json({ error: err.code, message: err.message });
       return;
     }
-    throw err;
+    next(err);
   }
 }
 
