@@ -26,6 +26,7 @@ export const DisburseSchema = z.object({
   month: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'صيغة التاريخ غير صحيحة — YYYY-MM-DD'),
   paid_via: z.enum(['cash', 'instapay', 'bank_transfer']),
   bank_account_id: z.number().int().positive().nullable().optional(),
+  advance_repayment_egp: z.number().min(0, 'لا يمكن أن يكون مبلغ خصم السُّلفة سالباً').optional().default(0),
   notes_ar: z.string().nullable().optional(),
 }).refine(
   (d) => d.paid_via === 'cash' || (d.bank_account_id != null),

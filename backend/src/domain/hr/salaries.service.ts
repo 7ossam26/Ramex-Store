@@ -34,8 +34,18 @@ export async function disburse(data: DisburseInput, actorUserId: number): Promis
   if (!employee.is_active) throw new Error('EMPLOYEE_NOT_ACTIVE');
 
   const grossEgp = Number(employee.base_salary_egp);
-  const adjustmentsEgp = await adjustmentsRepo.sumAdjustmentsForMonth(data.employee_id, data.month);
-  const netEgp = grossEgp - adjustmentsEgp;
+  const deductionsEgp = await adjustmentsRepo.sumDeductionsForMonth(data.employee_id, data.month);
+  const advanceRepaymentEgp = data.advance_repayment_egp ?? 0;
+
+  // Validate advance repayment does not exceed outstanding balance
+  if (advanceRepaymentEgp > 0) {
+    const outstanding = await adjustmentsRepo.getOutstandingAdvanceBalance(data.employee_id);
+    if (advanceRepaymentEgp > outstanding) {
+      throw new Error('ADVANCE_REPAYMENT_EXCEEDS_OUTSTANDING');
+    }
+  }
+
+  const netEgp = grossEgp - deductionsEgp - advanceRepaymentEgp;
 
   return db.transaction(async (trx) => {
     let disbursement: HrSalaryDisbursement;
@@ -44,7 +54,8 @@ export async function disburse(data: DisburseInput, actorUserId: number): Promis
         employee_id: data.employee_id,
         month: data.month,
         gross_egp: grossEgp,
-        adjustments_egp: adjustmentsEgp,
+        adjustments_egp: deductionsEgp,
+        advance_repayment_egp: advanceRepaymentEgp,
         net_egp: netEgp,
         paid_via: data.paid_via,
         bank_account_id: data.bank_account_id ?? null,
@@ -57,6 +68,17 @@ export async function disburse(data: DisburseInput, actorUserId: number): Promis
       throw err;
     }
 
+    // Record advance repayment ledger entry
+    if (advanceRepaymentEgp > 0) {
+      await adjustmentsRepo.insertAdvanceRepayment(trx, {
+        employee_id: data.employee_id,
+        disbursement_id: disbursement.id,
+        amount_egp: advanceRepaymentEgp,
+        actor_user_id: actorUserId,
+      });
+    }
+
+    // Cash/bank outflow for the net salary paid
     if (data.paid_via === 'cash') {
       await cashRecordMovement(
         trx, 'out', 'expense', netEgp, actorUserId,
@@ -80,7 +102,8 @@ export async function disburse(data: DisburseInput, actorUserId: number): Promis
         employee_id: data.employee_id,
         month: data.month,
         gross_egp: grossEgp,
-        adjustments_egp: adjustmentsEgp,
+        deductions_egp: deductionsEgp,
+        advance_repayment_egp: advanceRepaymentEgp,
         net_egp: netEgp,
         paid_via: data.paid_via,
       },

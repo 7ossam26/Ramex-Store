@@ -118,8 +118,19 @@ hrRouter.post('/salaries', requireHrPerm('salary.disburse'), async (req, res, ne
       res.status(404).json({ error: 'EMPLOYEE_NOT_FOUND' });
       return;
     }
+    if (e instanceof Error && e.message === 'ADVANCE_REPAYMENT_EXCEEDS_OUTSTANDING') {
+      res.status(422).json({ error: 'ADVANCE_REPAYMENT_EXCEEDS_OUTSTANDING', message: 'مبلغ خصم السُّلفة يتجاوز الرصيد المستحق' });
+      return;
+    }
     next(e);
   }
+});
+
+hrRouter.get('/employees/:id/advance-balance', requireHrPerm('view'), async (req, res, next) => {
+  try {
+    const balance = await adjustmentsSvc.getOutstandingAdvanceBalance(Number(req.params['id']));
+    res.json({ outstanding_advance_egp: balance });
+  } catch (e) { next(e); }
 });
 
 // ─── Adjustments ──────────────────────────────────────────────────────────────

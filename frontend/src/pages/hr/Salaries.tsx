@@ -6,7 +6,6 @@ import { bankAccountsApi } from '@/lib/settings-api';
 import { Button } from '@/components/ui/button';
 import { PageShell } from '@/components/Layout/PageShell';
 import { ErrorBanner } from '@/components/ErrorBanner';
-import { Skeleton } from '@/components/Skeleton';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { StatusPill } from '@/components/StatusPill';
 import { cn } from '@/lib/utils';
@@ -23,10 +22,6 @@ function toMonthDate(ym: string) {
   return `${ym}-01`;
 }
 
-function fromMonthDate(d: string) {
-  return d.slice(0, 7);
-}
-
 // ─── Disburse Dialog ──────────────────────────────────────────────────────────
 
 type DisburseDialogProps = {
@@ -39,6 +34,7 @@ type DisburseDialogProps = {
 function DisburseDialog({ preview, month, onClose, onDone }: DisburseDialogProps) {
   const [paidVia, setPaidVia] = useState<'cash' | 'instapay' | 'bank_transfer'>('cash');
   const [bankAccountId, setBankAccountId] = useState<string>('');
+  const [advanceRepayment, setAdvanceRepayment] = useState<string>('0');
   const [notesAr, setNotesAr] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -55,6 +51,7 @@ function DisburseDialog({ preview, month, onClose, onDone }: DisburseDialogProps
         month: toMonthDate(month),
         paid_via: paidVia,
         bank_account_id: paidVia !== 'cash' ? Number(bankAccountId) : null,
+        advance_repayment_egp: Number(advanceRepayment) || 0,
         notes_ar: notesAr.trim() || null,
       }),
     onSuccess: () => {
@@ -64,16 +61,21 @@ function DisburseDialog({ preview, month, onClose, onDone }: DisburseDialogProps
     onError: (e) => setError(extractApiError(e)),
   });
 
+  const repaymentAmount = Math.min(
+    Math.max(0, Number(advanceRepayment) || 0),
+    preview.outstanding_advance_egp,
+  );
+  const netPreview = preview.base_salary_egp - preview.deductions_egp - repaymentAmount;
   const needsBank = paidVia !== 'cash';
   const canSubmit = !needsBank || !!bankAccountId;
 
+  const inputCls =
+    'h-10 w-full rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground ' +
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
+
   return (
     <>
-      <div
-        className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
-        onClick={onClose}
-        aria-hidden
-      />
+      <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onClick={onClose} aria-hidden />
       <div
         dir="rtl"
         role="dialog"
@@ -98,12 +100,11 @@ function DisburseDialog({ preview, month, onClose, onDone }: DisburseDialogProps
           <div className="p-5 space-y-4">
             {error && <ErrorBanner title={ar.common.error} description={error} />}
 
-            {/* Summary */}
+            {/* Salary summary */}
             <dl className="rounded-lg bg-surface p-3 space-y-1.5 text-sm border border-border-subtle">
               {[
                 [ar.hr.salary.gross, `${fmt(preview.base_salary_egp)} ج.م`],
-                [ar.hr.salary.adjustmentsTotal, `${fmt(preview.adjustments_egp)} ج.م`],
-                [ar.hr.salary.net, `${fmt(preview.net_egp)} ج.م`],
+                [ar.hr.salary.deductionsTotal, `${fmt(preview.deductions_egp)} ج.م`],
               ].map(([l, v]) => (
                 <div key={l} className="flex justify-between gap-4">
                   <dt className="text-foreground-muted">{l}</dt>
@@ -111,6 +112,49 @@ function DisburseDialog({ preview, month, onClose, onDone }: DisburseDialogProps
                 </div>
               ))}
             </dl>
+
+            {/* Outstanding advance + repayment input */}
+            {preview.outstanding_advance_egp > 0 && (
+              <div className="rounded-lg border border-warning/40 bg-warning-subtle p-3 space-y-2.5">
+                <div className="flex justify-between text-sm">
+                  <span className="text-warning-foreground font-medium">{ar.hr.salary.outstandingAdvance}</span>
+                  <span className="tabular-num font-semibold text-warning-foreground" dir="ltr">
+                    {fmt(preview.outstanding_advance_egp)} ج.م
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-foreground">{ar.hr.salary.deductFromAdvance}</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={preview.outstanding_advance_egp}
+                    step={1}
+                    className={cn(inputCls, 'w-40')}
+                    style={{ unicodeBidi: 'plaintext' }}
+                    value={advanceRepayment}
+                    onChange={(e) => setAdvanceRepayment(e.target.value)}
+                    placeholder="0"
+                  />
+                  <p className="text-xs text-foreground-muted">
+                    الحد الأقصى: {fmt(preview.outstanding_advance_egp)} ج.م
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Net preview */}
+            <div className="flex justify-between items-center rounded-lg border border-border-default bg-surface px-3 py-2.5 text-sm">
+              <span className="text-foreground-muted">{ar.hr.salary.net}</span>
+              <span
+                className={cn(
+                  'tabular-num font-bold text-base',
+                  netPreview < 0 ? 'text-danger-foreground' : 'text-foreground',
+                )}
+                dir="ltr"
+              >
+                {fmt(netPreview)} ج.م
+              </span>
+            </div>
 
             {/* Payment method */}
             <div className="space-y-1.5">
@@ -139,7 +183,7 @@ function DisburseDialog({ preview, month, onClose, onDone }: DisburseDialogProps
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-foreground">{ar.hr.salary.bankAccount}</label>
                 <select
-                  className="h-10 w-full rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  className={inputCls}
                   value={bankAccountId}
                   onChange={(e) => setBankAccountId(e.target.value)}
                 >
@@ -157,7 +201,7 @@ function DisburseDialog({ preview, month, onClose, onDone }: DisburseDialogProps
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">{ar.hr.salary.notes}</label>
               <input
-                className="h-10 w-full rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground placeholder:text-foreground-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className={inputCls}
                 dir="rtl"
                 value={notesAr}
                 onChange={(e) => setNotesAr(e.target.value)}
@@ -168,7 +212,7 @@ function DisburseDialog({ preview, month, onClose, onDone }: DisburseDialogProps
               <Button
                 size="sm"
                 onClick={() => mut.mutate()}
-                disabled={mut.isPending || !canSubmit}
+                disabled={mut.isPending || !canSubmit || netPreview < 0}
                 className="min-w-28"
               >
                 {mut.isPending ? ar.loading : ar.hr.salary.disburse}
@@ -199,10 +243,80 @@ export function SalariesPage() {
   const rows = preview ?? [];
   const totalNet = rows.reduce((s, r) => s + r.net_egp, 0);
   const pendingCount = rows.filter((r) => !r.already_disbursed).length;
+  const totalOutstandingAdvances = rows.reduce((s, r) => s + r.outstanding_advance_egp, 0);
+
+  const columns: Column<HrSalaryPreview>[] = [
+    {
+      key: 'name',
+      header: ar.hr.employee.nameAr,
+      primary: true,
+      cell: (r) => <span className="font-medium text-foreground">{r.name_ar}</span>,
+    },
+    {
+      key: 'gross',
+      header: `${ar.hr.salary.gross} (ج.م)`,
+      align: 'end',
+      cell: (r) => (
+        <span className="tabular-num text-foreground" dir="ltr">
+          {fmt(r.base_salary_egp)}
+        </span>
+      ),
+    },
+    {
+      key: 'deductions',
+      header: `${ar.hr.salary.deductionsTotal} (ج.م)`,
+      align: 'end',
+      secondary: true,
+      cell: (r) => (
+        <span className={cn('tabular-num', r.deductions_egp > 0 ? 'text-danger-foreground' : 'text-foreground-muted')} dir="ltr">
+          {r.deductions_egp > 0 ? `− ${fmt(r.deductions_egp)}` : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'advance',
+      header: `${ar.hr.salary.outstandingAdvance} (ج.م)`,
+      align: 'end',
+      secondary: true,
+      cell: (r) => (
+        <span className={cn('tabular-num', r.outstanding_advance_egp > 0 ? 'text-warning-foreground font-medium' : 'text-foreground-muted')} dir="ltr">
+          {r.outstanding_advance_egp > 0 ? fmt(r.outstanding_advance_egp) : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'net',
+      header: `${ar.hr.salary.net} (ج.م)`,
+      align: 'end',
+      cell: (r) => (
+        <span className="tabular-num font-semibold text-foreground" dir="ltr">
+          {fmt(r.net_egp)}
+        </span>
+      ),
+    },
+    {
+      key: 'action',
+      header: ar.hr.salary.disburse,
+      align: 'center',
+      cell: (r) =>
+        r.already_disbursed ? (
+          <StatusPill tone="success">{ar.hr.salary.alreadyDisbursed}</StatusPill>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            className="cursor-pointer text-xs h-7"
+            onClick={(e) => { e.stopPropagation(); setDisbursingPreview(r); }}
+          >
+            {ar.hr.salary.disburse}
+          </Button>
+        ),
+    },
+  ];
 
   return (
     <PageShell title={ar.hr.salaries} description={ar.hr.salary.previewHint} backTo="/hr">
-      {/* Month picker */}
+      {/* Month picker + summary chips */}
       <div className="flex flex-wrap gap-3 items-center">
         <div className="space-y-0.5">
           <label className="text-xs text-foreground-muted">{ar.hr.salary.monthPicker}</label>
@@ -213,76 +327,26 @@ export function SalariesPage() {
             onChange={(e) => setMonth(e.target.value)}
           />
         </div>
-        <div className="flex gap-4 text-sm text-foreground-muted mt-3">
+        <div className="flex flex-wrap gap-4 text-sm text-foreground-muted mt-3">
           <span>
-            موظفون بانتظار الصرف:{' '}
+            بانتظار الصرف:{' '}
             <span className="font-semibold text-foreground">{pendingCount}</span>
           </span>
           <span>
             إجمالي الصافي:{' '}
             <span className="font-semibold text-foreground tabular-num">{fmt(totalNet)} ج.م</span>
           </span>
+          {totalOutstandingAdvances > 0 && (
+            <span>
+              سُلَف مستحقة:{' '}
+              <span className="font-semibold text-warning-foreground tabular-num">{fmt(totalOutstandingAdvances)} ج.م</span>
+            </span>
+          )}
         </div>
       </div>
 
       <ResponsiveTable<HrSalaryPreview>
-        columns={[
-          {
-            key: 'name',
-            header: ar.hr.employee.nameAr,
-            primary: true,
-            cell: (r) => <span className="font-medium text-foreground">{r.name_ar}</span>,
-          },
-          {
-            key: 'gross',
-            header: `${ar.hr.salary.gross} (ج.م)`,
-            align: 'end',
-            cell: (r) => (
-              <span className="tabular-num text-foreground" dir="ltr">
-                {fmt(r.base_salary_egp)}
-              </span>
-            ),
-          },
-          {
-            key: 'adjustments',
-            header: `${ar.hr.salary.adjustmentsTotal} (ج.م)`,
-            align: 'end',
-            secondary: true,
-            cell: (r) => (
-              <span className={cn('tabular-num', r.adjustments_egp > 0 ? 'text-danger-foreground' : 'text-foreground-muted')} dir="ltr">
-                {r.adjustments_egp > 0 ? `− ${fmt(r.adjustments_egp)}` : '—'}
-              </span>
-            ),
-          },
-          {
-            key: 'net',
-            header: `${ar.hr.salary.net} (ج.م)`,
-            align: 'end',
-            cell: (r) => (
-              <span className="tabular-num font-semibold text-foreground" dir="ltr">
-                {fmt(r.net_egp)}
-              </span>
-            ),
-          },
-          {
-            key: 'action',
-            header: ar.hr.salary.disburse,
-            align: 'center',
-            cell: (r) =>
-              r.already_disbursed ? (
-                <StatusPill tone="success">{ar.hr.salary.alreadyDisbursed}</StatusPill>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="cursor-pointer text-xs h-7"
-                  onClick={(e) => { e.stopPropagation(); setDisbursingPreview(r); }}
-                >
-                  {ar.hr.salary.disburse}
-                </Button>
-              ),
-          },
-        ]}
+        columns={columns}
         rows={rows}
         rowKey={(r) => String(r.employee_id)}
         isLoading={isLoading}

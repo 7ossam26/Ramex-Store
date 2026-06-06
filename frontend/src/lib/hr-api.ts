@@ -21,6 +21,7 @@ export type HrSalaryDisbursement = {
   month: string;
   gross_egp: string;
   adjustments_egp: string;
+  advance_repayment_egp: string;
   net_egp: string;
   paid_via: 'cash' | 'instapay' | 'bank_transfer';
   bank_account_id: number | null;
@@ -49,7 +50,8 @@ export type HrSalaryPreview = {
   employee_id: number;
   name_ar: string;
   base_salary_egp: number;
-  adjustments_egp: number;
+  deductions_egp: number;
+  outstanding_advance_egp: number;
   net_egp: number;
   already_disbursed: boolean;
   disbursement_id: number | null;
@@ -84,6 +86,9 @@ export const hrApi = {
   }): Promise<HrEmployee> =>
     api.patch(`/hr/employees/${id}`, data).then((r) => r.data),
 
+  getAdvanceBalance: (employeeId: number): Promise<{ outstanding_advance_egp: number }> =>
+    api.get(`/hr/employees/${employeeId}/advance-balance`).then((r) => r.data),
+
   listDisbursements: (params?: {
     employee_id?: number;
     month_from?: string;
@@ -101,6 +106,7 @@ export const hrApi = {
     month: string;
     paid_via: 'cash' | 'instapay' | 'bank_transfer';
     bank_account_id?: number | null;
+    advance_repayment_egp?: number;
     notes_ar?: string | null;
   }): Promise<HrSalaryDisbursement> =>
     api.post('/hr/salaries', data).then((r) => r.data),

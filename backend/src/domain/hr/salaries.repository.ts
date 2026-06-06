@@ -41,8 +41,9 @@ export async function getSalaryPreviewForMonth(
 ): Promise<HrSalaryPreview[]> {
   const employees = await db('hr_employees').where({ is_active: true }).select('id', 'name_ar', 'base_salary_egp');
 
-  const adjustmentSums = await db('hr_salary_adjustments')
-    .where('salary_month', salaryMonth)
+  // Only deductions count against the current month's net
+  const deductionSums = await db('hr_salary_adjustments')
+    .where({ salary_month: salaryMonth, kind: 'deduction' })
     .groupBy('employee_id')
     .select('employee_id')
     .sum('amount_egp as total');
@@ -51,23 +52,43 @@ export async function getSalaryPreviewForMonth(
     .where('month', salaryMonth)
     .select('employee_id', 'id as disbursement_id');
 
-  const adjMap = new Map<number, number>(
-    adjustmentSums.map((r) => [Number(r.employee_id), Number(r.total ?? 0)]),
+  // Outstanding advance balance per employee
+  const advanceTotals = await db('hr_salary_adjustments')
+    .where({ kind: 'advance' })
+    .groupBy('employee_id')
+    .select('employee_id')
+    .sum('amount_egp as total_advances');
+
+  const repaymentTotals = await db('hr_advance_repayments')
+    .groupBy('employee_id')
+    .select('employee_id')
+    .sum('amount_egp as total_repaid');
+
+  const deductMap = new Map<number, number>(
+    deductionSums.map((r) => [Number(r.employee_id), Number(r.total ?? 0)]),
   );
   const disburseMap = new Map<number, number>(
     disbursed.map((r) => [Number(r.employee_id), Number(r.disbursement_id)]),
   );
+  const advanceMap = new Map<number, number>(
+    advanceTotals.map((r) => [Number(r.employee_id), Number(r.total_advances ?? 0)]),
+  );
+  const repaidMap = new Map<number, number>(
+    repaymentTotals.map((r) => [Number(r.employee_id), Number(r.total_repaid ?? 0)]),
+  );
 
   return employees.map((e) => {
     const base = Number(e.base_salary_egp);
-    const adj = adjMap.get(e.id) ?? 0;
+    const deductions = deductMap.get(e.id) ?? 0;
+    const outstanding = Math.max(0, (advanceMap.get(e.id) ?? 0) - (repaidMap.get(e.id) ?? 0));
     const disbId = disburseMap.has(e.id) ? disburseMap.get(e.id)! : null;
     return {
       employee_id: e.id,
       name_ar: e.name_ar,
       base_salary_egp: base,
-      adjustments_egp: adj,
-      net_egp: base - adj,
+      deductions_egp: deductions,
+      outstanding_advance_egp: outstanding,
+      net_egp: base - deductions,
       already_disbursed: disbId !== null,
       disbursement_id: disbId,
     };
@@ -81,6 +102,7 @@ export async function insertDisbursement(
     month: string;
     gross_egp: number;
     adjustments_egp: number;
+    advance_repayment_egp: number;
     net_egp: number;
     paid_via: 'cash' | 'instapay' | 'bank_transfer';
     bank_account_id: number | null;
