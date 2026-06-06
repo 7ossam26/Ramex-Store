@@ -1,11 +1,21 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
 import { ar } from '@/i18n/ar';
 import { suppliersApi, type SupplierWithBalance } from '@/lib/suppliers-api';
 import { bankAccountsApi } from '@/lib/settings-api';
 import { codesApi } from '@/lib/codes-api';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from '@/components/ResponsiveDialog';
 import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { ErrorBanner } from '@/components/ErrorBanner';
@@ -110,9 +120,34 @@ function AddDebtDialog({ onClose, onDone }: { onClose: () => void; onDone: () =>
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+type AddSupplierForm = { arabic_name: string; english_name: string };
+
 export function SuppliersListPage() {
   const navigate = useNavigate();
   const [showAddDebt, setShowAddDebt] = useState(false);
+  const [showAddSupplier, setShowAddSupplier] = useState(false);
+  const [addSupplierError, setAddSupplierError] = useState<string | null>(null);
+
+  const supplierForm = useForm<AddSupplierForm>({
+    defaultValues: { arabic_name: '', english_name: '' },
+  });
+
+  const qc = useQueryClient();
+  const createSupplier = useMutation({
+    mutationFn: (v: AddSupplierForm) =>
+      codesApi.create('suppliers', {
+        arabic_name: v.arabic_name.trim(),
+        english_name: v.english_name.trim() || null,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['suppliers-list'] });
+      qc.invalidateQueries({ queryKey: ['codes-suppliers'] });
+      supplierForm.reset();
+      setShowAddSupplier(false);
+      setAddSupplierError(null);
+    },
+    onError: (e) => setAddSupplierError(extractApiError(e)),
+  });
 
   const { data: suppliers = [], isLoading, error, refetch } = useQuery<SupplierWithBalance[]>({
     queryKey: ['suppliers-list'],
@@ -176,6 +211,9 @@ export function SuppliersListPage() {
             </span>
           )}
           <Button size="sm" onClick={() => setShowAddDebt(true)}>{ar.supplierPayables.addDebt}</Button>
+          <Button size="sm" onClick={() => { setAddSupplierError(null); supplierForm.reset(); setShowAddSupplier(true); }}>
+            {ar.supplierPayables.addSupplier}
+          </Button>
         </div>
       }
     >
@@ -196,6 +234,36 @@ export function SuppliersListPage() {
       {showAddDebt && (
         <AddDebtDialog onClose={() => setShowAddDebt(false)} onDone={() => setShowAddDebt(false)} />
       )}
+
+      <Dialog open={showAddSupplier} onOpenChange={(open) => { setShowAddSupplier(open); if (!open) setAddSupplierError(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{ar.supplierPayables.addSupplier}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={supplierForm.handleSubmit((v) => createSupplier.mutate(v))} className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-sm font-medium text-foreground">
+                اسم المورد بالعربي
+                <span className="text-danger ms-1" aria-hidden>*</span>
+              </Label>
+              <Input {...supplierForm.register('arabic_name', { required: true })} dir="rtl" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-sm font-medium text-foreground">الاسم بالإنجليزي</Label>
+              <Input {...supplierForm.register('english_name')} dir="ltr" />
+            </div>
+            {addSupplierError && (
+              <p className="text-sm text-danger" role="alert">{addSupplierError}</p>
+            )}
+            <div className="flex gap-2 justify-end">
+              <DialogClose asChild>
+                <Button type="button" variant="outline">{ar.common.cancel}</Button>
+              </DialogClose>
+              <Button type="submit" disabled={createSupplier.isPending}>{ar.common.save}</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </PageShell>
   );
 }

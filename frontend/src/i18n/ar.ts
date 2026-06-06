@@ -1330,6 +1330,7 @@ export const ar = {
     noInvoices: 'لا توجد فواتير',
     noPayments: 'لا توجد دفعات',
     addDebt: 'إضافة دين',
+    addSupplier: 'إضافة مورد',
     recordPayment: 'تسجيل دفعة',
     invoiceNo: 'رقم الفاتورة',
     invoiceDate: 'تاريخ الفاتورة',
