@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth, requireRole } from '../../middleware/auth.js';
+import { requireAuth } from '../../middleware/auth.js';
 import { requireActiveSession } from '../../middleware/concurrent-session.js';
 import { requirePermission } from '../../middleware/requirePermission.js';
 import * as shipmentsCtl from './shipments.controller.js';
@@ -14,104 +14,42 @@ export const inventoryRouter = Router();
 inventoryRouter.use(requireAuth, requireActiveSession);
 
 // --- Shipments ---
-// Ahmed (factory_sender) creates and edits drafts; Owner can also.
-inventoryRouter.post(
-  '/shipments',
-  requireRole('factory_sender', 'owner', 'super_admin'),
-  shipmentsCtl.createDraft,
-);
-inventoryRouter.post(
-  '/shipments/:id/rolls',
-  requireRole('factory_sender', 'owner', 'super_admin'),
-  shipmentsCtl.addRoll,
-);
-inventoryRouter.delete(
-  '/shipments/:id/lines/:lineId',
-  requireRole('factory_sender', 'owner', 'super_admin'),
-  shipmentsCtl.removeLine,
-);
-inventoryRouter.delete(
-  '/shipments/:id',
-  requireRole('factory_sender', 'owner', 'super_admin'),
-  shipmentsCtl.deleteDraft,
-);
-inventoryRouter.post(
-  '/shipments/:id/submit',
-  requireRole('factory_sender', 'owner', 'super_admin'),
-  shipmentsCtl.submit,
-);
+inventoryRouter.post('/shipments', requirePermission('shipments', 'write'), shipmentsCtl.createDraft);
+inventoryRouter.post('/shipments/:id/rolls', requirePermission('shipments', 'write'), shipmentsCtl.addRoll);
+inventoryRouter.delete('/shipments/:id/lines/:lineId', requirePermission('shipments', 'write'), shipmentsCtl.removeLine);
+inventoryRouter.delete('/shipments/:id', requirePermission('shipments', 'write'), shipmentsCtl.deleteDraft);
+inventoryRouter.post('/shipments/:id/submit', requirePermission('shipments', 'write'), shipmentsCtl.submit);
 
-// Review + accept are gated by the matrix: requires shipments.approve permission.
-inventoryRouter.post(
-  '/shipments/:id/lines/:lineId/review',
-  requirePermission('shipments', 'approve'),
-  shipmentsCtl.reviewLine,
-);
-inventoryRouter.post(
-  '/shipments/:id/accept',
-  requirePermission('shipments', 'approve'),
-  shipmentsCtl.acceptShipment,
-);
+// Review + accept require shipments.approve (shop_seller has approve=true; factory_sender has approve=false via HARD_DENY).
+inventoryRouter.post('/shipments/:id/lines/:lineId/review', requirePermission('shipments', 'approve'), shipmentsCtl.reviewLine);
+inventoryRouter.post('/shipments/:id/accept', requirePermission('shipments', 'approve'), shipmentsCtl.acceptShipment);
 
-// Picker for Ahmed: list رولات currently in factory + not in any active shipment line.
-inventoryRouter.get(
-  '/shipments/factory-rolls',
-  requireRole('factory_sender', 'owner', 'super_admin'),
-  shipmentsCtl.listFactoryRolls,
-);
+// Picker for Ahmed: رولات in factory not yet assigned to an active shipment line.
+inventoryRouter.get('/shipments/factory-rolls', requirePermission('shipments', 'read'), shipmentsCtl.listFactoryRolls);
 
-// All roles can list/view shipments (filters narrow visibility).
-inventoryRouter.get('/shipments', shipmentsCtl.listShipments);
-inventoryRouter.get('/shipments/:id', shipmentsCtl.getShipment);
+inventoryRouter.get('/shipments', requirePermission('shipments', 'read'), shipmentsCtl.listShipments);
+inventoryRouter.get('/shipments/:id', requirePermission('shipments', 'read'), shipmentsCtl.getShipment);
 
 // --- Damage Events ---
-inventoryRouter.post(
-  '/damage-events',
-  requireRole('shop_seller', 'owner', 'super_admin'),
-  damageCtl.createDamageEvent,
-);
-inventoryRouter.post(
-  '/damage-events/:id/approve',
-  requireRole('owner', 'super_admin'),
-  damageCtl.approveOrReject,
-);
-inventoryRouter.get('/damage-events', damageCtl.listDamageEvents);
-inventoryRouter.get('/damage-events/:id', damageCtl.getDamageEvent);
+inventoryRouter.post('/damage-events', requirePermission('inventory', 'write'), damageCtl.createDamageEvent);
+inventoryRouter.post('/damage-events/:id/approve', requirePermission('inventory', 'approve'), damageCtl.approveOrReject);
+inventoryRouter.get('/damage-events', requirePermission('inventory', 'read'), damageCtl.listDamageEvents);
+inventoryRouter.get('/damage-events/:id', requirePermission('inventory', 'read'), damageCtl.getDamageEvent);
 
 // --- Stocktakes ---
-inventoryRouter.post(
-  '/stocktakes',
-  requireRole('shop_seller', 'owner', 'super_admin'),
-  stocktakeCtl.start,
-);
-inventoryRouter.post(
-  '/stocktakes/:id/scan',
-  requireRole('shop_seller', 'owner', 'super_admin'),
-  stocktakeCtl.scan,
-);
-inventoryRouter.post(
-  '/stocktakes/:id/aggregate',
-  requireRole('shop_seller', 'owner', 'super_admin'),
-  stocktakeCtl.aggregate,
-);
-inventoryRouter.post(
-  '/stocktakes/:id/complete',
-  requireRole('shop_seller', 'owner', 'super_admin'),
-  stocktakeCtl.complete,
-);
-inventoryRouter.get('/stocktakes', stocktakeCtl.list);
-inventoryRouter.get('/stocktakes/:id', stocktakeCtl.get);
+inventoryRouter.post('/stocktakes', requirePermission('inventory', 'write'), stocktakeCtl.start);
+inventoryRouter.post('/stocktakes/:id/scan', requirePermission('inventory', 'write'), stocktakeCtl.scan);
+inventoryRouter.post('/stocktakes/:id/aggregate', requirePermission('inventory', 'write'), stocktakeCtl.aggregate);
+inventoryRouter.post('/stocktakes/:id/complete', requirePermission('inventory', 'write'), stocktakeCtl.complete);
+inventoryRouter.get('/stocktakes', requirePermission('inventory', 'read'), stocktakeCtl.list);
+inventoryRouter.get('/stocktakes/:id', requirePermission('inventory', 'read'), stocktakeCtl.get);
 
 // --- Adjustments ---
-inventoryRouter.post(
-  '/adjustments',
-  requireRole('shop_seller', 'owner', 'super_admin'),
-  adjustmentsCtl.createAdjustment,
-);
-inventoryRouter.get('/adjustments', adjustmentsCtl.listAdjustments);
+inventoryRouter.post('/adjustments', requirePermission('inventory', 'write'), adjustmentsCtl.createAdjustment);
+inventoryRouter.get('/adjustments', requirePermission('inventory', 'read'), adjustmentsCtl.listAdjustments);
 
 // --- Stock Movements (read-only ledger) ---
-inventoryRouter.get('/stock-movements', stockMovementsCtl.listStockMovements);
+inventoryRouter.get('/stock-movements', requirePermission('inventory', 'read'), stockMovementsCtl.listStockMovements);
 
 // --- Stock Summary (inventory landing) ---
-inventoryRouter.get('/inventory/stock-summary', stockSummaryCtl.stockSummary);
+inventoryRouter.get('/inventory/stock-summary', requirePermission('inventory', 'read'), stockSummaryCtl.stockSummary);
