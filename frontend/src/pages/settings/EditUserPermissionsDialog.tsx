@@ -108,7 +108,10 @@ export function EditUserPermissionsDialog({ user, onClose }: Props) {
   return (
     <>
       <Dialog open={!!user} onOpenChange={(v) => { if (!v) onClose(); }}>
-        <DialogContent className="max-w-5xl max-h-[92vh] overflow-hidden p-0" dir="rtl">
+        <DialogContent
+          className="max-w-5xl max-h-[92vh] p-0 gap-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
+          dir="rtl"
+        >
           {/* Sticky header */}
           <div className="px-5 pt-5 pb-3 border-b border-border-subtle bg-surface-elevated">
             <DialogHeader>
@@ -127,8 +130,8 @@ export function EditUserPermissionsDialog({ user, onClose }: Props) {
             </div>
           </div>
 
-          {/* Scrollable body */}
-          <div className="overflow-y-auto px-5 py-4 space-y-6" style={{ maxHeight: 'calc(92vh - 170px)' }}>
+          {/* Scrollable body — grid's middle row (minmax(0,1fr)) sizes it; min-h-0 lets it shrink so overflow-y kicks in */}
+          <div className="overflow-y-auto min-h-0 px-5 py-4 space-y-6">
             {isLoading && (
               <div className="py-12 text-center text-sm text-foreground-muted">جارٍ التحميل...</div>
             )}
