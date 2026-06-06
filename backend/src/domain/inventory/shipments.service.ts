@@ -2,7 +2,6 @@ import { db } from '../../db/connection.js';
 import { nextShipmentNo } from './shipmentNumber.service.js';
 import { auditFromService } from './audit.helper.js';
 import { notify } from '../notifications/notificationsService.js';
-import { insertInvoice } from '../treasury/suppliers/suppliers.repository.js';
 import type {
   Shipment,
   ShipmentLine,
@@ -25,7 +24,6 @@ export async function createDraft(actorUserId: number, input: CreateShipmentDraf
       created_by_user_id: actorUserId,
       status: 'draft',
       notes_ar: input.notes_ar ?? null,
-      supplier_id: input.supplier_id ?? null,
     }).returning('id');
     const row = await trx('shipments').where({ id }).first();
     await auditFromService(trx, {
@@ -319,39 +317,6 @@ export async function acceptShipment(
       after: { status: finalStatus, accepted_count: accepted.length, rejected_count: rejected.length },
       severity: finalStatus === 'approved' ? 'medium' : 'high',
     });
-
-    // Auto-create supplier invoice if shipment has a supplier and any lines were accepted
-    if (shipment.supplier_id && accepted.length > 0) {
-      const invoiceTotal = accepted.reduce((sum: number, l: Record<string, unknown>) => {
-        const price = Number(l.reference_price_per_unit ?? 0);
-        if (price === 0) return sum;
-        const qty = l.fabric_unit === 'kg'
-          ? Number(l.weight_kg ?? 0)
-          : Number(l.length_m ?? 0);
-        return sum + price * qty;
-      }, 0);
-
-      if (invoiceTotal > 0) {
-        const inv = await insertInvoice(trx, {
-          supplier_id: shipment.supplier_id,
-          invoice_no: updated.shipment_no,
-          invoice_date: new Date().toISOString().slice(0, 10),
-          amount_egp: invoiceTotal,
-          notes_ar: null,
-          source: 'shipment_receive',
-          source_ref: shipmentId,
-          created_by_user_id: actorUserId,
-        });
-        await auditFromService(trx, {
-          actorUserId,
-          action: 'supplier_invoice_created',
-          entity: 'supplier_invoice',
-          entityId: inv.id,
-          after: { supplier_id: shipment.supplier_id, amount_egp: invoiceTotal, source: 'shipment_receive', source_ref: shipmentId },
-          severity: 'medium',
-        });
-      }
-    }
 
     if (finalStatus === 'partial_approved' || finalStatus === 'rejected') {
       await notify({

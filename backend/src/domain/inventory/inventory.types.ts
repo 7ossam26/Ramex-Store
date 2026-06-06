@@ -15,7 +15,6 @@ export type Shipment = {
   reviewed_at: Date | null;
   status: ShipmentStatus;
   notes_ar: string | null;
-  supplier_id: number | null;
   created_at: Date;
   updated_at: Date;
 };

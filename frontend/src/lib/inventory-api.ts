@@ -60,8 +60,8 @@ export const inventoryApi = {
     api.get<Shipment[]>('/shipments', { params }).then((r) => r.data),
   getShipment: (id: number) =>
     api.get<ShipmentWithLines>(`/shipments/${id}`).then((r) => r.data),
-  createShipmentDraft: (args?: { notes_ar?: string | null; supplier_id?: number | null }) =>
-    api.post<Shipment>('/shipments', { notes_ar: args?.notes_ar ?? null, supplier_id: args?.supplier_id ?? null }).then((r) => r.data),
+  createShipmentDraft: (args?: { notes_ar?: string | null }) =>
+    api.post<Shipment>('/shipments', { notes_ar: args?.notes_ar ?? null }).then((r) => r.data),
   deleteShipmentDraft: (shipmentId: number) =>
     api.delete(`/shipments/${shipmentId}`).then((r) => r.data),
   // Ahmed picks an existing factory روول by id or scans its barcode.

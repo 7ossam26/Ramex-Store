@@ -5,7 +5,6 @@ export const WarehouseEnum = z.enum(['shop', 'factory', 'damaged_shop']);
 // --- Shipments ---
 export const CreateShipmentDraftSchema = z.object({
   notes_ar: z.string().max(2000).nullable().optional(),
-  supplier_id: z.number().int().positive().nullable().optional(),
 });
 export type CreateShipmentDraftInput = z.infer<typeof CreateShipmentDraftSchema>;
 

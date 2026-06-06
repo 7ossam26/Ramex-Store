@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ar } from '@/i18n/ar';
@@ -32,6 +32,7 @@ export function EditUserPermissionsDialog({ user, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState<Map<string, boolean | null>>(new Map());
+  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ['user-permissions', user?.id],
@@ -45,6 +46,7 @@ export function EditUserPermissionsDialog({ user, onClose }: Props) {
     onSuccess: () => {
       setSaved(true);
       setDirty(new Map());
+      queryClient.invalidateQueries({ queryKey: ['user-permissions', user?.id] });
     },
     onError: (e) => setError(extractApiError(e)),
   });
