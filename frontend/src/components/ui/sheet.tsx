@@ -60,7 +60,7 @@ export const SheetContent = React.forwardRef<
       {children}
       {!hideClose && (
         <DialogPrimitive.Close
-          className="absolute top-3 left-3 rounded-tight p-1 text-muted-foreground hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="absolute top-3 start-3 rounded-tight p-1 text-muted-foreground hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label="إغلاق"
         >
           <X className="h-5 w-5" />

@@ -40,13 +40,13 @@ function StartCard({ onStarted }: { onStarted: (s: Stocktake) => void }) {
       <CardHeader>
         <CardTitle>{ar.stocktake.start}</CardTitle>
       </CardHeader>
-      <CardContent className="grid grid-cols-3 gap-3 items-end">
+      <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
         <div className="space-y-1">
           <Label>{ar.stocktake.mode}</Label>
           <select
             value={mode}
             onChange={(e) => setMode(e.target.value as StocktakeMode)}
-            className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
+            className="w-full h-11 sm:h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
           >
             <option value="roll_level">{ar.stocktake.rollLevel}</option>
             <option value="aggregate">{ar.stocktake.aggregate}</option>
@@ -57,14 +57,14 @@ function StartCard({ onStarted }: { onStarted: (s: Stocktake) => void }) {
           <select
             value={warehouse}
             onChange={(e) => setWarehouse(e.target.value as Warehouse)}
-            className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
+            className="w-full h-11 sm:h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
           >
             <option value="shop">{ar.warehouses.shop}</option>
             <option value="factory">{ar.warehouses.factory}</option>
             <option value="damaged_shop">{ar.warehouses.damaged_shop}</option>
           </select>
         </div>
-        <Button onClick={() => m.mutate()} disabled={m.isPending}>
+        <Button onClick={() => m.mutate()} disabled={m.isPending} className="w-full sm:w-auto h-11 sm:h-10">
           {ar.stocktake.start}
         </Button>
       </CardContent>

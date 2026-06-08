@@ -265,7 +265,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
             )}
           </div>
 
-          <footer className="border-t border-border-subtle px-4 py-2 text-[11px] text-foreground-tertiary flex items-center gap-3">
+          <footer className="hidden md:flex border-t border-border-subtle px-4 py-2 text-[11px] text-foreground-tertiary items-center gap-3">
             <span><kbd className="px-1 py-0.5 rounded bg-surface-hover border border-border-subtle">↑↓</kbd> تنقل</span>
             <span><kbd className="px-1 py-0.5 rounded bg-surface-hover border border-border-subtle">↵</kbd> فتح</span>
             <span><kbd className="px-1 py-0.5 rounded bg-surface-hover border border-border-subtle">Esc</kbd> إغلاق</span>
