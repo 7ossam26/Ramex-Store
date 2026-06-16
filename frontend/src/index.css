@@ -72,7 +72,7 @@
     /* Semantic — Warning (warm amber) */
     --rmx-warning: 36 67% 54%;              /* #D89B3A */
     --rmx-warning-subtle: 40 80% 90%;       /* #FAEDD2 */
-    --rmx-warning-foreground: 36 67% 28%;   /* #7A5418 */
+    --rmx-warning-foreground: 48 100% 48%;  /* #F5C400 */
 
     /* Semantic — Danger (warm red) */
     --rmx-danger: 0 51% 48%;                /* #B83B3B */
