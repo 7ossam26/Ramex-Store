@@ -13,7 +13,7 @@ import type { ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { ar } from '@/i18n/ar';
-import { settingsApi, permissionsApi, usersApi } from '@/lib/settings-api';
+import { settingsApi, permissionsApi, usersApi, adminApi } from '@/lib/settings-api';
 import { codesApi, type CodeGrade, type CodeComposition, type CodeBrand, type CodeSupplier } from '@/lib/codes-api';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
@@ -37,8 +37,18 @@ import { EditUserDialog } from './EditUserDialog';
 import { ResetPasswordDialog } from './ResetPasswordDialog';
 import { EditUserPermissionsDialog } from './EditUserPermissionsDialog';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertTriangle } from 'lucide-react';
 import type { UserRow } from '@/lib/settings-api';
 import { RESOURCE_GROUPS } from '@/lib/permissions-config';
+
+/**
+ * Exact phrase the super admin must type to confirm a database reset.
+ * Must match the backend constant `RESET_CONFIRM_PHRASE`
+ * (backend/src/domain/admin/databaseReset.service.ts). The backend is
+ * authoritative; this copy only gates the button for UX.
+ */
+const RESET_CONFIRM_PHRASE = 'تصفير قاعدة البيانات';
 
 
 type Section = SettingsSectionId;
@@ -1278,6 +1288,152 @@ function FabricCodesSection({ notifySaved }: { notifySaved: () => void }) {
   );
 }
 
+// ─── Section: System (super admin only) ─────────────────────────────────────
+
+function ResetDatabaseDialog({
+  open,
+  onClose,
+  onDone,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onDone: (wipedTables: number) => void;
+}) {
+  const [phrase, setPhrase] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const resetMut = useMutation({
+    mutationFn: () => adminApi.resetDatabase({ confirmPhrase: phrase.trim(), password }),
+    onSuccess: (r) => {
+      setPhrase('');
+      setPassword('');
+      setError(null);
+      onDone(r.wipedTables);
+    },
+    onError: (e) => setError(extractApiError(e)),
+  });
+
+  const phraseOk = phrase.trim() === RESET_CONFIRM_PHRASE;
+  const canSubmit = phraseOk && password.length > 0 && !resetMut.isPending;
+
+  function handleClose() {
+    if (resetMut.isPending) return;
+    setPhrase('');
+    setPassword('');
+    setError(null);
+    onClose();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
+      <DialogContent className="max-w-md" dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="size-5 shrink-0" aria-hidden />
+            {ar.settings.system.confirmTitle}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3">
+            <p className="text-sm text-foreground">{ar.settings.system.confirmWarning}</p>
+          </div>
+
+          {error && <SaveErrorBanner message={error} onDismiss={() => setError(null)} />}
+
+          <FieldRow label={ar.settings.system.phraseLabel}>
+            <TextInput value={phrase} onChange={setPhrase} placeholder={RESET_CONFIRM_PHRASE} />
+          </FieldRow>
+
+          <FieldRow label={ar.settings.system.passwordLabel}>
+            <input
+              type="password"
+              dir="ltr"
+              autoComplete="current-password"
+              className={cn(
+                'h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground text-start',
+                'transition-colors duration-75 ease-standard',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:border-accent',
+              )}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </FieldRow>
+
+          <div className="flex justify-start gap-2 pt-2">
+            <Button
+              size="sm"
+              onClick={() => resetMut.mutate()}
+              disabled={!canSubmit}
+              className="gap-2 bg-destructive text-foreground-on-accent hover:bg-destructive/90"
+            >
+              {resetMut.isPending && (
+                <span
+                  className="inline-block size-4 rounded-full border-2 border-foreground-on-accent/40 border-t-foreground-on-accent animate-spin"
+                  aria-hidden
+                />
+              )}
+              {resetMut.isPending ? ar.loading : ar.settings.system.confirmButton}
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleClose} disabled={resetMut.isPending}>
+              {ar.common.cancel}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SystemSection({ notifySaved }: { notifySaved: () => void }) {
+  const qc = useQueryClient();
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  return (
+    <div className="space-y-8">
+      {/* Read-only system info */}
+      <section className="space-y-3">
+        <FieldRow label={ar.settings.system.auditRetentionLabel}>
+          <p className="text-sm text-foreground-muted">{ar.settings.system.auditRetentionValue}</p>
+        </FieldRow>
+      </section>
+
+      {/* Danger zone */}
+      <section className="space-y-3">
+        <h3 className="text-base font-semibold text-destructive">{ar.settings.system.dangerZone}</h3>
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 space-y-3">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="size-5 shrink-0 text-destructive mt-0.5" aria-hidden />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-foreground">{ar.settings.system.resetTitle}</p>
+              <p className="text-sm text-foreground-muted">{ar.settings.system.resetDescription}</p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setDialogOpen(true)}
+            className="bg-destructive text-foreground-on-accent hover:bg-destructive/90"
+          >
+            {ar.settings.system.resetButton}
+          </Button>
+        </div>
+      </section>
+
+      <ResetDatabaseDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onDone={() => {
+          setDialogOpen(false);
+          // Wipe of operational data invalidates effectively every cached query.
+          qc.invalidateQueries();
+          notifySaved();
+        }}
+      />
+    </div>
+  );
+}
+
 // ─── Sub-nav (desktop) ──────────────────────────────────────────────────────
 
 function DesktopSubNav({
@@ -1480,6 +1636,9 @@ export function SettingsPage() {
         return <ReasonCodesSection settings={settings} onSave={handleSave} notifySaved={notifySaved} />;
       case 'fabricCodes':
         return <FabricCodesSection notifySaved={notifySaved} />;
+      case 'system':
+        if (!isSuperAdmin(user?.role)) return null;
+        return <SystemSection notifySaved={notifySaved} />;
     }
   }
 

@@ -11,6 +11,7 @@
  * ============================================================= */
 import {
   ClipboardList,
+  DatabaseZap,
   Hash,
   Info,
   ShieldCheck,
@@ -22,7 +23,8 @@ export type SettingsSectionId =
   | 'general'
   | 'usersPermissions'
   | 'reasonCodes'
-  | 'fabricCodes';
+  | 'fabricCodes'
+  | 'system';
 
 export type SettingsSection = {
   id: SettingsSectionId;
@@ -58,6 +60,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     labelAr: 'كودات الملصقات',
     descAr: 'الدرجات، التركيبات، الماركات والموردين على ملصقات الاتواب',
     icon: Hash,
+  },
+  {
+    id: 'system',
+    labelAr: 'النظام',
+    descAr: 'صيانة النظام وتصفير قاعدة البيانات',
+    icon: DatabaseZap,
+    visibleTo: ['super_admin'],
   },
 ];
 

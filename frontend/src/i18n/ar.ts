@@ -314,6 +314,9 @@ export const ar = {
       USERNAME_TAKEN: 'اسم المستخدم مستخدم بالفعل',
       USER_NOT_FOUND: 'المستخدم غير موجود',
       CUSTOMER_PHONE_DUPLICATE: 'رقم الهاتف مستخدم من قبل',
+      CONFIRM_PHRASE_MISMATCH: 'عبارة التأكيد غير صحيحة',
+      PASSWORD_REQUIRED: 'كلمة المرور مطلوبة',
+      INVALID_PASSWORD: 'كلمة المرور غير صحيحة',
     } as Record<string, string>,
   },
   customers: {
@@ -859,6 +862,13 @@ export const ar = {
   pointOfSale: 'نقطة البيع',
   offline: 'لا يوجد اتصال بالإنترنت',
   loading: 'جاري التحميل...',
+  connectivity: {
+    offlineTitle: 'لا يوجد اتصال بالإنترنت',
+    offlineBody: 'تم إيقاف النظام مؤقتاً للحفاظ على بياناتك. سيعود تلقائياً بمجرد عودة الاتصال.',
+    retrying: 'جارٍ محاولة إعادة الاتصال…',
+    willReconnect: 'سيُعاد الاتصال تلقائياً عند توفر الإنترنت',
+    retryNow: 'إعادة المحاولة الآن',
+  },
   home: {
     welcome: 'لوحة التحكم',
     ownerWidgets: 'ملخص اليوم',
@@ -915,7 +925,7 @@ export const ar = {
       notificationsHint: 'كل شيء هادئ',
     },
     trends: {
-      hourlyTitle: 'منحنى المبيعات بالساعة',
+      hourlyTitle: 'منحنى المبيعات اليومي',
       hourlyHint: 'ينتعش المتجر عادة بعد الظهر',
       hourlyAxisHour: 'الساعة',
       hourlyAxisRevenue: 'الإيراد',
@@ -997,6 +1007,24 @@ export const ar = {
       usersPermissions: 'المستخدمون والصلاحيات',
       reasonCodes: 'أكواد الأسباب',
       fabricCodes: 'كودات الملصقات',
+      system: 'النظام',
+    },
+    system: {
+      auditRetentionLabel: 'مدة حفظ سجل التدقيق',
+      auditRetentionValue: 'للأبد (لا يتم الحذف التلقائي)',
+      dangerZone: 'منطقة الخطر',
+      resetTitle: 'تصفير قاعدة البيانات',
+      resetDescription:
+        'يحذف نهائياً جميع البيانات التشغيلية: المبيعات، الفواتير، المدفوعات، العملاء، الاتواب، الطلبيات، المخزون، الخزينة والبنوك، الموارد البشرية، الإشعارات وسجل التدقيق. يتم الاحتفاظ بالمستخدمين والصلاحيات والإعدادات وكودات الملصقات. لا يمكن التراجع عن هذا الإجراء.',
+      resetButton: 'تصفير قاعدة البيانات',
+      confirmTitle: 'تأكيد تصفير قاعدة البيانات',
+      confirmWarning:
+        'سيتم حذف جميع البيانات التشغيلية نهائياً ولا يمكن استرجاعها. للتأكيد اكتب العبارة التالية وأدخل كلمة مرور حسابك.',
+      phraseLabel: 'اكتب «تصفير قاعدة البيانات» للتأكيد',
+      passwordLabel: 'كلمة مرور حسابك',
+      confirmButton: 'تصفير نهائي',
+      done: 'تم تصفير قاعدة البيانات بنجاح',
+      doneCount: 'تم تصفير {count} جدول',
     },
     fabricCodes: {
       tabs: {

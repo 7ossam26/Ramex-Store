@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { OfflineToast } from '@/components/Layout/OfflineToast';
 import { Rail } from './Rail';
 import { TopBar } from './TopBar';
 import { MobileDrawer } from './MobileDrawer';
@@ -33,7 +32,6 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-surface text-foreground">
-      <OfflineToast />
       <TopBar
         onOpenCommandPalette={() => setPaletteOpen(true)}
         onOpenMobileDrawer={() => setMobileDrawerOpen(true)}

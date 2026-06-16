@@ -92,6 +92,12 @@ export type BankAccount = {
   current_balance_egp: string;
 };
 
+export const adminApi = {
+  /** Wipes all operational data. super_admin only; requires phrase + password. */
+  resetDatabase: (data: { confirmPhrase: string; password: string }): Promise<{ ok: boolean; wipedTables: number }> =>
+    api.post('/admin/reset-database', data).then((r) => r.data),
+};
+
 export const bankAccountsApi = {
   list: (): Promise<BankAccount[]> =>
     api.get('/bank-accounts').then((r) => r.data),

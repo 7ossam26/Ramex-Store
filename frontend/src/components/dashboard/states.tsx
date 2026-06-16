@@ -85,7 +85,7 @@ export function WidgetCard({
   return (
     <section
       className={cn(
-        'rounded-lg border border-border-subtle bg-surface-elevated shadow-sm',
+        'h-full rounded-lg border border-border-subtle bg-surface-elevated shadow-sm',
         'hover:shadow-md transition-shadow duration-150',
         className,
       )}

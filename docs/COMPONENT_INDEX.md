@@ -29,7 +29,7 @@ Navigation config: [`navigation/nav.config.ts`](../frontend/src/navigation/nav.c
 | Component | Path | Role |
 |---|---|---|
 | `HubLanding` | [`components/Layout/HubLanding.tsx`](../frontend/src/components/Layout/HubLanding.tsx) | Card grid for section landings (Items, Inventory, Treasury, Invoices/Returns, Reports). Stagger entry, hover lift. |
-| `OfflineToast` | [`components/Layout/OfflineToast.tsx`](../frontend/src/components/Layout/OfflineToast.tsx) | Full-width red banner when the online-status provider reports offline. Hidden on print. |
+| `ConnectivityGate` | [`lib/connectivity.tsx`](../frontend/src/lib/connectivity.tsx) | Full-screen blocking overlay (above all layers, locks scroll) whenever the backend is unreachable. Backed by `ConnectivityProvider`, which combines browser online/offline events with a `GET /api/health` heartbeat. Hidden on print. Replaced the old `OfflineToast` banner. |
 | `UserMenu` | [`components/Layout/UserMenu.tsx`](../frontend/src/components/Layout/UserMenu.tsx) | Avatar + dropdown (profile / logout). |
 
 The deprecated old shell (`Layout/AppShell.tsx`, `Layout/LeftRail.tsx`, `Layout/MobileNavDrawer.tsx`, `Layout/SectionShell.tsx`, `Layout/TopHeader.tsx`, `Layout/nav-config.ts`) was removed in Phase 7.

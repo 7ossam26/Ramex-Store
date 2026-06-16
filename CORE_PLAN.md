@@ -344,7 +344,7 @@ in the future must be split into a dedicated page/route outside of `/settings`.
 4. **Africa/Cairo timezone** for all timestamps.
 5. **Egyptian phone validation**: format `01[0125]XXXXXXXX` (11 digits starting with 010/011/012/015).
 6. **Audit log on every sensitive action**.
-7. **Online-only**: detect offline → toast notification, block writes.
+7. **Online-only**: an active `/api/health` heartbeat (plus browser online/offline events) detects loss of connectivity → a **full-screen blocking overlay** locks the entire app (including the login screen) until the connection returns. _(Amendment 2026-06-16: upgraded from the original "toast + block writes" to a full app block at the owner's explicit request. Implemented by the connectivity guard module: `frontend/src/lib/connectivity.tsx` — `ConnectivityProvider` + `ConnectivityGate`.)_
 8. **Concurrent sessions blocked** per user.
 9. **No customer data deletion** (no merge, no archive, no hard delete on customers).
 10. **Roll IDs immutable** once created.
