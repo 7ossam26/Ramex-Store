@@ -54,6 +54,11 @@ function mapInvoiceToDraft(inv: InvoiceDetail): DraftInvoiceDocumentProps {
     subtotal: Number(inv.subtotal_egp),
     rounding: Number(inv.rounding_egp),
     total: Number(inv.total_egp),
+    ...(inv.status === 'open' && {
+      invoiceType: 'open' as const,
+      depositPaid: Number(inv.paid_egp),
+      balance: Number(inv.balance_egp),
+    }),
   };
 }
 
