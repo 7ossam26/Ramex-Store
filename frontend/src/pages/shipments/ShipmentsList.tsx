@@ -33,7 +33,7 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
   const canApprove = !permsLoading && can('shipments', 'approve');
 
   function shipmentUrl(s: ShipmentRow): string {
-    return canApprove ? `/shipments/${s.id}` : `/shipments/${s.id}/view`;
+    return `/shipments/${s.id}`;
   }
   const qc = useQueryClient();
   const q = useQuery({

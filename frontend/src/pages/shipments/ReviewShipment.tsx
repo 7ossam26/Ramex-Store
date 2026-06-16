@@ -62,7 +62,7 @@ export function ReviewShipmentPage({ readOnly = false }: { readOnly?: boolean })
     onError: (e) => setAcceptError(extractApiError(e)),
   });
 
-  if (!q.data) return <div>{ar.loading}</div>;
+  if (!q.data || permsLoading) return <div>{ar.loading}</div>;
   const shipment = q.data;
   const isReviewable =
     shipment.status === 'pending_approval' || shipment.status === 'partial_approved';
