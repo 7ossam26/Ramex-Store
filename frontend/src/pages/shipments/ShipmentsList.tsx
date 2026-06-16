@@ -99,7 +99,7 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
         rows={rows}
         rowKey={(s) => String(s.id)}
         empty={ar.shipments.empty}
-        isLoading={q.isLoading}
+        isLoading={q.isLoading || permsLoading}
         isError={q.isError}
         onRetry={() => q.refetch()}
         resetKey={status}
