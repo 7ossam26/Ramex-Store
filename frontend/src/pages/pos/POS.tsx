@@ -614,13 +614,23 @@ export function POSPage() {
             {new Date(activeShift.opened_at).toLocaleString('en-GB', { timeZone: 'Africa/Cairo', hour12: false })}
           </span>
         </span>
-        <button
-          type="button"
-          onClick={() => setEndDayShift(activeShift)}
-          className="rounded-md bg-danger px-3 py-1.5 text-xs font-medium text-danger-foreground hover:opacity-90 transition-opacity"
-        >
-          {ar.shifts.endDay}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate('/returns')}
+            className="flex items-center gap-1.5 rounded-md border border-border-subtle bg-surface-elevated px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-hover transition-colors"
+          >
+            <RotateCcw className="size-3.5" />
+            {ar.topbar.returns}
+          </button>
+          <button
+            type="button"
+            onClick={() => setEndDayShift(activeShift)}
+            className="rounded-md bg-danger px-3 py-1.5 text-xs font-medium text-danger-foreground hover:opacity-90 transition-opacity"
+          >
+            {ar.shifts.endDay}
+          </button>
+        </div>
       </div>
 
       {/* Top bar — customer + discount + open invoice + cart pill (mobile) */}
