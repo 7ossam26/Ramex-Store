@@ -32,6 +32,10 @@ const HEARTBEAT_MS = 10_000;
 const HEARTBEAT_RETRY_MS = 4_000;
 /** Abort a hung health request rather than hang the "checking" state forever. */
 const PING_TIMEOUT_MS = 5_000;
+/** Consecutive heartbeat failures required before we block. Tolerates a single
+ *  transient blip / server restart so the full-screen block never flashes up
+ *  spuriously. The browser's `offline` event still blocks immediately. */
+const FAILURE_THRESHOLD = 2;
 
 export interface Connectivity {
   online: boolean;
@@ -47,18 +51,26 @@ const Ctx = createContext<Connectivity>({
   recheck: () => {},
 });
 
-async function pingHealth(): Promise<boolean> {
+/**
+ * Resolves `true` when the backend is *reachable*, and `false` only when the
+ * request fails to complete (network down, DNS failure, timeout/abort,
+ * connection refused).
+ *
+ * Any HTTP response — including 5xx — counts as reachable. A 503 means the
+ * server answered (e.g. a transient DB blip): that's a backend-health problem,
+ * NOT a loss of internet, so it must never trigger the offline block.
+ */
+export async function pingHealth(): Promise<boolean> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PING_TIMEOUT_MS);
   try {
-    const res = await fetch('/api/health', {
+    await fetch('/api/health', {
       method: 'GET',
       cache: 'no-store',
       signal: controller.signal,
     });
-    return res.ok;
+    return true;
   } catch {
-    // Network error, DNS failure, abort/timeout, server unreachable → offline.
     return false;
   } finally {
     clearTimeout(timer);
@@ -76,21 +88,31 @@ export function ConnectivityProvider({ children }: { children: ReactNode }) {
 
   const inFlight = useRef(false);
   const mountedRef = useRef(true);
+  const failuresRef = useRef(0);
 
   const check = useCallback(async () => {
     if (inFlight.current) return;
-    // NIC is down — definitely offline, no point hitting the network.
+    // NIC is down — a definitive signal, block immediately.
     if (!navigator.onLine) {
+      failuresRef.current = 0;
       setOnline(false);
       return;
     }
     inFlight.current = true;
     setChecking(true);
-    const ok = await pingHealth();
+    const reachable = await pingHealth();
     inFlight.current = false;
     if (!mountedRef.current) return;
     setChecking(false);
-    setOnline(ok);
+    if (reachable) {
+      failuresRef.current = 0;
+      setOnline(true);
+    } else {
+      // Block only after repeated failures, so a single blip / server restart
+      // doesn't flash the overlay. Once blocked we keep polling for recovery.
+      failuresRef.current += 1;
+      if (failuresRef.current >= FAILURE_THRESHOLD) setOnline(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -103,8 +125,10 @@ export function ConnectivityProvider({ children }: { children: ReactNode }) {
     const loop = async () => {
       await check();
       if (cancelled) return;
-      const next = onlineRef.current ? HEARTBEAT_MS : HEARTBEAT_RETRY_MS;
-      timer = setTimeout(loop, next);
+      // Poll faster while anything looks wrong (offline, or a failure pending
+      // confirmation) so we both confirm an outage and recover from it quickly.
+      const healthy = onlineRef.current && failuresRef.current === 0;
+      timer = setTimeout(loop, healthy ? HEARTBEAT_MS : HEARTBEAT_RETRY_MS);
     };
     void loop();
 
