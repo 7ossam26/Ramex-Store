@@ -218,6 +218,9 @@ export function POSPage() {
   const [returnReference, setReturnReference] = useState('');
   const [returnChequeState, setReturnChequeState] = useState<ChequeFormState>(emptyCheque());
   const [returnConfirming, setReturnConfirming] = useState(false);
+  const [returnScanDialogOpen, setReturnScanDialogOpen] = useState(false);
+  const [returnScanError, setReturnScanError] = useState<string | null>(null);
+  const [returnScanLoading, setReturnScanLoading] = useState(false);
 
   /* Bottom toast (functional error feedback). */
   type ToastState = { id: number; message: string };
@@ -377,6 +380,27 @@ export function POSPage() {
       showToast(extractApiError(e));
     } finally {
       setReturnConfirming(false);
+    }
+  }
+
+  async function handleReturnScan(barcode: string) {
+    setReturnScanError(null);
+    setReturnScanLoading(true);
+    try {
+      const roll = await salesApi.rollByBarcode(barcode.trim());
+      if (roll.status === 'sold') {
+        setReturnScanDialogOpen(false);
+        await openReturnDrawer(roll);
+      } else if (roll.status === 'damaged') {
+        setReturnScanError(ar.pos.returnDamagedRoll);
+      } else {
+        setReturnScanError(ar.returns.errors.rollNotSold);
+      }
+    } catch (e) {
+      const status = (e as { response?: { status?: number } })?.response?.status;
+      setReturnScanError(status === 404 ? ar.pos.notFound : extractApiError(e));
+    } finally {
+      setReturnScanLoading(false);
     }
   }
 
@@ -617,7 +641,7 @@ export function POSPage() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => navigate('/returns')}
+            onClick={() => { setReturnScanError(null); setReturnScanDialogOpen(true); }}
             className="flex items-center gap-1.5 rounded-md border border-border-subtle bg-surface-elevated px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-hover transition-colors"
           >
             <RotateCcw className="size-3.5" />
@@ -911,6 +935,38 @@ export function POSPage() {
               {ar.pos.switchDestinationConfirm}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Return scan dialog — opened by the Returns button in the shift strip. */}
+      <Dialog
+        open={returnScanDialogOpen}
+        onOpenChange={(o) => { if (!o) { setReturnScanDialogOpen(false); setReturnScanError(null); } }}
+      >
+        <DialogContent className="max-w-sm" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="size-4 text-foreground-muted" />
+              {ar.topbar.returns}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-foreground-muted">
+            امسح باركود التوب أو اكتبه يدوياً لبدء الإرجاع
+          </p>
+          <ScannerInput
+            onScan={handleReturnScan}
+            disabled={returnScanLoading}
+            autoFocus
+          />
+          {returnScanLoading && (
+            <p className="flex items-center gap-2 text-sm text-foreground-muted">
+              <Loader2 className="size-3.5 animate-spin" />
+              {ar.pos.returnLoadingMeta}
+            </p>
+          )}
+          {returnScanError && (
+            <p className="text-sm text-danger" role="alert">{returnScanError}</p>
+          )}
         </DialogContent>
       </Dialog>
 
