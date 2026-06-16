@@ -65,7 +65,11 @@ export function LabelsPage() {
     },
   });
 
-  const rolls = (q.data ?? []).filter((r) => !applied?.status || r.status === applied.status);
+  const rolls = (q.data ?? []).filter((r) => {
+    if (applied?.status && r.status !== applied.status) return false;
+    if (applied?.warehouse === 'shop' && r.status !== 'in_stock') return false;
+    return true;
+  });
   const activeFilters = Object.values(filters).filter((v) => v.trim()).length;
   const resetKey = JSON.stringify(applied);
 
