@@ -236,12 +236,20 @@ function RecordPaymentDialog({
 
 type AddSupplierForm = { arabic_name: string; phone: string };
 
+const EGYPTIAN_PHONE_REGEX = /^01[0125][0-9]{8}$/;
+
+function validateEgyptianPhone(phone: string): boolean {
+  if (!phone) return true;
+  return EGYPTIAN_PHONE_REGEX.test(phone);
+}
+
 export function SuppliersPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showAddDebt, setShowAddDebt] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [showAddSupplier, setShowAddSupplier] = useState(false);
   const [addSupplierError, setAddSupplierError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   const supplierForm = useForm<AddSupplierForm>({
     defaultValues: { arabic_name: '', phone: '' },
@@ -487,14 +495,26 @@ export function SuppliersPage() {
 
       <Dialog
         open={showAddSupplier}
-        onOpenChange={(open) => { setShowAddSupplier(open); if (!open) setAddSupplierError(null); }}
+        onOpenChange={(open) => {
+          setShowAddSupplier(open);
+          if (!open) {
+            setAddSupplierError(null);
+            setPhoneError(null);
+          }
+        }}
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{ar.supplierPayables.addSupplier}</DialogTitle>
           </DialogHeader>
           <form
-            onSubmit={supplierForm.handleSubmit((v) => createSupplier.mutate(v))}
+            onSubmit={supplierForm.handleSubmit((v) => {
+              if (!validateEgyptianPhone(v.phone)) {
+                setPhoneError('رقم الهاتف يجب أن يكون بصيغة مصرية: 01[0-1-2-5]XXXXXXXX');
+                return;
+              }
+              createSupplier.mutate(v);
+            })}
             className="space-y-3"
           >
             <div className="space-y-1">
@@ -504,9 +524,28 @@ export function SuppliersPage() {
               </Label>
               <Input {...supplierForm.register('arabic_name', { required: true })} dir="rtl" />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <Label className="text-sm font-medium text-foreground">رقم الهاتف</Label>
-              <Input {...supplierForm.register('phone')} placeholder="01012345678" dir="ltr" inputMode="tel" />
+              <Input
+                {...supplierForm.register('phone')}
+                placeholder="01012345678"
+                dir="ltr"
+                inputMode="tel"
+                onChange={(e) => {
+                  supplierForm.setValue('phone', e.target.value);
+                  if (e.target.value && !validateEgyptianPhone(e.target.value)) {
+                    setPhoneError('رقم الهاتف يجب أن يكون بصيغة مصرية: 01[0-1-2-5]XXXXXXXX');
+                  } else {
+                    setPhoneError(null);
+                  }
+                }}
+              />
+              {phoneError && (
+                <p className="text-xs text-danger">{phoneError}</p>
+              )}
+              {!phoneError && (
+                <p className="text-xs text-foreground-muted">الصيغة: 01[0 أو 1 أو 2 أو 5]XXXXXXXX</p>
+              )}
             </div>
             {addSupplierError && (
               <p className="text-sm text-danger" role="alert">{addSupplierError}</p>
@@ -515,7 +554,12 @@ export function SuppliersPage() {
               <DialogClose asChild>
                 <Button type="button" variant="outline">{ar.common.cancel}</Button>
               </DialogClose>
-              <Button type="submit" disabled={createSupplier.isPending}>{ar.common.save}</Button>
+              <Button
+                type="submit"
+                disabled={createSupplier.isPending || !!phoneError}
+              >
+                {ar.common.save}
+              </Button>
             </div>
           </form>
         </DialogContent>

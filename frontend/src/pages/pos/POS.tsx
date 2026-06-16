@@ -1059,22 +1059,23 @@ function TopBar({
           </button>
         </div>
       ) : (
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           <Button
             onClick={onPickCustomer}
             variant="outline"
-            className="h-11 cursor-pointer gap-2"
+            className="h-11 cursor-pointer gap-2 text-base font-medium"
           >
-            <UserRound className="size-4" />
+            <UserRound className="size-5" />
             {ar.pos.selectCustomer}
           </Button>
           <Button
             onClick={onQuickCustomer}
-            variant="ghost"
-            size="sm"
-            className="h-11 cursor-pointer"
+            variant="default"
+            className="h-11 px-4 cursor-pointer gap-1.5 text-base font-semibold"
+            title="إضافة عميل جديد"
           >
-            +
+            <UserPlus className="size-5" />
+            <span>جديد</span>
           </Button>
         </div>
       )}
@@ -2713,6 +2714,157 @@ function QuickCustomerDialog({
               className="h-11 md:h-10 cursor-pointer"
             >
               {ar.common.save}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── *
+ * QUICK EXPENSE DIALOG — Elderly-friendly quick expense entry
+ * ────────────────────────────────────────────────────────────────────────── */
+function QuickExpenseDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
+  const qc = useQueryClient();
+  const [category, setCategory] = useState('supplies');
+  const [amount, setAmount] = useState('');
+  const [notes, setNotes] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const categories = [
+    { value: 'rent', label: 'إيجار' },
+    { value: 'utilities', label: 'مرافق' },
+    { value: 'supplies', label: 'مستلزمات' },
+    { value: 'salary', label: 'رواتب' },
+    { value: 'repair', label: 'صيانة' },
+    { value: 'other', label: 'أخرى' },
+  ];
+
+  const createMut = useMutation({
+    mutationFn: () =>
+      financeApi.createExpense({
+        category,
+        amount_egp: Number(amount),
+        paid_from: 'cash',
+        bank_account_id: null,
+        notes_ar: notes || null,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['expenses'] });
+      qc.invalidateQueries({ queryKey: ['cash-balance'] });
+      setAmount('');
+      setNotes('');
+      setCategory('supplies');
+      setError(null);
+      onOpenChange(false);
+    },
+    onError: (e) => setError(extractApiError(e)),
+  });
+
+  const handleOpenChange = (v: boolean) => {
+    if (!v) {
+      setAmount('');
+      setNotes('');
+      setCategory('supplies');
+      setError(null);
+    }
+    onOpenChange(v);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-w-md" dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-lg">
+            <DollarSign className="size-6 text-accent" />
+            إضافة مصروف
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          {/* Category — large buttons for elderly users */}
+          <div className="space-y-2">
+            <Label className="text-base font-medium">الفئة</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {categories.map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setCategory(value)}
+                  className={`cursor-pointer h-12 rounded-lg border-2 font-medium text-sm transition-colors duration-150 ${
+                    category === value
+                      ? 'border-accent bg-accent-subtle text-accent'
+                      : 'border-border-subtle bg-surface-elevated text-foreground hover:bg-surface-hover'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Amount — large input for elderly users */}
+          <div className="space-y-2">
+            <Label htmlFor="expense-amount" className="text-base font-medium">
+              المبلغ (ج.م)
+            </Label>
+            <Input
+              id="expense-amount"
+              type="number"
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
+              dir="ltr"
+              className="h-12 text-base tabular-num"
+              autoFocus
+            />
+          </div>
+
+          {/* Notes */}
+          <div className="space-y-2">
+            <Label htmlFor="expense-notes" className="text-base">
+              ملاحظات (اختياري)
+            </Label>
+            <Input
+              id="expense-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="مثال: شراء مستلزمات المكتب"
+              dir="rtl"
+              className="h-11"
+            />
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 text-sm text-danger-foreground bg-danger-subtle border border-danger/30 rounded-md p-3">
+              <AlertTriangle className="size-5 shrink-0" />
+              {error}
+            </div>
+          )}
+
+          <div className="flex flex-col-reverse sm:flex-row gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => handleOpenChange(false)}
+              disabled={createMut.isPending}
+              className="h-12 cursor-pointer text-base"
+            >
+              إلغاء
+            </Button>
+            <Button
+              onClick={() => createMut.mutate()}
+              disabled={!amount || createMut.isPending || Number(amount) <= 0}
+              className="h-12 cursor-pointer text-base font-semibold gap-2"
+            >
+              <DollarSign className="size-5" />
+              حفظ المصروف
             </Button>
           </div>
         </div>

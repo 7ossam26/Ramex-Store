@@ -16,6 +16,11 @@ const PG_ERROR_MAP: Record<string, { status: number; key: string; message: strin
   '22001': { status: 400, key: 'string_too_long',       message: 'النص أطول من الحد المسموح' },
 };
 
+const CONSTRAINT_MESSAGES: Record<string, string> = {
+  customers_phone_format_check: 'رقم الهاتف يجب أن يكون بصيغة مصرية: 01[0-1-2-5]XXXXXXXX',
+  suppliers_phone_format_check: 'رقم الهاتف يجب أن يكون بصيغة مصرية: 01[0-1-2-5]XXXXXXXX',
+};
+
 export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   if (err instanceof ZodError) {
     res.status(400).json({ error: 'validation', issues: err.issues });
@@ -25,11 +30,15 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   const pg = err as PgError;
   if (pg && typeof pg.code === 'string' && PG_ERROR_MAP[pg.code]) {
     const cfg = PG_ERROR_MAP[pg.code]!;
+    let message = cfg.message;
+    if (pg.constraint && CONSTRAINT_MESSAGES[pg.constraint]) {
+      message = CONSTRAINT_MESSAGES[pg.constraint];
+    }
     logger.warn(
       { pgCode: pg.code, constraint: pg.constraint, detail: pg.detail, reqId: req.id, raw: pg.message },
       'db constraint violation',
     );
-    res.status(cfg.status).json({ error: cfg.key, message: cfg.message });
+    res.status(cfg.status).json({ error: cfg.key, message });
     return;
   }
 

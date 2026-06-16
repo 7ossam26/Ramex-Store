@@ -34,7 +34,8 @@ export const CreateSupplierSchema = z.object({
   arabic_name: z.string().min(1, 'الاسم العربي مطلوب').max(128, 'الاسم طويل جداً'),
   english_name: z.string().max(128).nullable().optional(),
   arabic_warning_text: z.string().nullable().optional(),
-  phone: z.string().max(20).nullable().optional(),
+  phone: z.string().max(20).nullable().optional()
+    .refine((val) => !val || /^01[0125][0-9]{8}$/.test(val), 'رقم الهاتف يجب أن يكون بصيغة مصرية: 01[0-1-2-5]XXXXXXXX'),
 });
 
 export const UpdateGradeSchema = CreateGradeSchema.extend({
@@ -53,7 +54,12 @@ export const UpdateBrandSchema = CreateBrandSchema.extend({
   is_active: z.boolean().optional(),
 }).partial();
 
-export const UpdateSupplierSchema = CreateSupplierSchema.extend({
+export const UpdateSupplierSchema = z.object({
+  arabic_name: z.string().min(1, 'الاسم العربي مطلوب').max(128, 'الاسم طويل جداً').optional(),
+  english_name: z.string().max(128).nullable().optional(),
+  arabic_warning_text: z.string().nullable().optional(),
+  phone: z.string().max(20).nullable().optional()
+    .refine((val) => !val || /^01[0125][0-9]{8}$/.test(val), 'رقم الهاتف يجب أن يكون بصيغة مصرية: 01[0-1-2-5]XXXXXXXX'),
   is_active: z.boolean().optional(),
 }).partial();
 
