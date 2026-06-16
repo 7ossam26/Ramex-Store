@@ -202,6 +202,7 @@ export async function searchRolls(filters: {
   color?: string;
   rollSrNo?: string;
   barcodePartial?: string;
+  warehouse?: string;
 }): Promise<RollWithDetails[]> {
   const q = rollDetailQuery().orderBy('r.id', 'desc').limit(100);
   if (filters.fabric) q.whereILike('f.name_ar', `%${filters.fabric}%`);
@@ -214,5 +215,6 @@ export async function searchRolls(filters: {
         .orWhereILike('r.external_barcode', `%${filters.barcodePartial}%`),
     );
   }
+  if (filters.warehouse) q.where('r.warehouse', filters.warehouse);
   return q;
 }

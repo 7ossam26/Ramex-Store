@@ -8,6 +8,7 @@ export const itemsApi = {
     color?: string;
     rollSrNo?: string;
     barcodePartial?: string;
+    warehouse?: string;
   }) =>
     api
       .get<RollWithDetails[]>('/rolls/search', { params })
