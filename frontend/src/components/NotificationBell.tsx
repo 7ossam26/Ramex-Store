@@ -53,7 +53,7 @@ function NotificationItem({
     >
       <div className={`flex items-start justify-between gap-2 ${isUnread ? 'font-bold' : 'font-normal'}`}>
         <div className="flex-1 min-w-0">
-          <div className={`text-sm ${isTheft ? 'text-danger font-bold' : ''}`}>
+          <div className={`text-sm ${isTheft ? 'text-danger font-bold' : 'text-[#F5C400]'}`}>
             {isTheft && <span className="ms-1 text-xs bg-danger-subtle text-danger-foreground px-1 py-0.5 rounded">سرقة</span>}
             {n.title_ar}
           </div>

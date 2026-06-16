@@ -24,6 +24,8 @@ import {
   Landmark,
   FileText,
   ArrowLeftRight,
+  DollarSign,
+  UserPlus,
 } from 'lucide-react';
 import { Toast } from '@/components/Toast';
 import { Tooltip } from '@/components/Tooltip';
@@ -31,6 +33,7 @@ import { ar } from '@/i18n/ar';
 import { salesApi } from '@/lib/sales-api';
 import { customersApi } from '@/lib/customers-api';
 import { itemsApi } from '@/lib/items-api';
+import { financeApi } from '@/lib/finance-api';
 import type { Customer } from '@/lib/customers-types';
 import type {
   BankAccount,
@@ -203,6 +206,9 @@ export function POSPage() {
   const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
   const [cartSheetOpen, setCartSheetOpen] = useState(false);
   const [labelRoll, setLabelRoll] = useState<RollLookup | null>(null);
+
+  // Quick action buttons for elderly users
+  const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
 
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -606,22 +612,11 @@ export function POSPage() {
       data-motion="reduced"
       className="flex flex-col gap-4 max-w-[1600px] mx-auto pb-24 lg:pb-4"
     >
-      {/* Shift strip */}
-      <div className="flex items-center justify-between rounded-lg border border-border-subtle bg-surface-elevated px-4 py-2 text-sm" dir="rtl">
-        <span className="text-foreground-muted">
-          {ar.shifts.openedAt}:{' '}
-          <span className="font-medium text-foreground tabular-num" dir="ltr">
-            {new Date(activeShift.opened_at).toLocaleString('en-GB', { timeZone: 'Africa/Cairo', hour12: false })}
-          </span>
-        </span>
-        <button
-          type="button"
-          onClick={() => setEndDayShift(activeShift)}
-          className="rounded-md bg-danger px-3 py-1.5 text-xs font-medium text-danger-foreground hover:opacity-90 transition-opacity"
-        >
-          {ar.shifts.endDay}
-        </button>
-      </div>
+      {/* Shift strip — elderly-friendly: large, prominent buttons */}
+      <ShiftStrip
+        activeShift={activeShift}
+        onEndDay={() => setEndDayShift(activeShift)}
+      />
 
       {/* Top bar — customer + discount + open invoice + cart pill (mobile) */}
       <TopBar
@@ -636,6 +631,7 @@ export function POSPage() {
         setSaveAsOpen={setSaveAsOpen}
         cartCount={cart.length}
         onOpenCart={() => setCartSheetOpen(true)}
+        onOpenExpense={() => setExpenseDialogOpen(true)}
       />
 
       {/* Main two-column grid (lg+): scan area | cart */}
@@ -944,8 +940,69 @@ export function POSPage() {
           navigate(`/invoices/${invoice.id}/draft`);
         }}
       />
+
+      {/* Quick expense dialog — elderly-friendly */}
+      <QuickExpenseDialog
+        open={expenseDialogOpen}
+        onOpenChange={setExpenseDialogOpen}
+      />
     </div>
     </>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── *
+ * SHIFT STRIP — Elderly-friendly shift control with prominent buttons
+ * ────────────────────────────────────────────────────────────────────────── */
+function ShiftStrip({
+  activeShift,
+  onEndDay,
+}: {
+  activeShift: Shift;
+  onEndDay: () => void;
+}) {
+  const openedTime = new Date(activeShift.opened_at);
+  const now = new Date();
+  const hoursOpen = (now.getTime() - openedTime.getTime()) / (1000 * 60 * 60);
+
+  // Warning if shift has been open for over 24 hours (didn't close from previous day)
+  const isStaleShift = hoursOpen > 24;
+
+  return (
+    <div
+      className={`rounded-lg border px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+        isStaleShift
+          ? 'border-warning bg-warning-subtle'
+          : 'border-border-subtle bg-surface-elevated'
+      }`}
+      dir="rtl"
+    >
+      <div className="space-y-1 flex-1">
+        <div className="text-sm font-medium text-foreground">
+          {ar.shifts.openedAt}:{' '}
+          <span className="font-semibold text-base tabular-num" dir="ltr">
+            {openedTime.toLocaleString('en-GB', {
+              timeZone: 'Africa/Cairo',
+              hour12: false,
+            })}
+          </span>
+        </div>
+        {isStaleShift && (
+          <div className="flex items-center gap-2 text-sm text-warning-foreground">
+            <AlertTriangle className="size-4 shrink-0" />
+            <span>الوردية لم تُغلق منذ أكثر من 24 ساعة. يرجى إغلاق الوردية وفتح وردية جديدة.</span>
+          </div>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={onEndDay}
+        className="h-12 px-6 rounded-md bg-danger text-danger-foreground font-semibold text-base hover:opacity-90 transition-opacity w-full sm:w-auto whitespace-nowrap cursor-pointer flex items-center justify-center gap-2"
+      >
+        <AlertTriangle className="size-5" />
+        {ar.shifts.endDay}
+      </button>
+    </div>
   );
 }
 
@@ -964,6 +1021,7 @@ function TopBar({
   setSaveAsOpen,
   cartCount,
   onOpenCart,
+  onOpenExpense,
 }: {
   customer: Customer | null;
   onPickCustomer: () => void;
@@ -976,6 +1034,7 @@ function TopBar({
   setSaveAsOpen: (b: boolean) => void;
   cartCount: number;
   onOpenCart: () => void;
+  onOpenExpense: () => void;
 }) {
   return (
     <div className="bg-surface border-b border-border-subtle -mx-2 px-2 py-2 flex flex-wrap items-center gap-2">
@@ -1048,15 +1107,29 @@ function TopBar({
 
       <div className="flex-1" />
 
-      {/* Cart pill (mobile/tablet only) */}
-      <button
-        onClick={onOpenCart}
-        className="lg:hidden flex items-center gap-2 cursor-pointer rounded-md border border-border-default bg-surface-elevated px-3 min-h-11 hover:bg-surface-hover transition-colors duration-150 text-foreground"
-        aria-label={ar.pos.cart}
-      >
-        <ShoppingCart className="size-4" />
-        <span className="font-medium text-sm">{cartCount}</span>
-      </button>
+      {/* Quick action buttons — elderly-friendly, large and noticeable */}
+      <div className="flex items-center gap-2">
+        {/* Add Expense button */}
+        <Button
+          onClick={onOpenExpense}
+          variant="outline"
+          className="h-11 cursor-pointer gap-2 px-4 whitespace-nowrap text-sm font-medium"
+          title="إضافة مصروف"
+        >
+          <DollarSign className="size-5" />
+          <span className="hidden sm:inline">مصروف</span>
+        </Button>
+
+        {/* Cart pill (mobile/tablet only) */}
+        <button
+          onClick={onOpenCart}
+          className="lg:hidden flex items-center gap-2 cursor-pointer rounded-md border border-border-default bg-surface-elevated px-3 min-h-11 hover:bg-surface-hover transition-colors duration-150 text-foreground"
+          aria-label={ar.pos.cart}
+        >
+          <ShoppingCart className="size-4" />
+          <span className="font-medium text-sm">{cartCount}</span>
+        </button>
+      </div>
 
       <div className="hidden lg:flex items-center gap-1 text-xs text-foreground-tertiary">
         <Info className="size-3.5" />

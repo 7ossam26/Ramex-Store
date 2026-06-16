@@ -11,6 +11,7 @@ import {
   UpdateEmployeeSchema,
   DisburseSchema,
   CreateAdjustmentSchema,
+  RepayAdvanceSchema,
 } from './hr.schemas.js';
 
 export const hrRouter = Router();
@@ -109,6 +110,14 @@ hrRouter.post('/salaries', requirePermission('hr', 'salary.disburse'), async (re
       res.status(422).json({ error: 'ADVANCE_REPAYMENT_EXCEEDS_OUTSTANDING', message: 'مبلغ خصم السُّلفة يتجاوز الرصيد المستحق' });
       return;
     }
+    if (e instanceof Error && e.message === 'INSUFFICIENT_CASH_BALANCE') {
+      res.status(422).json({ error: 'INSUFFICIENT_CASH_BALANCE', message: 'الرصيد النقدي في الخزينة غير كافٍ لإتمام العملية' });
+      return;
+    }
+    if (e instanceof Error && e.message === 'INSUFFICIENT_BANK_BALANCE') {
+      res.status(422).json({ error: 'INSUFFICIENT_BANK_BALANCE', message: 'رصيد الحساب البنكي غير كافٍ لإتمام العملية' });
+      return;
+    }
     next(e);
   }
 });
@@ -118,6 +127,24 @@ hrRouter.get('/employees/:id/advance-balance', requirePermission('hr', 'view'), 
     const balance = await adjustmentsSvc.getOutstandingAdvanceBalance(Number(req.params['id']));
     res.json({ outstanding_advance_egp: balance });
   } catch (e) { next(e); }
+});
+
+hrRouter.post('/employees/:id/advance-repayments', requirePermission('hr', 'advance.create'), async (req, res, next) => {
+  try {
+    const data = RepayAdvanceSchema.parse(req.body);
+    const repayment = await adjustmentsSvc.repayAdvance(Number(req.params['id']), data, req.user!.sub);
+    res.status(201).json(repayment);
+  } catch (e) {
+    if (e instanceof Error && e.message === 'EMPLOYEE_NOT_FOUND') {
+      res.status(404).json({ error: 'EMPLOYEE_NOT_FOUND' });
+      return;
+    }
+    if (e instanceof Error && e.message === 'ADVANCE_REPAYMENT_EXCEEDS_OUTSTANDING') {
+      res.status(422).json({ error: 'ADVANCE_REPAYMENT_EXCEEDS_OUTSTANDING', message: 'مبلغ السداد يتجاوز الرصيد المستحق' });
+      return;
+    }
+    next(e);
+  }
 });
 
 // ─── Adjustments ──────────────────────────────────────────────────────────────
@@ -146,5 +173,15 @@ hrRouter.post('/adjustments', async (req, res, next) => {
     if (!allowed) { res.status(403).json({ error: 'forbidden' }); return; }
     const adj = await adjustmentsSvc.createAdjustment(body, user.sub);
     res.status(201).json(adj);
-  } catch (e) { next(e); }
+  } catch (e) {
+    if (e instanceof Error && e.message === 'EMPLOYEE_NOT_FOUND') {
+      res.status(404).json({ error: 'EMPLOYEE_NOT_FOUND' });
+      return;
+    }
+    if (e instanceof Error && e.message === 'INSUFFICIENT_CASH_BALANCE') {
+      res.status(422).json({ error: 'INSUFFICIENT_CASH_BALANCE', message: 'الرصيد النقدي في الخزينة غير كافٍ لإتمام العملية' });
+      return;
+    }
+    next(e);
+  }
 });

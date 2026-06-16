@@ -2,8 +2,8 @@ import { db } from '../../db/connection.js';
 import { auditFromService } from '../inventory/audit.helper.js';
 import { notify } from '../notifications/notificationsService.js';
 import { getSetting } from '../settings/settings.service.js';
-import { recordMovement as cashRecordMovement } from './cashDrawerService.js';
-import { recordMovement as bankRecordMovement } from './bankService.js';
+import { recordMovement as cashRecordMovement, getBalance as getCashBalance } from './cashDrawerService.js';
+import { recordMovement as bankRecordMovement, getBankAccount } from './bankService.js';
 
 export type ExpenseRow = {
   id: number;
@@ -34,6 +34,20 @@ export async function recordExpense(params: {
 }): Promise<ExpenseRow> {
   if ((params.paidFrom === 'bank' || params.paidFrom === 'instapay') && !params.bankAccountId) {
     throw new Error('INSTAPAY_REQUIRES_BANK_ACCOUNT');
+  }
+
+  // Check balance before recording
+  if (params.paidFrom === 'cash') {
+    const cashBalance = await getCashBalance();
+    if (cashBalance.current_balance_egp < params.amount) {
+      throw new Error('INSUFFICIENT_CASH_BALANCE');
+    }
+  } else if ((params.paidFrom === 'bank' || params.paidFrom === 'instapay') && params.bankAccountId) {
+    const bankAccount = await getBankAccount(params.bankAccountId);
+    if (!bankAccount) throw new Error('BANK_ACCOUNT_NOT_FOUND');
+    if (Number(bankAccount.current_balance_egp) < params.amount) {
+      throw new Error('INSUFFICIENT_BANK_BALANCE');
+    }
   }
 
   const threshold = await getSetting<number>(undefined, 'approval_threshold_egp', 0);
@@ -97,6 +111,21 @@ export async function approveExpense(expenseId: number, actorUserId: number): Pr
     if (!expense) throw new Error('EXPENSE_NOT_FOUND');
     if (!expense.requires_approval) throw new Error('EXPENSE_NOT_PENDING_APPROVAL');
     if (expense.approved_at !== null) throw new Error('EXPENSE_ALREADY_APPROVED');
+
+    // Check balance before approval (since amount wasn't deducted when created)
+    const amount = Number(expense.amount_egp);
+    if (expense.paid_from === 'cash') {
+      const cashBalance = await getCashBalance();
+      if (cashBalance.current_balance_egp < amount) {
+        throw new Error('INSUFFICIENT_CASH_BALANCE');
+      }
+    } else if ((expense.paid_from === 'bank' || expense.paid_from === 'instapay') && expense.bank_account_id) {
+      const bankAccount = await getBankAccount(expense.bank_account_id);
+      if (!bankAccount) throw new Error('BANK_ACCOUNT_NOT_FOUND');
+      if (Number(bankAccount.current_balance_egp) < amount) {
+        throw new Error('INSUFFICIENT_BANK_BALANCE');
+      }
+    }
 
     await trx('expenses').where({ id: expenseId }).update({ approved_by_user_id: actorUserId, approved_at: trx.fn.now() });
     const upd = await trx('expenses').where({ id: expenseId }).first() as ExpenseRow;

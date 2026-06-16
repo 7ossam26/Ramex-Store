@@ -1314,8 +1314,19 @@ function ResetDatabaseDialog({
     onError: (e) => setError(extractApiError(e)),
   });
 
-  const phraseOk = phrase.trim() === RESET_CONFIRM_PHRASE;
-  const canSubmit = phraseOk && password.length > 0 && !resetMut.isPending;
+  function handleSubmit() {
+    if (resetMut.isPending) return;
+    if (phrase.trim() !== RESET_CONFIRM_PHRASE) {
+      setError(ar.common.apiErrors.CONFIRM_PHRASE_MISMATCH);
+      return;
+    }
+    if (password.length === 0) {
+      setError(ar.common.apiErrors.PASSWORD_REQUIRED);
+      return;
+    }
+    setError(null);
+    resetMut.mutate();
+  }
 
   function handleClose() {
     if (resetMut.isPending) return;
@@ -1364,9 +1375,9 @@ function ResetDatabaseDialog({
           <div className="flex justify-start gap-2 pt-2">
             <Button
               size="sm"
-              onClick={() => resetMut.mutate()}
-              disabled={!canSubmit}
-              className="gap-2 bg-destructive text-foreground-on-accent hover:bg-destructive/90"
+              onClick={handleSubmit}
+              disabled={resetMut.isPending}
+              className="gap-2 bg-destructive text-[#F5C400] hover:bg-destructive/90"
             >
               {resetMut.isPending && (
                 <span
@@ -1413,7 +1424,7 @@ function SystemSection({ notifySaved }: { notifySaved: () => void }) {
           <Button
             size="sm"
             onClick={() => setDialogOpen(true)}
-            className="bg-destructive text-foreground-on-accent hover:bg-destructive/90"
+            className="bg-destructive text-[#F5C400] hover:bg-destructive/90"
           >
             {ar.settings.system.resetButton}
           </Button>

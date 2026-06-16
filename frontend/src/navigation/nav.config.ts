@@ -54,8 +54,6 @@ import {
   Wallet,
   Warehouse,
   UserCheck,
-  DollarSign,
-  ArrowDownUp,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Role } from '@/lib/auth';
@@ -337,7 +335,7 @@ export const NAV: NavTop[] = [
           },
           {
             id: 'treasury.suppliers',
-            labelAr: 'الديون',
+            labelAr: 'الموردين',
             descAr: 'تسجيل الديون والمدفوعات للموردين',
             icon: CreditCard,
             route: '/treasury/suppliers',
@@ -438,37 +436,10 @@ export const NAV: NavTop[] = [
   {
     id: 'hr',
     labelAr: 'الموارد البشرية',
-    descAr: 'الموظفون، الرواتب، والسُّلف والخصومات',
+    descAr: 'إدارة الموظفين والرواتب والسُّلف والخصومات',
     icon: UserCheck,
-    route: '/hr',
+    route: '/hr/employees',
     permission: 'hr',
-    children: [
-      {
-        items: [
-          {
-            id: 'hr.employees',
-            labelAr: 'الموظفون',
-            descAr: 'إدارة بيانات الموظفين',
-            icon: Users,
-            route: '/hr/employees',
-          },
-          {
-            id: 'hr.salaries',
-            labelAr: 'الرواتب',
-            descAr: 'صرف الرواتب الشهرية',
-            icon: DollarSign,
-            route: '/hr/salaries',
-          },
-          {
-            id: 'hr.adjustments',
-            labelAr: 'السُّلف والخصومات',
-            descAr: 'السُّلف والخصومات المرتبطة بالراتب',
-            icon: ArrowDownUp,
-            route: '/hr/adjustments',
-          },
-        ],
-      },
-    ],
   },
   {
     id: 'settings',

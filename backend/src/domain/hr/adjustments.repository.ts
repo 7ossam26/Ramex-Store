@@ -66,6 +66,24 @@ export async function insertAdvanceRepayment(
   return trx('hr_advance_repayments').where({ id }).first() as Promise<HrAdvanceRepayment>;
 }
 
+/** Standalone repayment not tied to a salary disbursement (disbursement_id NULL). */
+export async function insertStandaloneAdvanceRepayment(
+  trx: Knex.Transaction,
+  data: {
+    employee_id: number;
+    amount_egp: number;
+    paid_via: 'cash' | 'instapay' | 'bank_transfer';
+    bank_account_id: number | null;
+    notes_ar: string | null;
+    actor_user_id: number;
+  },
+): Promise<HrAdvanceRepayment> {
+  const [{ id }] = await trx('hr_advance_repayments')
+    .insert({ ...data, disbursement_id: null })
+    .returning('id');
+  return trx('hr_advance_repayments').where({ id }).first() as Promise<HrAdvanceRepayment>;
+}
+
 export async function createAdjustment(
   trxOrDb: Knex | Knex.Transaction,
   data: CreateAdjustmentInput,

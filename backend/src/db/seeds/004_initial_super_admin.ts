@@ -18,7 +18,7 @@ export async function seed(db: Knex): Promise<void> {
     return;
   }
 
-  const password_hash = await bcrypt.hash('superadmin1234', 12);
+  const password_hash = await bcrypt.hash('0000', 12);
   const existing = await db('users').where({ username: 'superadmin' }).first();
   if (existing) {
     await db('users')

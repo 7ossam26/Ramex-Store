@@ -41,7 +41,18 @@ export const CreateAdjustmentSchema = z.object({
   reason_ar: z.string().nullable().optional(),
 });
 
+export const RepayAdvanceSchema = z.object({
+  amount_egp: z.number({ invalid_type_error: 'المبلغ يجب أن يكون رقماً' }).positive('المبلغ يجب أن يكون أكبر من صفر'),
+  paid_via: z.enum(['cash', 'instapay', 'bank_transfer']),
+  bank_account_id: z.number().int().positive().nullable().optional(),
+  notes_ar: z.string().nullable().optional(),
+}).refine(
+  (d) => d.paid_via === 'cash' || (d.bank_account_id != null),
+  { message: 'bank_account_id مطلوب لطرق الدفع غير النقدي', path: ['bank_account_id'] },
+);
+
 export type CreateEmployeeInput = z.infer<typeof CreateEmployeeSchema>;
 export type UpdateEmployeeInput = z.infer<typeof UpdateEmployeeSchema>;
 export type DisburseInput = z.infer<typeof DisburseSchema>;
 export type CreateAdjustmentInput = z.infer<typeof CreateAdjustmentSchema>;
+export type RepayAdvanceInput = z.infer<typeof RepayAdvanceSchema>;

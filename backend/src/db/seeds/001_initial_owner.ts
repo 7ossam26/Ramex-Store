@@ -20,21 +20,21 @@ export async function seed(db: Knex): Promise<void> {
     return;
   }
 
-  const password_hash = await bcrypt.hash('admin1234', 12);
+  const password_hash = await bcrypt.hash('0000', 12);
 
-  const admin = await db('users').where({ username: 'admin' }).first();
-  if (admin) {
+  const superadmin = await db('users').where({ username: 'superadmin' }).first();
+  if (superadmin) {
     await db('users')
-      .where({ id: admin.id })
-      .update({ password_hash, role: 'owner', is_active: true });
+      .where({ id: superadmin.id })
+      .update({ password_hash, role: 'super_admin', is_active: true });
     return;
   }
 
   await db('users').insert({
-    username: 'admin',
+    username: 'superadmin',
     password_hash,
-    full_name_ar: 'المالك',
-    role: 'owner',
+    full_name_ar: 'المشرف العام',
+    role: 'super_admin',
     is_active: true,
   });
 }

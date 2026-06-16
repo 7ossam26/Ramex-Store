@@ -43,8 +43,11 @@ export type HrSalaryAdjustment = {
 export type HrAdvanceRepayment = {
   id: number;
   employee_id: number;
-  disbursement_id: number;
+  disbursement_id: number | null;
   amount_egp: string;
+  paid_via: 'cash' | 'instapay' | 'bank_transfer' | null;
+  bank_account_id: number | null;
+  notes_ar: string | null;
   actor_user_id: number;
   created_at: string;
 };

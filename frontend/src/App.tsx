@@ -41,10 +41,7 @@ import { ItemsHubPage } from './pages/items/ItemsHub';
 import { NotificationsPage } from './pages/notifications/NotificationsPage';
 import { ReportsHubPage } from './pages/reports/ReportsHub';
 import { SettingsPage } from './pages/settings/SettingsPage';
-import { HrHubPage } from './pages/hr/HrHub';
 import { EmployeesPage } from './pages/hr/Employees';
-import { SalariesPage } from './pages/hr/Salaries';
-import { AdjustmentsPage as HrAdjustmentsPage } from './pages/hr/Adjustments';
 import { ShiftHistoryPage } from './pages/shifts/ShiftHistory';
 import { ShiftReportPage } from './pages/shifts/ShiftReport';
 
@@ -154,10 +151,8 @@ export function App() {
                 <Route path="/reports/daily" element={<PermGate resource="reports.daily"><DailyReportPage /></PermGate>} />
                 <Route path="/reports/secondary/:reportKey" element={<PermGate resource="reports.daily"><SecondaryReportPage /></PermGate>} />
 
-                <Route path="/hr" element={<PermGate resource="hr"><HrHubPage /></PermGate>} />
+                <Route path="/hr" element={<PermGate resource="hr"><EmployeesPage /></PermGate>} />
                 <Route path="/hr/employees" element={<PermGate resource="hr"><EmployeesPage /></PermGate>} />
-                <Route path="/hr/salaries" element={<PermGate resource="hr"><SalariesPage /></PermGate>} />
-                <Route path="/hr/adjustments" element={<PermGate resource="hr"><HrAdjustmentsPage /></PermGate>} />
 
                 <Route path="/settings" element={<PermGate resource="settings"><SettingsPage /></PermGate>} />
 

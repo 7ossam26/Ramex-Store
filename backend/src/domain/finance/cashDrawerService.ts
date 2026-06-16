@@ -11,7 +11,8 @@ export type CashEventType =
   | 'cash_to_bank'
   | 'owner_withdrawal'
   | 'opening_balance_set'
-  | 'reconciliation_adjustment';
+  | 'reconciliation_adjustment'
+  | 'advance_repayment';
 
 export type CashDrawerRow = {
   id: number;

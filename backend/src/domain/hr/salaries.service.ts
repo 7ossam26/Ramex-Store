@@ -78,14 +78,23 @@ export async function disburse(data: DisburseInput, actorUserId: number): Promis
       });
     }
 
-    // Cash/bank outflow for the net salary paid
+    // Cash/bank outflow for the net salary paid — refuse if the source can't cover it.
     if (data.paid_via === 'cash') {
+      const drawer = await trx('cash_drawer').where({ id: 1 }).forUpdate().first();
+      if (!drawer || Number(drawer.current_balance_egp) < netEgp) {
+        throw new Error('INSUFFICIENT_CASH_BALANCE');
+      }
       await cashRecordMovement(
         trx, 'out', 'expense', netEgp, actorUserId,
         'hr_salary_disbursement', disbursement.id,
         `راتب: ${employee.name_ar}`,
       );
     } else if (data.bank_account_id) {
+      const account = await trx('bank_accounts').where({ id: data.bank_account_id }).forUpdate().first();
+      if (!account) throw new Error('BANK_ACCOUNT_NOT_FOUND');
+      if (Number(account.current_balance_egp) < netEgp) {
+        throw new Error('INSUFFICIENT_BANK_BALANCE');
+      }
       await bankRecordMovement(
         trx, data.bank_account_id, 'out', 'other_out', netEgp, actorUserId,
         'hr_salary_disbursement', disbursement.id,

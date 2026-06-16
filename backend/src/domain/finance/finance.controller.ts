@@ -29,6 +29,8 @@ const ERR_MAP: Record<string, number> = {
   EXPENSE_ALREADY_PROCESSED: 409,
   NO_DEFAULT_BANK_ACCOUNT: 422,
   INSTAPAY_REQUIRES_BANK_ACCOUNT: 400,
+  INSUFFICIENT_CASH_BALANCE: 422,
+  INSUFFICIENT_BANK_BALANCE: 422,
 };
 
 function handleErr(res: Parameters<RequestHandler>[1], err: unknown): void {

@@ -46,6 +46,18 @@ export type HrSalaryAdjustment = {
   actor_username?: string | null;
 };
 
+export type HrAdvanceRepayment = {
+  id: number;
+  employee_id: number;
+  disbursement_id: number | null;
+  amount_egp: string;
+  paid_via: 'cash' | 'instapay' | 'bank_transfer' | null;
+  bank_account_id: number | null;
+  notes_ar: string | null;
+  actor_user_id: number;
+  created_at: string;
+};
+
 export type HrSalaryPreview = {
   employee_id: number;
   name_ar: string;
@@ -128,4 +140,12 @@ export const hrApi = {
     reason_ar?: string | null;
   }): Promise<HrSalaryAdjustment> =>
     api.post('/hr/adjustments', data).then((r) => r.data),
+
+  repayAdvance: (employeeId: number, data: {
+    amount_egp: number;
+    paid_via: 'cash' | 'instapay' | 'bank_transfer';
+    bank_account_id?: number | null;
+    notes_ar?: string | null;
+  }): Promise<HrAdvanceRepayment> =>
+    api.post(`/hr/employees/${employeeId}/advance-repayments`, data).then((r) => r.data),
 };
