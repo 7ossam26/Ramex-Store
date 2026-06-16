@@ -126,7 +126,7 @@ export function DraftInvoicePrintPage() {
           size="sm"
           variant="outline"
           style={{ color: '#fff', borderColor: '#9ca3af', backgroundColor: 'transparent' }}
-          onClick={() => navigate(-1)}
+          onClick={() => window.history.length <= 1 ? window.close() : navigate(-1)}
         >
           رجوع
         </Button>
