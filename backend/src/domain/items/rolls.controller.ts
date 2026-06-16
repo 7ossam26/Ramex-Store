@@ -49,8 +49,8 @@ export async function togglePosVisibility(req: Request, res: Response): Promise<
 }
 
 export async function searchRolls(req: Request, res: Response): Promise<void> {
-  const { fabric, color, rollSrNo, barcodePartial } = req.query as Record<string, string | undefined>;
-  const results = await svc.searchRolls({ fabric, color, rollSrNo, barcodePartial });
+  const { fabric, color, rollSrNo, barcodePartial, warehouse } = req.query as Record<string, string | undefined>;
+  const results = await svc.searchRolls({ fabric, color, rollSrNo, barcodePartial, warehouse });
   res.json(results);
 }
 

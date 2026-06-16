@@ -148,9 +148,10 @@ export function RollsPage() {
   const [barcode, setBarcode] = useState('');
   const [fabricId, setFabricId] = useState('');
   const [colorId, setColorId] = useState('');
+  const [warehouse, setWarehouse] = useState('');
 
   // Applied state — dropdowns apply immediately, scanner applies on Enter
-  const [applied, setApplied] = useState({ barcode: '', fabricId: '', colorId: '' });
+  const [applied, setApplied] = useState({ barcode: '', fabricId: '', colorId: '', warehouse: '' });
   const [detail, setDetail] = useState<RollWithDetails | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<'sample' | 'unsample' | 'return' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -180,13 +181,14 @@ export function RollsPage() {
         fabric:         fabricName  || undefined,
         color:          colorName   || undefined,
         barcodePartial: applied.barcode || undefined,
+        warehouse:      applied.warehouse || undefined,
       }),
   });
 
   const rolls = q.data ?? [];
   const resetKey = JSON.stringify(applied);
 
-  const activeFilters = [barcode, fabricId, colorId].filter(Boolean).length;
+  const activeFilters = [barcode, fabricId, colorId, warehouse].filter(Boolean).length;
 
   const qc = useQueryClient();
 
@@ -219,12 +221,12 @@ export function RollsPage() {
   });
 
   function handleSearch() {
-    setApplied({ barcode, fabricId, colorId });
+    setApplied({ barcode, fabricId, colorId, warehouse });
   }
 
   function handleReset() {
-    setBarcode(''); setFabricId(''); setColorId('');
-    setApplied({ barcode: '', fabricId: '', colorId: '' });
+    setBarcode(''); setFabricId(''); setColorId(''); setWarehouse('');
+    setApplied({ barcode: '', fabricId: '', colorId: '', warehouse: '' });
     setTimeout(() => barcodeInputRef.current?.focus(), 2000);
   }
 
@@ -255,7 +257,7 @@ export function RollsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <div className="space-y-1">
           <Label className="text-sm font-medium text-foreground">{ar.labels.fabricFilter}</Label>
           <select
@@ -284,6 +286,20 @@ export function RollsPage() {
             {colors.map((c) => (
               <option key={c.id} value={String(c.id)}>{c.name_ar}</option>
             ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-sm font-medium text-foreground">{ar.inventory.warehouse}</Label>
+          <select
+            value={warehouse}
+            onChange={(e) => setWarehouse(e.target.value)}
+            dir="rtl"
+            className={selectClass}
+          >
+            <option value="">كل المخازن</option>
+            <option value="shop">{ar.warehouses.shop}</option>
+            <option value="factory">{ar.warehouses.factory}</option>
+            <option value="damaged_shop">{ar.warehouses.damaged_shop}</option>
           </select>
         </div>
       </div>
