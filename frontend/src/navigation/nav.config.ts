@@ -217,7 +217,7 @@ export const NAV: NavTop[] = [
     descAr: 'إنشاء ومراجعة طلبيات المصنع',
     icon: Truck,
     route: '/shipments',
-    visibleTo: ['owner', 'shop_seller', 'factory_sender'],
+    visibleTo: ['owner', 'shop_seller', 'factory_sender', 'super_admin'],
     permission: 'shipments',
     children: [
       {
@@ -228,7 +228,7 @@ export const NAV: NavTop[] = [
             descAr: 'تسجيل طلبية مصنع جديدة',
             icon: PlusCircle,
             route: '/shipments/create',
-            visibleTo: ['owner', 'factory_sender'],
+            visibleTo: ['owner', 'factory_sender', 'super_admin'],
           },
           {
             id: 'shipments.pending',
@@ -236,7 +236,7 @@ export const NAV: NavTop[] = [
             descAr: 'طلبيات في انتظار اعتماد المحل',
             icon: Clock,
             route: '/shipments/pending',
-            visibleTo: ['owner', 'shop_seller'],
+            visibleTo: ['owner', 'shop_seller', 'super_admin'],
           },
           {
             id: 'shipments.all',
