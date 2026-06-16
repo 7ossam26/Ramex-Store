@@ -44,7 +44,6 @@ type CreateFormVals = {
   phone: string;
   phone_secondary: string;
   address_ar: string;
-  tax_no: string;
   notes_ar: string;
 };
 
@@ -62,7 +61,7 @@ export function CustomersListPage() {
   });
 
   const form = useForm<CreateFormVals>({
-    defaultValues: { name_ar: '', phone: '', phone_secondary: '', address_ar: '', tax_no: '', notes_ar: '' },
+    defaultValues: { name_ar: '', phone: '', phone_secondary: '', address_ar: '', notes_ar: '' },
   });
 
   const create = useMutation({
@@ -72,7 +71,6 @@ export function CustomersListPage() {
         phone: v.phone,
         phone_secondary: v.phone_secondary || null,
         address_ar: v.address_ar || null,
-        tax_no: v.tax_no || null,
         notes_ar: v.notes_ar || null,
       }),
     onSuccess: () => {
@@ -277,10 +275,6 @@ export function CustomersListPage() {
               <div className="space-y-1">
                 <Label className="text-sm font-medium text-foreground">{ar.customers.phoneSecondary}</Label>
                 <Input {...form.register('phone_secondary')} placeholder="01012345678" dir="ltr" inputMode="tel" autoComplete="tel" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-sm font-medium text-foreground">{ar.customers.taxNo}</Label>
-                <Input {...form.register('tax_no')} dir="ltr" />
               </div>
               <div className="space-y-1 col-span-2">
                 <Label className="text-sm font-medium text-foreground">{ar.customers.address}</Label>
