@@ -45,7 +45,7 @@ async function main(): Promise<void> {
       console.log(`[wipe-inventory] truncated ${t}`);
     }
 
-    // Reset the roll barcode sequence so new رولات start clean at RMX-R-000001.
+    // Reset the roll barcode sequence so new أتواب start clean at RMX-R-000001.
     const seqExists = await trx.schema.hasTable('db_sequences');
     if (seqExists) {
       await trx('db_sequences').where({ name: 'roll_barcode_seq' }).update({ last_value: 0 });

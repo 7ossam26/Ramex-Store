@@ -14,7 +14,7 @@ export async function createAdjustment(
 
     const fromWarehouse = roll.warehouse;
 
-    // Factory رولات may only leave the factory via the shipment review flow.
+    // Factory أتواب may only leave the factory via the shipment review flow.
     if (
       input.new_warehouse !== undefined &&
       input.new_warehouse !== fromWarehouse &&
