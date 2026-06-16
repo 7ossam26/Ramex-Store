@@ -69,6 +69,11 @@ function detectGuard(block: string): { guard: GuardType; detail: string } {
     const m = block.match(/requirePermission\s*\(\s*['"`]([^'"`]+)['"`]\s*,\s*['"`]([^'"`]+)['"`]/);
     return { guard: 'requirePermission', detail: m ? `${m[1]}.${m[2]}` : '?' };
   }
+  // Entity-aware matrix gate in codes.routes.ts (resource resolved per :entity).
+  if (/requireCodePermission\s*\(/.test(block)) {
+    const m = block.match(/requireCodePermission\s*\(\s*['"`]([^'"`]+)['"`]/);
+    return { guard: 'requirePermission', detail: m ? `codes.${m[1]}` : '?' };
+  }
   // Inline can() call — e.g. POST /adjustments in hr.routes.ts
   if (/\bcan\s*\(/.test(block)) {
     return { guard: 'inline-check', detail: 'can()' };

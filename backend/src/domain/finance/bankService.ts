@@ -196,18 +196,50 @@ export async function recordReconciliation(params: {
   const variance = Math.round((params.actualBalance - expected) * 100) / 100;
 
   return db.transaction(async (trx) => {
-    const [{ id }] = await trx('reconciliations').insert({
-      recon_date: params.date,
-      type: 'bank',
-      bank_account_id: params.bankAccountId,
-      expected_balance_egp: expected,
-      actual_balance_egp: params.actualBalance,
-      variance_egp: variance,
-      notes_ar: params.notesAr ?? null,
-      actor_user_id: params.actorUserId,
-    }).returning('id');
+    // Daily settlement is idempotent: one record per day per account. Re-running
+    // updates the existing record so a recount can correct the balance same-day.
+    const existing = await trx('reconciliations')
+      .where({ recon_date: params.date, type: 'bank', bank_account_id: params.bankAccountId })
+      .first();
+
+    let id: number;
+    if (existing) {
+      id = Number(existing.id);
+      await trx('reconciliations').where({ id }).update({
+        expected_balance_egp: expected,
+        actual_balance_egp: params.actualBalance,
+        variance_egp: variance,
+        notes_ar: params.notesAr ?? null,
+        actor_user_id: params.actorUserId,
+      });
+    } else {
+      const [row] = await trx('reconciliations').insert({
+        recon_date: params.date,
+        type: 'bank',
+        bank_account_id: params.bankAccountId,
+        expected_balance_egp: expected,
+        actual_balance_egp: params.actualBalance,
+        variance_egp: variance,
+        notes_ar: params.notesAr ?? null,
+        actor_user_id: params.actorUserId,
+      }).returning('id');
+      id = Number(row.id);
+    }
 
     if (Math.abs(variance) > 0.001) {
+      // Adjust the account balance to match the actual balance, with an audit movement.
+      await recordMovement(
+        trx,
+        params.bankAccountId,
+        variance > 0 ? 'in' : 'out',
+        'reconciliation_adjustment',
+        Math.abs(variance),
+        params.actorUserId,
+        'reconciliation',
+        Number(id),
+        params.notesAr ?? `تسوية الحساب البنكي ${account.name_ar} ليوم ${params.date}`,
+      );
+
       await notify({
         recipientRole: 'owner',
         severity: 'high',
@@ -225,7 +257,7 @@ export async function recordReconciliation(params: {
       });
     }
 
-    return { id: id as number, variance_egp: variance };
+    return { id, variance_egp: variance };
   });
 }
 

@@ -123,18 +123,49 @@ export async function recordReconciliation(params: {
   const variance = Math.round((params.actualBalance - expected) * 100) / 100;
 
   return db.transaction(async (trx) => {
-    const [{ id }] = await trx('reconciliations').insert({
-      recon_date: params.date,
-      type: 'cash',
-      bank_account_id: null,
-      expected_balance_egp: expected,
-      actual_balance_egp: params.actualBalance,
-      variance_egp: variance,
-      notes_ar: params.notesAr ?? null,
-      actor_user_id: params.actorUserId,
-    }).returning('id');
+    // Daily settlement is idempotent: one record per day. Re-running updates the
+    // existing record so a recount can correct the balance on the same day.
+    const existing = await trx('reconciliations')
+      .where({ recon_date: params.date, type: 'cash' })
+      .first();
+
+    let id: number;
+    if (existing) {
+      id = Number(existing.id);
+      await trx('reconciliations').where({ id }).update({
+        expected_balance_egp: expected,
+        actual_balance_egp: params.actualBalance,
+        variance_egp: variance,
+        notes_ar: params.notesAr ?? null,
+        actor_user_id: params.actorUserId,
+      });
+    } else {
+      const [row] = await trx('reconciliations').insert({
+        recon_date: params.date,
+        type: 'cash',
+        bank_account_id: null,
+        expected_balance_egp: expected,
+        actual_balance_egp: params.actualBalance,
+        variance_egp: variance,
+        notes_ar: params.notesAr ?? null,
+        actor_user_id: params.actorUserId,
+      }).returning('id');
+      id = Number(row.id);
+    }
 
     if (Math.abs(variance) > 0.001) {
+      // Adjust the drawer balance to match the counted amount, with an audit movement.
+      await recordMovement(
+        trx,
+        variance > 0 ? 'in' : 'out',
+        'reconciliation_adjustment',
+        Math.abs(variance),
+        params.actorUserId,
+        'reconciliation',
+        Number(id),
+        params.notesAr ?? `تسوية الخزنة النقدية ليوم ${params.date}`,
+      );
+
       await notify({
         recipientRole: 'owner',
         severity: 'high',

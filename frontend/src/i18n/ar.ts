@@ -319,6 +319,8 @@ export const ar = {
       INVALID_PASSWORD: 'كلمة المرور غير صحيحة',
       INSUFFICIENT_CASH_BALANCE: 'الرصيد النقدي غير كافي',
       INSUFFICIENT_BANK_BALANCE: 'الرصيد البنكي غير كافي',
+      forbidden: 'ليس لديك صلاحية لهذا الإجراء',
+      internal: 'حدث خطأ غير متوقع، حاول مرة أخرى',
     } as Record<string, string>,
   },
   customers: {
