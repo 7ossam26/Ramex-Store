@@ -21,11 +21,15 @@ const ENTITY_RESOURCE: Record<string, string> = {
   brands:       'inventory',
 };
 
-const requireCodePermission = (action: string): RequestHandler =>
+// Entities exempt from the permission gate for a given action: any authenticated
+// user may perform them. Adding a supplier is intentionally open (no permission).
+const requireCodePermission = (action: string, exempt: string[] = []): RequestHandler =>
   async (req, res, next) => {
     try {
-      const resource = ENTITY_RESOURCE[req.params['entity'] as string];
+      const entity = req.params['entity'] as string;
+      const resource = ENTITY_RESOURCE[entity];
       if (!resource) { res.status(404).json({ error: 'unknown_entity' }); return; }
+      if (exempt.includes(entity)) { next(); return; }
       const user = req.user!;
       if (!(await can(user.role, resource, action, user.sub))) {
         res.status(403).json({ error: 'forbidden' });
@@ -38,7 +42,7 @@ const requireCodePermission = (action: string): RequestHandler =>
   };
 
 codesRouter.get('/:entity',                    ctl.listEntities);
-codesRouter.post('/:entity',                   requireCodePermission('write'), ctl.createEntity);
+codesRouter.post('/:entity',                   requireCodePermission('write', ['suppliers']), ctl.createEntity);
 codesRouter.get('/:entity/:id/references',     ctl.listEntityReferences);
 codesRouter.patch('/:entity/:id',              requireCodePermission('write'), ctl.updateEntity);
 codesRouter.delete('/:entity/:id',             requireCodePermission('write'), ctl.softDeleteEntity);

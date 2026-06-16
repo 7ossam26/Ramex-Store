@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { Users } from 'lucide-react';
+import { Truck, Plus, Search } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import {
   suppliersApi,
@@ -250,6 +250,7 @@ export function SuppliersPage() {
   const [showAddSupplier, setShowAddSupplier] = useState(false);
   const [addSupplierError, setAddSupplierError] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   const supplierForm = useForm<AddSupplierForm>({
     defaultValues: { arabic_name: '', phone: '' },
@@ -292,6 +293,8 @@ export function SuppliersPage() {
   }, [listQ.data, selectedId]);
 
   const suppliers = listQ.data ?? [];
+  const q = search.trim();
+  const filtered = q ? suppliers.filter((s) => s.arabic_name.includes(q)) : suppliers;
   const selected = suppliers.find((s) => s.id === selectedId) ?? null;
 
   const invoices = ledgerQ.data?.invoices ?? [];
@@ -313,6 +316,7 @@ export function SuppliersPage() {
           size="sm"
           onClick={() => { setAddSupplierError(null); supplierForm.reset(); setShowAddSupplier(true); }}
         >
+          <Plus className="size-4" aria-hidden />
           {ar.supplierPayables.addSupplier}
         </Button>
       }
@@ -321,20 +325,40 @@ export function SuppliersPage() {
       <div className="flex flex-col gap-4 md:flex-row">
 
         {/* RIGHT: supplier list sidebar */}
-        <div className="md:w-72 w-full shrink-0 self-start rounded-xl border border-border-subtle bg-surface-elevated overflow-hidden">
-          <div className="px-4 py-3 border-b border-border-subtle flex items-center gap-2">
-            <Users className="size-4 text-foreground-muted" aria-hidden />
-            <span className="text-sm font-semibold text-foreground">
-              الموردين ({suppliers.length})
-            </span>
+        <div className="md:w-80 w-full shrink-0 self-start rounded-xl border border-border-subtle bg-surface-elevated overflow-hidden">
+          <div className="px-4 py-3 border-b border-border-subtle space-y-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <Truck className="size-5 text-foreground-muted" aria-hidden />
+                <span className="text-base font-semibold text-foreground">
+                  الموردون ({suppliers.length})
+                </span>
+              </div>
+              <p className="text-xs text-foreground-muted mt-1">الأرصدة: إجمالي كل الفروع</p>
+            </div>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute top-1/2 -translate-y-1/2 end-3 size-4 text-foreground-muted pointer-events-none" aria-hidden />
+                <Input
+                  dir="rtl"
+                  placeholder="بحث بالاسم..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="h-9 pe-9"
+                />
+              </div>
+              <Button type="button" size="sm" variant="outline" className="h-9 shrink-0">بحث</Button>
+            </div>
           </div>
-          <div className="overflow-y-auto md:max-h-[calc(100vh-220px)]">
+          <div className="overflow-y-auto md:max-h-[calc(100vh-260px)]">
             {listQ.isLoading ? (
               <p className="p-4 text-center text-sm text-foreground-muted">{ar.loading}</p>
             ) : suppliers.length === 0 ? (
               <p className="p-4 text-center text-sm text-foreground-muted">لا يوجد موردين</p>
+            ) : filtered.length === 0 ? (
+              <p className="p-4 text-center text-sm text-foreground-muted">لا يوجد نتائج</p>
             ) : (
-              suppliers.map((s) => (
+              filtered.map((s) => (
                 <button
                   key={s.id}
                   type="button"
@@ -346,19 +370,19 @@ export function SuppliersPage() {
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <div className="shrink-0">
+                    <div className="shrink-0 text-start">
                       <p className={cn(
-                        'text-sm font-semibold tabular-num',
-                        s.balance_egp > 0 ? 'text-danger-foreground' : 'text-success-foreground',
-                      )}>
-                        {s.balance_egp > 0 ? `${fmtAmount(s.balance_egp)} ج.م` : 'EGP 0.00'}
+                        'text-sm font-bold tabular-num',
+                        s.balance_egp > 0 ? 'text-danger-foreground' : 'text-foreground-muted',
+                      )} dir="ltr">
+                        EGP {fmtAmount(s.balance_egp)}
                       </p>
-                      <p className="text-xs text-foreground-muted mt-0.5">
-                        {s.balance_egp > 0 ? 'مستحق' : 'مسدد'}
+                      <p className="text-xs text-foreground-muted mt-0.5 text-end">
+                        {s.balance_egp > 0 ? 'مستحق' : 'متعادل'}
                       </p>
                     </div>
                     <div className="text-end truncate">
-                      <p className="text-sm font-medium text-foreground">{s.arabic_name}</p>
+                      <p className="text-sm font-semibold text-foreground">{s.arabic_name}</p>
                       {s.phone && (
                         <p className="text-xs text-foreground-muted tabular-num mt-0.5" dir="ltr">{s.phone}</p>
                       )}
@@ -373,8 +397,11 @@ export function SuppliersPage() {
         {/* LEFT: detail panel */}
         <div className="flex-1 min-w-0 space-y-4">
           {!selected ? (
-            <div className="rounded-xl border border-border-subtle bg-surface-elevated p-10 text-center text-sm text-foreground-muted">
-              اختر مورداً من القائمة
+            <div className="rounded-xl border border-border-subtle bg-surface-elevated p-12 flex flex-col items-center justify-center gap-4 text-center min-h-[20rem]">
+              <div className="flex size-16 items-center justify-center rounded-full bg-surface-row-alt">
+                <Truck className="size-7 text-foreground-muted" aria-hidden />
+              </div>
+              <p className="text-sm text-foreground-muted">اختر مورداً لعرض التفاصيل</p>
             </div>
           ) : (
             <>
