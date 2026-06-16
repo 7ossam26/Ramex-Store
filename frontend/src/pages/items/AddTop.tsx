@@ -93,7 +93,7 @@ function validateRow(row: RollRowState, isMeter: boolean): RollErrors {
   if (!row.width_cm || !Number.isFinite(w) || w <= 0)
     errors.width_cm = ar.addTop.errors.widthCmRequired;
   const wt = Number(row.weight_kg);
-  if (!row.weight_kg || !Number.isFinite(wt) || wt <= 0)
+  if (!row.weight_kg || !Number.isFinite(wt) || wt <= 0 || !Number.isInteger(wt))
     errors.weight_kg = ar.addTop.errors.weightRequired;
   if (isMeter) {
     const l = Number(row.length_m);
@@ -613,13 +613,18 @@ function FabricSubGroup({
                     <Label className="text-base font-semibold text-foreground">{ar.addTop.colWeightKg}</Label>
                     <Input
                       type="number"
-                      inputMode="decimal"
-                      step="0.001"
+                      inputMode="numeric"
+                      step="1"
+                      min="1"
                       dir="ltr"
                       className={['h-12 text-base', rowErrors.weight_kg ? 'border-danger-foreground ring-1 ring-danger-foreground' : ''].join(' ')}
                       value={row.weight_kg}
                       placeholder={prevRow?.weight_kg || ar.addTop.weightPlaceholder}
-                      onChange={(e) => onRowChange(row.uid, { weight_kg: e.target.value })}
+                      onKeyDown={(e) => { if (e.key === '.' || e.key === ',') e.preventDefault(); }}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        onRowChange(row.uid, { weight_kg: val.includes('.') ? val.split('.')[0] : val });
+                      }}
                     />
                     {rowErrors.weight_kg && <p className="text-sm text-danger-foreground mt-1">{rowErrors.weight_kg}</p>}
                   </div>
