@@ -1,4 +1,5 @@
 import { db } from '../../db/connection.js';
+import { auditFromService } from '../inventory/audit.helper.js';
 import type { Roll, RollWithDetails, RollWithLabelDetails } from './items.types.js';
 import type { UpdateRollInput } from './items.schemas.js';
 
@@ -181,6 +182,15 @@ export async function returnRollToFactory(
       actor_user_id: actorUserId,
       notes_ar: null,
       created_at: trx.fn.now(),
+    });
+    await auditFromService(trx, {
+      actorUserId,
+      action: 'shop_to_factory_return',
+      entity: 'roll',
+      entityId: rollId,
+      before: { warehouse: 'shop', roll_sr_no: roll.roll_sr_no, status: roll.status },
+      after: { warehouse: 'factory' },
+      severity: 'medium',
     });
   });
 

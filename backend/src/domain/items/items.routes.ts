@@ -36,7 +36,7 @@ itemsRouter.get('/rolls/search', requirePermission('fabric_rolls', 'read'), roll
 itemsRouter.post('/rolls/labels-batch', requirePermission('fabric_rolls', 'read'), rollsCtl.getBatchLabelsPdf);
 itemsRouter.post('/rolls/fabric-labels/batch', requirePermission('fabric_rolls', 'read'), rollsCtl.getBatchFabricLabels);
 itemsRouter.get('/rolls', requirePermission('fabric_rolls', 'read'), rollsCtl.listRolls);
-// NOTE: POST /rolls was removed — رولات may only be created through the
+// NOTE: POST /rolls was removed — أتواب may only be created through the
 // /tops/batch wizard (factory entry) or the factory shipment flow.
 itemsRouter.get('/rolls/:id', requirePermission('fabric_rolls', 'read'), rollsCtl.getRollDetail);
 itemsRouter.get('/rolls/:id/fabric-label', requirePermission('fabric_rolls', 'read'), rollsCtl.getFabricLabel);

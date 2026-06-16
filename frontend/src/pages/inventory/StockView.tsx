@@ -29,7 +29,6 @@ import {
   Factory,
   Layers,
   Package,
-  PiggyBank,
   Printer,
   Search,
   ShoppingCart,
@@ -378,7 +377,6 @@ export function StockViewPage() {
       lowStock,
       totalPurchase,
       totalSale,
-      profit: totalSale - totalPurchase,
     };
   }, [rows]);
 
@@ -597,18 +595,6 @@ export function StockViewPage() {
             <span className="inline-flex items-center gap-1">
               <Wallet className="size-3.5" />
               قيمة سوقية
-            </span>
-          }
-        />
-        <MetricCard
-          label="الأرباح المتوقعة"
-          value={kpis.profit}
-          format="money"
-          tone="success"
-          meta={
-            <span className="inline-flex items-center gap-1">
-              <PiggyBank className="size-3.5" />
-              ربح محتمل
             </span>
           }
         />

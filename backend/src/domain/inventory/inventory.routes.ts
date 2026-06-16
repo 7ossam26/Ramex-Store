@@ -24,7 +24,7 @@ inventoryRouter.post('/shipments/:id/submit', requirePermission('shipments', 'wr
 inventoryRouter.post('/shipments/:id/lines/:lineId/review', requirePermission('shipments', 'approve'), shipmentsCtl.reviewLine);
 inventoryRouter.post('/shipments/:id/accept', requirePermission('shipments', 'approve'), shipmentsCtl.acceptShipment);
 
-// Picker for Ahmed: رولات in factory not yet assigned to an active shipment line.
+// Picker for Ahmed: أتواب in factory not yet assigned to an active shipment line.
 inventoryRouter.get('/shipments/factory-rolls', requirePermission('shipments', 'read'), shipmentsCtl.listFactoryRolls);
 
 inventoryRouter.get('/shipments', requirePermission('shipments', 'read'), shipmentsCtl.listShipments);

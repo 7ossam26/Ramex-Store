@@ -8,7 +8,7 @@ const cards: HubCard[] = [
     description: 'تسجيل طلبية مصنع جديدة',
     href: '/shipments/create',
     icon: PlusCircle,
-    visibleTo: ['owner', 'factory_sender'],
+    visibleTo: ['owner', 'factory_sender', 'super_admin'],
     featured: true,
   },
   {
@@ -16,7 +16,7 @@ const cards: HubCard[] = [
     description: 'طلبيات في انتظار اعتماد المحل',
     href: '/shipments/pending',
     icon: Clock,
-    visibleTo: ['owner', 'shop_seller'],
+    visibleTo: ['owner', 'shop_seller', 'super_admin'],
   },
   {
     label: ar.shipments.all,

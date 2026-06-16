@@ -8,7 +8,7 @@ const cards: HubCard[] = [
     description: ar.hubs.treasuriesOverviewDesc,
     href: '/treasury/overview',
     icon: LayoutDashboard,
-    visibleTo: ['owner'],
+    visibleTo: ['owner', 'super_admin'],
     featured: true,
   },
   {
