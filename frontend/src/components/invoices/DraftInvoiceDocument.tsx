@@ -26,6 +26,9 @@ export interface DraftInvoiceDocumentProps {
   notes?: string[];
   footerWarning?: string;
   currencyLabel?: string;
+  invoiceType?: 'sale' | 'open';
+  depositPaid?: number;
+  balance?: number;
 }
 
 const DEFAULT_NOTES = [
@@ -105,6 +108,9 @@ function InvoicePage({
     notes = DEFAULT_NOTES,
     footerWarning = DEFAULT_FOOTER,
     currencyLabel = 'EGP',
+    invoiceType = 'sale',
+    depositPaid = 0,
+    balance = 0,
   } = props;
 
   const infoItems: { label: string; value: string; ltr?: boolean }[] = [
@@ -122,7 +128,9 @@ function InvoicePage({
 
       {/* ── Masthead: document title, right-aligned, large gray ── */}
       <div className="rmx-draft-masthead">
-        <h1 className="rmx-draft-title">فاتورة مبيعات</h1>
+        <h1 className="rmx-draft-title">
+          {invoiceType === 'open' ? 'فاتورة مفتوحة' : 'فاتورة مبيعات'}
+        </h1>
         {issuedAt && (
           <div className="rmx-draft-issued-at" dir="ltr">{fmtIssuedAt(issuedAt)}</div>
         )}
@@ -192,6 +200,13 @@ function InvoicePage({
               <td><Num v={`${currencyLabel} ${fmtMoney(line.amount)}`} /></td>
             </tr>
           ))}
+          {pageLines.length === 0 && invoiceType === 'open' && (
+            <tr>
+              <td colSpan={6} style={{ textAlign: 'center', color: '#888', fontStyle: 'italic' }}>
+                لا توجد أصناف مضافة بعد
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
 
@@ -199,18 +214,43 @@ function InvoicePage({
       {isLastPage && (
         <div className="rmx-draft-totals-wrap">
           <div className="rmx-draft-totals">
-            <div className="rmx-draft-totals-row">
-              <span className="rmx-draft-totals-label">المبلغ</span>
-              <span className="rmx-draft-totals-value">
-                <Num v={`${currencyLabel} ${fmtMoney(subtotal)}`} />
-              </span>
-            </div>
-            <div className="rmx-draft-totals-row rmx-draft-totals-row--total">
-              <span className="rmx-draft-totals-label">الإجمالي</span>
-              <span className="rmx-draft-totals-value">
-                <Num v={`${currencyLabel} ${fmtMoney(total)}`} />
-              </span>
-            </div>
+            {invoiceType === 'open' ? (
+              <>
+                <div className="rmx-draft-totals-row">
+                  <span className="rmx-draft-totals-label">إجمالي البضاعة</span>
+                  <span className="rmx-draft-totals-value">
+                    <Num v={`${currencyLabel} ${fmtMoney(total)}`} />
+                  </span>
+                </div>
+                <div className="rmx-draft-totals-row">
+                  <span className="rmx-draft-totals-label">العربون المدفوع</span>
+                  <span className="rmx-draft-totals-value">
+                    <Num v={`${currencyLabel} ${fmtMoney(depositPaid)}`} />
+                  </span>
+                </div>
+                <div className="rmx-draft-totals-row rmx-draft-totals-row--total">
+                  <span className="rmx-draft-totals-label">المتبقي</span>
+                  <span className="rmx-draft-totals-value">
+                    <Num v={`${currencyLabel} ${fmtMoney(balance)}`} />
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="rmx-draft-totals-row">
+                  <span className="rmx-draft-totals-label">المبلغ</span>
+                  <span className="rmx-draft-totals-value">
+                    <Num v={`${currencyLabel} ${fmtMoney(subtotal)}`} />
+                  </span>
+                </div>
+                <div className="rmx-draft-totals-row rmx-draft-totals-row--total">
+                  <span className="rmx-draft-totals-label">الإجمالي</span>
+                  <span className="rmx-draft-totals-value">
+                    <Num v={`${currencyLabel} ${fmtMoney(total)}`} />
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

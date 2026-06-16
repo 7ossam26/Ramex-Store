@@ -34,7 +34,6 @@ export function EmployeeListPane({
         <h2 className="flex items-center gap-2 text-sm font-semibold text-accent">
           <Users size={18} />
           <span>{ar.hr.employee.count}</span>
-          <span className="text-foreground-muted tabular-num">({total})</span>
         </h2>
       </header>
 

@@ -616,6 +616,7 @@ export function POSPage() {
       <ShiftStrip
         activeShift={activeShift}
         onEndDay={() => setEndDayShift(activeShift)}
+        onNavigateReturns={() => navigate('/returns')}
       />
 
       {/* Top bar — customer + discount + open invoice + cart pill (mobile) */}
@@ -957,9 +958,11 @@ export function POSPage() {
 function ShiftStrip({
   activeShift,
   onEndDay,
+  onNavigateReturns,
 }: {
   activeShift: Shift;
   onEndDay: () => void;
+  onNavigateReturns: () => void;
 }) {
   const openedTime = new Date(activeShift.opened_at);
   const now = new Date();
@@ -994,14 +997,24 @@ function ShiftStrip({
           </div>
         )}
       </div>
-      <button
-        type="button"
-        onClick={onEndDay}
-        className="h-12 px-6 rounded-md bg-danger text-danger-foreground font-semibold text-base hover:opacity-90 transition-opacity w-full sm:w-auto whitespace-nowrap cursor-pointer flex items-center justify-center gap-2"
-      >
-        <AlertTriangle className="size-5" />
-        {ar.shifts.endDay}
-      </button>
+      <div className="flex items-center gap-2 w-full sm:w-auto">
+        <button
+          type="button"
+          onClick={onNavigateReturns}
+          className="flex-1 sm:flex-none flex items-center gap-1.5 h-11 rounded-md border border-border-subtle bg-surface-elevated px-3 py-1.5 font-medium text-foreground hover:bg-surface-hover transition-colors cursor-pointer"
+        >
+          <RotateCcw className="size-4" />
+          <span className="hidden sm:inline text-sm">{ar.topbar.returns}</span>
+        </button>
+        <button
+          type="button"
+          onClick={onEndDay}
+          className="flex-1 sm:flex-none h-11 px-6 rounded-md bg-danger text-danger-foreground font-semibold text-sm hover:opacity-90 transition-opacity cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap"
+        >
+          <AlertTriangle className="size-5" />
+          {ar.shifts.endDay}
+        </button>
+      </div>
     </div>
   );
 }
