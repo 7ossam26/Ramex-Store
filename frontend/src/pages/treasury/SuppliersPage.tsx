@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { Truck, Plus, Search } from 'lucide-react';
+import { Truck, Plus, Search, ChevronRight } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import {
   suppliersApi,
@@ -21,7 +22,6 @@ import {
   DialogTitle,
   DialogClose,
 } from '@/components/ResponsiveDialog';
-import { PageShell } from '@/components/Layout/PageShell';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { cn } from '@/lib/utils';
 import { extractApiError } from '@/lib/api-error';
@@ -286,12 +286,6 @@ export function SuppliersPage() {
     onError: (e) => setAddSupplierError(extractApiError(e)),
   });
 
-  useEffect(() => {
-    if (selectedId === null && listQ.data?.length) {
-      setSelectedId(listQ.data[0].id);
-    }
-  }, [listQ.data, selectedId]);
-
   const suppliers = listQ.data ?? [];
   const q = search.trim();
   const filtered = q ? suppliers.filter((s) => s.arabic_name.includes(q)) : suppliers;
@@ -307,20 +301,31 @@ export function SuppliersPage() {
   const balance = ledgerQ.data?.balance.balance_egp ?? selected?.balance_egp ?? 0;
 
   return (
-    <PageShell
-      title={ar.supplierPayables.title}
-      description={ar.hubs.supplierPayablesDesc}
-      backTo="/treasury"
-      actions={
-        <Button
-          size="sm"
-          onClick={() => { setAddSupplierError(null); supplierForm.reset(); setShowAddSupplier(true); }}
-        >
-          <Plus className="size-4" aria-hidden />
-          {ar.supplierPayables.addSupplier}
-        </Button>
-      }
-    >
+    <div className="space-y-6 max-w-6xl mx-auto">
+      {/* Header card — title + truck icon on the right, grouped action buttons on the left */}
+      <header className="rounded-xl border border-border-subtle bg-surface-elevated px-4 py-4 shadow-sm flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <span className="flex size-11 items-center justify-center rounded-xl bg-accent/10">
+            <Truck className="size-6 text-accent" aria-hidden />
+          </span>
+          <h1 className="text-2xl font-bold text-foreground">{ar.supplierPayables.title}</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline">
+            <Link to="/treasury">
+              <ChevronRight className="size-4" aria-hidden />
+              {ar.hubs.treasuryTitle}
+            </Link>
+          </Button>
+          <Button
+            onClick={() => { setAddSupplierError(null); supplierForm.reset(); setShowAddSupplier(true); }}
+          >
+            <Plus className="size-4" aria-hidden />
+            {ar.supplierPayables.addSupplier}
+          </Button>
+        </div>
+      </header>
+
       {/* flex-col on mobile, flex-row on md+. In RTL flex-row: first child = RIGHT, second = LEFT */}
       <div className="flex flex-col gap-4 md:flex-row">
 
@@ -370,22 +375,20 @@ export function SuppliersPage() {
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <div className="shrink-0 text-start">
+                    <p className={cn(
+                      'shrink-0 text-sm font-bold tabular-num text-start',
+                      s.balance_egp > 0 ? 'text-danger-foreground' : 'text-foreground-muted',
+                    )} dir="ltr">
+                      EGP {fmtAmount(s.balance_egp)}
+                    </p>
+                    <div className="min-w-0 text-end">
+                      <p className="text-base font-bold text-foreground truncate">{s.arabic_name}</p>
                       <p className={cn(
-                        'text-sm font-bold tabular-num',
+                        'text-xs mt-0.5',
                         s.balance_egp > 0 ? 'text-danger-foreground' : 'text-foreground-muted',
-                      )} dir="ltr">
-                        EGP {fmtAmount(s.balance_egp)}
-                      </p>
-                      <p className="text-xs text-foreground-muted mt-0.5 text-end">
+                      )}>
                         {s.balance_egp > 0 ? 'مستحق' : 'متعادل'}
                       </p>
-                    </div>
-                    <div className="text-end truncate">
-                      <p className="text-sm font-semibold text-foreground">{s.arabic_name}</p>
-                      {s.phone && (
-                        <p className="text-xs text-foreground-muted tabular-num mt-0.5" dir="ltr">{s.phone}</p>
-                      )}
                     </div>
                   </div>
                 </button>
@@ -591,6 +594,6 @@ export function SuppliersPage() {
           </form>
         </DialogContent>
       </Dialog>
-    </PageShell>
+    </div>
   );
 }

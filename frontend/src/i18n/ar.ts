@@ -108,6 +108,7 @@ export const ar = {
     stocktake: 'الجرد',
     adjustments: 'التسويات',
     damage: 'أحداث التلف والفقد',
+    warehouse: 'المخزن',
   },
   fabrics: {
     title: 'الخامات',
