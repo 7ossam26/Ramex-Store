@@ -21,8 +21,8 @@ import { PageShell } from '@/components/Layout/PageShell';
 import { RollStatusPill } from '@/components/items/RollStatusPill';
 
 export function LabelsPage() {
-  const [filters, setFilters] = useState({ barcode: '', fabric: '', color: '', rollSrNo: '', status: '' });
-  const [applied, setApplied] = useState<typeof filters | null>({ barcode: '', fabric: '', color: '', rollSrNo: '', status: '' });
+  const [filters, setFilters] = useState({ barcode: '', fabric: '', color: '', rollSrNo: '', status: '', warehouse: '' });
+  const [applied, setApplied] = useState<typeof filters | null>({ barcode: '', fabric: '', color: '', rollSrNo: '', status: '', warehouse: '' });
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [reprintTarget, setReprintTarget] = useState<RollWithDetails | null>(null);
   const [reprintReason, setReprintReason] = useState('');
@@ -39,6 +39,7 @@ export function LabelsPage() {
             color: applied.color || undefined,
             rollSrNo: applied.rollSrNo || undefined,
             barcodePartial: applied.barcode || undefined,
+            warehouse: applied.warehouse || undefined,
           })
         : Promise.resolve<RollWithDetails[]>([]),
     enabled: applied !== null,
@@ -87,7 +88,7 @@ export function LabelsPage() {
   }
 
   function handleReset() {
-    const empty = { barcode: '', fabric: '', color: '', rollSrNo: '', status: '' };
+    const empty = { barcode: '', fabric: '', color: '', rollSrNo: '', status: '', warehouse: '' };
     setFilters(empty);
     setApplied(empty);
     setSelected(new Set());
@@ -120,7 +121,7 @@ export function LabelsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
         <div className="space-y-1">
           <Label className="text-sm font-medium text-foreground">{ar.labels.fabricFilter}</Label>
           <select
@@ -173,6 +174,20 @@ export function LabelsPage() {
             dir="ltr"
             className="h-11 md:h-10"
           />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-sm font-medium text-foreground">{ar.inventory.warehouse}</Label>
+          <select
+            value={filters.warehouse}
+            onChange={(e) => setFilters((f) => ({ ...f, warehouse: e.target.value }))}
+            dir="rtl"
+            className={selectClass}
+          >
+            <option value="">كل المخازن</option>
+            <option value="shop">{ar.warehouses.shop}</option>
+            <option value="factory">{ar.warehouses.factory}</option>
+            <option value="damaged_shop">{ar.warehouses.damaged_shop}</option>
+          </select>
         </div>
       </div>
 
