@@ -1,6 +1,7 @@
 import { db } from '../../db/connection.js';
 import { verifyPassword, hashPassword } from '../../lib/password.js';
 import { signJwt, type Role } from '../../lib/jwt.js';
+import { invalidateUserCache } from '../../middleware/concurrent-session.js';
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 15;
@@ -103,6 +104,8 @@ export async function changePassword(
     force_password_change: false,
     permissions_revision: db.raw('permissions_revision + 1'),
   });
+  // Clear the 30-second in-memory cache so the new perm_rev is read immediately
+  invalidateUserCache(userId);
 
   // Revoke old sessions, then issue a fresh token so the user stays logged in
   await db('sessions').where({ user_id: userId }).whereNull('revoked_at').update({ revoked_at: db.fn.now() });
