@@ -10,6 +10,7 @@
  * ============================================================= */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { ar } from '@/i18n/ar';
@@ -33,7 +34,6 @@ import {
   type SettingsSection,
   type SettingsSectionId,
 } from '@/navigation/settings.config';
-import { EditUserDialog } from './EditUserDialog';
 import { ResetPasswordDialog } from './ResetPasswordDialog';
 import { EditUserPermissionsDialog } from './EditUserPermissionsDialog';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -282,6 +282,7 @@ type MatrixRole = (typeof MATRIX_ROLES)[number];
 
 function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { data: users = [] } = useQuery({ queryKey: ['settings-users'], queryFn: usersApi.list });
   const { data: matrix = [] } = useQuery({ queryKey: ['settings-permissions'], queryFn: permissionsApi.getMatrix });
 
@@ -290,7 +291,6 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
   const [forcePasswordChange, setForcePasswordChange] = useState(true);
   const [matrixDirty, setMatrixDirty] = useState<Map<string, boolean>>(new Map());
   const [error, setError] = useState<string | null>(null);
-  const [editingUser, setEditingUser] = useState<UserRow | null>(null);
   const [resettingUser, setResettingUser] = useState<UserRow | null>(null);
   const [permsUser, setPermsUser] = useState<UserRow | null>(null);
   const [deletingUser, setDeletingUser] = useState<UserRow | null>(null);
@@ -473,7 +473,7 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
                   <td className="py-2.5 px-3">
                     {u.role !== 'super_admin' && (
                       <div className="flex gap-1.5 flex-wrap">
-                        <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => setEditingUser(u)}>
+                        <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => navigate(`/superadmin/users/${u.id}`)}>
                           {ar.settings.users.edit}
                         </Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => setPermsUser(u)}>
@@ -494,7 +494,6 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
           </table>
         </div>
 
-        <EditUserDialog user={editingUser} onClose={() => setEditingUser(null)} />
         <ResetPasswordDialog user={resettingUser} onClose={() => setResettingUser(null)} defaultForceChange={false} />
         <EditUserPermissionsDialog user={permsUser} onClose={() => setPermsUser(null)} />
         <ConfirmDialog

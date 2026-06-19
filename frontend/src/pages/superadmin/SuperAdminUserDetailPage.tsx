@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, KeyRound, ShieldCheck, Trash2 } from 'lucide-react';
 import { usersApi } from '@/lib/settings-api';
@@ -113,9 +113,9 @@ export function SuperAdminUserDetailPage() {
     return (
       <div className="p-6">
         <p className="text-destructive">المستخدم غير موجود</p>
-        <Link to="/superadmin/users" className="text-sm text-amber-700 underline mt-2 inline-block">
+        <button type="button" onClick={() => navigate(-1)} className="text-sm text-amber-700 underline mt-2 inline-block">
           العودة للمستخدمين
-        </Link>
+        </button>
       </div>
     );
   }
@@ -126,9 +126,13 @@ export function SuperAdminUserDetailPage() {
     <div className="w-full space-y-6 p-6" dir="rtl">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1 text-sm text-foreground-muted">
-        <Link to="/superadmin/users" className="hover:text-foreground transition-colors">
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="hover:text-foreground transition-colors"
+        >
           المستخدمون
-        </Link>
+        </button>
         <ChevronRight className="size-3.5 rotate-180" />
         <span className="text-foreground font-medium">{user.full_name_ar}</span>
       </nav>
