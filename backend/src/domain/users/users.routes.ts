@@ -46,6 +46,7 @@ usersRouter.patch('/:id', requireRole('super_admin'), async (req, res, next) => 
     res.json(user);
   } catch (e) {
     if (e instanceof ZodError) { res.status(400).json({ error: e.errors[0]?.message ?? 'validation error' }); return; }
+    if ((e as { code?: string }).code === 'USERNAME_TAKEN') { res.status(409).json({ error: 'USERNAME_TAKEN' }); return; }
     next(e);
   }
 });

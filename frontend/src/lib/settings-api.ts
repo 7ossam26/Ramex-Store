@@ -65,7 +65,7 @@ export const usersApi = {
   create: (data: { username: string; full_name_ar: string; role: string; password: string; force_password_change?: boolean }): Promise<UserRow> =>
     api.post('/users', data).then((r) => r.data),
 
-  update: (id: number, data: Partial<{ full_name_ar: string; role: string; password: string; is_active: boolean }>): Promise<UserRow> =>
+  update: (id: number, data: Partial<{ username: string; full_name_ar: string; role: string; password: string; is_active: boolean }>): Promise<UserRow> =>
     api.patch(`/users/${id}`, data).then((r) => r.data),
 
   delete: (id: number): Promise<{ ok: boolean }> =>

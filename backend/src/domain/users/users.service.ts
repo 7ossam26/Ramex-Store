@@ -63,12 +63,17 @@ export async function resetPassword(
 
 export async function updateUser(
   id: number,
-  data: { full_name_ar?: string; role?: string; password?: string; is_active?: boolean; force_password_change?: boolean },
+  data: { username?: string; full_name_ar?: string; role?: string; password?: string; is_active?: boolean; force_password_change?: boolean },
 ): Promise<{ id: number; username: string; full_name_ar: string; role: string; is_active: boolean; created_at: string }> {
   const existing = await db('users').where({ id }).first();
   if (!existing) throw Object.assign(new Error('USER_NOT_FOUND'), { code: 'USER_NOT_FOUND' });
 
   const update: Record<string, unknown> = {};
+  if (data.username !== undefined) {
+    const taken = await db('users').where({ username: data.username }).whereNot({ id }).first();
+    if (taken) throw Object.assign(new Error('USERNAME_TAKEN'), { code: 'USERNAME_TAKEN' });
+    update.username = data.username;
+  }
   if (data.full_name_ar !== undefined) update.full_name_ar = data.full_name_ar;
   if (data.role !== undefined) update.role = data.role;
   if (data.is_active !== undefined) update.is_active = data.is_active;

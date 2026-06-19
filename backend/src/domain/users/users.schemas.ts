@@ -11,6 +11,7 @@ export const CreateUserSchema = z.object({
 });
 
 export const UpdateUserSchema = z.object({
+  username: z.string().min(3).max(64).regex(/^[a-z0-9_]+$/, 'username must be lowercase letters, digits, or underscores').optional(),
   full_name_ar: z.string().min(1).max(128).optional(),
   role: z.enum(['owner', 'shop_seller', 'factory_sender', 'accountant']).optional(),
   password: z.string().min(8).optional(),
