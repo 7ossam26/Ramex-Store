@@ -38,7 +38,7 @@ import { ResetPasswordDialog } from './ResetPasswordDialog';
 import { EditUserPermissionsDialog } from './EditUserPermissionsDialog';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, KeyRound } from 'lucide-react';
 import type { UserRow } from '@/lib/settings-api';
 import { RESOURCE_GROUPS } from '@/lib/permissions-config';
 
@@ -287,6 +287,7 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
 
   const [showAddUser, setShowAddUser] = useState(false);
   const [userForm, setUserForm] = useState({ username: '', full_name_ar: '', role: 'shop_seller', password: '' });
+  const [forcePasswordChange, setForcePasswordChange] = useState(true);
   const [matrixDirty, setMatrixDirty] = useState<Map<string, boolean>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
@@ -306,11 +307,12 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
   });
 
   const createUser = useMutation({
-    mutationFn: () => usersApi.create(userForm),
+    mutationFn: () => usersApi.create({ ...userForm, force_password_change: forcePasswordChange }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['settings-users'] });
       setShowAddUser(false);
       setUserForm({ username: '', full_name_ar: '', role: 'shop_seller', password: '' });
+      setForcePasswordChange(true);
       notifySaved();
     },
     onError: (e) => setError(extractApiError(e)),
@@ -411,6 +413,27 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
             <FieldRow label={ar.settings.users.password}>
               <TextInput value={userForm.password} onChange={(v) => setUserForm({ ...userForm, password: v })} />
             </FieldRow>
+            <label className="flex items-start gap-3 rounded-md border border-border-subtle bg-surface p-3 cursor-pointer select-none">
+              <div className="relative mt-0.5 shrink-0">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={forcePasswordChange}
+                  onChange={(e) => setForcePasswordChange(e.target.checked)}
+                />
+                <div className="h-5 w-9 rounded-full bg-border-default transition-colors duration-150 peer-checked:bg-accent" />
+                <div className="absolute top-0.5 start-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-150 peer-checked:translate-x-[-1rem]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                  <KeyRound className="size-3.5 text-foreground-muted" />
+                  فرض تغيير كلمة المرور عند أول تسجيل دخول
+                </div>
+                <p className="text-xs text-foreground-muted mt-0.5">
+                  سيُطلب من المستخدم تغيير كلمة المرور فور دخوله للمرة الأولى
+                </p>
+              </div>
+            </label>
             <div className="flex gap-2 pt-1">
               <Button
                 size="sm"
@@ -472,7 +495,7 @@ function UsersPermissionsSection({ notifySaved }: { notifySaved: () => void }) {
         </div>
 
         <EditUserDialog user={editingUser} onClose={() => setEditingUser(null)} />
-        <ResetPasswordDialog user={resettingUser} onClose={() => setResettingUser(null)} />
+        <ResetPasswordDialog user={resettingUser} onClose={() => setResettingUser(null)} defaultForceChange={false} />
         <EditUserPermissionsDialog user={permsUser} onClose={() => setPermsUser(null)} />
         <ConfirmDialog
           open={!!deletingUser}
