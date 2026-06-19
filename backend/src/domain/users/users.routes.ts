@@ -18,9 +18,10 @@ usersRouter.get('/', requireRole('super_admin'), listCtl);
 usersRouter.post('/', requireRole('super_admin'), async (req, res, next) => {
   try {
     const data = CreateUserSchema.parse(req.body);
-    const user = await svc.createUser(data);
+    const forceChange = data.force_password_change ?? false;
+    const user = await svc.createUser({ ...data, force_password_change: forceChange });
     await auditLog(req, 'user.create', 'users', user.id, null,
-      { username: user.username, role: user.role }, { severity: 'high' });
+      { username: user.username, role: user.role, force_password_change: forceChange }, { severity: 'high' });
     res.status(201).json(user);
   } catch (e) {
     if (e instanceof ZodError) { res.status(400).json({ error: e.errors[0]?.message ?? 'validation error' }); return; }

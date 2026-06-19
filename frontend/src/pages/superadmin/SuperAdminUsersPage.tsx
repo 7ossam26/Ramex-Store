@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import { extractApiError } from '@/lib/api-error';
 import { EditUserDialog } from '../settings/EditUserDialog';
 import { ResetPasswordDialog } from '../settings/ResetPasswordDialog';
+import { CreateUserDialog } from './CreateUserDialog';
 
 const ROLE_LABELS: Record<string, string> = {
   super_admin: 'مشرف عام',
@@ -302,19 +303,16 @@ export function SuperAdminUsersPage() {
       </div>
 
       <EditUserDialog user={editingUser} onClose={() => { setEditingUser(null); qc.invalidateQueries({ queryKey: ['superadmin-users'] }); }} />
-      <ResetPasswordDialog user={resettingUser} onClose={() => setResettingUser(null)} />
+      <ResetPasswordDialog user={resettingUser} onClose={() => setResettingUser(null)} defaultForceChange />
       <DeleteUserDialog
         user={deletingUser}
         onClose={() => setDeletingUser(null)}
         onDone={() => { qc.invalidateQueries({ queryKey: ['superadmin-users'] }); setToast('تم حذف المستخدم'); }}
       />
-
-      {showAddUser && (
-        <EditUserDialog
-          user={null}
-          onClose={() => { setShowAddUser(false); qc.invalidateQueries({ queryKey: ['superadmin-users'] }); }}
-        />
-      )}
+      <CreateUserDialog
+        open={showAddUser}
+        onClose={() => setShowAddUser(false)}
+      />
 
       <Toast open={!!toast} message={toast ?? ''} tone="success" autoDismissMs={2500} onClose={() => setToast(null)} />
     </div>

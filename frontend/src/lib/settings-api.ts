@@ -62,7 +62,7 @@ export const usersApi = {
   list: (): Promise<UserRow[]> =>
     api.get('/users').then((r) => r.data),
 
-  create: (data: { username: string; full_name_ar: string; role: string; password: string }): Promise<UserRow> =>
+  create: (data: { username: string; full_name_ar: string; role: string; password: string; force_password_change?: boolean }): Promise<UserRow> =>
     api.post('/users', data).then((r) => r.data),
 
   update: (id: number, data: Partial<{ full_name_ar: string; role: string; password: string; is_active: boolean }>): Promise<UserRow> =>

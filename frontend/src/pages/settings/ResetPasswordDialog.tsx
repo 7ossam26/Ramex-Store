@@ -9,22 +9,26 @@ import { ar } from '@/i18n/ar';
 import { usersApi, type UserRow } from '@/lib/settings-api';
 import { extractApiError } from '@/lib/api-error';
 import { Toast } from '@/components/Toast';
+import { KeyRound } from 'lucide-react';
 
 type Props = {
   user: UserRow | null;
   onClose: () => void;
+  /** When true the "force password change" toggle defaults to ON. Defaults to false. */
+  defaultForceChange?: boolean;
 };
 
-export function ResetPasswordDialog({ user, onClose }: Props) {
+export function ResetPasswordDialog({ user, onClose, defaultForceChange = false }: Props) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [forcePasswordChange, setForcePasswordChange] = useState(defaultForceChange);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const resetMut = useMutation({
-    mutationFn: () => usersApi.resetPassword(user!.id, newPassword),
+    mutationFn: () => usersApi.resetPassword(user!.id, newPassword, forcePasswordChange),
     onSuccess: () => {
       setSaved(true);
       setShowConfirm(false);
@@ -81,6 +85,29 @@ export function ResetPasswordDialog({ user, onClose }: Props) {
                 className="text-sm"
               />
             </div>
+            {/* Force password change toggle */}
+            <label className="flex items-start gap-3 rounded-lg border border-border-subtle bg-surface-row-alt p-3 cursor-pointer select-none">
+              <div className="relative mt-0.5 shrink-0">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={forcePasswordChange}
+                  onChange={(e) => setForcePasswordChange(e.target.checked)}
+                />
+                <div className="h-5 w-9 rounded-full bg-border-default transition-colors duration-150 peer-checked:bg-amber-600" />
+                <div className="absolute top-0.5 start-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-150 peer-checked:translate-x-[-1rem]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                  <KeyRound className="size-3.5 text-amber-600" />
+                  فرض تغيير كلمة المرور عند الدخول التالي
+                </div>
+                <p className="text-xs text-foreground-muted mt-0.5">
+                  سيُطلب من المستخدم تغيير كلمة المرور فور تسجيل دخوله القادم
+                </p>
+              </div>
+            </label>
+
             {(validationError || apiError) && (
               <p className="text-xs text-destructive">{validationError ?? apiError}</p>
             )}

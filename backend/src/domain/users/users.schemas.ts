@@ -7,6 +7,7 @@ export const CreateUserSchema = z.object({
   password: z.string().min(8),
   full_name_ar: z.string().min(1).max(128),
   role: z.enum(['owner', 'shop_seller', 'factory_sender', 'accountant']),
+  force_password_change: z.boolean().optional(),
 });
 
 export const UpdateUserSchema = z.object({
