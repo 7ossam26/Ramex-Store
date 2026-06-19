@@ -4,6 +4,7 @@ import { usePermissions } from '@/lib/permissions';
 import { LoginPage } from './pages/Login';
 import { HomePage } from './pages/Home';
 import { SuperAdminSection } from './pages/superadmin/SuperAdminSection';
+import { SuperAdminUserDetailPage } from './pages/superadmin/SuperAdminUserDetailPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { NoAccessPage } from './pages/NoAccess';
 import { AppShell } from './components/AppShell';
@@ -89,6 +90,17 @@ export function App() {
         element={
           <ProtectedRoute>
             <DraftInvoicePrintPage />
+          </ProtectedRoute>
+        }
+      />
+      {/* User detail page — inside the regular AppShell so it inherits the system navbar */}
+      <Route
+        path="/superadmin/users/:id"
+        element={
+          <ProtectedRoute>
+            <AppShell>
+              <SuperAdminUserDetailPage />
+            </AppShell>
           </ProtectedRoute>
         }
       />

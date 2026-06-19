@@ -77,8 +77,6 @@ function SuperAdminSideNav() {
 
 export function SuperAdminShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
-  const location = useLocation();
-  const isDetailPage = /^\/superadmin\/users\/\d+/.test(location.pathname);
 
   return (
     <div dir="rtl" className="min-h-screen flex flex-col bg-amber-50/30">
@@ -112,7 +110,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
       </header>
 
       <div className="flex flex-1">
-        {!isDetailPage && <SuperAdminSideNav />}
+        <SuperAdminSideNav />
         <main className="flex-1 min-w-0 p-6">{children}</main>
       </div>
     </div>

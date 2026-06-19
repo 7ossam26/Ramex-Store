@@ -124,18 +124,29 @@ export function SuperAdminUserDetailPage() {
 
   return (
     <div className="w-full space-y-6 p-6" dir="rtl">
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-1 text-sm text-foreground-muted">
-        <button
+      {/* Back button + breadcrumb row */}
+      <div className="flex items-center gap-3">
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={() => navigate(-1)}
-          className="hover:text-foreground transition-colors"
+          className="gap-1.5 shrink-0"
         >
-          المستخدمون
-        </button>
-        <ChevronRight className="size-3.5 rotate-180" />
-        <span className="text-foreground font-medium">{user.full_name_ar}</span>
-      </nav>
+          <ChevronRight className="size-4" />
+          رجوع
+        </Button>
+        <nav className="flex items-center gap-1 text-sm text-foreground-muted">
+          <span
+            className="hover:text-foreground cursor-pointer transition-colors"
+            onClick={() => navigate(-1)}
+          >
+            المستخدمون
+          </span>
+          <ChevronRight className="size-3.5 rotate-180" />
+          <span className="text-foreground font-medium">{user.full_name_ar}</span>
+        </nav>
+      </div>
 
       {/* Page title */}
       <h1 className="text-2xl font-bold text-foreground">{user.full_name_ar}</h1>

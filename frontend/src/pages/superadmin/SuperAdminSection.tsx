@@ -7,9 +7,6 @@ import { SuperAdminHubPage } from './SuperAdminHubPage';
 const SuperAdminUsersPage = lazy(() =>
   import('./SuperAdminUsersPage').then((m) => ({ default: m.SuperAdminUsersPage })),
 );
-const SuperAdminUserDetailPage = lazy(() =>
-  import('./SuperAdminUserDetailPage').then((m) => ({ default: m.SuperAdminUserDetailPage })),
-);
 const SuperAdminRolesPage = lazy(() =>
   import('./SuperAdminRolesPage').then((m) => ({ default: m.SuperAdminRolesPage })),
 );
@@ -48,7 +45,6 @@ export function SuperAdminSection() {
           <Routes>
             <Route path="/" element={<SuperAdminHubPage />} />
             <Route path="/users" element={<SuperAdminUsersPage />} />
-            <Route path="/users/:id" element={<SuperAdminUserDetailPage />} />
             <Route path="/roles" element={<SuperAdminRolesPage />} />
             <Route path="/roles/:role" element={<SuperAdminRoleEditorPage />} />
             <Route path="/access-matrix" element={<SuperAdminAccessMatrixPage />} />
