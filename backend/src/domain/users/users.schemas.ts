@@ -18,6 +18,7 @@ export const UpdateUserSchema = z.object({
 
 export const ResetPasswordSchema = z.object({
   password: z.string().min(8),
+  force_password_change: z.boolean().optional(),
 });
 
 // Allowed action values match the role_permissions.action CHECK constraint as widened by

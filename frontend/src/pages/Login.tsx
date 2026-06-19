@@ -29,10 +29,21 @@ export function LoginPage() {
   const onSubmit = async (v: FormVals) => {
     setErr(null);
     try {
-      await login(v.username, v.password);
-      nav('/');
-    } catch {
-      setErr(ar.login.error);
+      const result = await login(v.username, v.password);
+      if (result.forcePasswordChange) {
+        nav('/change-password', { replace: true });
+      } else {
+        nav('/');
+      }
+    } catch (e: unknown) {
+      // Handle account lockout
+      const data = (e as { response?: { data?: { error?: string; lockedUntil?: string } } })?.response?.data;
+      if (data?.error === 'ACCOUNT_LOCKED' && data.lockedUntil) {
+        const until = new Date(data.lockedUntil).toLocaleTimeString('ar-EG');
+        setErr(`حسابك مقفل مؤقتًا حتى الساعة ${until} — تجاوزت عدد محاولات الدخول`);
+      } else {
+        setErr(ar.login.error);
+      }
     }
   };
 

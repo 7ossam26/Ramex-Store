@@ -43,6 +43,7 @@ import {
   Scale,
   ScrollText,
   Settings as SettingsIcon,
+  ShieldAlert,
   ShoppingCart,
   Sliders,
   Tag,
@@ -69,7 +70,8 @@ export type SectionId =
   | 'treasury'
   | 'reports'
   | 'hr'
-  | 'settings';
+  | 'settings'
+  | 'superadmin';
 
 export type NavLeaf = {
   id: string;
@@ -449,6 +451,14 @@ export const NAV: NavTop[] = [
     route: '/settings',
     visibleTo: ['super_admin'],
   },
+  {
+    id: 'superadmin',
+    labelAr: 'المشرف العام',
+    descAr: 'إدارة المستخدمين والصلاحيات والنظام',
+    icon: ShieldAlert,
+    route: '/superadmin',
+    visibleTo: ['super_admin'],
+  },
 ];
 
 /* ---------- Helpers ---------- */
@@ -465,6 +475,7 @@ const SECTION_ROUTE_PREFIXES: Record<SectionId, string[]> = {
   reports: ['/reports', '/shifts'],
   hr: ['/hr'],
   settings: ['/settings'],
+  superadmin: ['/superadmin'],
 };
 
 export function activeSectionForPath(pathname: string): SectionId {

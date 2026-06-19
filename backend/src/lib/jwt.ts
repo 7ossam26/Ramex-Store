@@ -3,9 +3,11 @@ import { v4 as uuid } from 'uuid';
 import { env } from '../config/env.js';
 
 export type Role = 'owner' | 'shop_seller' | 'factory_sender' | 'super_admin' | 'accountant';
-export type JwtPayload = { sub: number; role: Role; jti: string };
+export type JwtPayload = { sub: number; role: Role; jti: string; perm_rev?: number; iat?: number };
 
-export function signJwt(payload: Omit<JwtPayload, 'jti'>): { token: string; jti: string } {
+export function signJwt(
+  payload: Omit<JwtPayload, 'jti' | 'iat'>,
+): { token: string; jti: string } {
   const jti = uuid();
   const options: SignOptions = { expiresIn: env.JWT_EXPIRES_IN as SignOptions['expiresIn'] };
   const token = jwt.sign({ ...payload, jti }, env.JWT_SECRET, options);

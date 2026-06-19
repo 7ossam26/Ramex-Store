@@ -149,7 +149,6 @@ export async function bulkUpsertOverridesForUser(
   await db.transaction(async (trx) => {
     for (const u of updates) {
       if (u.is_allowed === null) {
-        // null means "revert to role default" — delete the override
         await trx('user_permission_overrides')
           .where({ user_id: userId, resource: u.resource, action: u.action })
           .delete();
@@ -173,4 +172,6 @@ export async function bulkUpsertOverridesForUser(
     }
   });
   invalidateUserCache(userId);
+  // Bump permissions_revision so existing JWTs go stale
+  await db('users').where({ id: userId }).update({ permissions_revision: db.raw('permissions_revision + 1') });
 }

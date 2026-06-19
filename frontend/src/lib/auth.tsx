@@ -2,12 +2,21 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { api } from './api';
 
 export type Role = 'owner' | 'shop_seller' | 'factory_sender' | 'super_admin' | 'accountant';
-export type User = { id: number; username: string; full_name_ar: string; role: Role };
+export type User = {
+  id: number;
+  username: string;
+  full_name_ar: string;
+  role: Role;
+  force_password_change?: boolean;
+  last_login_at?: string | null;
+};
+
+type LoginResult = { forcePasswordChange: boolean };
 
 type Ctx = {
   user: User | null;
   loading: boolean;
-  login: (u: string, p: string) => Promise<void>;
+  login: (u: string, p: string) => Promise<LoginResult>;
   logout: () => Promise<void>;
 };
 
@@ -30,10 +39,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
-  const login = async (username: string, password: string) => {
-    const { data } = await api.post<{ token: string; user: User }>('/auth/login', { username, password });
+  const login = async (username: string, password: string): Promise<LoginResult> => {
+    const { data } = await api.post<{ token: string; user: User; forcePasswordChange: boolean }>(
+      '/auth/login',
+      { username, password },
+    );
     localStorage.setItem('ramex_token', data.token);
     setUser(data.user);
+    return { forcePasswordChange: data.forcePasswordChange ?? false };
   };
 
   const logout = async () => {

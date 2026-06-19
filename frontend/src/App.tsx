@@ -3,6 +3,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { usePermissions } from '@/lib/permissions';
 import { LoginPage } from './pages/Login';
 import { HomePage } from './pages/Home';
+import { SuperAdminSection } from './pages/superadmin/SuperAdminSection';
+import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { NoAccessPage } from './pages/NoAccess';
 import { AppShell } from './components/AppShell';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -87,6 +89,24 @@ export function App() {
         element={
           <ProtectedRoute>
             <DraftInvoicePrintPage />
+          </ProtectedRoute>
+        }
+      />
+      {/* Super admin section — amber shell, own layout */}
+      <Route
+        path="/superadmin/*"
+        element={
+          <ProtectedRoute>
+            <SuperAdminSection />
+          </ProtectedRoute>
+        }
+      />
+      {/* Force password change — own full-page layout */}
+      <Route
+        path="/change-password"
+        element={
+          <ProtectedRoute>
+            <ChangePasswordPage />
           </ProtectedRoute>
         }
       />

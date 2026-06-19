@@ -73,10 +73,10 @@ usersRouter.post('/:id/reset-password', requireRole('super_admin'), async (req, 
   try {
     const id = Number(req.params['id']);
     if (!id) { res.status(400).json({ error: 'invalid id' }); return; }
-    const { password } = ResetPasswordSchema.parse(req.body);
+    const { password, force_password_change } = ResetPasswordSchema.parse(req.body);
     const before = await svc.findById(id);
     if (!before) { res.status(404).json({ error: 'USER_NOT_FOUND' }); return; }
-    await svc.resetPassword(id, password);
+    await svc.resetPassword(id, password, force_password_change ?? false);
     await auditLog(req, 'user.password_reset', 'users', id,
       { username: before.username },
       { username: before.username },

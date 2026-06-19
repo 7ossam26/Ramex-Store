@@ -47,6 +47,9 @@ export type UserRow = {
   role: string;
   is_active: boolean;
   created_at: string;
+  force_password_change?: boolean;
+  last_login_at?: string | null;
+  locked_until?: string | null;
 };
 
 export type UserPermissionsData = {
@@ -68,8 +71,8 @@ export const usersApi = {
   delete: (id: number): Promise<{ ok: boolean }> =>
     api.delete(`/users/${id}`).then((r) => r.data),
 
-  resetPassword: (id: number, password: string): Promise<{ ok: boolean }> =>
-    api.post(`/users/${id}/reset-password`, { password }).then((r) => r.data),
+  resetPassword: (id: number, password: string, forceChange = false): Promise<{ ok: boolean }> =>
+    api.post(`/users/${id}/reset-password`, { password, force_password_change: forceChange }).then((r) => r.data),
 
   getPermissions: (id: number): Promise<UserPermissionsData> =>
     api.get(`/users/${id}/permissions`).then((r) => r.data),
