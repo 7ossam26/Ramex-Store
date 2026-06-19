@@ -551,23 +551,11 @@ function RolePermissionsPanel({
 }) {
   const [activeRole, setActiveRole] = useState<'shop_seller' | 'factory_sender' | 'accountant'>('shop_seller');
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
 
   const filteredGroups = useMemo(() => {
-    const q = search.trim().toLowerCase();
     return RESOURCE_GROUPS
-      .filter((g) => !activeGroup || g.groupKey === activeGroup)
-      .map((g) => ({
-        ...g,
-        resources: g.resources.filter((def) => {
-          if (!q) return true;
-          const resLabel = ((ar.settings.permissions.resources as Record<string, string>)[def.key] ?? def.key).toLowerCase();
-          const desc = ((ar.settings.permissions.descriptions as Record<string, string>)[def.descriptionKey ?? def.key] ?? '').toLowerCase();
-          return resLabel.includes(q) || def.key.includes(q) || desc.includes(q);
-        }),
-      }))
-      .filter((g) => g.resources.length > 0);
-  }, [activeGroup, search]);
+      .filter((g) => !activeGroup || g.groupKey === activeGroup);
+  }, [activeGroup]);
 
   const allVisibleResources = useMemo(
     () => filteredGroups.flatMap((g) =>
@@ -575,6 +563,7 @@ function RolePermissionsPanel({
     ),
     [filteredGroups],
   );
+
 
   return (
     <div className="space-y-5">
@@ -624,7 +613,7 @@ function RolePermissionsPanel({
         )}
       </div>
 
-      {/* Group filter chips + search in one row */}
+      {/* Group filter chips */}
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
@@ -653,14 +642,6 @@ function RolePermissionsPanel({
             {(ar.settings.permissions.groups as Record<string, string>)[g.groupKey] ?? g.groupKey}
           </button>
         ))}
-        <input
-          type="search"
-          placeholder="بحث…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          dir="rtl"
-          className="h-8 w-36 rounded-md border border-border-subtle bg-surface-elevated px-2.5 text-xs text-foreground placeholder:text-foreground-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:border-accent transition-colors ms-auto"
-        />
       </div>
 
       {/* Card grid sections */}
