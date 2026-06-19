@@ -79,11 +79,18 @@ export async function logout(jti: string): Promise<void> {
   await db('sessions').where({ jwt_jti: jti }).whereNull('revoked_at').update({ revoked_at: db.fn.now() });
 }
 
+type ChangePasswordResult = {
+  token: string;
+  user: { id: number; username: string; full_name_ar: string; role: Role };
+};
+
 export async function changePassword(
   userId: number,
   currentPassword: string,
   newPassword: string,
-): Promise<{ ok: true } | { error: string }> {
+  deviceInfo: string,
+  ip: string,
+): Promise<ChangePasswordResult | { error: string }> {
   const user = await db('users').where({ id: userId }).first();
   if (!user) return { error: 'USER_NOT_FOUND' };
 
@@ -97,8 +104,24 @@ export async function changePassword(
     permissions_revision: db.raw('permissions_revision + 1'),
   });
 
-  // Revoke all sessions so the user gets a fresh token without force_password_change
+  // Revoke old sessions, then issue a fresh token so the user stays logged in
   await db('sessions').where({ user_id: userId }).whereNull('revoked_at').update({ revoked_at: db.fn.now() });
 
-  return { ok: true };
+  const updated = await db('users').where({ id: userId }).first();
+  const { token, jti } = signJwt({
+    sub: updated.id,
+    role: updated.role,
+    perm_rev: updated.permissions_revision,
+  });
+  await db('sessions').insert({ user_id: updated.id, jwt_jti: jti, device_info: deviceInfo, ip });
+
+  return {
+    token,
+    user: {
+      id: updated.id,
+      username: updated.username,
+      full_name_ar: updated.full_name_ar,
+      role: updated.role,
+    },
+  };
 }

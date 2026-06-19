@@ -18,6 +18,7 @@ type Ctx = {
   loading: boolean;
   login: (u: string, p: string) => Promise<LoginResult>;
   logout: () => Promise<void>;
+  updateAuth: (token: string, user: User) => void;
 };
 
 const AuthContext = createContext<Ctx | null>(null);
@@ -59,7 +60,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
-  return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>;
+  const updateAuth = (token: string, newUser: User) => {
+    localStorage.setItem('ramex_token', token);
+    setUser(newUser);
+  };
+
+  return <AuthContext.Provider value={{ user, loading, login, logout, updateAuth }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

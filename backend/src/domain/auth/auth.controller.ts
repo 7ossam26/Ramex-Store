@@ -37,11 +37,17 @@ export async function logoutCtl(req: Request, res: Response): Promise<void> {
 
 export async function changePasswordCtl(req: Request, res: Response): Promise<void> {
   const input = ChangePasswordSchema.parse(req.body);
-  const result = await svc.changePassword(req.user!.sub, input.currentPassword, input.newPassword);
+  const result = await svc.changePassword(
+    req.user!.sub,
+    input.currentPassword,
+    input.newPassword,
+    req.headers['user-agent'] ?? '',
+    req.ip ?? '',
+  );
   if ('error' in result) {
     res.status(400).json({ error: result.error });
     return;
   }
   await auditLog(req, 'password_changed', 'auth', req.user!.sub, null, null, { userId: req.user!.sub });
-  res.json({ ok: true });
+  res.json(result);
 }
