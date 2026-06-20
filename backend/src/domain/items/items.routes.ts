@@ -13,19 +13,19 @@ export const itemsRouter = Router();
 itemsRouter.use(requireAuth, requireActiveSession);
 
 // Fabrics — read is open to all authenticated users (reference data for forms).
-// Write operations are super_admin only (system configuration; Phase 5: map to items.write).
+// Write operations require fabric_rolls.manage (factory_sender + owner by default).
 itemsRouter.get('/fabrics', requirePermission('fabric_rolls', 'read'), fabricsCtl.listFabrics);
-itemsRouter.post('/fabrics', requireRole('super_admin'), fabricsCtl.createFabric);
-itemsRouter.patch('/fabrics/:id', requireRole('super_admin'), fabricsCtl.updateFabric);
+itemsRouter.post('/fabrics', requirePermission('fabric_rolls', 'manage'), fabricsCtl.createFabric);
+itemsRouter.patch('/fabrics/:id', requirePermission('fabric_rolls', 'manage'), fabricsCtl.updateFabric);
 
 // Colors — same pattern as fabrics.
 itemsRouter.get('/colors', requirePermission('fabric_rolls', 'read'), colorsCtl.listColors);
-itemsRouter.post('/colors', requireRole('super_admin'), colorsCtl.createColor);
-itemsRouter.patch('/colors/:id', requireRole('super_admin'), colorsCtl.updateColor);
+itemsRouter.post('/colors', requirePermission('fabric_rolls', 'manage'), colorsCtl.createColor);
+itemsRouter.patch('/colors/:id', requirePermission('fabric_rolls', 'manage'), colorsCtl.updateColor);
 
 // Prices — read needed by POS (shop_seller has fabric_rolls.read=true).
 itemsRouter.get('/fabric-color-prices', requirePermission('fabric_rolls', 'read'), pricesCtl.listPrices);
-itemsRouter.post('/fabric-color-prices', requireRole('super_admin'), pricesCtl.upsertPrice);
+itemsRouter.post('/fabric-color-prices', requirePermission('fabric_rolls', 'manage'), pricesCtl.upsertPrice);
 
 // Tops batch — factory entry wizard: factory_sender and owner via fabric_rolls.write.
 itemsRouter.post('/tops/batch', requirePermission('fabric_rolls', 'write'), topsCtl.createTopBatch);

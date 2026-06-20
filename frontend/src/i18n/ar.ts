@@ -1128,7 +1128,7 @@ export const ar = {
         write:              'تعديل',
         approve:            'اعتماد',
         view:               'عرض',
-        manage:             'إدارة الموظفين',
+        manage:             'إدارة',
         'salary.disburse':  'صرف الرواتب',
         'advance.create':   'إنشاء سُلَف',
         'deduction.create': 'إنشاء خصومات',
@@ -1137,7 +1137,7 @@ export const ar = {
       descriptions: {
         customers:    'بيانات العملاء والأرصدة',
         invoices:     'فواتير البيع والتحصيل',
-        fabric_rolls: 'الاتواب والخامات والملصقات',
+        fabric_rolls: 'الاتواب والخامات والألوان والملصقات',
         inventory:    'حركات المخزون والجرد والتسويات',
         shipments:    'طلبيات الشراء والتوريد',
         cash_drawer:  'الخزنة النقدية اليومية',
