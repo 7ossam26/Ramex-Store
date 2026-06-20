@@ -101,7 +101,14 @@ export function CreateShipmentPage() {
 
   const submit = useMutation({
     mutationFn: () => inventoryApi.submitShipment(shipment!.id),
-    onSuccess: (s) => setSubmittedNo(s.shipment_no),
+    onSuccess: (s) => {
+      setSubmittedNo(s.shipment_no);
+      // The cached shipment is still in 'draft' from this page's detailsQ.
+      // Without invalidation, the review page reads stale data, isReviewable=false,
+      // and accept/reject buttons stay hidden until a full page reload.
+      qc.invalidateQueries({ queryKey: ['shipment', shipment!.id] });
+      qc.invalidateQueries({ queryKey: ['shipments'] });
+    },
   });
 
   useEffect(() => {

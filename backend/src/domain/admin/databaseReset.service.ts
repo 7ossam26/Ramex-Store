@@ -16,10 +16,14 @@ export const RESET_CONFIRM_PHRASE = 'تصفير قاعدة البيانات';
  *
  *   KEEP: users, sessions, settings, settings_versions, role_permissions,
  *         user_permission_overrides, fabric_grades, compositions, brands,
- *         suppliers, fabrics, colors, fabric_color_prices.
+ *         fabrics, colors, fabric_color_prices.
  *
  * `audit_log` is wiped last; a fresh "reset" entry is written immediately
  * after so the cleared log starts with a record of who reset it.
+ *
+ * `suppliers` is wiped separately at the end (not via TRUNCATE CASCADE) so
+ * the brand→supplier FK can be NULLed first without taking `brands` down
+ * with it.
  */
 const WIPE_TABLES = [
   // sales / invoices
@@ -83,6 +87,20 @@ export async function resetOperationalData(actorUserId: number): Promise<ResetRe
         await trx.raw(`TRUNCATE TABLE "${t}" RESTART IDENTITY CASCADE`);
         wiped.push(t);
       }
+    }
+
+    // Suppliers: detach the brand→supplier link (brands is master data and
+    // must survive), then delete supplier rows and restart the id sequence.
+    // TRUNCATE CASCADE would drag brands with it because of the RESTRICT FK.
+    if (await trx.schema.hasTable('suppliers')) {
+      if (await trx.schema.hasTable('brands')) {
+        await trx('brands').whereNotNull('supplier_id').update({ supplier_id: null });
+      }
+      await trx.raw('DELETE FROM "suppliers"');
+      await trx.raw(
+        `SELECT setval(pg_get_serial_sequence('suppliers', 'id'), 1, false)`,
+      );
+      wiped.push('suppliers');
     }
 
     // Restart year-based invoice/shipment/return numbering.
