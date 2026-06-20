@@ -10,20 +10,20 @@ import { auditFromService } from '../inventory/audit.helper.js';
 export const RESET_CONFIRM_PHRASE = 'تصفير قاعدة البيانات';
 
 /**
- * Operational / transactional tables wiped on reset. Auth, config, catalog
- * master data, and lookup-code tables are intentionally preserved per the
- * super-admin "wipe operational data only" scope (see CORE_PLAN §4/§14):
+ * Tables wiped on reset. Only auth and system-config tables are preserved
+ * (so the super admin can still log in and the settings rows survive); all
+ * operational AND catalog/master data is cleared per the user-facing
+ * description, which only promises to keep users, permissions, and settings.
  *
  *   KEEP: users, sessions, settings, settings_versions, role_permissions,
- *         user_permission_overrides, fabric_grades, compositions, brands,
- *         fabrics, colors, fabric_color_prices.
+ *         user_permission_overrides.
  *
  * `audit_log` is wiped last; a fresh "reset" entry is written immediately
  * after so the cleared log starts with a record of who reset it.
  *
- * `suppliers` is wiped separately at the end (not via TRUNCATE CASCADE) so
- * the brand→supplier FK can be NULLed first without taking `brands` down
- * with it.
+ * Wipe order is children-before-parents where possible, but `TRUNCATE …
+ * CASCADE` handles any straggling FK so the operation is robust to future
+ * schema additions.
  */
 const WIPE_TABLES = [
   // sales / invoices
@@ -60,6 +60,14 @@ const WIPE_TABLES = [
   'hr_salary_disbursements',
   'hr_advance_repayments',
   'hr_employees',
+  // catalog / master data (children before parents)
+  'fabric_color_prices',
+  'fabrics',
+  'colors',
+  'brands',
+  'suppliers',
+  'compositions',
+  'fabric_grades',
   // shifts + notifications
   'shifts',
   'notifications',
@@ -87,20 +95,6 @@ export async function resetOperationalData(actorUserId: number): Promise<ResetRe
         await trx.raw(`TRUNCATE TABLE "${t}" RESTART IDENTITY CASCADE`);
         wiped.push(t);
       }
-    }
-
-    // Suppliers: detach the brand→supplier link (brands is master data and
-    // must survive), then delete supplier rows and restart the id sequence.
-    // TRUNCATE CASCADE would drag brands with it because of the RESTRICT FK.
-    if (await trx.schema.hasTable('suppliers')) {
-      if (await trx.schema.hasTable('brands')) {
-        await trx('brands').whereNotNull('supplier_id').update({ supplier_id: null });
-      }
-      await trx.raw('DELETE FROM "suppliers"');
-      await trx.raw(
-        `SELECT setval(pg_get_serial_sequence('suppliers', 'id'), 1, false)`,
-      );
-      wiped.push('suppliers');
     }
 
     // Restart year-based invoice/shipment/return numbering.
