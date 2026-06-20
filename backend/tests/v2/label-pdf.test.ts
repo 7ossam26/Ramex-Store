@@ -129,7 +129,7 @@ describe('v2 - modern barcode label PDF', () => {
     const text = collectText(definition.content).join(' ');
     expect(text).toContain('رامكس');
     expect(text).toContain('العرض');
-    expect(text).toContain('رقم اللوت');
+    expect(text).toContain('رقم اللوط');
     expect(text).toContain('كتان فاخر');
     expect(text).toContain('أخضر زيتوني');
     expect(text).toContain('التركيب');

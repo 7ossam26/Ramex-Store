@@ -93,7 +93,7 @@ function validateRow(row: RollRowState, isMeter: boolean): RollErrors {
   if (!row.width_cm || !Number.isFinite(w) || w <= 0)
     errors.width_cm = ar.addTop.errors.widthCmRequired;
   const wt = Number(row.weight_kg);
-  if (!row.weight_kg || !Number.isFinite(wt) || wt <= 0 || !Number.isInteger(wt))
+  if (!row.weight_kg || !Number.isFinite(wt) || wt <= 0)
     errors.weight_kg = ar.addTop.errors.weightRequired;
   if (isMeter) {
     const l = Number(row.length_m);
@@ -479,206 +479,205 @@ function FabricSubGroup({
 
       {/* ── Body ────────────────────────────────────────────────────────── */}
       <div className="p-5 space-y-5">
-      {!group.fabricId && (
-        <div className="rounded-lg border border-dashed border-border-subtle py-10 text-center text-base text-foreground-muted">
-          {ar.addTop.errors.fabricGroupRequired}
-        </div>
-      )}
+        {!group.fabricId && (
+          <div className="rounded-lg border border-dashed border-border-subtle py-10 text-center text-base text-foreground-muted">
+            {ar.addTop.errors.fabricGroupRequired}
+          </div>
+        )}
 
-      {group.fabricId && (
-        <div className="space-y-4">
-          {/* Bulk color bar */}
-          {selectedCount > 0 && (
-            <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-accent/20 border border-border-subtle" dir="rtl">
-              <span className="text-sm font-semibold">{selectedCount} {ar.addTop.selectedRows}</span>
-              <select
-                className="h-11 rounded border border-border bg-canvas px-3 text-base"
-                value={bulkColorId === null ? '' : String(bulkColorId)}
-                onChange={(e) => setBulkColorId(e.target.value ? Number(e.target.value) : null)}
-              >
-                <option value="">{ar.addTop.colColor}</option>
-                {colors.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name_ar} ({c.code})</option>
-                ))}
-              </select>
-              <Button type="button" className="h-11 text-sm" onClick={applyBulkColor} disabled={!bulkColorId}>
-                {ar.addTop.bulkSetColor}
-              </Button>
-              <Button type="button" variant="ghost" className="h-11 text-sm" onClick={() => group.rows.forEach((r) => r.selected && onRowChange(r.uid, { selected: false }))}>
-                {ar.common.cancel}
-              </Button>
-            </div>
-          )}
-
-          {/* Roll cards grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4" dir="rtl">
-            {group.rows.map((row, rowIdx) => {
-              const prevRow = group.rows[rowIdx - 1];
-              const hasErrors = submitted && Object.keys(validateRow(row, isMeter)).length > 0;
-              const rowErrors = submitted ? validateRow(row, isMeter) : {};
-
-              return (
-                <div
-                  key={row.uid}
-                  className={[
-                    'rounded-lg border bg-canvas p-5 space-y-4',
-                    hasErrors
-                      ? 'border-danger/40 bg-danger-subtle/10'
-                      : row.selected
-                      ? 'border-ring/50 bg-accent/5'
-                      : 'border-border-subtle',
-                  ].join(' ')}
+        {group.fabricId && (
+          <div className="space-y-4">
+            {/* Bulk color bar */}
+            {selectedCount > 0 && (
+              <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-accent/20 border border-border-subtle" dir="rtl">
+                <span className="text-sm font-semibold">{selectedCount} {ar.addTop.selectedRows}</span>
+                <select
+                  className="h-11 rounded border border-border bg-canvas px-3 text-base"
+                  value={bulkColorId === null ? '' : String(bulkColorId)}
+                  onChange={(e) => setBulkColorId(e.target.value ? Number(e.target.value) : null)}
                 >
-                  {/* Card header: roll index + controls */}
-                  <div className="flex items-center justify-between pb-1 border-b border-border-subtle">
-                    <span className="text-base font-bold text-foreground">
-                      {ar.addTop.rollIndexPrefix} {rowIdx + 1}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 cursor-pointer ml-1"
-                        checked={row.selected}
-                        onChange={(e) => onRowChange(row.uid, { selected: e.target.checked })}
-                      />
-                      <button
-                        type="button"
-                        title={ar.addTop.duplicate}
-                        className="h-9 w-9 flex items-center justify-center rounded hover:bg-accent transition-colors cursor-pointer text-foreground-muted"
-                        onClick={() => onDuplicateRow(row.uid)}
-                      >
-                        <Copy className="size-4" />
-                      </button>
-                      <button
-                        type="button"
-                        title={ar.addTop.removeRow}
-                        className="h-9 w-9 flex items-center justify-center rounded hover:bg-danger-subtle transition-colors cursor-pointer text-foreground-muted hover:text-danger-foreground"
-                        onClick={() => onRemoveRow(row.uid)}
-                        disabled={group.rows.length === 1}
-                      >
-                        <Trash2 className="size-4" />
-                      </button>
+                  <option value="">{ar.addTop.colColor}</option>
+                  {colors.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name_ar} ({c.code})</option>
+                  ))}
+                </select>
+                <Button type="button" className="h-11 text-sm" onClick={applyBulkColor} disabled={!bulkColorId}>
+                  {ar.addTop.bulkSetColor}
+                </Button>
+                <Button type="button" variant="ghost" className="h-11 text-sm" onClick={() => group.rows.forEach((r) => r.selected && onRowChange(r.uid, { selected: false }))}>
+                  {ar.common.cancel}
+                </Button>
+              </div>
+            )}
+
+            {/* Roll cards grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4" dir="rtl">
+              {group.rows.map((row, rowIdx) => {
+                const prevRow = group.rows[rowIdx - 1];
+                const hasErrors = submitted && Object.keys(validateRow(row, isMeter)).length > 0;
+                const rowErrors = submitted ? validateRow(row, isMeter) : {};
+
+                return (
+                  <div
+                    key={row.uid}
+                    className={[
+                      'rounded-lg border bg-canvas p-5 space-y-4',
+                      hasErrors
+                        ? 'border-danger/40 bg-danger-subtle/10'
+                        : row.selected
+                          ? 'border-ring/50 bg-accent/5'
+                          : 'border-border-subtle',
+                    ].join(' ')}
+                  >
+                    {/* Card header: roll index + controls */}
+                    <div className="flex items-center justify-between pb-1 border-b border-border-subtle">
+                      <span className="text-base font-bold text-foreground">
+                        {ar.addTop.rollIndexPrefix} {rowIdx + 1}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 cursor-pointer ml-1"
+                          checked={row.selected}
+                          onChange={(e) => onRowChange(row.uid, { selected: e.target.checked })}
+                        />
+                        <button
+                          type="button"
+                          title={ar.addTop.duplicate}
+                          className="h-9 w-9 flex items-center justify-center rounded hover:bg-accent transition-colors cursor-pointer text-foreground-muted"
+                          onClick={() => onDuplicateRow(row.uid)}
+                        >
+                          <Copy className="size-4" />
+                        </button>
+                        <button
+                          type="button"
+                          title={ar.addTop.removeRow}
+                          className="h-9 w-9 flex items-center justify-center rounded hover:bg-danger-subtle transition-colors cursor-pointer text-foreground-muted hover:text-danger-foreground"
+                          onClick={() => onRemoveRow(row.uid)}
+                          disabled={group.rows.length === 1}
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Color */}
-                  <div className="space-y-2">
-                    <Label className="text-base font-semibold text-foreground">{ar.addTop.colColor}</Label>
-                    <div className="flex items-center gap-2">
-                      <select
-                        className={[
-                          'flex-1 h-12 rounded border px-3 text-base bg-canvas min-w-0',
-                          rowErrors.color ? 'border-danger-foreground' : 'border-border',
-                        ].join(' ')}
-                        value={row.colorId === null ? '' : String(row.colorId)}
-                        onChange={(e) => {
-                          const colorId = e.target.value ? Number(e.target.value) : null;
-                          onRowChange(row.uid, { colorId, lot_id: null });
-                        }}
-                      >
-                        <option value="">—</option>
-                        {colors.map((c) => (
-                          <option key={c.id} value={c.id}>{c.name_ar}</option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        title="إضافة لون جديد"
-                        className="h-12 w-12 flex items-center justify-center rounded border border-border bg-canvas hover:bg-accent transition-colors cursor-pointer text-foreground-muted shrink-0"
-                        onClick={() => onOpenColorDialog(row.uid)}
-                      >
-                        <Plus className="size-4" />
-                      </button>
-                    </div>
-                    {rowErrors.color && <p className="text-sm text-danger-foreground mt-1">{rowErrors.color}</p>}
-                  </div>
-
-                  {/* Width cm */}
-                  <div className="space-y-2">
-                    <Label className="text-base font-semibold text-foreground">{ar.addTop.colWidthCm}</Label>
-                    <Input
-                      type="number"
-                      inputMode="decimal"
-                      step="1"
-                      dir="ltr"
-                      className={['h-12 text-base', rowErrors.width_cm ? 'border-danger-foreground ring-1 ring-danger-foreground' : ''].join(' ')}
-                      value={row.width_cm}
-                      onChange={(e) => onRowChange(row.uid, { width_cm: e.target.value })}
-                    />
-                    {rowErrors.width_cm && <p className="text-sm text-danger-foreground mt-1">{rowErrors.width_cm}</p>}
-                  </div>
-
-                  {/* Weight kg */}
-                  <div className="space-y-2">
-                    <Label className="text-base font-semibold text-foreground">{ar.addTop.colWeightKg}</Label>
-                    <Input
-                      type="number"
-                      inputMode="numeric"
-                      step="1"
-                      min="1"
-                      dir="ltr"
-                      className={['h-12 text-base', rowErrors.weight_kg ? 'border-danger-foreground ring-1 ring-danger-foreground' : ''].join(' ')}
-                      value={row.weight_kg}
-                      placeholder={prevRow?.weight_kg || ar.addTop.weightPlaceholder}
-                      onKeyDown={(e) => { if (e.key === '.' || e.key === ',') e.preventDefault(); }}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        onRowChange(row.uid, { weight_kg: val.includes('.') ? val.split('.')[0] : val });
-                      }}
-                    />
-                    {rowErrors.weight_kg && <p className="text-sm text-danger-foreground mt-1">{rowErrors.weight_kg}</p>}
-                  </div>
-
-                  {/* Length m — meter-fabric only */}
-                  {isMeter && (
+                    {/* Color */}
                     <div className="space-y-2">
-                      <Label className="text-base font-semibold text-foreground">{ar.addTop.colLengthM}</Label>
+                      <Label className="text-base font-semibold text-foreground">{ar.addTop.colColor}</Label>
+                      <div className="flex items-center gap-2">
+                        <select
+                          className={[
+                            'flex-1 h-12 rounded border px-3 text-base bg-canvas min-w-0',
+                            rowErrors.color ? 'border-danger-foreground' : 'border-border',
+                          ].join(' ')}
+                          value={row.colorId === null ? '' : String(row.colorId)}
+                          onChange={(e) => {
+                            const colorId = e.target.value ? Number(e.target.value) : null;
+                            onRowChange(row.uid, { colorId, lot_id: null });
+                          }}
+                        >
+                          <option value="">—</option>
+                          {colors.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name_ar}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          title="إضافة لون جديد"
+                          className="h-12 w-12 flex items-center justify-center rounded border border-border bg-canvas hover:bg-accent transition-colors cursor-pointer text-foreground-muted shrink-0"
+                          onClick={() => onOpenColorDialog(row.uid)}
+                        >
+                          <Plus className="size-4" />
+                        </button>
+                      </div>
+                      {rowErrors.color && <p className="text-sm text-danger-foreground mt-1">{rowErrors.color}</p>}
+                    </div>
+
+                    {/* Width cm */}
+                    <div className="space-y-2">
+                      <Label className="text-base font-semibold text-foreground">{ar.addTop.colWidthCm}</Label>
                       <Input
                         type="number"
                         inputMode="decimal"
-                        step="0.01"
+                        step="1"
                         dir="ltr"
-                        className={['h-12 text-base', rowErrors.length_m ? 'border-danger-foreground ring-1 ring-danger-foreground' : ''].join(' ')}
-                        value={row.length_m}
-                        onChange={(e) => onRowChange(row.uid, { length_m: e.target.value })}
+                        className={['h-12 text-base', rowErrors.width_cm ? 'border-danger-foreground ring-1 ring-danger-foreground' : ''].join(' ')}
+                        value={row.width_cm}
+                        onChange={(e) => onRowChange(row.uid, { width_cm: e.target.value })}
                       />
-                      {rowErrors.length_m && <p className="text-sm text-danger-foreground mt-1">{rowErrors.length_m}</p>}
+                      {rowErrors.width_cm && <p className="text-sm text-danger-foreground mt-1">{rowErrors.width_cm}</p>}
                     </div>
-                  )}
 
-                  {/* Lot */}
-                  <div className="space-y-2">
-                    <Label className="text-base font-semibold text-foreground">{ar.addTop.colLot}</Label>
-                    <LotCell
-                      fabricId={group.fabricId!}
-                      colorId={row.colorId}
-                      lot_id={row.lot_id}
-                      lots={lots}
-                      onChangeLot={(id) => onRowChange(row.uid, { lot_id: id })}
-                      onLotCreated={(lot) => handleLotCreated(row.uid, lot)}
-                    />
+                    {/* Weight kg */}
+                    <div className="space-y-2">
+                      <Label className="text-base font-semibold text-foreground">{ar.addTop.colWeightKg}</Label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.1"
+                        min="0"
+                        dir="ltr"
+                        className={['h-12 text-base', rowErrors.weight_kg ? 'border-danger-foreground ring-1 ring-danger-foreground' : ''].join(' ')}
+                        value={row.weight_kg}
+                        placeholder={prevRow?.weight_kg || ar.addTop.weightPlaceholder}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(',', '.');
+                          onRowChange(row.uid, { weight_kg: val });
+                        }}
+                      />
+                      {rowErrors.weight_kg && <p className="text-sm text-danger-foreground mt-1">{rowErrors.weight_kg}</p>}
+                    </div>
+
+                    {/* Length m — meter-fabric only */}
+                    {isMeter && (
+                      <div className="space-y-2">
+                        <Label className="text-base font-semibold text-foreground">{ar.addTop.colLengthM}</Label>
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          step="0.01"
+                          dir="ltr"
+                          className={['h-12 text-base', rowErrors.length_m ? 'border-danger-foreground ring-1 ring-danger-foreground' : ''].join(' ')}
+                          value={row.length_m}
+                          onChange={(e) => onRowChange(row.uid, { length_m: e.target.value })}
+                        />
+                        {rowErrors.length_m && <p className="text-sm text-danger-foreground mt-1">{rowErrors.length_m}</p>}
+                      </div>
+                    )}
+
+                    {/* Lot */}
+                    <div className="space-y-2">
+                      <Label className="text-base font-semibold text-foreground">{ar.addTop.colLot}</Label>
+                      <LotCell
+                        fabricId={group.fabricId!}
+                        colorId={row.colorId}
+                        lot_id={row.lot_id}
+                        lots={lots}
+                        onChangeLot={(id) => onRowChange(row.uid, { lot_id: id })}
+                        onLotCreated={(lot) => handleLotCreated(row.uid, lot)}
+                      />
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
 
-          {/* Add rows footer */}
-          <div className="flex flex-wrap items-center gap-2 pt-1" dir="rtl">
-            <Button type="button" variant="outline" className="h-12 gap-2 border-dashed text-base font-semibold px-6" onClick={() => onAddRows(1)}>
-              <Plus className="size-5" />
-              {ar.addTop.addRoll}
-            </Button>
-            <span className="text-sm text-foreground-muted mr-auto font-medium">
-              {group.rows.length} {ar.addTop.rollIndexPrefix}
-              {isMeter && (() => {
-                const totalL = group.rows.reduce((s, r) => s + (num(r.length_m) ?? 0), 0);
-                return totalL > 0 ? ` · ${totalL.toFixed(2)} م` : '';
-              })()}
-            </span>
+            {/* Add rows footer */}
+            <div className="flex flex-wrap items-center gap-2 pt-1" dir="rtl">
+              <Button type="button" variant="outline" className="h-12 gap-2 border-dashed text-base font-semibold px-6" onClick={() => onAddRows(1)}>
+                <Plus className="size-5" />
+                {ar.addTop.addRoll}
+              </Button>
+              <span className="text-sm text-foreground-muted mr-auto font-medium">
+                {group.rows.length} {ar.addTop.rollIndexPrefix}
+                {isMeter && (() => {
+                  const totalL = group.rows.reduce((s, r) => s + (num(r.length_m) ?? 0), 0);
+                  return totalL > 0 ? ` · ${totalL.toFixed(2)} م` : '';
+                })()}
+              </span>
+            </div>
           </div>
-        </div>
-      )}
+        )}
       </div>{/* /body */}
     </div>
   );

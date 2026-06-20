@@ -125,7 +125,7 @@ function buildOneLabelContent(
     infoCell('الوزن', has('weight') && roll.weight_kg ? formatWeight(roll.weight_kg) : '—'),
     infoCell('الخامة كود', has('fabric_code') && roll.fabric_code ? roll.fabric_code : '—'),
     infoCell('العرض', roll.width_cm ? `${roll.width_cm} سم` : '—'),
-    infoCell('اللوت رقم', has('lot_no') && roll.lot_no ? roll.lot_no : '—'),
+    infoCell('اللوط رقم', has('lot_no') && roll.lot_no ? roll.lot_no : '—'),
   ];
 
   return [{
