@@ -56,6 +56,7 @@ type RollRowState = {
   weight_kg: string;
   length_m: string;
   lot_id: number | null;
+  lot_no: string | null;
   selected: boolean;
   errors: RollErrors;
 };
@@ -77,6 +78,7 @@ function blankRow(opts?: {
     weight_kg: '',
     length_m: '',
     lot_id: null,
+    lot_no: null,
     selected: false,
     errors: {},
   };
@@ -421,7 +423,7 @@ function FabricSubGroup({
     qc.setQueryData<Lot[]>(['lots', group.fabricId], (old) =>
       (old ?? []).some((l) => l.id === lot.id) ? old ?? [] : [...(old ?? []), lot],
     );
-    onRowChange(rowUid, { lot_id: lot.id });
+    onRowChange(rowUid, { lot_id: lot.id, lot_no: lot.lot_no });
   }
 
   const lots = lotsQ.data ?? [];
@@ -653,7 +655,10 @@ function FabricSubGroup({
                         colorId={row.colorId}
                         lot_id={row.lot_id}
                         lots={lots}
-                        onChangeLot={(id) => onRowChange(row.uid, { lot_id: id })}
+                        onChangeLot={(id) => {
+                          const lotObj = lots.find((l) => l.id === id);
+                          onRowChange(row.uid, { lot_id: id, lot_no: lotObj?.lot_no ?? null });
+                        }}
                         onLotCreated={(lot) => handleLotCreated(row.uid, lot)}
                       />
                     </div>
@@ -700,6 +705,7 @@ export function AddTopPage() {
   const [submitted, setSubmitted] = useState(false);
   const [results, setResults] = useState<CreateTopBatchResult[]>([]);
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const [mode, setMode] = useState<'form' | 'review'>('form');
 
   const submitMut = useMutation({
     mutationFn: async (groups: GroupState[]) => {
@@ -724,6 +730,7 @@ export function AddTopPage() {
       setResults(res);
       setGlobalError(null);
       setSubmitted(false);
+      setMode('form');
       setGroups([blankGroup()]);
       qc.invalidateQueries({ queryKey: ['fabrics-full'] });
       qc.invalidateQueries({ queryKey: ['colors'] });
@@ -731,6 +738,7 @@ export function AddTopPage() {
     },
     onError: (e: unknown) => {
       setGlobalError(extractApiError(e));
+      setMode('form');
     },
   });
 
@@ -824,13 +832,20 @@ export function AddTopPage() {
     return true;
   }
 
-  function handleSubmit() {
+  function handleReview() {
     setSubmitted(true);
     setGlobalError(null);
     if (!validateAll()) {
       setGlobalError('يوجد أخطاء في البيانات — راجع الحقول المحددة بالأحمر');
       return;
     }
+    setSubmitted(false);
+    setGlobalError(null);
+    setMode('review');
+  }
+
+  function handleSubmit() {
+    setGlobalError(null);
     submitMut.mutate(groups);
   }
 
@@ -901,6 +916,97 @@ export function AddTopPage() {
             </div>
           </CardContent>
         </Card>
+      </PageShell>
+    );
+  }
+
+  // ----- Review screen -----
+
+  if (mode === 'review') {
+    return (
+      <PageShell title={ar.addTop.navTitle} description={ar.hubs.itemsAddTopDesc} backTo="/items" className="max-w-5xl">
+
+        {/* Header */}
+        <div className="rounded-lg border border-border-subtle bg-surface-elevated px-5 py-4 space-y-1" dir="rtl">
+          <p className="text-base font-semibold text-foreground">{ar.addTop.reviewTitle}</p>
+          <p className="text-sm text-foreground-muted">{ar.addTop.reviewHint}</p>
+        </div>
+
+        {/* One card per fabric group */}
+        {groups.map((group) => {
+          const fabric = fabricsFull.find((f) => f.id === group.fabricId)!;
+          const isMeter = fabric.unit === 'meter';
+          return (
+            <Card key={group.uid} className="border-border-subtle">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold">
+                  {fabric.name_ar}
+                  <span className="text-foreground-muted font-normal text-sm mr-2">
+                    ({fabric.code}) · {group.rows.length} {ar.addTop.rollIndexPrefix}
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm" dir="rtl">
+                    <thead>
+                      <tr className="border-b border-border-subtle text-foreground-muted text-xs">
+                        <th className="py-2 px-3 text-start font-medium">#</th>
+                        <th className="py-2 px-3 text-start font-medium">{ar.addTop.colColor}</th>
+                        <th className="py-2 px-3 text-start font-medium">{ar.addTop.colWidthCm}</th>
+                        <th className="py-2 px-3 text-start font-medium">{ar.addTop.colWeightKg}</th>
+                        {isMeter && <th className="py-2 px-3 text-start font-medium">{ar.addTop.colLengthM}</th>}
+                        <th className="py-2 px-3 text-start font-medium">{ar.addTop.colLot}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border-subtle">
+                      {group.rows.map((row, idx) => {
+                        const color = colors.find((c) => c.id === row.colorId);
+                        return (
+                          <tr key={row.uid} className="hover:bg-surface-hover transition-colors">
+                            <td className="py-2 px-3 text-foreground-muted">{idx + 1}</td>
+                            <td className="py-2 px-3 text-foreground">{color?.name_ar ?? '—'}</td>
+                            <td className="py-2 px-3 text-foreground tabular-num" dir="ltr">{row.width_cm}</td>
+                            <td className="py-2 px-3 text-foreground tabular-num font-medium" dir="ltr">{row.weight_kg}</td>
+                            {isMeter && <td className="py-2 px-3 text-foreground tabular-num" dir="ltr">{row.length_m}</td>}
+                            <td className="py-2 px-3 text-foreground-muted">{row.lot_no ?? '—'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+
+        {/* Summary totals */}
+        <div className="rounded-lg border border-border-subtle bg-surface-elevated px-5 py-3 flex flex-wrap gap-4 text-sm text-foreground-muted" dir="rtl">
+          <span>{ar.addTop.totalCount}: <span className="font-mono font-medium text-foreground">{totals.rolls}</span></span>
+          <span>{ar.addTop.totalWeight}: <span className="font-mono font-medium text-foreground" dir="ltr">{totals.weight.toFixed(3)} kg</span></span>
+          {totals.hasMeter && (
+            <span>{ar.addTop.totalLength}: <span className="font-mono font-medium text-foreground" dir="ltr">{totals.length.toFixed(2)} م</span></span>
+          )}
+        </div>
+
+        {/* Global error (shown if save failed and user returned here) */}
+        {globalError && (
+          <div role="alert" className="p-3 rounded-md border border-danger/30 bg-danger-subtle text-sm text-danger-foreground">
+            {globalError}
+          </div>
+        )}
+
+        {/* Sticky footer */}
+        <div className="sticky bottom-0 bg-canvas border-t border-border-subtle py-3 px-4 flex items-center gap-3 -mx-4 sm:-mx-6" dir="rtl">
+          <Button variant="outline" size="lg" className="h-10 shrink-0" onClick={() => setMode('form')}>
+            {ar.addTop.backToEdit}
+          </Button>
+          <Button size="lg" className="h-10 shrink-0" onClick={handleSubmit} disabled={submitMut.isPending}>
+            {submitMut.isPending ? ar.loading : ar.addTop.saveAndPrint}
+          </Button>
+        </div>
+
       </PageShell>
     );
   }
@@ -1028,12 +1134,12 @@ export function AddTopPage() {
           )}
         </div>
         <Button
-          onClick={handleSubmit}
+          onClick={handleReview}
           disabled={submitMut.isPending}
           size="lg"
           className="h-10 shrink-0"
         >
-          {submitMut.isPending ? ar.loading : ar.addTop.saveAndPrint}
+          {ar.addTop.reviewButton}
         </Button>
       </div>
     </PageShell>
