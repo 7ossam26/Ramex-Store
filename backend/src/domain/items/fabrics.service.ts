@@ -25,16 +25,13 @@ export async function getFabric(id: number): Promise<Fabric | undefined> {
 export async function createFabric(data: CreateFabricInput): Promise<Fabric> {
   const code = await generateFabricCode();
   const [{ id }] = await db('fabrics')
-    .insert({ ...data, code, composition: JSON.stringify(data.composition) })
+    .insert({ ...data, code })
     .returning('id');
   return db('fabrics').where({ id }).first() as Promise<Fabric>;
 }
 
 export async function updateFabric(id: number, data: UpdateFabricInput): Promise<Fabric | undefined> {
   const patch: Record<string, unknown> = { ...data, updated_at: db.fn.now() };
-  if (data.composition !== undefined) {
-    patch.composition = JSON.stringify(data.composition);
-  }
   await db('fabrics').where({ id }).update(patch);
   return db('fabrics').where({ id }).first();
 }

@@ -138,6 +138,10 @@ export const ar = {
     categoryRib: 'ريب',
     categoryAccessory: 'إكسسوار',
     categoryAll: 'كل الفئات',
+    gsm: 'GSM',
+    gsmUnit: 'جرام',
+    mad: 'المد',
+    madUnit: 'متر',
   },
   lots: {
     title: 'اللوطات',

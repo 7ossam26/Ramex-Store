@@ -154,7 +154,8 @@ export type FabricFull = {
   id: number;
   code: string;
   name_ar: string;
-  composition: Array<{ material: string; percent: number }>;
+  gsm: number | null;
+  mad_m: number | null;
   width_cm: string;
   grade: string;
   notes: string | null;
@@ -168,13 +169,14 @@ export type FabricFull = {
 
 export type CreateFabricInput = {
   name_ar: string;
-  composition: Array<{ material: string; percent: number }>;
   width_cm: number;
   grade: string;
   notes?: string | null;
   unit: FabricUnit;
   category?: FabricCategory | null;
   supplier_code?: string | null;
+  gsm?: number | null;
+  mad_m?: number | null;
 };
 
 export type UpdateFabricInput = Partial<CreateFabricInput> & {
@@ -190,12 +192,13 @@ export type FabricRef =
   | { id: number }
   | {
       name_ar: string;
-      composition: Array<{ material: string; percent: number }>;
       width_cm: number;
       grade: string;
       notes?: string | null;
       unit?: FabricUnit;
       supplier_code?: string | null;
+      gsm?: number | null;
+      mad_m?: number | null;
     };
 
 export type ColorRef =

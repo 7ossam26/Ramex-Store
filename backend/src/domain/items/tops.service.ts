@@ -25,7 +25,7 @@ async function resolveFabric(
     return f as Fabric;
   }
   const code = await generateFabricCode(trx);
-  const [{ id }] = await trx('fabrics').insert({ ...ref, code, composition: JSON.stringify(ref.composition) }).returning('id');
+  const [{ id }] = await trx('fabrics').insert({ ...ref, code }).returning('id');
   const created = await trx('fabrics').where({ id }).first();
   await auditFromService(trx, {
     actorUserId,

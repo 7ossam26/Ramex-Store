@@ -107,11 +107,11 @@ function validateRow(row: RollRowState, isMeter: boolean): RollErrors {
 
 // ---------- FabricCreateDialog ----------
 
-type CompositionRow = { material: string; percent: string };
 type FabricDraftState = {
   name_ar: string;
   width_cm: string;
-  composition: CompositionRow[];
+  gsm: string;
+  mad_m: string;
   notes: string;
   unit: FabricUnit;
   category: FabricCategory;
@@ -120,7 +120,8 @@ type FabricDraftState = {
 const blankFabricDraft = (): FabricDraftState => ({
   name_ar: '',
   width_cm: '',
-  composition: [{ material: '', percent: '100' }],
+  gsm: '',
+  mad_m: '',
   notes: '',
   unit: 'kg',
   category: 'main',
@@ -155,20 +156,17 @@ function FabricCreateDialog({
 
   function handleSubmit() {
     setErr(null);
-    const composition = draft.composition
-      .filter((c) => c.material.trim() && c.percent.trim())
-      .map((c) => ({ material: c.material.trim(), percent: Number(c.percent) }));
     if (!draft.name_ar.trim()) { setErr(ar.addTop.errors.fabricFieldsRequired); return; }
     const width_cm = Number(draft.width_cm);
     if (!width_cm || width_cm <= 0) { setErr(ar.addTop.errors.widthRequired); return; }
-    if (composition.length === 0) { setErr(ar.addTop.errors.compositionRequired); return; }
-    const sum = composition.reduce((s, c) => s + c.percent, 0);
-    if (Math.abs(sum - 100) > 0.01) { setErr(ar.addTop.errors.compositionMustSum100); return; }
+    const gsm = draft.gsm !== '' ? Number(draft.gsm) : null;
+    const mad_m = draft.mad_m !== '' ? Number(draft.mad_m) : null;
     mut.mutate({
       name_ar: draft.name_ar.trim(),
       width_cm,
       grade: 'A',
-      composition,
+      gsm: gsm !== null && gsm > 0 ? gsm : null,
+      mad_m: mad_m !== null && mad_m > 0 ? mad_m : null,
       notes: draft.notes.trim() || null,
       unit: draft.unit,
       category: draft.category,
@@ -215,34 +213,20 @@ function FabricCreateDialog({
               </div>
             </div>
           </div>
-          <div className="space-y-1">
-            <Label>{ar.addTop.composition}</Label>
-            <div className="space-y-2">
-              {draft.composition.map((c, idx) => (
-                <div key={idx} className="grid grid-cols-[1fr_100px_auto] gap-2">
-                  <Input value={c.material} onChange={(e) => { const next = [...draft.composition]; next[idx] = { ...c, material: e.target.value }; setDraft({ ...draft, composition: next }); }} placeholder={ar.addTop.material} />
-                  <div className="flex items-center gap-1">
-                    <Input type="number" inputMode="numeric" step="1" value={c.percent} onChange={(e) => {
-                      const next = [...draft.composition];
-                      next[idx] = { ...c, percent: e.target.value };
-                      if (idx + 1 < next.length) {
-                        const sumExceptNext = next.reduce((s, row, i) => i !== idx + 1 ? s + (Number(row.percent) || 0) : s, 0);
-                        next[idx + 1] = { ...next[idx + 1], percent: String(Math.max(0, 100 - sumExceptNext)) };
-                      }
-                      setDraft({ ...draft, composition: next });
-                    }} dir="ltr" />
-                    <span className="text-sm text-muted-foreground">%</span>
-                  </div>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setDraft({ ...draft, composition: draft.composition.filter((_, i) => i !== idx) })} disabled={draft.composition.length === 1}>×</Button>
-                </div>
-              ))}
-              <Button type="button" variant="outline" size="sm" onClick={() => {
-                const used = draft.composition.reduce((s, c) => s + (Number(c.percent) || 0), 0);
-                const remaining = Math.max(0, 100 - used);
-                setDraft({ ...draft, composition: [...draft.composition, { material: '', percent: String(remaining) }] });
-              }}>
-                + {ar.addTop.addMaterial}
-              </Button>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>{ar.fabrics.gsm}</Label>
+              <div className="flex items-center gap-1">
+                <Input type="number" inputMode="decimal" step="0.01" min="0" dir="ltr" value={draft.gsm} onChange={(e) => setDraft({ ...draft, gsm: e.target.value })} placeholder="—" />
+                <span className="text-sm text-muted-foreground shrink-0">{ar.fabrics.gsmUnit}</span>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>{ar.fabrics.mad}</Label>
+              <div className="flex items-center gap-1">
+                <Input type="number" inputMode="decimal" step="0.01" min="0" dir="ltr" value={draft.mad_m} onChange={(e) => setDraft({ ...draft, mad_m: e.target.value })} placeholder="—" />
+                <span className="text-sm text-muted-foreground shrink-0">{ar.fabrics.madUnit}</span>
+              </div>
             </div>
           </div>
           {err && <p className="text-sm text-danger-foreground">{err}</p>}
@@ -1070,10 +1054,8 @@ export function AddTopPage() {
                       <span className="text-sm text-foreground-muted">({f.code})</span>
                       <span className="text-sm text-foreground-muted">· {rollCount} {ar.addTop.rollIndexPrefix}</span>
                     </span>
-                    {f.composition.length > 0 && (
-                      <span className="text-sm text-foreground-muted">
-                        {f.composition.map((c) => `${c.percent}% ${c.material}`).join(' · ')}
-                      </span>
+                    {f.gsm != null && (
+                      <span className="text-sm text-foreground-muted">GSM: {f.gsm} {ar.fabrics.gsmUnit}</span>
                     )}
                   </span>
                 );

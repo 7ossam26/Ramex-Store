@@ -28,15 +28,14 @@ import { useAuth } from '@/lib/auth';
 import { isOwnerOrAbove } from '@/lib/roles';
 import { extractApiError } from '@/lib/api-error';
 
-type CompositionRow = { material: string; percent: string };
-
 type FormState = {
   name_ar: string;
   width_cm: string;
   unit: FabricUnit;
   category: FabricCategory;
   notes: string;
-  composition: CompositionRow[];
+  gsm: string;
+  mad_m: string;
   is_active: boolean;
   default_grade_id: string;
   default_composition_id: string;
@@ -49,7 +48,8 @@ const blank = (): FormState => ({
   unit: 'kg',
   category: 'main',
   notes: '',
-  composition: [{ material: '', percent: '100' }],
+  gsm: '',
+  mad_m: '',
   is_active: true,
   default_grade_id: '',
   default_composition_id: '',
@@ -63,19 +63,13 @@ function fromFabric(f: FabricFull & { default_grade_id?: number | null; default_
     unit: f.unit,
     category: f.category ?? 'main',
     notes: f.notes ?? '',
-    composition:
-      f.composition.length > 0
-        ? f.composition.map((c) => ({ material: c.material, percent: String(c.percent) }))
-        : [{ material: '', percent: '100' }],
+    gsm: f.gsm != null ? String(f.gsm) : '',
+    mad_m: f.mad_m != null ? String(f.mad_m) : '',
     is_active: f.is_active,
     default_grade_id: f.default_grade_id != null ? String(f.default_grade_id) : '',
     default_composition_id: f.default_composition_id != null ? String(f.default_composition_id) : '',
     default_brand_id: f.default_brand_id != null ? String(f.default_brand_id) : '',
   };
-}
-
-function compositionSummary(items: FabricFull['composition']): string {
-  return items.map((c) => `${c.material} ${c.percent}%`).join(' · ');
 }
 
 export function FabricsPage() {
@@ -146,18 +140,6 @@ export function FabricsPage() {
 
   function buildPayload(): CreateFabricInput | null {
     setErrorMsg(null);
-    const composition = form.composition
-      .filter((c) => c.material.trim() !== '' && c.percent.trim() !== '')
-      .map((c) => ({ material: c.material.trim(), percent: Number(c.percent) }));
-    if (composition.length === 0) {
-      setErrorMsg(ar.addTop.errors.compositionRequired);
-      return null;
-    }
-    const sum = composition.reduce((s, c) => s + (c.percent || 0), 0);
-    if (Math.abs(sum - 100) > 0.01) {
-      setErrorMsg(ar.addTop.errors.compositionMustSum100);
-      return null;
-    }
     const widthCm = Number(form.width_cm);
     if (!Number.isFinite(widthCm) || widthCm <= 0) {
       setErrorMsg(ar.addTop.errors.widthRequired);
@@ -167,11 +149,14 @@ export function FabricsPage() {
       setErrorMsg(ar.addTop.errors.fabricFieldsRequired);
       return null;
     }
+    const gsm = form.gsm !== '' ? Number(form.gsm) : null;
+    const mad_m = form.mad_m !== '' ? Number(form.mad_m) : null;
     return {
       name_ar: form.name_ar.trim(),
       width_cm: widthCm,
       grade: 'A',
-      composition,
+      gsm: gsm !== null && gsm > 0 ? gsm : null,
+      mad_m: mad_m !== null && mad_m > 0 ? mad_m : null,
       notes: form.notes.trim() || null,
       unit: form.unit,
       category: form.category,
@@ -245,11 +230,18 @@ export function FabricsPage() {
         },
       },
       {
-        key: 'composition',
-        header: ar.fabrics.composition,
-        cell: (f) => (
-          <span className="text-sm text-foreground-muted">{compositionSummary(f.composition)}</span>
-        ),
+        key: 'gsm',
+        header: ar.fabrics.gsm,
+        cell: (f) => f.gsm != null
+          ? <span dir="ltr">{f.gsm} {ar.fabrics.gsmUnit}</span>
+          : <span className="text-foreground-muted">—</span>,
+      },
+      {
+        key: 'mad_m',
+        header: ar.fabrics.mad,
+        cell: (f) => f.mad_m != null
+          ? <span dir="ltr">{f.mad_m} {ar.fabrics.madUnit}</span>
+          : <span className="text-foreground-muted">—</span>,
       },
       {
         key: 'is_active',
@@ -489,69 +481,40 @@ export function FabricsPage() {
               </div>
             </div>
 
-            <div className="space-y-1">
-              <Label>{ar.addTop.composition}</Label>
-              <div className="space-y-2">
-                {form.composition.map((c, idx) => (
-                  <div key={idx} className="grid grid-cols-[1fr_120px_auto] gap-2">
-                    <Input
-                      value={c.material}
-                      onChange={(e) => {
-                        const next = [...form.composition];
-                        next[idx] = { ...c, material: e.target.value };
-                        setForm({ ...form, composition: next });
-                      }}
-                      placeholder={ar.addTop.material}
-                      className="h-11 md:h-10"
-                    />
-                    <div className="flex items-center gap-1">
-                      <Input
-                        type="number"
-                        inputMode="numeric"
-                        step="1"
-                        value={c.percent}
-                        onChange={(e) => {
-                          const next = [...form.composition];
-                          next[idx] = { ...c, percent: e.target.value };
-                          if (idx + 1 < next.length) {
-                            const sumExceptNext = next.reduce((s, row, i) => i !== idx + 1 ? s + (Number(row.percent) || 0) : s, 0);
-                            next[idx + 1] = { ...next[idx + 1], percent: String(Math.max(0, 100 - sumExceptNext)) };
-                          }
-                          setForm({ ...form, composition: next });
-                        }}
-                        dir="ltr"
-                        className="h-11 md:h-10"
-                      />
-                      <span className="text-sm text-muted-foreground">%</span>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        setForm({
-                          ...form,
-                          composition: form.composition.filter((_, i) => i !== idx),
-                        })
-                      }
-                      disabled={form.composition.length === 1}
-                    >
-                      {ar.common.cancel}
-                    </Button>
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const used = form.composition.reduce((s, c) => s + (Number(c.percent) || 0), 0);
-                    const remaining = Math.max(0, 100 - used);
-                    setForm({ ...form, composition: [...form.composition, { material: '', percent: String(remaining) }] });
-                  }}
-                >
-                  + {ar.addTop.addMaterial}
-                </Button>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>{ar.fabrics.gsm}</Label>
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    dir="ltr"
+                    value={form.gsm}
+                    onChange={(e) => setForm({ ...form, gsm: e.target.value })}
+                    placeholder="—"
+                    className="h-11 md:h-10"
+                  />
+                  <span className="text-sm text-muted-foreground shrink-0">{ar.fabrics.gsmUnit}</span>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label>{ar.fabrics.mad}</Label>
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    dir="ltr"
+                    value={form.mad_m}
+                    onChange={(e) => setForm({ ...form, mad_m: e.target.value })}
+                    placeholder="—"
+                    className="h-11 md:h-10"
+                  />
+                  <span className="text-sm text-muted-foreground shrink-0">{ar.fabrics.madUnit}</span>
+                </div>
               </div>
             </div>
 

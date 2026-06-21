@@ -1,18 +1,14 @@
 import { z } from 'zod';
 
-const CompositionItemSchema = z.object({
-  material: z.string().min(1),
-  percent: z.number().min(0).max(100),
-});
-
 const FabricRefSchema = z.union([
   z.object({ id: z.number().int().positive() }),
   z.object({
     name_ar: z.string().min(1).max(128),
-    composition: z.array(CompositionItemSchema).min(1),
     width_cm: z.number().positive(),
     grade: z.string().min(1).max(16),
     notes: z.string().nullable().optional(),
+    gsm: z.number().positive().nullable().optional(),
+    mad_m: z.number().positive().nullable().optional(),
   }),
 ]);
 

@@ -1,10 +1,5 @@
 import { z } from 'zod';
 
-const CompositionItemSchema = z.object({
-  material: z.string().min(1),
-  percent: z.number().min(0).max(100),
-});
-
 const defaultLabelFields = {
   default_width_cm: z.number().int().min(1).max(500).nullable().optional(),
   default_grade_id: z.number().int().positive().nullable().optional(),
@@ -18,13 +13,14 @@ export const FabricCategoryEnum = z.enum(['main', 'rib', 'accessory']);
 
 export const CreateFabricSchema = z.object({
   name_ar: z.string().min(1).max(128),
-  composition: z.array(CompositionItemSchema).min(1),
   width_cm: z.number().positive(),
   grade: z.string().min(1).max(16),
   notes: z.string().nullable().optional(),
   unit: FabricUnitEnum.default('kg'),
   category: FabricCategoryEnum.nullable().optional(),
   supplier_code: z.string().max(64).nullable().optional(),
+  gsm: z.number().positive().nullable().optional(),
+  mad_m: z.number().positive().nullable().optional(),
   ...defaultLabelFields,
 });
 export type CreateFabricInput = z.infer<typeof CreateFabricSchema>;

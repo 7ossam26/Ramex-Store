@@ -5,7 +5,8 @@ export type Fabric = {
   id: number;
   code: string;
   name_ar: string;
-  composition: Array<{ material: string; percent: number }>;
+  gsm: number | null;
+  mad_m: number | null;
   width_cm: string;
   grade: string;
   notes: string | null;
