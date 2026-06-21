@@ -8,18 +8,26 @@ export async function listFabrics(req: Request, res: Response): Promise<void> {
 }
 
 export async function createFabric(req: Request, res: Response): Promise<void> {
-  const data = CreateFabricSchema.parse(req.body);
-  const fabric = await svc.createFabric(data);
-  await auditLog(req, 'create_fabric', 'fabric', fabric.id, null, fabric, { severity: 'low' });
-  res.status(201).json(fabric);
+  try {
+    const data = CreateFabricSchema.parse(req.body);
+    const fabric = await svc.createFabric(data);
+    await auditLog(req, 'create_fabric', 'fabric', fabric.id, null, fabric, { severity: 'low' });
+    res.status(201).json(fabric);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'internal_error' });
+  }
 }
 
 export async function updateFabric(req: Request, res: Response): Promise<void> {
-  const id = Number(req.params.id);
-  const data = UpdateFabricSchema.parse(req.body);
-  const before = await svc.getFabric(id);
-  if (!before) { res.status(404).json({ error: 'not_found' }); return; }
-  const after = await svc.updateFabric(id, data);
-  await auditLog(req, 'update_fabric', 'fabric', id, before, after, { severity: 'low' });
-  res.json(after);
+  try {
+    const id = Number(req.params.id);
+    const data = UpdateFabricSchema.parse(req.body);
+    const before = await svc.getFabric(id);
+    if (!before) { res.status(404).json({ error: 'not_found' }); return; }
+    const after = await svc.updateFabric(id, data);
+    await auditLog(req, 'update_fabric', 'fabric', id, before, after, { severity: 'low' });
+    res.json(after);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'internal_error' });
+  }
 }
