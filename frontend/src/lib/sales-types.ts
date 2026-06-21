@@ -222,6 +222,13 @@ export type ScanReturnResult = {
   originalInvoiceNo: string;
 };
 
+export type DamageContext = {
+  pending: boolean;
+  reason_code: string;
+  notes_ar: string | null;
+  event_created_at: string;
+};
+
 export type RollLookup = {
   id: number;
   internal_barcode: string;
@@ -249,4 +256,5 @@ export type RollLookup = {
   brand_product_line?: string | null;
   supplier_arabic_name?: string | null;
   supplier_arabic_warning_text?: string | null;
+  damage_context?: DamageContext | null;
 };

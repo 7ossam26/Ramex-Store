@@ -1,6 +1,6 @@
 import { db } from '../../db/connection.js';
 import { auditFromService } from '../inventory/audit.helper.js';
-import type { Roll, RollWithDetails, RollWithLabelDetails } from './items.types.js';
+import type { DamageContext, Roll, RollWithDetails, RollWithLabelDetails } from './items.types.js';
 import type { UpdateRollInput } from './items.schemas.js';
 
 export class RollValidationError extends Error {
@@ -84,7 +84,7 @@ function normalizeLabelRow(row: Record<string, unknown>): RollWithLabelDetails {
   const description = formatFabricComposition(row.fabric_composition);
   const { fabric_composition: _fc, ...rest } = row;
   void _fc;
-  return { ...rest, composition_description: description } as RollWithLabelDetails;
+  return { ...rest, composition_description: description, damage_context: null } as RollWithLabelDetails;
 }
 
 export async function listRolls(filters: {
@@ -153,7 +153,44 @@ export async function findByBarcode(
       b.where('r.internal_barcode', barcode).orWhere('r.external_barcode', barcode),
     )
     .first();
-  return row ? normalizeLabelRow(row) : undefined;
+  if (!row) return undefined;
+  const roll = normalizeLabelRow(row);
+
+  let damage_context: DamageContext | null = null;
+
+  if (roll.status === 'damaged' || roll.status === 'written_off') {
+    // Applied events: auto-applied (requires_approval=false) OR owner-approved (approved_at set)
+    const event = await db('damage_events')
+      .where({ roll_id: roll.id })
+      .where((b) => b.where({ requires_approval: false }).orWhereNotNull('approved_at'))
+      .orderBy('id', 'desc')
+      .first();
+    if (event) {
+      damage_context = {
+        pending: false,
+        reason_code: event.reason_code as string,
+        notes_ar: event.notes_ar as string | null,
+        event_created_at: event.created_at as Date,
+      };
+    }
+  } else if (roll.status === 'in_stock') {
+    // Pending event awaiting owner approval
+    const pending = await db('damage_events')
+      .where({ roll_id: roll.id, requires_approval: true })
+      .whereNull('approved_at')
+      .orderBy('id', 'desc')
+      .first();
+    if (pending) {
+      damage_context = {
+        pending: true,
+        reason_code: pending.reason_code as string,
+        notes_ar: pending.notes_ar as string | null,
+        event_created_at: pending.created_at as Date,
+      };
+    }
+  }
+
+  return { ...roll, damage_context };
 }
 
 export async function returnRollToFactory(

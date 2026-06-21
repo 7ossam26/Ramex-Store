@@ -8,6 +8,10 @@ const ERR_MAP: Record<string, { status: number; message: string }> = {
     status: 409,
     message: 'لا يمكن نقل توب من مخزن المصنع عن طريق التعديل، يجب إنشاء طلبية',
   },
+  CANNOT_REACTIVATE_DAMAGED_ROLL: {
+    status: 409,
+    message: 'لا يمكن إعادة تفعيل توب تالف أو مشطوب عبر التسوية',
+  },
 };
 
 function handleDomainError(e: unknown, res: Response): boolean {

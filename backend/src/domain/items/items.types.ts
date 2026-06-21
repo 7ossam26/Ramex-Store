@@ -84,6 +84,13 @@ export type RollWithDetails = Roll & {
   lot_no: string | null;
 };
 
+export type DamageContext = {
+  pending: boolean;
+  reason_code: string;
+  notes_ar: string | null;
+  event_created_at: Date;
+};
+
 export type RollWithLabelDetails = RollWithDetails & {
   grade_arabic_name: string | null;
   composition_description: string | null;
@@ -91,4 +98,5 @@ export type RollWithLabelDetails = RollWithDetails & {
   brand_product_line: string | null;
   supplier_arabic_name: string | null;
   supplier_arabic_warning_text: string | null;
+  damage_context: DamageContext | null;
 };

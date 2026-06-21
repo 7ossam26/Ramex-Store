@@ -320,9 +320,18 @@ export function POSPage() {
         return;
       }
 
-      if (roll.status === 'damaged') {
-        flagScanFailure(ar.pos.returnDamagedRoll);
+      if (roll.status === 'damaged' || roll.status === 'written_off') {
+        const ctx = roll.damage_context;
+        const headline = roll.status === 'damaged' ? ar.pos.itemDamaged : ar.pos.itemWrittenOff;
+        const reasonLabel = ctx
+          ? (ar.damage.reasons[ctx.reason_code as keyof typeof ar.damage.reasons] ?? ctx.reason_code)
+          : null;
+        flagScanFailure([headline, reasonLabel ? `السبب: ${reasonLabel}` : null].filter(Boolean).join(' — '));
         return;
+      }
+
+      if (roll.damage_context?.pending) {
+        showToast(ar.pos.itemDamagedPending);
       }
 
       if (roll.status !== 'in_stock') {
@@ -397,8 +406,13 @@ export function POSPage() {
       if (roll.status === 'sold') {
         setReturnScanDialogOpen(false);
         await openReturnDrawer(roll);
-      } else if (roll.status === 'damaged') {
-        setReturnScanError(ar.pos.returnDamagedRoll);
+      } else if (roll.status === 'damaged' || roll.status === 'written_off') {
+        const ctx = roll.damage_context;
+        const headline = roll.status === 'damaged' ? ar.pos.itemDamaged : ar.pos.itemWrittenOff;
+        const reasonLabel = ctx
+          ? (ar.damage.reasons[ctx.reason_code as keyof typeof ar.damage.reasons] ?? ctx.reason_code)
+          : null;
+        setReturnScanError([headline, reasonLabel ? `السبب: ${reasonLabel}` : null].filter(Boolean).join(' — '));
       } else {
         setReturnScanError(ar.returns.errors.rollNotSold);
       }

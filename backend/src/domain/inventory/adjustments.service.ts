@@ -23,6 +23,16 @@ export async function createAdjustment(
       throw new Error('FACTORY_EXIT_REQUIRES_SHIPMENT');
     }
 
+    // Damaged/written-off rolls are permanently deactivated and cannot be re-activated via adjustment.
+    const PERMANENT_STATUSES = ['written_off', 'damaged'];
+    if (
+      PERMANENT_STATUSES.includes(roll.status) &&
+      input.new_status !== undefined &&
+      !PERMANENT_STATUSES.includes(input.new_status)
+    ) {
+      throw new Error('CANNOT_REACTIVATE_DAMAGED_ROLL');
+    }
+
     const patch: Record<string, unknown> = { updated_at: trx.fn.now() };
     if (input.new_warehouse !== undefined) patch.warehouse = input.new_warehouse;
     if (input.new_status !== undefined) patch.status = input.new_status;
