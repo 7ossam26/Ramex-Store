@@ -142,7 +142,7 @@ function lineSubtotal(line: CartLine): number {
 
 function isFabricRoll(r: RollLookup): boolean {
   return Boolean(
-    r.brand_arabic_name || r.grade_arabic_name || r.composition_description || r.width_cm,
+    r.brand_arabic_name || r.grade_arabic_name || r.gsm != null || r.mad_m != null || r.width_cm,
   );
 }
 
@@ -1573,11 +1573,14 @@ function EnrichedCartLine({
               <Tag className="size-4" />
             </Button>
           )}
-          {fabric && r.composition_description && (
-            <Tooltip label={r.composition_description} placement="bottom">
+          {fabric && (r.gsm != null || r.mad_m != null) && (
+            <Tooltip
+              label={[r.gsm != null ? `GSM: ${r.gsm} جرام` : null, r.mad_m != null ? `المد: ${r.mad_m} متر` : null].filter(Boolean).join(' / ')}
+              placement="bottom"
+            >
               <button
                 className="size-8 p-0 cursor-pointer text-foreground-tertiary hover:text-accent inline-flex items-center justify-center rounded-md"
-                aria-label={ar.pos.composition}
+                aria-label="GSM / المد"
               >
                 <Info className="size-4" />
               </button>

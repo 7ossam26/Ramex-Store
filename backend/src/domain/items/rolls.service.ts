@@ -44,7 +44,8 @@ function rollLabelQuery() {
       'f.code as fabric_code',
       'f.name_ar as fabric_name_ar',
       'f.unit as fabric_unit',
-      'f.composition as fabric_composition',
+      'f.gsm as fabric_gsm',
+      'f.mad_m as fabric_mad_m',
       'c.name_ar as color_name_ar',
       'c.code as color_code',
       'l.lot_no as lot_no',
@@ -56,35 +57,14 @@ function rollLabelQuery() {
     );
 }
 
-function safeParseJsonArray(raw: unknown): unknown[] | null {
-  if (Array.isArray(raw)) return raw;
-  if (typeof raw !== 'string') return null;
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function formatFabricComposition(raw: unknown): string | null {
-  const items = safeParseJsonArray(raw);
-  if (!items || items.length === 0) return null;
-  const parts = items
-    .filter((i): i is { material: string; percent: number } =>
-      !!i && typeof i === 'object'
-      && typeof (i as { material: unknown }).material === 'string'
-      && typeof (i as { percent: unknown }).percent === 'number')
-    .map((i) => `${i.material.trim()} ${i.percent}%`)
-    .filter((s) => s.length > 0);
-  return parts.length > 0 ? parts.join(' · ') : null;
-}
-
 function normalizeLabelRow(row: Record<string, unknown>): RollWithLabelDetails {
-  const description = formatFabricComposition(row.fabric_composition);
-  const { fabric_composition: _fc, ...rest } = row;
-  void _fc;
-  return { ...rest, composition_description: description, damage_context: null } as RollWithLabelDetails;
+  const { fabric_gsm, fabric_mad_m, ...rest } = row;
+  return {
+    ...rest,
+    gsm: fabric_gsm != null ? Number(fabric_gsm) : null,
+    mad_m: fabric_mad_m != null ? Number(fabric_mad_m) : null,
+    damage_context: null,
+  } as RollWithLabelDetails;
 }
 
 export async function listRolls(filters: {

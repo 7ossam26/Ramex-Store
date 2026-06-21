@@ -16,7 +16,7 @@ const LEGACY_COMPACT_LABEL_SIZE = '50x30mm';
 
 const DEFAULT_FIELDS = [
   'logo', 'roll_sr_no', 'fabric_name', 'color_name',
-  'barcode', 'fabric_code', 'color_code', 'weight', 'composition', 'lot_no',
+  'barcode', 'fabric_code', 'color_code', 'weight', 'gsm', 'mad_m', 'lot_no',
 ];
 
 const FIELD_ALIASES: Record<string, string> = {
@@ -161,12 +161,9 @@ function buildOneLabelContent(
           emptySpanCell(),
         ],
         [
-          {
-            ...valueBlock('التركيب', roll.composition_description ?? '—', 11),
-            colSpan: 4,
-          },
+          { ...valueBlock('GSM', roll.gsm != null ? `${roll.gsm} جرام` : '—', 11), colSpan: 2 },
           emptySpanCell(),
-          emptySpanCell(),
+          { ...valueBlock('المد', roll.mad_m != null ? `${roll.mad_m} متر` : '—', 11), colSpan: 2 },
           emptySpanCell(),
         ],
         [

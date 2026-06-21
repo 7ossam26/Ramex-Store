@@ -56,7 +56,8 @@ function FabricLabelCard({ rollId }: { rollId: number }) {
     (roll.brand_arabic_name ||
       roll.supplier_arabic_name ||
       roll.grade_arabic_name ||
-      roll.composition_description ||
+      roll.gsm != null ||
+      roll.mad_m != null ||
       roll.supplier_order_no ||
       roll.top_number ||
       roll.width_cm);
@@ -89,9 +90,10 @@ function FabricLabelCard({ rollId }: { rollId: number }) {
           {roll!.grade_arabic_name && <LabelRow label="الدرجة" value={roll!.grade_arabic_name} />}
           {roll!.width_cm != null && <LabelRow label="العرض" value={`${roll!.width_cm} سم`} />}
           <LabelRow label="اللون" value={`${roll!.color_name_ar} / ${roll!.color_code}`} />
-          {roll!.composition_description && (
-            <div className="col-span-2">
-              <LabelRow label="التركيب" value={roll!.composition_description} />
+          {(roll!.gsm != null || roll!.mad_m != null) && (
+            <div className="col-span-2 grid grid-cols-2 gap-x-3">
+              {roll!.gsm != null && <LabelRow label="GSM" value={`${roll!.gsm} جرام`} />}
+              {roll!.mad_m != null && <LabelRow label="المد" value={`${roll!.mad_m} متر`} />}
             </div>
           )}
         </div>

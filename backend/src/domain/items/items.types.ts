@@ -94,7 +94,8 @@ export type DamageContext = {
 
 export type RollWithLabelDetails = RollWithDetails & {
   grade_arabic_name: string | null;
-  composition_description: string | null;
+  gsm: number | null;
+  mad_m: number | null;
   brand_arabic_name: string | null;
   brand_product_line: string | null;
   supplier_arabic_name: string | null;

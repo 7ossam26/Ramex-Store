@@ -251,7 +251,8 @@ export type RollLookup = {
   // Phase 5 enriched label fields — optional, may be null on legacy rolls
   width_cm?: number | null;
   grade_arabic_name?: string | null;
-  composition_description?: string | null;
+  gsm?: number | null;
+  mad_m?: number | null;
   brand_arabic_name?: string | null;
   brand_product_line?: string | null;
   supplier_arabic_name?: string | null;

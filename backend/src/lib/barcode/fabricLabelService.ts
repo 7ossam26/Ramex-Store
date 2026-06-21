@@ -117,8 +117,12 @@ function buildLabelContent(
     : null;
   content.push(twoColRow('العرض', roll.width_cm ? `${roll.width_cm} سم` : null, 'اللون', colorDisplay, fs));
 
-  // Composition
-  content.push(row('التركيب', roll.composition_description, fs));
+  // GSM + المد
+  content.push(twoColRow(
+    'GSM', roll.gsm != null ? `${roll.gsm} جرام` : null,
+    'المد', roll.mad_m != null ? `${roll.mad_m} متر` : null,
+    fs,
+  ));
 
   // Roll SR
   if (roll.roll_sr_no) {
