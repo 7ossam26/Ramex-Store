@@ -119,9 +119,7 @@ function buildLabelContent(
   content.push(twoColRow('الصنف', rtl(roll.fabric_name_ar), 'الدرجة', rtl(roll.grade_arabic_name), fs));
 
   // Width | Color name + code
-  const colorDisplay = roll.color_name_ar
-    ? `${rtl(roll.color_name_ar)}${roll.color_code ? ` ${roll.color_code}` : ''}`
-    : null;
+  const colorDisplay = roll.color_name_ar ? rtl(roll.color_name_ar) : null;
   content.push(twoColRow('العرض', roll.width_cm ? `${roll.width_cm} سم` : null, 'اللون', colorDisplay, fs));
 
   // GSM + المد

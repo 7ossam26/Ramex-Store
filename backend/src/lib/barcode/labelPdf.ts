@@ -115,9 +115,8 @@ function buildOneLabelContent(
 
   const fabricName = has('fabric_name') ? roll.fabric_name_ar : '';
   const colorName = has('color_name') ? roll.color_name_ar : '';
-  const colorCode = has('color_code') ? roll.color_code : '';
   const fabricDisplay = rtl(fabricName) || 'توب قماش';
-  const colorDisplay = [rtl(colorName) || null, colorCode || null].filter(Boolean).join(' / ');
+  const colorDisplay = rtl(colorName) || null;
 
   // pdfmake renders Arabic words in source order (no bidi pass), so multi-word
   // labels must be written with words reversed to read correctly RTL.
