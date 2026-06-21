@@ -36,6 +36,13 @@ async function barcodeDataUrl(text: string): Promise<string> {
 
 type PdfRow = Record<string, unknown>;
 
+// pdfmake has no bidi pass — Arabic words render in source (LTR) order.
+// Reversing word order makes multi-word Arabic strings display correctly RTL.
+function rtl(text: string | null | undefined): string | null {
+  if (!text) return null;
+  return text.trim().split(/\s+/).reverse().join(' ');
+}
+
 function row(label: string, value: string | number | null | undefined, fontSize = 8): PdfRow | null {
   if (value == null || value === '') return null;
   return {
@@ -83,8 +90,8 @@ function buildLabelContent(
   // Header: brand + product_line
   if (roll.brand_arabic_name) {
     const brandText = roll.brand_product_line
-      ? `${roll.brand_arabic_name} — ${roll.brand_product_line}`
-      : roll.brand_arabic_name;
+      ? `${rtl(roll.brand_arabic_name)} — ${rtl(roll.brand_product_line)}`
+      : rtl(roll.brand_arabic_name);
     content.push({
       text: brandText,
       fontSize: fsBig,
@@ -97,7 +104,7 @@ function buildLabelContent(
   // Supplier name
   if (roll.supplier_arabic_name) {
     content.push({
-      text: roll.supplier_arabic_name,
+      text: rtl(roll.supplier_arabic_name),
       fontSize: fs - 1,
       alignment: 'right',
       color: '#555',
@@ -109,11 +116,11 @@ function buildLabelContent(
   content.push(twoColRow('أمر', roll.supplier_order_no, 'التوب', roll.top_number, fs));
 
   // Item name | Grade
-  content.push(twoColRow('الصنف', roll.fabric_name_ar, 'الدرجة', roll.grade_arabic_name, fs));
+  content.push(twoColRow('الصنف', rtl(roll.fabric_name_ar), 'الدرجة', rtl(roll.grade_arabic_name), fs));
 
   // Width | Color name + code
   const colorDisplay = roll.color_name_ar
-    ? `${roll.color_name_ar}${roll.color_code ? ` ${roll.color_code}` : ''}`
+    ? `${rtl(roll.color_name_ar)}${roll.color_code ? ` ${roll.color_code}` : ''}`
     : null;
   content.push(twoColRow('العرض', roll.width_cm ? `${roll.width_cm} سم` : null, 'اللون', colorDisplay, fs));
 
@@ -154,7 +161,7 @@ function buildLabelContent(
   // Warning text
   if (roll.supplier_arabic_warning_text) {
     content.push({
-      text: roll.supplier_arabic_warning_text,
+      text: rtl(roll.supplier_arabic_warning_text),
       fontSize: fs - 1,
       alignment: 'right',
       color: '#444',
