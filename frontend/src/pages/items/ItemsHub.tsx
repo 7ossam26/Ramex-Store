@@ -1,4 +1,4 @@
-import { PlusCircle, Boxes, Tags, Layers } from 'lucide-react';
+import { PlusCircle, Boxes, Tags, Layers, Palette } from 'lucide-react';
 import { HubLanding, type HubCard } from '@/components/Layout/HubLanding';
 import { ar } from '@/i18n/ar';
 
@@ -20,6 +20,12 @@ const cards: HubCard[] = [
     description: ar.hubs.inventoryFabricsDesc,
     href: '/items/fabrics',
     icon: Layers,
+  },
+  {
+    label: ar.colors.title,
+    description: ar.hubs.itemsColorsDesc,
+    href: '/items/colors',
+    icon: Palette,
   },
   {
     label: ar.labels.title,

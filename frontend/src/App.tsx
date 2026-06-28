@@ -41,6 +41,7 @@ import { LabelsPage } from './pages/items/Labels';
 import { RollsPage } from './pages/items/Rolls';
 import { AddTopPage } from './pages/items/AddTop';
 import { ItemsHubPage } from './pages/items/ItemsHub';
+import { ColorsPage } from './pages/items/Colors';
 import { NotificationsPage } from './pages/notifications/NotificationsPage';
 import { ReportsHubPage } from './pages/reports/ReportsHub';
 import { SettingsPage } from './pages/settings/SettingsPage';
@@ -137,6 +138,7 @@ export function App() {
                 <Route path="/items/fabrics" element={<PermGate resource="fabric_rolls"><FabricsPage /></PermGate>} />
                 <Route path="/items/labels" element={<PermGate resource="fabric_rolls"><LabelsPage /></PermGate>} />
                 <Route path="/items/tops/add" element={<PermGate resource="fabric_rolls"><AddTopPage /></PermGate>} />
+                <Route path="/items/colors" element={<PermGate resource="fabric_rolls"><ColorsPage /></PermGate>} />
 
                 <Route path="/inventory" element={<PermGate resource="inventory"><InventoryHubPage /></PermGate>} />
                 <Route path="/inventory/stock" element={<PermGate resource="inventory"><StockViewPage /></PermGate>} />

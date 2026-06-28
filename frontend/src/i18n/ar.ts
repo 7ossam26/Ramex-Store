@@ -65,6 +65,7 @@ export const ar = {
     itemsAddTopDesc: 'تسجيل توب جديد بكل بياناته وتوليد الباركود',
     itemsRollsDesc: 'بحث وتصفية كل الاتواب بحسب الخامة واللون والحالة',
     itemsLabelsDesc: 'إعادة طباعة ملصقات الاتواب الفردية',
+    itemsColorsDesc: 'كتالوج الألوان المستخدمة في الاتواب',
     inventoryTitle: 'المخزون',
     inventoryDescription: 'الخامات، حركات المخزون، الجرد، التسويات، التلف والفقد',
     inventoryFabricsDesc: 'كتالوج الخامات (الاسم، الجودة، التركيب، العرض)',
@@ -144,6 +145,20 @@ export const ar = {
     gsmUnit: 'جرام',
     mad: 'المد',
     madUnit: 'متر',
+  },
+  colors: {
+    title: 'الألوان',
+    addColor: 'إضافة لون',
+    edit: 'تعديل',
+    delete: 'حذف',
+    restore: 'تفعيل',
+    createTitle: 'إضافة لون جديد',
+    editTitle: 'تعديل اللون',
+    nameAr: 'اسم اللون',
+    code: 'الكود',
+    englishName: 'الاسم بالإنجليزي',
+    isActive: 'نشط',
+    confirmDelete: 'تأكيد تعطيل هذا اللون؟',
   },
   lots: {
     title: 'اللوطات',
@@ -1047,7 +1062,6 @@ export const ar = {
     fabricCodes: {
       tabs: {
         grades: 'الدرجات',
-        colors: 'الألوان',
         compositions: 'التركيبات',
         brands: 'الماركات',
         suppliers: 'الموردين',

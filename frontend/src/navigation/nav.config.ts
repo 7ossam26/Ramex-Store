@@ -36,6 +36,7 @@ import {
   Layers,
   List,
   Package,
+  Palette,
   PieChart,
   Plus,
   PlusCircle,
@@ -148,6 +149,13 @@ export const NAV: NavTop[] = [
             descAr: 'كتالوج الخامات (الاسم، الجودة، التركيب، العرض)',
             icon: Layers,
             route: '/items/fabrics',
+          },
+          {
+            id: 'items.colors',
+            labelAr: 'الألوان',
+            descAr: 'كتالوج الألوان المستخدمة في الاتواب',
+            icon: Palette,
+            route: '/items/colors',
           },
           {
             id: 'items.labels',

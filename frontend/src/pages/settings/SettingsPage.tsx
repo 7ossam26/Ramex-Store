@@ -15,7 +15,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { ar } from '@/i18n/ar';
 import { settingsApi, permissionsApi, usersApi, adminApi } from '@/lib/settings-api';
-import { codesApi, type CodeGrade, type CodeComposition, type CodeBrand, type CodeSupplier, type CodeColor } from '@/lib/codes-api';
+import { codesApi, type CodeGrade, type CodeComposition, type CodeBrand, type CodeSupplier } from '@/lib/codes-api';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import { isOwnerOrAbove, isSuperAdmin } from '@/lib/roles';
@@ -852,10 +852,10 @@ function ReasonCodesSection({ settings, onSave, notifySaved }: SectionProps) {
 
 // ─── Section: Fabric Codes ──────────────────────────────────────────────────
 
-type CodeTab = 'grades' | 'colors' | 'compositions' | 'brands' | 'suppliers';
+type CodeTab = 'grades' | 'compositions' | 'brands' | 'suppliers';
 
 function TabsBar({ tab, onChange }: { tab: CodeTab; onChange: (v: CodeTab) => void }) {
-  const tabs: CodeTab[] = ['grades', 'colors', 'compositions', 'brands', 'suppliers'];
+  const tabs: CodeTab[] = ['grades', 'compositions', 'brands', 'suppliers'];
   return (
     <div className="relative flex gap-1 border-b border-border-subtle">
       {tabs.map((t) => (
@@ -971,100 +971,6 @@ function GradesTab({ notifySaved }: { notifySaved: () => void }) {
           </FieldRow>
           <div className="flex gap-2 pt-1">
             <Button size="sm" onClick={() => createMut.mutate()} disabled={!form.arabic_name || createMut.isPending}>
-              {ar.common.save}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => { setAddOpen(false); setErr(null); }}>
-              {ar.common.cancel}
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>{ar.settings.fabricCodes.add}</Button>
-      )}
-    </div>
-  );
-}
-
-function ColorsTab({ notifySaved }: { notifySaved: () => void }) {
-  const qc = useQueryClient();
-  const { data: items = [], isLoading } = useQuery({
-    queryKey: ['codes-colors-all'],
-    queryFn: codesApi.listAllColors,
-  });
-  const [form, setForm] = useState({ name_ar: '', english_name: '' });
-  const [addOpen, setAddOpen] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  function invalidateAll() {
-    qc.invalidateQueries({ queryKey: ['codes-colors-all'] });
-    qc.invalidateQueries({ queryKey: ['codes-colors'] });
-    qc.invalidateQueries({ queryKey: ['colors'] });
-    qc.invalidateQueries({ queryKey: ['colors-list'] });
-  }
-
-  const createMut = useMutation({
-    mutationFn: () =>
-      codesApi.create('colors', {
-        name_ar: form.name_ar.trim(),
-        english_name: form.english_name.trim() || null,
-      }),
-    onSuccess: () => {
-      invalidateAll();
-      setForm({ name_ar: '', english_name: '' });
-      setAddOpen(false);
-      setErr(null);
-      notifySaved();
-    },
-    onError: (e) => setErr(extractApiError(e)),
-  });
-
-  const toggleMut = useMutation({
-    mutationFn: (item: CodeColor) =>
-      item.is_active ? codesApi.deactivate('colors', item.id) : codesApi.restore('colors', item.id),
-    onSuccess: () => {
-      invalidateAll();
-      setErr(null);
-      notifySaved();
-    },
-    onError: (e) => setErr(extractApiError(e)),
-  });
-
-  if (isLoading) return <CodesTableSkeleton />;
-  return (
-    <div className="space-y-4">
-      {err && <SaveErrorBanner message={err} onDismiss={() => setErr(null)} />}
-      <div className="rounded-lg border border-border-subtle overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-surface-row-alt text-foreground-muted">
-            <tr>
-              <th className="py-2.5 px-3 text-start font-medium">{ar.settings.fabricCodes.arabicName}</th>
-              <th className="py-2.5 px-3 text-start font-medium">{ar.settings.fabricCodes.englishName}</th>
-              <th className="py-2.5 px-3 text-center font-medium w-20">{ar.settings.fabricCodes.isActive}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border-subtle bg-surface-elevated">
-            {items.map((item, i) => (
-              <tr key={item.id} className={cn('hover:bg-surface-hover transition-colors duration-150', i % 2 === 1 && 'bg-surface-row-alt/40')}>
-                <td className="py-2 px-3 text-foreground">{item.name_ar}</td>
-                <td className="py-2 px-3 text-foreground-muted">{item.english_name ?? '—'}</td>
-                <td className="py-2 px-3 text-center">
-                  <Toggle checked={item.is_active} onChange={() => toggleMut.mutate(item)} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {addOpen ? (
-        <div className="rounded-lg border border-border-subtle bg-surface p-4 space-y-3">
-          <FieldRow label={ar.settings.fabricCodes.arabicName}>
-            <TextInput value={form.name_ar} onChange={(v) => setForm({ ...form, name_ar: v })} />
-          </FieldRow>
-          <FieldRow label={ar.settings.fabricCodes.englishName}>
-            <TextInput value={form.english_name} onChange={(v) => setForm({ ...form, english_name: v })} />
-          </FieldRow>
-          <div className="flex gap-2 pt-1">
-            <Button size="sm" onClick={() => createMut.mutate()} disabled={!form.name_ar || createMut.isPending}>
               {ar.common.save}
             </Button>
             <Button size="sm" variant="outline" onClick={() => { setAddOpen(false); setErr(null); }}>
@@ -1378,7 +1284,6 @@ function FabricCodesSection({ notifySaved }: { notifySaved: () => void }) {
     <div className="space-y-5">
       <TabsBar tab={tab} onChange={setTab} />
       {tab === 'grades' && <GradesTab notifySaved={notifySaved} />}
-      {tab === 'colors' && <ColorsTab notifySaved={notifySaved} />}
       {tab === 'compositions' && <CompositionsTab notifySaved={notifySaved} />}
       {tab === 'brands' && <BrandsTab notifySaved={notifySaved} />}
       {tab === 'suppliers' && <SuppliersTab notifySaved={notifySaved} />}
