@@ -207,7 +207,7 @@ export type ColorRef =
 
 export type TopRollEntry = {
   color: ColorRef;
-  weight_kg: number;
+  weight_kg?: number;
   width_cm: number;
   length_m?: number | null;
   lot_id?: number | null;

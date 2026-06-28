@@ -21,7 +21,7 @@ const ColorRefSchema = z.union([
 
 const TopRollEntrySchema = z.object({
   color: ColorRefSchema,
-  weight_kg: z.number().positive(),
+  weight_kg: z.number().positive().optional(),
   length_m: z.number().positive().nullable().optional(),
   lot_id: z.number().int().positive().nullable().optional(),
   roll_sr_no: z.string().max(32).nullable().optional(),

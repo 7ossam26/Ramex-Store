@@ -93,7 +93,7 @@ export async function createTopBatch(
         fabric_id: fabric.id,
         color_id: color.id,
         lot_id: entry.lot_id ?? null,
-        weight_kg: entry.weight_kg,
+        weight_kg: entry.weight_kg ?? null,
         length_m: entry.length_m ?? null,
         warehouse: 'factory',
         status: 'in_stock',

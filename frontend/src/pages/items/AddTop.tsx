@@ -94,9 +94,11 @@ function validateRow(row: RollRowState, isMeter: boolean): RollErrors {
   const w = Number(row.width_cm);
   if (!row.width_cm || !Number.isFinite(w) || w <= 0)
     errors.width_cm = ar.addTop.errors.widthCmRequired;
-  const wt = Number(row.weight_kg);
-  if (!row.weight_kg || !Number.isFinite(wt) || wt <= 0)
-    errors.weight_kg = ar.addTop.errors.weightRequired;
+  if (!isMeter) {
+    const wt = Number(row.weight_kg);
+    if (!row.weight_kg || !Number.isFinite(wt) || wt <= 0)
+      errors.weight_kg = ar.addTop.errors.weightRequired;
+  }
   if (isMeter) {
     const l = Number(row.length_m);
     if (!row.length_m || !Number.isFinite(l) || l <= 0)
@@ -594,25 +596,27 @@ function FabricSubGroup({
                       {rowErrors.width_cm && <p className="text-sm text-danger-foreground mt-1">{rowErrors.width_cm}</p>}
                     </div>
 
-                    {/* Weight kg */}
-                    <div className="space-y-2">
-                      <Label className="text-base font-semibold text-foreground">{ar.addTop.colWeightKg}</Label>
-                      <Input
-                        type="number"
-                        inputMode="decimal"
-                        step="0.1"
-                        min="0"
-                        dir="ltr"
-                        className={['h-12 text-base', rowErrors.weight_kg ? 'border-danger-foreground ring-1 ring-danger-foreground' : ''].join(' ')}
-                        value={row.weight_kg}
-                        placeholder={prevRow?.weight_kg || ar.addTop.weightPlaceholder}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(',', '.');
-                          onRowChange(row.uid, { weight_kg: val });
-                        }}
-                      />
-                      {rowErrors.weight_kg && <p className="text-sm text-danger-foreground mt-1">{rowErrors.weight_kg}</p>}
-                    </div>
+                    {/* Weight kg — kg-fabric only */}
+                    {!isMeter && (
+                      <div className="space-y-2">
+                        <Label className="text-base font-semibold text-foreground">{ar.addTop.colWeightKg}</Label>
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          step="0.1"
+                          min="0"
+                          dir="ltr"
+                          className={['h-12 text-base', rowErrors.weight_kg ? 'border-danger-foreground ring-1 ring-danger-foreground' : ''].join(' ')}
+                          value={row.weight_kg}
+                          placeholder={prevRow?.weight_kg || ar.addTop.weightPlaceholder}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(',', '.');
+                            onRowChange(row.uid, { weight_kg: val });
+                          }}
+                        />
+                        {rowErrors.weight_kg && <p className="text-sm text-danger-foreground mt-1">{rowErrors.weight_kg}</p>}
+                      </div>
+                    )}
 
                     {/* Length m — meter-fabric only */}
                     {isMeter && (
@@ -700,7 +704,7 @@ export function AddTopPage() {
         const isMeter = fabric.unit === 'meter';
         const rolls = g.rows.map((r) => ({
           color: { id: r.colorId! },
-          weight_kg: Number(r.weight_kg),
+          ...(!isMeter ? { weight_kg: Number(r.weight_kg) } : {}),
           width_cm: Number(r.width_cm),
           ...(isMeter ? { length_m: Number(r.length_m) } : {}),
           lot_id: r.lot_id ?? null,
@@ -840,17 +844,19 @@ export function AddTopPage() {
     let weight = 0;
     let length = 0;
     let hasMeter = false;
+    let hasKg = false;
     for (const g of groups) {
       const fabric = fabricsFull.find((f) => f.id === g.fabricId);
       const isMeter = fabric?.unit === 'meter';
       if (isMeter) hasMeter = true;
+      else hasKg = true;
       for (const r of g.rows) {
         rolls++;
-        weight += num(r.weight_kg) ?? 0;
+        if (!isMeter) weight += num(r.weight_kg) ?? 0;
         if (isMeter) length += num(r.length_m) ?? 0;
       }
     }
-    return { rolls, weight, length, hasMeter };
+    return { rolls, weight, length, hasMeter, hasKg };
   }, [groups, fabricsFull]);
 
   // ----- PDF helpers -----
@@ -876,7 +882,9 @@ export function AddTopPage() {
                 <div key={r.id} className="border border-border-subtle rounded-md p-3 bg-surface-elevated space-y-2">
                   <div className="flex items-baseline justify-between text-xs text-foreground-muted">
                     <span>{ar.addTop.rollIndexPrefix} {i + 1}</span>
-                    <span dir="ltr" className="tabular-num">{Number(r.weight_kg).toFixed(3)} kg</span>
+                    <span dir="ltr" className="tabular-num">
+                      {r.length_m ? `${Number(r.length_m).toFixed(2)} م` : `${Number(r.weight_kg).toFixed(3)} kg`}
+                    </span>
                   </div>
                   <div className="text-sm">
                     <div className="font-medium text-foreground">{r.fabric_name_ar}</div>
@@ -938,7 +946,7 @@ export function AddTopPage() {
                         <th className="py-2 px-3 text-start font-medium">#</th>
                         <th className="py-2 px-3 text-start font-medium">{ar.addTop.colColor}</th>
                         <th className="py-2 px-3 text-start font-medium">{ar.addTop.colWidthCm}</th>
-                        <th className="py-2 px-3 text-start font-medium">{ar.addTop.colWeightKg}</th>
+                        {!isMeter && <th className="py-2 px-3 text-start font-medium">{ar.addTop.colWeightKg}</th>}
                         {isMeter && <th className="py-2 px-3 text-start font-medium">{ar.addTop.colLengthM}</th>}
                         <th className="py-2 px-3 text-start font-medium">{ar.addTop.colLot}</th>
                       </tr>
@@ -951,7 +959,7 @@ export function AddTopPage() {
                             <td className="py-2 px-3 text-foreground-muted">{idx + 1}</td>
                             <td className="py-2 px-3 text-foreground">{color?.name_ar ?? '—'}</td>
                             <td className="py-2 px-3 text-foreground tabular-num" dir="ltr">{row.width_cm}</td>
-                            <td className="py-2 px-3 text-foreground tabular-num font-medium" dir="ltr">{row.weight_kg}</td>
+                            {!isMeter && <td className="py-2 px-3 text-foreground tabular-num font-medium" dir="ltr">{row.weight_kg}</td>}
                             {isMeter && <td className="py-2 px-3 text-foreground tabular-num" dir="ltr">{row.length_m}</td>}
                             <td className="py-2 px-3 text-foreground-muted">{row.lot_no ?? '—'}</td>
                           </tr>
@@ -968,7 +976,7 @@ export function AddTopPage() {
         {/* Summary totals */}
         <div className="rounded-lg border border-border-subtle bg-surface-elevated px-5 py-3 flex flex-wrap gap-4 text-sm text-foreground-muted" dir="rtl">
           <span>{ar.addTop.totalCount}: <span className="font-mono font-medium text-foreground">{totals.rolls}</span></span>
-          <span>{ar.addTop.totalWeight}: <span className="font-mono font-medium text-foreground" dir="ltr">{totals.weight.toFixed(3)} kg</span></span>
+          {totals.hasKg && <span>{ar.addTop.totalWeight}: <span className="font-mono font-medium text-foreground" dir="ltr">{totals.weight.toFixed(3)} kg</span></span>}
           {totals.hasMeter && (
             <span>{ar.addTop.totalLength}: <span className="font-mono font-medium text-foreground" dir="ltr">{totals.length.toFixed(2)} م</span></span>
           )}
