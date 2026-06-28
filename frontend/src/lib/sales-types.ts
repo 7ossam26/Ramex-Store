@@ -126,7 +126,7 @@ export type InvoiceLineDetail = {
   color_name_ar: string;
   color_code: string | null;
   roll_sr_no: string | null;
-  weight_kg: string;
+  weight_kg: string | null;
   length_m: string | null;
   reference_price_per_unit: string | null;
   internal_barcode: string;
@@ -241,7 +241,7 @@ export type RollLookup = {
   color_name_ar: string;
   color_code: string;
   roll_sr_no: string | null;
-  weight_kg: string;
+  weight_kg: string | null;
   length_m: string | null;
   reference_price_per_unit: string | null;
   selling_price_egp: string | null;

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
+import { rollQtyLabel } from '@/lib/fabric-unit';
 import { extractApiError } from '@/lib/api-error';
 import { salesApi } from '@/lib/sales-api';
 import { returnsApi } from '@/lib/returns-api';
@@ -251,7 +252,7 @@ export function InvoiceDetailPage() {
                 <tr key={l.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
                   <td className="px-3 py-2.5 text-foreground">{l.fabric_name_ar} / {l.color_name_ar}</td>
                   <td className="rmx-print-code px-3 py-2.5 font-mono text-xs tabular-num" dir="ltr">{l.roll_sr_no ?? l.internal_barcode}</td>
-                  <td className="px-3 py-2.5 tabular-num" dir="ltr">{Number(l.weight_kg).toFixed(3)}</td>
+                  <td className="px-3 py-2.5 tabular-num" dir="ltr">{rollQtyLabel(l.weight_kg, l.length_m)}</td>
                   <td className="px-3 py-2.5 tabular-num" dir="ltr">{fmtMoney(l.selling_price_egp)}</td>
                   <td className="px-3 py-2.5 tabular-num" dir="ltr">{fmtMoney(l.line_discount_egp)}</td>
                   <td className="px-3 py-2.5 font-medium tabular-num" dir="ltr">{fmtMoney(l.line_total_egp)}</td>
@@ -1304,7 +1305,7 @@ function ReturnModal({
                           />
                         </td>
                         <td className="px-2 py-2 text-foreground">{l.fabric_name_ar} / {l.color_name_ar}</td>
-                        <td className="px-2 py-2 tabular-num" dir="ltr">{Number(l.weight_kg).toFixed(3)}</td>
+                        <td className="px-2 py-2 tabular-num" dir="ltr">{rollQtyLabel(l.weight_kg, l.length_m)}</td>
                         <td className="px-2 py-2">
                           <input
                             type="number" inputMode="numeric"

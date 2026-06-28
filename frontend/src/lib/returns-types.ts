@@ -29,7 +29,8 @@ export type ReturnLineRow = {
   color_name_ar: string;
   color_code: string | null;
   roll_sr_no: string | null;
-  weight_kg: string;
+  weight_kg: string | null;
+  length_m: string | null;
   internal_barcode: string;
 };
 

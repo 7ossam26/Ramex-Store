@@ -10,3 +10,9 @@ export function priceUnitLabel(input: FabricUnit | { unit: FabricUnit }): string
 export function quantityUnitLabel(input: FabricUnit | { unit: FabricUnit }): string {
   return priceUnitLabel(input);
 }
+
+export function rollQtyLabel(weight_kg: string | null, length_m: string | null): string {
+  if (weight_kg != null) return `${Number(weight_kg).toFixed(3)} kg`;
+  if (length_m != null) return `${Number(length_m).toFixed(2)} م`;
+  return '—';
+}

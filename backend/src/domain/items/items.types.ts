@@ -63,7 +63,7 @@ export type Roll = {
   grade_id: number | null;
   composition_id: number | null;
   brand_id: number | null;
-  weight_kg: string;
+  weight_kg: string | null;
   length_m: string | null;
   lot_id: number | null;
   reference_price_per_unit: string | null;

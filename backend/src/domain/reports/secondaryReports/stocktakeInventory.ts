@@ -35,7 +35,7 @@ export async function getStocktakeInventory(): Promise<StocktakeSummary> {
       'r.weight_kg',
       'r.status',
       'r.selling_price_egp',
-      db.raw('r.weight_kg * r.selling_price_egp as valuation_egp'),
+      db.raw('COALESCE(r.weight_kg, 0) * COALESCE(r.selling_price_egp, 0) as valuation_egp'),
     );
 
   const mapped: StocktakeRow[] = rows.map((r: Record<string, unknown>) => ({
@@ -44,7 +44,7 @@ export async function getStocktakeInventory(): Promise<StocktakeSummary> {
     color_name_ar: String(r['color_name_ar']),
     roll_sr_no: r['roll_sr_no'] as string | null,
     internal_barcode: String(r['internal_barcode']),
-    weight_kg: Number(r['weight_kg']).toFixed(3),
+    weight_kg: Number(r['weight_kg'] ?? 0).toFixed(3),
     status: String(r['status']),
     selling_price_egp: Number(r['selling_price_egp']).toFixed(2),
     valuation_egp: Number(r['valuation_egp']).toFixed(2),

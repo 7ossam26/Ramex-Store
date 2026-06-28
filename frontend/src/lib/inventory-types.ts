@@ -50,7 +50,7 @@ export type ShipmentLineDetail = {
   fabric_unit: FabricUnit;
   color_name_ar: string;
   color_code: string;
-  weight_kg: string;
+  weight_kg: string | null;
   length_m: string | null;
   reference_price_per_unit: string | null;
   internal_barcode: string;
@@ -59,7 +59,9 @@ export type ShipmentLineDetail = {
 export type FactoryRollPick = {
   id: number;
   internal_barcode: string;
-  weight_kg: string;
+  weight_kg: string | null;
+  length_m: string | null;
+  fabric_unit: 'kg' | 'meter';
   fabric_id: number;
   color_id: number;
   fabric_name_ar: string;
@@ -231,7 +233,7 @@ export type CreatedTopRoll = {
   fabric_id: number;
   color_id: number;
   lot_id: number | null;
-  weight_kg: string;
+  weight_kg: string | null;
   length_m: string | null;
   selling_price_egp: string | null;
   status: string;

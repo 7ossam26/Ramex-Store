@@ -374,7 +374,9 @@ export async function getShipment(id: number): Promise<ShipmentWithLines | undef
 export async function listFactoryRolls(filters: ListFactoryRollsQueryInput): Promise<Array<{
   id: number;
   internal_barcode: string;
-  weight_kg: string;
+  weight_kg: string | null;
+  length_m: string | null;
+  fabric_unit: string;
   fabric_id: number;
   color_id: number;
   fabric_name_ar: string;
@@ -400,8 +402,10 @@ export async function listFactoryRolls(filters: ListFactoryRollsQueryInput): Pro
       'r.id',
       'r.internal_barcode',
       'r.weight_kg',
+      'r.length_m',
       'r.fabric_id',
       'r.color_id',
+      'f.unit as fabric_unit',
       'f.name_ar as fabric_name_ar',
       'c.name_ar as color_name_ar',
       'c.code as color_code',

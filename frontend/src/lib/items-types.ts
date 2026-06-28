@@ -12,7 +12,8 @@ export type RollWithDetails = {
   grade_id: number | null;
   composition_id: number | null;
   brand_id: number | null;
-  weight_kg: string;
+  weight_kg: string | null;
+  length_m: string | null;
   selling_price_egp: string;
   status: string;
   warehouse: string;
@@ -20,6 +21,7 @@ export type RollWithDetails = {
   received_at: string | null;
   fabric_code: string;
   fabric_name_ar: string;
+  fabric_unit: 'kg' | 'meter';
   color_name_ar: string;
   color_code: string;
   created_at: string;

@@ -57,7 +57,7 @@ export async function getAgingInventory(): Promise<AgingInventoryResult> {
     color_name_ar: String(r['color_name_ar']),
     warehouse: WAREHOUSE_LABELS[String(r['warehouse'])] ?? String(r['warehouse']),
     roll_sr_no: String(r['roll_sr_no'] ?? ''),
-    weight_kg: Number(r['weight_kg']).toFixed(3),
+    weight_kg: Number(r['weight_kg'] ?? 0).toFixed(3),
     age_days: Number(r['age_days']),
     bucket: ageBucket(Number(r['age_days'])),
   }));

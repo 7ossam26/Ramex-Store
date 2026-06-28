@@ -6,6 +6,7 @@ import { itemsApi } from '@/lib/items-api';
 import { inventoryApi } from '@/lib/inventory-api';
 import { openPdfBlob } from '@/lib/pdf';
 import type { RollWithDetails } from '@/lib/items-types';
+import { rollQtyLabel } from '@/lib/fabric-unit';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -271,7 +272,7 @@ export function LabelsPage() {
     {
       key: 'weight',
       header: ar.labels.weight,
-      cell: (r) => <span className="tabular-num" dir="ltr">{Number(r.weight_kg).toFixed(3)} kg</span>,
+      cell: (r) => <span className="tabular-num" dir="ltr">{rollQtyLabel(r.weight_kg, r.length_m)}</span>,
     },
     {
       key: 'status',

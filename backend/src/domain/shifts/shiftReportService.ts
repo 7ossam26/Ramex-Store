@@ -205,7 +205,7 @@ export async function shiftReportService(shiftId: number): Promise<DailyReport> 
     fabric_name_ar: String(r['fabric_name_ar']),
     color_name_ar: String(r['color_name_ar']),
     roll_sr_no: r['roll_sr_no'] as string | null,
-    weight_kg: Number(r['weight_kg']).toFixed(3),
+    weight_kg: Number(r['weight_kg'] ?? 0).toFixed(3),
     revenue_egp: fmtEgp(r['revenue_egp'] as string),
   }));
 

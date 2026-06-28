@@ -1,6 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
+import { rollQtyLabel } from '@/lib/fabric-unit';
 import { returnsApi } from '@/lib/returns-api';
 import type { ReturnDetail } from '@/lib/returns-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -106,7 +107,7 @@ export function ReturnDetailPage() {
                         <td className="px-3 py-2.5 font-mono text-xs tabular-num" dir="ltr">
                           {l.roll_sr_no ?? l.internal_barcode}
                         </td>
-                        <td className="px-3 py-2.5 tabular-num" dir="ltr">{Number(l.weight_kg).toFixed(3)}</td>
+                        <td className="px-3 py-2.5 tabular-num" dir="ltr">{rollQtyLabel(l.weight_kg, l.length_m)}</td>
                         <td className="px-3 py-2.5">
                           <StatusPill tone={l.roll_disposition === 'back_to_stock' ? 'success' : 'danger'}>
                             {l.roll_disposition === 'back_to_stock'

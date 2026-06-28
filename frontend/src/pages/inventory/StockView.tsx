@@ -17,6 +17,7 @@ import { FilterChip } from '@/components/FilterChip';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { KpiGrid } from '@/components/dashboard/KpiGrid';
 import { EGP, fmtMoney, fmtWeight, num } from '@/components/dashboard/format';
+import { rollQtyLabel } from '@/lib/fabric-unit';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -126,7 +127,7 @@ function BarcodeModal({
           )}
           <div>
             <span className="text-foreground-muted">الوزن: </span>
-            <span dir="ltr" className="tabular-num">{fmtWeight(num(roll.weight_kg))} kg</span>
+            <span dir="ltr" className="tabular-num">{rollQtyLabel(roll.weight_kg, roll.length_m)}</span>
           </div>
         </div>
 
@@ -303,7 +304,7 @@ function RollDetailsPanel({ row }: { row: StockSummaryRow }) {
                   </td>
                   <td className="px-3 py-2 text-foreground-muted">{r.roll_sr_no ?? '—'}</td>
                   <td className="px-3 py-2 text-end tabular-num" dir="ltr">
-                    {fmtWeight(num(r.weight_kg))}
+                    {rollQtyLabel(r.weight_kg, r.length_m)}
                   </td>
                   <td className="px-3 py-2 text-end tabular-num" dir="ltr">
                     {fmtMoney(num(r.selling_price_egp))} {EGP}

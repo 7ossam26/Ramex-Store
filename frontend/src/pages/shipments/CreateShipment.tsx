@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
+import { rollQtyLabel } from '@/lib/fabric-unit';
 import { inventoryApi } from '@/lib/inventory-api';
 import { extractApiError } from '@/lib/api-error';
 import { useAuth } from '@/lib/auth';
@@ -330,7 +331,7 @@ export function CreateShipmentPage() {
                         {r.color_name_ar} ({r.color_code})
                       </td>
                       <td className="tabular-num" dir="ltr">
-                        {r.weight_kg}
+                        {rollQtyLabel(r.weight_kg, r.length_m)}
                       </td>
                       <td>
                         <Button
@@ -387,7 +388,7 @@ export function CreateShipmentPage() {
                       {l.color_name_ar} ({l.color_code})
                     </td>
                     <td className="tabular-num" dir="ltr">
-                      {l.weight_kg}
+                      {rollQtyLabel(l.weight_kg, l.length_m)}
                     </td>
                     <td>
                       <Button

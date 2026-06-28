@@ -121,7 +121,14 @@ function buildOneLabelContent(
   // pdfmake renders Arabic words in source order (no bidi pass), so multi-word
   // labels must be written with words reversed to read correctly RTL.
   const specCells: PdfNode[] = [
-    infoCell('الوزن', has('weight') && roll.weight_kg ? formatWeight(roll.weight_kg) : '—'),
+    infoCell(
+      roll.weight_kg != null ? 'الوزن' : 'الطول',
+      has('weight')
+        ? (roll.weight_kg != null
+            ? formatWeight(roll.weight_kg)
+            : (roll.length_m ? `${Number(roll.length_m).toFixed(2)} م` : '—'))
+        : '—',
+    ),
     infoCell('الخامة كود', has('fabric_code') && roll.fabric_code ? roll.fabric_code : '—'),
     infoCell('العرض', roll.width_cm ? `${roll.width_cm} سم` : '—'),
     infoCell('اللوط رقم', has('lot_no') && roll.lot_no ? roll.lot_no : '—'),
