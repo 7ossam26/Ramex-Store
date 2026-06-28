@@ -36,6 +36,7 @@ export const inventoryApi = {
     api.post<FabricFull>('/fabrics', body).then((r) => r.data),
   updateFabric: (id: number, body: UpdateFabricInput) =>
     api.patch<FabricFull>(`/fabrics/${id}`, body).then((r) => r.data),
+  deleteFabric: (id: number) => api.delete<void>(`/fabrics/${id}`).then((r) => r.data),
 
   // Color catalog (Owner only)
   createColor: (body: { name_ar: string }) =>

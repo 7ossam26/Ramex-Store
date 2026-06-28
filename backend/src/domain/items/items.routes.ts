@@ -17,6 +17,7 @@ itemsRouter.use(requireAuth, requireActiveSession);
 itemsRouter.get('/fabrics', requirePermission('fabric_rolls', 'read'), fabricsCtl.listFabrics);
 itemsRouter.post('/fabrics', requirePermission('fabric_rolls', 'manage'), fabricsCtl.createFabric);
 itemsRouter.patch('/fabrics/:id', requirePermission('fabric_rolls', 'manage'), fabricsCtl.updateFabric);
+itemsRouter.delete('/fabrics/:id', requirePermission('fabric_rolls', 'manage'), fabricsCtl.deleteFabric);
 
 // Colors — same pattern as fabrics.
 itemsRouter.get('/colors', requirePermission('fabric_rolls', 'read'), colorsCtl.listColors);

@@ -12,7 +12,6 @@ export const CreateGradeSchema = z.object({
 
 export const CreateColorCodeSchema = z.object({
   name_ar: z.string().min(1, 'الاسم مطلوب').max(64, 'الاسم طويل جداً'),
-  code: z.string().min(1, 'الكود مطلوب').max(16, 'الكود طويل جداً'),
   english_name: z.string().max(128).nullable().optional(),
 });
 

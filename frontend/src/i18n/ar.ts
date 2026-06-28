@@ -114,6 +114,8 @@ export const ar = {
     title: 'الخامات',
     addFabric: 'إضافة خامة',
     edit: 'تعديل',
+    delete: 'حذف',
+    confirmDelete: 'تأكيد حذف هذه الخامة؟ لا يمكن التراجع.',
     createTitle: 'إضافة خامة جديدة',
     editTitle: 'تعديل بيانات الخامة',
     nameAr: 'اسم الخامة',
@@ -1045,6 +1047,7 @@ export const ar = {
     fabricCodes: {
       tabs: {
         grades: 'الدرجات',
+        colors: 'الألوان',
         compositions: 'التركيبات',
         brands: 'الماركات',
         suppliers: 'الموردين',

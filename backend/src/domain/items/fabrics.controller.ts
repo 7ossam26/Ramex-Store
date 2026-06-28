@@ -31,3 +31,29 @@ export async function updateFabric(req: Request, res: Response): Promise<void> {
     res.status(500).json({ error: err instanceof Error ? err.message : 'internal_error' });
   }
 }
+
+const DELETE_ERR_MAP: Record<string, { status: number; message: string }> = {
+  FABRIC_NOT_FOUND: { status: 404, message: 'الخامة غير موجودة' },
+  FABRIC_IN_USE: {
+    status: 409,
+    message: 'لا يمكن حذف هذه الخامة لأنها مستخدمة في اتواب أو لوطات أو أسعار أو جرد. يمكنك تعطيلها بدلاً من ذلك.',
+  },
+};
+
+export async function deleteFabric(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  try {
+    const before = await svc.getFabric(id);
+    if (!before) { res.status(404).json({ error: 'not_found', message: DELETE_ERR_MAP.FABRIC_NOT_FOUND!.message }); return; }
+    await svc.deleteFabric(id);
+    await auditLog(req, 'delete_fabric', 'fabric', id, before, null, { severity: 'medium' });
+    res.status(204).send();
+  } catch (err) {
+    if (err instanceof Error && DELETE_ERR_MAP[err.message]) {
+      const { status, message } = DELETE_ERR_MAP[err.message]!;
+      res.status(status).json({ error: err.message, message });
+      return;
+    }
+    res.status(500).json({ error: err instanceof Error ? err.message : 'internal_error' });
+  }
+}

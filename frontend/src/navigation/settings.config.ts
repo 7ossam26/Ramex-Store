@@ -58,7 +58,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: 'fabricCodes',
     labelAr: 'كودات الملصقات',
-    descAr: 'الدرجات، التركيبات، الماركات والموردين على ملصقات الاتواب',
+    descAr: 'الدرجات، الألوان، التركيبات، الماركات والموردين على ملصقات الاتواب',
     icon: Hash,
   },
   {

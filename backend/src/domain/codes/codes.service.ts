@@ -1,4 +1,5 @@
 import { db } from '../../db/connection.js';
+import { generateColorCode } from '../items/colors.service.js';
 import { ENTITY_CONFIG, VALID_ENTITIES, type CodeEntityName, type CodeRow, type RollReference } from './codes.types.js';
 import type {
   CreateGradeInput, UpdateGradeInput,
@@ -106,6 +107,9 @@ export async function createCode(
   const payload: Record<string, unknown> = { ...data, created_by_user_id: createdByUserId };
   if (entity === 'compositions' && (data as CreateCompositionInput).breakdown != null) {
     payload.breakdown = JSON.stringify((data as CreateCompositionInput).breakdown);
+  }
+  if (entity === 'colors') {
+    payload.code = await generateColorCode();
   }
   const [{ id }] = await db(table).insert(payload).returning('id');
   return getCode(entity, Number(id)) as Promise<CodeRow>;

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pencil, Plus, X } from 'lucide-react';
+import { Pencil, Plus, Trash2, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
@@ -24,6 +24,7 @@ import {
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { PageShell } from '@/components/Layout/PageShell';
 import { StatusPill } from '@/components/StatusPill';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useAuth } from '@/lib/auth';
 import { isOwnerOrAbove } from '@/lib/roles';
 import { extractApiError } from '@/lib/api-error';
@@ -90,6 +91,8 @@ export function FabricsPage() {
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<FormState>(blank());
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<FabricFull | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [filterUnit, setFilterUnit] = useState<'' | 'kg' | 'meter'>('');
@@ -136,6 +139,20 @@ export function FabricsPage() {
       close();
     },
     onError: (e: unknown) => setErrorMsg(extractApiError(e)),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => inventoryApi.deleteFabric(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['fabrics-full'] });
+      qc.invalidateQueries({ queryKey: ['fabrics'] });
+      setPendingDelete(null);
+      setDeleteError(null);
+    },
+    onError: (e: unknown) => {
+      setDeleteError(extractApiError(e));
+      setPendingDelete(null);
+    },
   });
 
   function buildPayload(): CreateFabricInput | null {
@@ -353,6 +370,12 @@ export function FabricsPage() {
         </span>
       </div>
 
+      {deleteError && (
+        <div role="alert" className="p-3 rounded-md border border-danger/30 bg-danger-subtle text-sm text-danger-foreground">
+          {deleteError}
+        </div>
+      )}
+
       <ResponsiveTable
         columns={columns}
         rows={filtered}
@@ -366,9 +389,20 @@ export function FabricsPage() {
         actions={
           isOwner
             ? (f) => (
-                <Button size="sm" variant="outline" onClick={() => openEdit(f)} aria-label={ar.fabrics.edit}>
-                  <Pencil className="size-4" aria-hidden />
-                </Button>
+                <div className="flex gap-1 justify-end">
+                  <Button size="sm" variant="outline" onClick={() => openEdit(f)} aria-label={ar.fabrics.edit}>
+                    <Pencil className="size-4" aria-hidden />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => { setDeleteError(null); setPendingDelete(f); }}
+                    aria-label={ar.fabrics.delete}
+                    className="text-danger hover:text-danger"
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                  </Button>
+                </div>
               )
             : undefined
         }
@@ -612,6 +646,17 @@ export function FabricsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        message={
+          pendingDelete
+            ? `${ar.fabrics.confirmDelete}\n${pendingDelete.name_ar}`
+            : ''
+        }
+        onConfirm={() => pendingDelete && deleteMut.mutate(pendingDelete.id)}
+        onCancel={() => setPendingDelete(null)}
+      />
     </PageShell>
   );
 }

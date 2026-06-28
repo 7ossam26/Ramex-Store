@@ -35,3 +35,18 @@ export async function updateFabric(id: number, data: UpdateFabricInput): Promise
   await db('fabrics').where({ id }).update(patch);
   return db('fabrics').where({ id }).first();
 }
+
+export async function deleteFabric(id: number): Promise<void> {
+  const fabric = await db('fabrics').where({ id }).first();
+  if (!fabric) throw new Error('FABRIC_NOT_FOUND');
+
+  const [rolls, lots, prices, stocktakeLines] = await Promise.all([
+    db('rolls').where({ fabric_id: id }).first(),
+    db('lots').where({ fabric_id: id }).first(),
+    db('fabric_color_prices').where({ fabric_id: id }).first(),
+    db('stocktake_lines').where({ fabric_id: id }).first(),
+  ]);
+  if (rolls || lots || prices || stocktakeLines) throw new Error('FABRIC_IN_USE');
+
+  await db('fabrics').where({ id }).delete();
+}
