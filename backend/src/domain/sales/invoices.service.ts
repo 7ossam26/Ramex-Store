@@ -7,6 +7,7 @@ import { nextInvoiceNo } from './invoiceNumber.service.js';
 import { backCalculateDiscount, roundEgp } from './discountCalculator.js';
 import { settlePayment } from '../finance/paymentSettlementService.js';
 import type {
+  AccessorySaleLine,
   Cheque,
   CreateSaleInput,
   FulfillmentDestination,
@@ -14,6 +15,7 @@ import type {
   InvoiceDetail,
   InvoiceLineWithDetail,
   Payment,
+  RollSaleLine,
   SalePreview,
 } from './sales.types.js';
 import type { ListChequesQueryInput, ListInvoicesQueryInput, SalePreviewInput } from './sales.schemas.js';
@@ -118,7 +120,7 @@ function rollQuantity(info: RollPricingInfo): number {
 }
 
 function computeTotals(
-  inputLines: CreateSaleInput['lines'],
+  inputLines: RollSaleLine[],
   rollInfo: Map<number, RollPricingInfo>,
   cartTargetFinal: number | null | undefined,
   taxEnabled: boolean,
@@ -196,7 +198,7 @@ function computeTotals(
 
 export async function previewSale(input: SalePreviewInput): Promise<SalePreview> {
   const settings = await readSettings();
-  const rollIds = input.lines.map((l) => l.rollId);
+  const rollIds = input.lines.map((l) => (l as { rollId: number }).rollId);
   const rolls = await db('rolls as r')
     .join('fabrics as f', 'r.fabric_id', 'f.id')
     .whereIn('r.id', rollIds)
@@ -222,7 +224,7 @@ export async function previewSale(input: SalePreviewInput): Promise<SalePreview>
     if (!rollInfo.has(id)) throw new Error('ROLL_NOT_FOUND');
   }
   const t = computeTotals(
-    input.lines as CreateSaleInput['lines'],
+    input.lines as RollSaleLine[],
     rollInfo,
     input.cartTargetFinal,
     settings.taxEnabled,
@@ -251,8 +253,15 @@ export async function createSale(
     const customer = await trx('customers').where({ id: input.customerId }).forUpdate().first();
     if (!customer) throw new Error('CUSTOMER_NOT_FOUND');
 
-    // 2) Lock + validate rolls.
-    const rollIds = input.lines.map((l) => l.rollId);
+    // 2) Split lines into roll lines and accessory lines, then lock + validate rolls.
+    const rollLines = input.lines.filter(
+      (l): l is RollSaleLine => l.type !== 'accessory',
+    );
+    const accessoryLines = input.lines.filter(
+      (l): l is AccessorySaleLine => l.type === 'accessory',
+    );
+
+    const rollIds = rollLines.map((l) => l.rollId);
     if (new Set(rollIds).size !== rollIds.length) throw new Error('DUPLICATE_ROLL_IN_CART');
     const destination: FulfillmentDestination = input.fulfillmentDestination ?? 'shop';
     const locked =
@@ -269,12 +278,47 @@ export async function createSale(
       });
     }
 
+    // 2b) Lock + validate accessories.
+    type LockedAccessory = { id: number; qty_in_stock: number; name_ar: string };
+    const accessoryIdList = accessoryLines.map((l) => l.accessoryId);
+    const lockedAccessories =
+      accessoryIdList.length > 0
+        ? await (trx('accessories').whereIn('id', accessoryIdList).select('id', 'qty_in_stock', 'name_ar').forUpdate() as unknown as Promise<LockedAccessory[]>)
+        : [];
+    const accessoryMap = new Map<number, LockedAccessory>(
+      lockedAccessories.map((a) => [a.id, a]),
+    );
+    for (const line of accessoryLines) {
+      const acc = accessoryMap.get(line.accessoryId);
+      if (!acc) throw new Error('ACCESSORY_NOT_FOUND');
+      if (acc.qty_in_stock < line.qtyPieces) throw new Error('ACCESSORY_QTY_INSUFFICIENT');
+    }
+
     // 3) Compute totals.
     // v2 Phase 5 — `lines` may be empty when creating a no-lines deposit
     // invoice. In that case the deposit becomes the placeholder total_egp
     // and balance_egp = 0; lines (and their totals) get attached later via
     // the addLinesToOpenInvoice flow.
     const isNoLinesDeposit = input.lines.length === 0;
+
+    // Compute accessory line totals
+    const accessoryComputedLines = accessoryLines.map((l) => {
+      const lineAbsolute = roundEgp(Number(l.finalPricePerPiece) * l.qtyPieces);
+      const lineDiscount = roundEgp(Math.min(Number(l.lineDiscountEgp ?? 0), lineAbsolute));
+      const lineTotal = roundEgp(lineAbsolute - lineDiscount);
+      return {
+        accessoryId: l.accessoryId,
+        qtyPieces: l.qtyPieces,
+        final_price_per_piece: roundEgp(Number(l.finalPricePerPiece)),
+        selling_price_egp: roundEgp(lineAbsolute),
+        line_discount_egp: lineDiscount,
+        line_total_egp: lineTotal,
+      };
+    });
+    const accessorySubtotal = roundEgp(
+      accessoryComputedLines.reduce((s, l) => s + l.line_total_egp, 0),
+    );
+
     const totals = isNoLinesDeposit
       ? {
           lines: [],
@@ -285,13 +329,23 @@ export async function createSale(
           rounding: 0,
           total: 0,
         }
-      : computeTotals(
-          input.lines,
-          rollInfo,
-          input.cartTargetFinal,
-          settings.taxEnabled,
-          settings.taxRate,
-        );
+      : (() => {
+          const t = computeTotals(
+            rollLines,
+            rollInfo,
+            input.cartTargetFinal,
+            settings.taxEnabled,
+            settings.taxRate,
+          );
+          // Accessories are pre-priced (no per-kg math); add to subtotal/total after tax calc.
+          const combinedSubtotal = roundEgp(t.subtotal + accessorySubtotal);
+          const combinedTotal = roundEgp(t.total + accessorySubtotal);
+          return {
+            ...t,
+            subtotal: combinedSubtotal,
+            total: combinedTotal,
+          };
+        })();
 
     // 4) Validate payment(s).
     const paidTotal = roundEgp(input.payments.reduce((s, p) => s + Number(p.amount), 0));
@@ -359,9 +413,27 @@ export async function createSale(
       await trx('invoice_lines').insert(
         totals.lines.map((l) => ({
           invoice_id: invoice.id,
+          item_type: 'roll',
           roll_id: l.rollId,
           selling_price_egp: l.selling_price_egp,
           final_price_per_unit: l.final_price_per_unit,
+          line_discount_egp: l.line_discount_egp,
+          line_total_egp: l.line_total_egp,
+        })),
+      );
+    }
+
+    // 8b) Insert accessory invoice lines.
+    if (accessoryComputedLines.length > 0) {
+      await trx('invoice_lines').insert(
+        accessoryComputedLines.map((l) => ({
+          invoice_id: invoice.id,
+          item_type: 'accessory',
+          roll_id: null,
+          accessory_id: l.accessoryId,
+          qty_pieces: l.qtyPieces,
+          selling_price_egp: l.selling_price_egp,
+          final_price_per_unit: l.final_price_per_piece,
           line_discount_egp: l.line_discount_egp,
           line_total_egp: l.line_total_egp,
         })),
@@ -391,10 +463,26 @@ export async function createSale(
       });
     }
 
+    // 9b) Deduct accessory quantities.
+    for (const line of accessoryComputedLines) {
+      await trx('accessories')
+        .where({ id: line.accessoryId })
+        .update({ qty_in_stock: trx.raw('qty_in_stock - ?', [line.qtyPieces]), updated_at: trx.fn.now() });
+      await auditFromService(trx, {
+        actorUserId: cashierUserId,
+        action: 'sell_accessory',
+        entity: 'accessory',
+        entityId: line.accessoryId,
+        before: { qty_in_stock: accessoryMap.get(line.accessoryId)!.qty_in_stock },
+        after: { qty_in_stock: accessoryMap.get(line.accessoryId)!.qty_in_stock - line.qtyPieces, invoice_id: invoice.id },
+        severity: 'medium',
+      });
+    }
+
     // 10) Audit per-line price overrides — capture reference vs final so
     // margin reports can reconstruct cashier behaviour later.
-    for (let i = 0; i < input.lines.length; i++) {
-      const inp = input.lines[i]!;
+    for (let i = 0; i < rollLines.length; i++) {
+      const inp = rollLines[i]!;
       const computed = totals.lines[i]!;
       const lockedRoll = locked.get(inp.rollId)!;
       const referencePerUnit =

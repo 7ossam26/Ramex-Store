@@ -19,6 +19,7 @@ import { hrRouter } from '../domain/hr/hr.routes.js';
 import { shiftsRouter } from '../domain/shifts/shifts.routes.js';
 import { suppliersRouter } from '../domain/treasury/suppliers/suppliers.routes.js';
 import { superadminRouter } from '../domain/superadmin/superadmin.routes.js';
+import { accessoriesRouter } from '../domain/accessories/accessories.routes.js';
 
 export const apiRouter = Router();
 apiRouter.use('/health',       healthRouter);
@@ -41,3 +42,4 @@ apiRouter.use('/hr',           hrRouter);
 apiRouter.use('/shifts',       shiftsRouter);
 apiRouter.use('/treasury/suppliers', suppliersRouter);
 apiRouter.use('/superadmin',         superadminRouter);
+apiRouter.use('/',                   accessoriesRouter);

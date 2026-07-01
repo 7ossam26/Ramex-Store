@@ -1,0 +1,155 @@
+import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { ar } from '@/i18n/ar';
+import { accessoriesApi } from '@/lib/accessories-api';
+import { extractApiError } from '@/lib/api-error';
+import { openPdfBlob } from '@/lib/pdf';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PageShell, SectionCard } from '@/components/Layout/PageShell';
+
+const t = ar.addAccessory;
+
+type FormErrors = {
+  name_ar?: string;
+  quantity?: string;
+};
+
+function validate(name: string, qty: string): FormErrors {
+  const errs: FormErrors = {};
+  if (!name.trim()) errs.name_ar = t.errors.nameRequired;
+  if (!qty) {
+    errs.quantity = t.errors.qtyRequired;
+  } else {
+    const n = Number(qty);
+    if (!Number.isInteger(n) || n < 1) errs.quantity = t.errors.qtyInvalid;
+  }
+  return errs;
+}
+
+export function AddAccessoryPage() {
+  const [name, setName] = useState('');
+  const [qty, setQty] = useState('');
+  const [cost, setCost] = useState('');
+  const [notes, setNotes] = useState('');
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [lastBarcode, setLastBarcode] = useState<string | null>(null);
+
+  const labelMut = useMutation({
+    mutationFn: (id: number) => accessoriesApi.labelBlob(id),
+    onSuccess: (blob) => openPdfBlob(blob),
+  });
+
+  const createMut = useMutation({
+    mutationFn: () =>
+      accessoriesApi.create({
+        name_ar: name.trim(),
+        quantity: Number(qty),
+        purchase_price_egp: cost !== '' ? Number(cost) : undefined,
+        notes_ar: notes.trim() || undefined,
+      }),
+    onSuccess: (acc) => {
+      setLastBarcode(acc.internal_barcode);
+      setServerError(null);
+      setName('');
+      setQty('');
+      setCost('');
+      setNotes('');
+      setErrors({});
+      labelMut.mutate(acc.id);
+    },
+    onError: (err) => {
+      setServerError(extractApiError(err));
+    },
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const errs = validate(name, qty);
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
+      return;
+    }
+    setErrors({});
+    setServerError(null);
+    createMut.mutate();
+  }
+
+  return (
+    <PageShell title={t.navTitle}>
+      <SectionCard>
+        <form onSubmit={handleSubmit} className="space-y-5 max-w-sm" noValidate>
+          <div className="space-y-1">
+            <Label htmlFor="acc-name">{t.nameLabel}</Label>
+            <Input
+              id="acc-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t.namePlaceholder}
+              autoFocus
+            />
+            {errors.name_ar && (
+              <p className="text-destructive text-sm">{errors.name_ar}</p>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="acc-qty">{t.qtyLabel}</Label>
+            <Input
+              id="acc-qty"
+              type="number"
+              min={1}
+              step={1}
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+              placeholder={t.qtyPlaceholder}
+            />
+            {errors.quantity && (
+              <p className="text-destructive text-sm">{errors.quantity}</p>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="acc-cost">{t.costLabel}</Label>
+            <Input
+              id="acc-cost"
+              type="number"
+              min={0}
+              step={0.01}
+              value={cost}
+              onChange={(e) => setCost(e.target.value)}
+              placeholder={t.costPlaceholder}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="acc-notes">{t.notesLabel}</Label>
+            <textarea
+              id="acc-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            />
+          </div>
+
+          {serverError && (
+            <p className="text-destructive text-sm">{serverError}</p>
+          )}
+
+          {lastBarcode && !createMut.isPending && (
+            <p className="text-green-600 text-sm">
+              {t.successMessage} — {lastBarcode}
+            </p>
+          )}
+
+          <Button type="submit" disabled={createMut.isPending || labelMut.isPending}>
+            {createMut.isPending ? '…' : t.submitButton}
+          </Button>
+        </form>
+      </SectionCard>
+    </PageShell>
+  );
+}

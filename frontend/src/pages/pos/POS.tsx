@@ -34,6 +34,7 @@ import { salesApi } from '@/lib/sales-api';
 import { customersApi } from '@/lib/customers-api';
 import { itemsApi } from '@/lib/items-api';
 import { financeApi } from '@/lib/finance-api';
+import { accessoriesApi } from '@/lib/accessories-api';
 import type { Customer } from '@/lib/customers-types';
 import type {
   BankAccount,
@@ -44,6 +45,7 @@ import type {
   RollLookup,
   SalePreview,
 } from '@/lib/sales-types';
+import type { Accessory } from '@/lib/accessories-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,11 +68,23 @@ import { shiftsApi, type Shift } from '@/lib/shifts-api';
 import { StartDayPanel } from './StartDayPanel';
 import { EndDayDialog } from './EndDayDialog';
 
-type CartLine = {
+type RollCartLine = {
+  type: 'roll';
   roll: RollLookup;
   priceOverride: string;
   lineDiscount: string;
 };
+
+type AccessoryCartLine = {
+  type: 'accessory';
+  accessory: Accessory;
+  qtyPieces: string;
+  pricePerPiece: string;
+  lineDiscount: string;
+};
+
+type CartLine = RollCartLine | AccessoryCartLine;
+type CartLinePatch = Partial<RollCartLine> | Partial<AccessoryCartLine>;
 
 type PaymentMode = 'cash' | 'instapay' | 'bank_transfer' | 'cheque' | 'split';
 
@@ -124,17 +138,23 @@ function rollQuantity(roll: RollLookup): number {
   return Number(roll.weight_kg);
 }
 
-function effectivePerUnit(line: CartLine): number {
+function effectivePerUnit(line: RollCartLine): number {
   const v = parseAmount(line.priceOverride);
   return v > 0 ? v : 0;
 }
 
-function lineAbsolute(line: CartLine): number {
+function lineAbsolute(line: RollCartLine): number {
   const qty = rollQuantity(line.roll);
   return effectivePerUnit(line) * qty;
 }
 
 function lineSubtotal(line: CartLine): number {
+  if (line.type === 'accessory') {
+    const qty = Math.max(0, Math.floor(parseAmount(line.qtyPieces)));
+    const price = Math.max(0, parseAmount(line.pricePerPiece)) * qty;
+    const disc = Math.min(parseAmount(line.lineDiscount), price);
+    return Math.max(0, price - disc);
+  }
   const price = lineAbsolute(line);
   const disc = Math.min(parseAmount(line.lineDiscount), price);
   return Math.max(0, price - disc);
@@ -285,11 +305,13 @@ export function POSPage() {
 
   const previewLines = useMemo(
     () =>
-      cart.map((l) => ({
-        rollId: l.roll.id,
-        finalPricePerUnit: parseAmount(l.priceOverride) || null,
-        lineDiscountEgp: parseAmount(l.lineDiscount) || null,
-      })),
+      cart
+        .filter((l): l is RollCartLine => l.type === 'roll')
+        .map((l) => ({
+          rollId: l.roll.id,
+          finalPricePerUnit: parseAmount(l.priceOverride) || null,
+          lineDiscountEgp: parseAmount(l.lineDiscount) || null,
+        })),
     [cart],
   );
 
@@ -305,9 +327,29 @@ export function POSPage() {
 
   async function handleScanEnter(barcode: string) {
     setScanError(null);
-    if (!barcode.trim()) return;
+    const code = barcode.trim();
+    if (!code) return;
+
+    // Accessory barcodes are always RMX-A-NNNNNN — skip roll lookup entirely
+    if (code.startsWith('RMX-A-')) {
+      try {
+        const acc = await accessoriesApi.byBarcode(code);
+        if (!acc.is_active) { flagScanFailure(ar.pos.notFound); return; }
+        if (cart.find((l) => l.type === 'accessory' && l.accessory.id === acc.id)) {
+          flagScanFailure(ar.pos.alreadyInCart);
+          return;
+        }
+        setCart((c) => [...c, { type: 'accessory', accessory: acc, qtyPieces: '', pricePerPiece: '', lineDiscount: '' }]);
+        setScannerFeedback('success');
+        setFlashRowId(-(acc.id));
+      } catch {
+        flagScanFailure(ar.pos.notFound);
+      }
+      return;
+    }
+
     try {
-      const roll = await salesApi.rollByBarcode(barcode.trim());
+      const roll = await salesApi.rollByBarcode(code);
 
       // Phase 6 — sold roll triggers return drawer, not cart addition.
       if (roll.status === 'sold') {
@@ -344,10 +386,10 @@ export function POSPage() {
             ? ar.pos.factoryRollInShopMode
             : ar.pos.shopRollInFactoryMode,
         );
-      } else if (cart.find((l) => l.roll.id === roll.id)) {
+      } else if (cart.find((l) => l.type === 'roll' && l.roll.id === roll.id)) {
         flagScanFailure(ar.pos.alreadyInCart);
       } else {
-        setCart((c) => [...c, { roll, priceOverride: '', lineDiscount: '' }]);
+        setCart((c) => [...c, { type: 'roll', roll, priceOverride: '', lineDiscount: '' }]);
         setScanFlash(roll);
         setScannerFeedback('success');
         setFlashRowId(roll.id);
@@ -426,7 +468,7 @@ export function POSPage() {
 
   function requestDestinationChange(next: FulfillmentDestination) {
     if (next === destination) return;
-    const incompatible = cart.some((l) => !rollMatchesDestination(l.roll, next));
+    const incompatible = cart.some((l) => l.type === 'roll' && !rollMatchesDestination(l.roll, next));
     if (incompatible) {
       setPendingDestination(next);
       return;
@@ -437,7 +479,7 @@ export function POSPage() {
   function confirmDestinationChange() {
     if (!pendingDestination) return;
     const next = pendingDestination;
-    setCart((c) => c.filter((l) => rollMatchesDestination(l.roll, next)));
+    setCart((c) => c.filter((l) => l.type === 'accessory' || rollMatchesDestination(l.roll, next)));
     setDestination(next);
     setPendingDestination(null);
     setScanFlash(null);
@@ -454,8 +496,8 @@ export function POSPage() {
     setCart((c) => c.filter((_, i) => i !== idx));
   }
 
-  function updateLine(idx: number, patch: Partial<CartLine>) {
-    setCart((c) => c.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
+  function updateLine(idx: number, patch: CartLinePatch) {
+    setCart((c) => c.map((l, i) => (i === idx ? { ...l, ...patch } as CartLine : l)));
   }
 
   const { data: customerResults = { rows: [] as Customer[], total: 0 } } = useQuery({
@@ -517,11 +559,21 @@ export function POSPage() {
       return salesApi.create({
         customerId: customer.id,
         fulfillmentDestination: destination,
-        lines: cart.map((l) => ({
-          rollId: l.roll.id,
-          finalPricePerUnit: parseAmount(l.priceOverride) || null,
-          lineDiscountEgp: parseAmount(l.lineDiscount) || null,
-        })),
+        lines: cart.map((l) =>
+          l.type === 'accessory'
+            ? {
+                type: 'accessory' as const,
+                accessoryId: l.accessory.id,
+                qtyPieces: Math.round(parseAmount(l.qtyPieces)),
+                finalPricePerPiece: parseAmount(l.pricePerPiece),
+                lineDiscountEgp: parseAmount(l.lineDiscount) || null,
+              }
+            : {
+                rollId: l.roll.id,
+                finalPricePerUnit: parseAmount(l.priceOverride) || null,
+                lineDiscountEgp: parseAmount(l.lineDiscount) || null,
+              },
+        ),
         cartTargetFinal: useCartDiscount ? targetFinalNum : null,
         payments,
         notesAr: notesAr || null,
@@ -548,8 +600,13 @@ export function POSPage() {
   const submitValidation = (() => {
     if (cart.length === 0) return ar.pos.cartEmpty;
     if (!customer) return ar.pos.customerRequired;
-    // v2 Phase 5: every cart line must carry a per-unit final price.
-    if (cart.some((l) => effectivePerUnit(l) <= 0)) return ar.pos.finalPriceRequired;
+    // v2 Phase 5: every cart line must carry a valid final price (and qty for accessories).
+    if (cart.some((l) => {
+      if (l.type === 'accessory') {
+        return Math.floor(parseAmount(l.qtyPieces)) < 1 || parseAmount(l.pricePerPiece) <= 0;
+      }
+      return effectivePerUnit(l) <= 0;
+    })) return ar.pos.finalPriceRequired;
     if (paymentSum <= 0) return ar.pos.payment;
     if (saveAsOpen) return null;
     if (paymentSum < total - 0.01) return ar.pos.sumMustEqualTotal; // allow overpayment
@@ -693,15 +750,26 @@ export function POSPage() {
               );
               return;
             }
-            if (!cart.find((l) => l.roll.id === roll.id)) {
-              setCart((c) => [...c, { roll, priceOverride: '', lineDiscount: '' }]);
+            if (!cart.find((l) => l.type === 'roll' && l.roll.id === roll.id)) {
+              setCart((c) => [...c, { type: 'roll', roll, priceOverride: '', lineDiscount: '' }]);
               setScanFlash(roll);
               setScannerFeedback('success');
               setFlashRowId(roll.id);
             }
           }}
+          onPickAccessory={(acc) => {
+            if (!cart.find((l) => l.type === 'accessory' && l.accessory.id === acc.id)) {
+              setCart((c) => [...c, { type: 'accessory', accessory: acc, qtyPieces: '', pricePerPiece: '', lineDiscount: '' }]);
+              setScannerFeedback('success');
+              setFlashRowId(-(acc.id));
+            }
+          }}
           onRemoveManual={(rollId) => {
-            const idx = cart.findIndex((l) => l.roll.id === rollId);
+            const idx = cart.findIndex((l) => l.type === 'roll' && l.roll.id === rollId);
+            if (idx !== -1) removeLine(idx);
+          }}
+          onRemoveAccessory={(accessoryId) => {
+            const idx = cart.findIndex((l) => l.type === 'accessory' && l.accessory.id === accessoryId);
             if (idx !== -1) removeLine(idx);
           }}
           onShowLabel={setLabelRoll}
@@ -1235,7 +1303,9 @@ function ScanColumn({
   cart,
   destination,
   onPickManual,
+  onPickAccessory,
   onRemoveManual,
+  onRemoveAccessory,
   onShowLabel,
 }: {
   onScan: (b: string) => Promise<void>;
@@ -1246,7 +1316,9 @@ function ScanColumn({
   cart: CartLine[];
   destination: FulfillmentDestination;
   onPickManual: (r: RollLookup) => void;
+  onPickAccessory: (a: Accessory) => void;
   onRemoveManual: (rollId: number) => void;
+  onRemoveAccessory: (accessoryId: number) => void;
   onShowLabel: (r: RollLookup) => void;
 }) {
   // Border-color class on the scan input wrapper.
@@ -1306,7 +1378,9 @@ function ScanColumn({
           cart={cart}
           destination={destination}
           onPick={onPickManual}
+          onPickAccessory={onPickAccessory}
           onRemove={onRemoveManual}
+          onRemoveAccessory={onRemoveAccessory}
           onShowLabel={onShowLabel}
         />
       </CardContent>
@@ -1404,7 +1478,7 @@ function CartPanel({
   preview: SalePreview | null | undefined;
   subtotal: number;
   useCartDiscount: boolean;
-  updateLine: (i: number, p: Partial<CartLine>) => void;
+  updateLine: (i: number, p: CartLinePatch) => void;
   removeLine: (i: number) => void;
   flashRowId: number | null;
   onShowLabel: (r: RollLookup) => void;
@@ -1450,7 +1524,7 @@ function CartPanel({
           <AnimatePresence initial={false}>
             {cart.map((l, idx) => (
               <motion.div
-                key={l.roll.id}
+                key={l.type === 'roll' ? `roll-${l.roll.id}` : `acc-${l.accessory.id}`}
                 data-functional-motion
                 initial={false}
                 exit={{ opacity: 0.4 }}
@@ -1458,10 +1532,14 @@ function CartPanel({
               >
                 <EnrichedCartLine
                   line={l}
-                  flashing={flashRowId === l.roll.id}
+                  flashing={
+                    l.type === 'roll'
+                      ? flashRowId === l.roll.id
+                      : flashRowId === -(l.accessory.id)
+                  }
                   onUpdate={(p) => updateLine(idx, p)}
                   onRemove={() => removeLine(idx)}
-                  onShowLabel={() => onShowLabel(l.roll)}
+                  onShowLabel={() => { if (l.type === 'roll') onShowLabel(l.roll); }}
                 />
               </motion.div>
             ))}
@@ -1515,10 +1593,80 @@ function EnrichedCartLine({
 }: {
   line: CartLine;
   flashing: boolean;
-  onUpdate: (p: Partial<CartLine>) => void;
+  onUpdate: (p: CartLinePatch) => void;
   onRemove: () => void;
   onShowLabel: () => void;
 }) {
+  if (line.type === 'accessory') {
+    const a = line.accessory;
+    return (
+      <div
+        data-functional-motion
+        className={`rounded-md border bg-surface-elevated p-3 space-y-2 transition-colors duration-200 ${
+          flashing ? 'border-success bg-success-subtle' : 'border-border-subtle'
+        }`}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0 space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center rounded-pill bg-surface-row-alt border border-border-default px-2 py-0.5 text-[10px] font-medium text-foreground-muted">
+                {ar.pos.accessoryBadge}
+              </span>
+            </div>
+            <div className="font-medium text-sm leading-tight text-foreground">{a.name_ar}</div>
+            <div className="text-xs text-foreground-tertiary font-mono" dir="ltr">
+              {a.internal_barcode} · {ar.pos.accessoryStock}: {a.qty_in_stock}
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onRemove}
+            className="size-8 p-0 cursor-pointer text-foreground-tertiary hover:text-danger shrink-0"
+            aria-label={ar.common.cancel}
+          >
+            <X className="size-4" />
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 items-end">
+          <div className="space-y-1">
+            <Label className="text-xs text-foreground-muted">{ar.pos.qtyPieces}</Label>
+            <Input
+              value={line.qtyPieces}
+              onChange={(e) => onUpdate({ qtyPieces: e.target.value } as Partial<AccessoryCartLine>)}
+              placeholder="0"
+              dir="ltr"
+              inputMode="numeric"
+              className="h-9 tabular-num"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-foreground-muted">{ar.pos.pricePerPiece}</Label>
+            <Input
+              value={line.pricePerPiece}
+              onChange={(e) => onUpdate({ pricePerPiece: e.target.value } as Partial<AccessoryCartLine>)}
+              placeholder="0.00"
+              dir="ltr"
+              inputMode="decimal"
+              className="h-9 tabular-num"
+            />
+          </div>
+          <div className="space-y-1 text-start">
+            <Label className="text-xs text-foreground-muted">{ar.pos.lineTotal}</Label>
+            <div
+              className="h-9 flex items-center justify-end font-semibold text-foreground tabular-num"
+              dir="ltr"
+            >
+              {fmtMoney(lineSubtotal(line))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Roll line (original rendering)
   const r = line.roll;
   const fabric = isFabricRoll(r);
   const isMeter = r.fabric_unit === 'meter';
@@ -1606,7 +1754,7 @@ function EnrichedCartLine({
           <Label className="text-xs text-foreground-muted">{finalPriceLabel}</Label>
           <Input
             value={line.priceOverride}
-            onChange={(e) => onUpdate({ priceOverride: e.target.value })}
+            onChange={(e) => onUpdate({ priceOverride: e.target.value } as Partial<RollCartLine>)}
             placeholder={hasReference ? fmtMoney(referenceUnit!) : '0.00'}
             dir="ltr"
             inputMode="decimal"
@@ -2041,39 +2189,75 @@ function ProductsGrid({
   cart,
   destination,
   onPick,
+  onPickAccessory,
   onRemove,
+  onRemoveAccessory,
   onShowLabel,
 }: {
   cart: CartLine[];
   destination: FulfillmentDestination;
   onPick: (r: RollLookup) => void;
+  onPickAccessory: (a: Accessory) => void;
   onRemove: (rollId: number) => void;
+  onRemoveAccessory: (accessoryId: number) => void;
   onShowLabel: (r: RollLookup) => void;
 }) {
   const [search, setSearch] = useState('');
 
-  const { data: rolls = [], isLoading } = useQuery<RollLookup[]>({
+  const { data: rolls = [], isLoading: rollsLoading } = useQuery<RollLookup[]>({
     queryKey: ['pos-rolls'],
     queryFn: () =>
       salesApi.searchRolls({ status: 'in_stock', is_visible_at_pos: true }),
   });
 
-  const cartIds = useMemo(() => new Set(cart.map((l) => l.roll.id)), [cart]);
+  const { data: accessories = [], isLoading: accsLoading } = useQuery<Accessory[]>({
+    queryKey: ['pos-accessories'],
+    queryFn: () => accessoriesApi.list({ is_active: true }),
+  });
 
-  const filtered = useMemo(() => {
-    const visible =
-      destination === 'factory_direct'
-        ? // Hide shop rolls entirely when picking from the factory.
-          rolls.filter((r) => isFactoryRoll(r))
-        : rolls;
+  const isLoading = rollsLoading || accsLoading;
+
+  const cartRollIds = useMemo(
+    () => new Set(cart.filter((l): l is RollCartLine => l.type === 'roll').map((l) => l.roll.id)),
+    [cart],
+  );
+  const cartAccIds = useMemo(
+    () => new Set(cart.filter((l): l is AccessoryCartLine => l.type === 'accessory').map((l) => l.accessory.id)),
+    [cart],
+  );
+
+  type GridItem =
+    | { kind: 'roll'; roll: RollLookup }
+    | { kind: 'accessory'; accessory: Accessory };
+
+  const filtered = useMemo<GridItem[]>(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return visible;
-    return visible.filter((r) =>
-      `${r.fabric_name_ar} ${r.color_name_ar} ${r.color_code ?? ''} ${r.roll_sr_no ?? ''} ${r.internal_barcode} ${r.brand_arabic_name ?? ''}`
-        .toLowerCase()
-        .includes(q),
-    );
-  }, [rolls, search, destination]);
+
+    const visibleRolls =
+      destination === 'factory_direct'
+        ? rolls.filter((r) => isFactoryRoll(r))
+        : rolls;
+
+    const rollItems: GridItem[] = (q
+      ? visibleRolls.filter((r) =>
+          `${r.fabric_name_ar} ${r.color_name_ar} ${r.color_code ?? ''} ${r.roll_sr_no ?? ''} ${r.internal_barcode} ${r.brand_arabic_name ?? ''}`
+            .toLowerCase()
+            .includes(q),
+        )
+      : visibleRolls
+    ).map((roll) => ({ kind: 'roll', roll }));
+
+    // Accessories: only available in shop mode (they live in shop stock)
+    const accItems: GridItem[] =
+      destination === 'factory_direct'
+        ? []
+        : (q
+            ? accessories.filter((a) => a.name_ar.toLowerCase().includes(q) || a.internal_barcode.toLowerCase().includes(q))
+            : accessories
+          ).map((accessory) => ({ kind: 'accessory', accessory }));
+
+    return [...rollItems, ...accItems];
+  }, [rolls, accessories, search, destination]);
 
   return (
     <div className="space-y-3 border-t border-border-subtle pt-3">
@@ -2115,14 +2299,62 @@ function ProductsGrid({
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[60vh] overflow-y-auto pe-1 -me-1">
-          {filtered.map((r) => {
-            const inCart = cartIds.has(r.id);
+          {filtered.map((item) => {
+            if (item.kind === 'accessory') {
+              const a = item.accessory;
+              const inCart = cartAccIds.has(a.id);
+              return (
+                <div
+                  key={`acc-${a.id}`}
+                  className={`rounded-md border bg-surface-elevated p-3 flex flex-col gap-2 transition-colors duration-150 ${
+                    inCart
+                      ? 'border-success/40 bg-success-subtle'
+                      : 'border-border-subtle hover:border-accent hover:bg-surface-hover'
+                  }`}
+                >
+                  <span className="self-start inline-flex items-center rounded-pill bg-surface-row-alt border border-border-default px-2 py-0.5 text-[10px] font-medium text-foreground-muted">
+                    {ar.pos.accessoryBadge}
+                  </span>
+                  {inCart && (
+                    <span className="self-start inline-flex items-center gap-1 rounded-pill bg-success text-white px-2 py-0.5 text-[10px] font-medium">
+                      <CheckCircle2 className="size-3" />
+                      {ar.pos.inCart}
+                    </span>
+                  )}
+                  <div className="min-w-0 space-y-1 flex-1">
+                    <div className="font-medium text-sm line-clamp-2 text-foreground">{a.name_ar}</div>
+                    <div className="text-xs text-foreground-muted" dir="ltr">
+                      {a.internal_barcode}
+                    </div>
+                    <div className="text-xs text-foreground-muted tabular-num">
+                      {ar.pos.accessoryStock}: {a.qty_in_stock}
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant={inCart ? 'outline' : 'default'}
+                    onClick={() => inCart ? onRemoveAccessory(a.id) : onPickAccessory(a)}
+                    className="h-9 w-full cursor-pointer gap-1"
+                  >
+                    {inCart ? (
+                      <><X className="size-4" />{ar.pos.inCart}</>
+                    ) : (
+                      <><ShoppingCart className="size-4" />{ar.pos.addToCart}</>
+                    )}
+                  </Button>
+                </div>
+              );
+            }
+
+            // Roll card (original)
+            const r = item.roll;
+            const inCart = cartRollIds.has(r.id);
             const fabric = isFabricRoll(r);
             const wrongWarehouse = !rollMatchesDestination(r, destination);
             const factoryInShopMode = destination === 'shop' && isFactoryRoll(r);
             return (
               <div
-                key={r.id}
+                key={`roll-${r.id}`}
                 aria-disabled={wrongWarehouse || undefined}
                 className={`group rounded-md border bg-surface-elevated p-3 flex flex-col gap-2 transition-colors duration-150 ${
                   inCart

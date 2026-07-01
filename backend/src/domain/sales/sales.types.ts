@@ -95,15 +95,26 @@ export type InvoiceDetail = Invoice & {
   payments: Payment[];
 };
 
+export type RollSaleLine = {
+  type?: 'roll';
+  rollId: number;
+  sellingPriceOverride?: number | null;
+  finalPricePerUnit?: number | null;
+  lineDiscountEgp?: number | null;
+};
+
+export type AccessorySaleLine = {
+  type: 'accessory';
+  accessoryId: number;
+  qtyPieces: number;
+  finalPricePerPiece: number;
+  lineDiscountEgp?: number | null;
+};
+
 export type CreateSaleInput = {
   customerId: number;
   fulfillmentDestination?: FulfillmentDestination;
-  lines: Array<{
-    rollId: number;
-    sellingPriceOverride?: number | null;
-    finalPricePerUnit?: number | null;
-    lineDiscountEgp?: number | null;
-  }>;
+  lines: Array<RollSaleLine | AccessorySaleLine>;
   cartTargetFinal?: number | null;
   payments: Array<{
     method: PaymentMethod;

@@ -165,12 +165,23 @@ export type SalePreview = {
   tax_enabled: boolean;
 };
 
-export type SaleLineInput = {
+export type RollSaleLineInput = {
+  type?: 'roll';
   rollId: number;
   sellingPriceOverride?: number | null;
   finalPricePerUnit?: number | null;
   lineDiscountEgp?: number | null;
 };
+
+export type AccessorySaleLineInput = {
+  type: 'accessory';
+  accessoryId: number;
+  qtyPieces: number;
+  finalPricePerPiece: number;
+  lineDiscountEgp?: number | null;
+};
+
+export type SaleLineInput = RollSaleLineInput | AccessorySaleLineInput;
 
 export type SalePaymentInput = {
   method: PaymentMethod;

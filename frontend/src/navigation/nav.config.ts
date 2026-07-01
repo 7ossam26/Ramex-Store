@@ -145,6 +145,14 @@ export const NAV: NavTop[] = [
             route: '/items/tops/split',
           },
           {
+            id: 'items.addAccessory',
+            labelAr: 'إضافة اكسسوار',
+            descAr: 'تسجيل اكسسوار جديد بالكمية بالقطع',
+            icon: Plus,
+            route: '/items/accessories/add',
+            permission: 'accessories',
+          },
+          {
             id: 'items.rolls',
             labelAr: 'الاتواب',
             descAr: 'بحث وتصفية كل الاتواب',

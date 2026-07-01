@@ -4,12 +4,26 @@ const positiveAmount = z.coerce.number().positive();
 const nonNegativeAmount = z.coerce.number().min(0);
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'يجب أن يكون التاريخ بصيغة YYYY-MM-DD');
 
-export const SaleLineSchema = z.object({
+export const RollSaleLineSchema = z.object({
+  type: z.literal('roll').optional().default('roll'),
   rollId: z.coerce.number().int().positive(),
   sellingPriceOverride: positiveAmount.nullable().optional(),
   finalPricePerUnit: positiveAmount.nullable().optional(),
   lineDiscountEgp: nonNegativeAmount.nullable().optional(),
 });
+export type RollSaleLineInput = z.infer<typeof RollSaleLineSchema>;
+
+export const AccessorySaleLineSchema = z.object({
+  type: z.literal('accessory'),
+  accessoryId: z.coerce.number().int().positive(),
+  qtyPieces: z.coerce.number().int().positive(),
+  finalPricePerPiece: positiveAmount,
+  lineDiscountEgp: nonNegativeAmount.nullable().optional(),
+});
+export type AccessorySaleLineInput = z.infer<typeof AccessorySaleLineSchema>;
+
+// Polymorphic line — can be a roll line (backwards-compat default) or an accessory line.
+export const SaleLineSchema = z.union([AccessorySaleLineSchema, RollSaleLineSchema]);
 
 // Cheque details — used whenever method = 'cheque'.
 export const ChequeDetailsSchema = z
@@ -71,9 +85,10 @@ export const CreateSaleSchema = z.object({
   notesAr: z.string().max(2000).nullable().optional(),
 });
 export type CreateSaleInput = z.infer<typeof CreateSaleSchema>;
+export type SaleLineInput = z.infer<typeof SaleLineSchema>;
 
 export const SalePreviewSchema = z.object({
-  lines: z.array(SaleLineSchema).min(1),
+  lines: z.array(RollSaleLineSchema).min(1),
   cartTargetFinal: nonNegativeAmount.nullable().optional(),
 });
 export type SalePreviewInput = z.infer<typeof SalePreviewSchema>;
@@ -180,10 +195,13 @@ export const CancelOpenInvoiceSchema = z
 export type CancelOpenInvoiceInput = z.infer<typeof CancelOpenInvoiceSchema>;
 
 export const AddLinesSchema = z.object({
-  lines: z.array(SaleLineSchema).min(1),
+  lines: z.array(RollSaleLineSchema).min(1),
   cartTargetFinal: nonNegativeAmount.nullable().optional(),
 });
 export type AddLinesInput = z.infer<typeof AddLinesSchema>;
+
+// Legacy alias kept for backwards compatibility with existing call sites
+export { SaleLineSchema as LegacySaleLineSchema };
 
 export const DepositRefundSchema = z
   .object({

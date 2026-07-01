@@ -16,13 +16,13 @@ import type {
   PendingPickupRow,
   ReturnScanMeta,
   RollLookup,
-  SaleLineInput,
+  RollSaleLineInput,
   SalePreview,
   ScanReturnResult,
 } from './sales-types';
 
 export const salesApi = {
-  preview: (lines: SaleLineInput[], cartTargetFinal?: number | null) =>
+  preview: (lines: RollSaleLineInput[], cartTargetFinal?: number | null) =>
     api
       .post<SalePreview>('/sales/preview', { lines, cartTargetFinal: cartTargetFinal ?? null })
       .then((r) => r.data),

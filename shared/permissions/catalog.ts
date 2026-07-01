@@ -46,6 +46,7 @@ export const RESOURCE_GROUPS: ResourceGroup[] = [
       { key: 'customers',    actions: ['read', 'write'],                    descriptionKey: 'customers' },
       { key: 'invoices',     actions: ['read', 'write', 'approve'],         descriptionKey: 'invoices' },
       { key: 'fabric_rolls', actions: ['read', 'write', 'manage'],          descriptionKey: 'fabric_rolls' },
+      { key: 'accessories',  actions: ['read', 'write'],                    descriptionKey: 'accessories' },
       { key: 'inventory',    actions: ['read', 'write', 'approve'],         descriptionKey: 'inventory' },
       { key: 'shipments',    actions: ['read', 'write', 'approve'],         descriptionKey: 'shipments' },
       { key: 'cash_drawer',  actions: ['read', 'write', 'approve'],          descriptionKey: 'cash_drawer' },
@@ -134,6 +135,8 @@ export const ROLE_DEFAULTS: RoleDefaultsMap = {
     { resource: 'fabric_rolls', action: 'read',    is_allowed: true  },
     { resource: 'fabric_rolls', action: 'write',   is_allowed: true  },
     { resource: 'fabric_rolls', action: 'manage',  is_allowed: true  }, // create/edit fabrics, colors, prices
+    { resource: 'accessories',  action: 'read',    is_allowed: true  },
+    { resource: 'accessories',  action: 'write',   is_allowed: true  },
     { resource: 'inventory',    action: 'read',    is_allowed: true  },
     { resource: 'inventory',    action: 'write',   is_allowed: true  },
     { resource: 'inventory',    action: 'approve', is_allowed: true  },
@@ -190,6 +193,8 @@ export const ROLE_DEFAULTS: RoleDefaultsMap = {
     { resource: 'fabric_rolls', action: 'read',    is_allowed: true  },
     { resource: 'fabric_rolls', action: 'write',   is_allowed: true  },  // label printing
     { resource: 'fabric_rolls', action: 'manage',  is_allowed: false },  // catalog CRUD = factory only
+    { resource: 'accessories',  action: 'read',    is_allowed: true  },
+    { resource: 'accessories',  action: 'write',   is_allowed: true  },  // add accessory SKUs + sell via POS
     { resource: 'inventory',    action: 'read',    is_allowed: true  },
     { resource: 'inventory',    action: 'write',   is_allowed: true  },  // stocktakes, adjustments
     { resource: 'inventory',    action: 'approve', is_allowed: false }, // damage event approval = owner
@@ -246,6 +251,8 @@ export const ROLE_DEFAULTS: RoleDefaultsMap = {
     { resource: 'fabric_rolls', action: 'read',    is_allowed: true  },
     { resource: 'fabric_rolls', action: 'write',   is_allowed: true  }, // AddTop wizard
     { resource: 'fabric_rolls', action: 'manage',  is_allowed: true  }, // add fabrics, colors, prices
+    { resource: 'accessories',  action: 'read',    is_allowed: false },
+    { resource: 'accessories',  action: 'write',   is_allowed: false },
     { resource: 'inventory',    action: 'read',    is_allowed: true  }, // sees factory warehouse
     { resource: 'inventory',    action: 'write',   is_allowed: false },
     { resource: 'inventory',    action: 'approve', is_allowed: false },
@@ -302,6 +309,8 @@ export const ROLE_DEFAULTS: RoleDefaultsMap = {
     { resource: 'fabric_rolls', action: 'read',    is_allowed: true  },
     { resource: 'fabric_rolls', action: 'write',   is_allowed: false },
     { resource: 'fabric_rolls', action: 'manage',  is_allowed: false },
+    { resource: 'accessories',  action: 'read',    is_allowed: true  },
+    { resource: 'accessories',  action: 'write',   is_allowed: false },
     { resource: 'inventory',    action: 'read',    is_allowed: true  },
     { resource: 'inventory',    action: 'write',   is_allowed: false },
     { resource: 'inventory',    action: 'approve', is_allowed: false },
