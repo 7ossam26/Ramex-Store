@@ -23,6 +23,8 @@ import { RollStatusPill } from '@/components/items/RollStatusPill';
 import { useAuth } from '@/lib/auth';
 import { isOwnerOrAbove } from '@/lib/roles';
 import { usePermissions } from '@/lib/permissions';
+import { accessoriesApi } from '@/lib/accessories-api';
+import type { Accessory } from '@/lib/accessories-types';
 
 // ── Label card helpers ──────────────────────────────────────────────────────
 function LabelRow({ label, value }: { label: string; value: string | number | null | undefined }) {
@@ -148,6 +150,9 @@ export function RollsPage() {
   const { can } = usePermissions();
   const isOwner = isOwnerOrAbove(user?.role);
 
+  const [viewType, setViewType] = useState<'rolls' | 'accessories'>('rolls');
+  const [accSearch, setAccSearch] = useState('');
+
   const [barcode, setBarcode] = useState('');
   const [fabricId, setFabricId] = useState('');
   const [colorId, setColorId] = useState('');
@@ -191,9 +196,94 @@ export function RollsPage() {
   const rolls = q.data ?? [];
   const resetKey = JSON.stringify(applied);
 
-  const activeFilters = [barcode, fabricId, colorId, warehouse].filter(Boolean).length;
+  const activeFilters = viewType === 'rolls'
+    ? [barcode, fabricId, colorId, warehouse].filter(Boolean).length
+    : accSearch ? 1 : 0;
 
   const qc = useQueryClient();
+
+  const accQ = useQuery({
+    queryKey: ['rolls-page-accessories'],
+    queryFn: () => accessoriesApi.list(),
+    enabled: viewType === 'accessories',
+  });
+
+  const allAccessories = accQ.data ?? [];
+  const filteredAccessories = accSearch.trim()
+    ? allAccessories.filter(
+        (a) =>
+          a.name_ar.toLowerCase().includes(accSearch.toLowerCase()) ||
+          a.internal_barcode.toLowerCase().includes(accSearch.toLowerCase()),
+      )
+    : allAccessories;
+
+  const accLabelMut = useMutation({
+    mutationFn: (id: number) => accessoriesApi.labelBlob(id),
+    onSuccess: (blob) => openPdfBlob(blob),
+  });
+
+  const accColumns: Column<Accessory>[] = [
+    {
+      key: 'internal_barcode',
+      header: ar.labels.barcode,
+      cell: (r) => (
+        <span className="font-mono text-sm tabular-num" dir="ltr">
+          {r.internal_barcode}
+        </span>
+      ),
+      primary: true,
+    },
+    {
+      key: 'name_ar',
+      header: 'الاسم / الكود',
+      cell: (r) => <span className="font-medium">{r.name_ar}</span>,
+      secondary: true,
+    },
+    {
+      key: 'qty_in_stock',
+      header: 'الكمية المتاحة',
+      cell: (r) => (
+        <span
+          className={`tabular-num font-semibold ${
+            r.qty_in_stock === 0
+              ? 'text-danger-foreground'
+              : r.qty_in_stock <= 5
+                ? 'text-warning-foreground'
+                : ''
+          }`}
+        >
+          {r.qty_in_stock} قطعة
+        </span>
+      ),
+    },
+    {
+      key: 'purchase_price_egp',
+      header: 'تكلفة الشراء',
+      cell: (r) =>
+        r.purchase_price_egp != null ? (
+          <span className="tabular-num text-foreground-muted" dir="ltr">
+            {Number(r.purchase_price_egp).toFixed(2)} ج.م
+          </span>
+        ) : (
+          <span className="text-foreground-tertiary">—</span>
+        ),
+    },
+    {
+      key: 'is_active',
+      header: 'الحالة',
+      cell: (r) => (
+        <span
+          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+            r.is_active
+              ? 'bg-success/10 text-success-foreground'
+              : 'bg-surface-row-alt text-foreground-muted'
+          }`}
+        >
+          {r.is_active ? 'نشط' : 'موقوف'}
+        </span>
+      ),
+    },
+  ];
 
   const labelPdfMut = useMutation({
     mutationFn: (rollId: number) => itemsApi.labelPdfBlob(rollId),
@@ -240,84 +330,123 @@ export function RollsPage() {
     <div className="rounded-lg border border-border-subtle bg-surface-elevated p-3 space-y-3">
       <h2 className="text-base font-semibold text-foreground">{ar.labels.rollsTitle}</h2>
 
-      <div className="space-y-1">
-        <Label className="text-sm font-medium text-foreground">{ar.labels.barcode}</Label>
-        <div className="relative">
-          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center">
-            <span className="absolute size-6 rounded-full bg-ring/20 animate-ping" />
-            <ScanBarcode className="relative size-4 text-ring" aria-hidden />
-          </span>
+      {/* View type toggle */}
+      <div className="flex gap-1 p-1 bg-surface-hover rounded-lg w-fit">
+        <button
+          onClick={() => setViewType('rolls')}
+          className={`px-4 py-1.5 text-sm rounded-md transition-colors ${
+            viewType === 'rolls'
+              ? 'bg-canvas shadow-sm font-semibold text-foreground'
+              : 'text-foreground-muted hover:text-foreground'
+          }`}
+        >
+          توبات
+        </button>
+        <button
+          onClick={() => setViewType('accessories')}
+          className={`px-4 py-1.5 text-sm rounded-md transition-colors ${
+            viewType === 'accessories'
+              ? 'bg-canvas shadow-sm font-semibold text-foreground'
+              : 'text-foreground-muted hover:text-foreground'
+          }`}
+        >
+          اكسسوارات
+        </button>
+      </div>
+
+      {viewType === 'rolls' ? (
+        <>
+          <div className="space-y-1">
+            <Label className="text-sm font-medium text-foreground">{ar.labels.barcode}</Label>
+            <div className="relative">
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center">
+                <span className="absolute size-6 rounded-full bg-ring/20 animate-ping" />
+                <ScanBarcode className="relative size-4 text-ring" aria-hidden />
+              </span>
+              <Input
+                ref={barcodeInputRef}
+                autoFocus
+                value={barcode}
+                onChange={(e) => setBarcode(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                placeholder="RMX-R-000001"
+                dir="ltr"
+                className="h-11 md:h-10 pr-10"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label className="text-sm font-medium text-foreground">{ar.labels.fabricFilter}</Label>
+              <select
+                value={fabricId}
+                onChange={(e) => setFabricId(e.target.value)}
+                disabled={fabricsQ.isLoading}
+                dir="rtl"
+                className={selectClass}
+              >
+                <option value="">كل الخامات</option>
+                {fabrics.map((f) => (
+                  <option key={f.id} value={String(f.id)}>{f.name_ar}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-sm font-medium text-foreground">{ar.labels.colorFilter}</Label>
+              <select
+                value={colorId}
+                onChange={(e) => setColorId(e.target.value)}
+                disabled={colorsQ.isLoading}
+                dir="rtl"
+                className={selectClass}
+              >
+                <option value="">كل الألوان</option>
+                {colors.map((c) => (
+                  <option key={c.id} value={String(c.id)}>{c.name_ar}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-sm font-medium text-foreground">{ar.inventory.warehouse}</Label>
+              <select
+                value={warehouse}
+                onChange={(e) => setWarehouse(e.target.value)}
+                dir="rtl"
+                className={selectClass}
+              >
+                <option value="">كل المخازن</option>
+                <option value="shop">{ar.warehouses.shop}</option>
+                <option value="factory">{ar.warehouses.factory}</option>
+                <option value="damaged_shop">{ar.warehouses.damaged_shop}</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex gap-2 flex-wrap">
+            <Button onClick={handleSearch} disabled={q.isFetching} className="h-11 md:h-10">
+              {q.isFetching ? ar.loading : ar.labels.search}
+            </Button>
+            {activeFilters > 0 && (
+              <Button variant="outline" onClick={handleReset} className="h-11 md:h-10 gap-1.5">
+                <X className="size-3.5" aria-hidden />
+                مسح الفلاتر
+              </Button>
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="space-y-1">
+          <Label className="text-sm font-medium text-foreground">بحث</Label>
           <Input
-            ref={barcodeInputRef}
-            autoFocus
-            value={barcode}
-            onChange={(e) => setBarcode(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder="RMX-R-000001"
-            dir="ltr"
-            className="h-11 md:h-10 pr-10"
+            value={accSearch}
+            onChange={(e) => setAccSearch(e.target.value)}
+            placeholder="ابحث بالاسم أو الباركود"
+            className="h-11 md:h-10"
+            dir="rtl"
           />
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        <div className="space-y-1">
-          <Label className="text-sm font-medium text-foreground">{ar.labels.fabricFilter}</Label>
-          <select
-            value={fabricId}
-            onChange={(e) => setFabricId(e.target.value)}
-            disabled={fabricsQ.isLoading}
-            dir="rtl"
-            className={selectClass}
-          >
-            <option value="">كل الخامات</option>
-            {fabrics.map((f) => (
-              <option key={f.id} value={String(f.id)}>{f.name_ar}</option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <Label className="text-sm font-medium text-foreground">{ar.labels.colorFilter}</Label>
-          <select
-            value={colorId}
-            onChange={(e) => setColorId(e.target.value)}
-            disabled={colorsQ.isLoading}
-            dir="rtl"
-            className={selectClass}
-          >
-            <option value="">كل الألوان</option>
-            {colors.map((c) => (
-              <option key={c.id} value={String(c.id)}>{c.name_ar}</option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <Label className="text-sm font-medium text-foreground">{ar.inventory.warehouse}</Label>
-          <select
-            value={warehouse}
-            onChange={(e) => setWarehouse(e.target.value)}
-            dir="rtl"
-            className={selectClass}
-          >
-            <option value="">كل المخازن</option>
-            <option value="shop">{ar.warehouses.shop}</option>
-            <option value="factory">{ar.warehouses.factory}</option>
-            <option value="damaged_shop">{ar.warehouses.damaged_shop}</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="flex gap-2 flex-wrap">
-        <Button onClick={handleSearch} disabled={q.isFetching} className="h-11 md:h-10">
-          {q.isFetching ? ar.loading : ar.labels.search}
-        </Button>
-        {activeFilters > 0 && (
-          <Button variant="outline" onClick={handleReset} className="h-11 md:h-10 gap-1.5">
-            <X className="size-3.5" aria-hidden />
-            مسح الفلاتر
-          </Button>
-        )}
-      </div>
+      )}
     </div>
   );
 
@@ -356,32 +485,58 @@ export function RollsPage() {
       <MobileFilterSheet activeCount={activeFilters}>{filterControls}</MobileFilterSheet>
 
       <div className="text-sm text-foreground-muted">
-        {ar.labels.results}: <span className="tabular-num font-medium text-foreground">{rolls.length}</span>
+        {ar.labels.results}:{' '}
+        <span className="tabular-num font-medium text-foreground">
+          {viewType === 'rolls' ? rolls.length : filteredAccessories.length}
+        </span>
       </div>
 
       <SectionCard noPadding>
-        <ResponsiveTable
-          columns={columns}
-          rows={rolls}
-          rowKey={(r) => String(r.id)}
-          onRowClick={(r) => setDetail(r)}
-          empty={ar.common.none}
-          isLoading={q.isLoading}
-          isError={q.isError}
-          onRetry={() => q.refetch()}
-          resetKey={resetKey}
-          actions={(r) => (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={labelPdfMut.isPending && labelPdfMut.variables === r.id}
-              onClick={(e) => { e.stopPropagation(); labelPdfMut.mutate(r.id); }}
-              aria-label={ar.labels.print}
-            >
-              <Printer className="size-4" aria-hidden />
-            </Button>
-          )}
-        />
+        {viewType === 'rolls' ? (
+          <ResponsiveTable
+            columns={columns}
+            rows={rolls}
+            rowKey={(r) => String(r.id)}
+            onRowClick={(r) => setDetail(r)}
+            empty={ar.common.none}
+            isLoading={q.isLoading}
+            isError={q.isError}
+            onRetry={() => q.refetch()}
+            resetKey={resetKey}
+            actions={(r) => (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={labelPdfMut.isPending && labelPdfMut.variables === r.id}
+                onClick={(e) => { e.stopPropagation(); labelPdfMut.mutate(r.id); }}
+                aria-label={ar.labels.print}
+              >
+                <Printer className="size-4" aria-hidden />
+              </Button>
+            )}
+          />
+        ) : (
+          <ResponsiveTable
+            columns={accColumns}
+            rows={filteredAccessories}
+            rowKey={(r) => String(r.id)}
+            empty="لا توجد اكسسوارات مسجلة بعد"
+            isLoading={accQ.isLoading}
+            isError={accQ.isError}
+            onRetry={() => accQ.refetch()}
+            actions={(r) => (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={accLabelMut.isPending && accLabelMut.variables === r.id}
+                onClick={(e) => { e.stopPropagation(); accLabelMut.mutate(r.id); }}
+                aria-label={ar.labels.print}
+              >
+                <Printer className="size-4" aria-hidden />
+              </Button>
+            )}
+          />
+        )}
       </SectionCard>
 
       {/* Roll detail drawer */}

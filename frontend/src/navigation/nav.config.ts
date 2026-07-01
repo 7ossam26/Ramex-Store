@@ -152,13 +152,6 @@ export const NAV: NavTop[] = [
             route: '/items/accessories/add',
           },
           {
-            id: 'items.accessories',
-            labelAr: 'الاكسسوارات',
-            descAr: 'عرض وبحث في كل الاكسسوارات بالمخزون',
-            icon: Layers,
-            route: '/items/accessories',
-          },
-          {
             id: 'items.rolls',
             labelAr: 'الاتواب',
             descAr: 'بحث وتصفية كل الاتواب',
