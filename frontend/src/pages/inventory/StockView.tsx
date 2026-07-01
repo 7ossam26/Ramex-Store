@@ -5,6 +5,8 @@ import JsBarcode from 'jsbarcode';
 import { inventoryApi } from '@/lib/inventory-api';
 import { salesApi } from '@/lib/sales-api';
 import { itemsApi } from '@/lib/items-api';
+import { accessoriesApi } from '@/lib/accessories-api';
+import type { Accessory } from '@/lib/accessories-types';
 import { extractApiError } from '@/lib/api-error';
 import { openPdfBlob } from '@/lib/pdf';
 import type { StockSummaryRow, Warehouse } from '@/lib/inventory-types';
@@ -353,6 +355,7 @@ export function StockViewPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<'rolls' | 'accessories'>('rolls');
 
   const { data: rows = [], isLoading, isError, refetch } = useQuery<StockSummaryRow[]>({
     queryKey: ['stock-summary', warehouse],
@@ -398,6 +401,42 @@ export function StockViewPage() {
     }
     return { inStock, low, out };
   }, [rows]);
+
+  const accQ = useQuery<Accessory[]>({
+    queryKey: ['stock-view-accessories'],
+    queryFn: () => accessoriesApi.list(),
+    enabled: viewMode === 'accessories',
+  });
+  const allAccessories = accQ.data ?? [];
+
+  const accStatusCounts = useMemo(() => {
+    let inStock = 0, low = 0, out = 0;
+    for (const a of allAccessories) {
+      if (a.qty_in_stock === 0) out++;
+      else if (a.qty_in_stock <= 5) low++;
+      else inStock++;
+    }
+    return { inStock, low, out };
+  }, [allAccessories]);
+
+  const filteredAccessories = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let result = allAccessories.filter((a) => {
+      if (statusFilter === 'in_stock' && a.qty_in_stock === 0) return false;
+      if (statusFilter === 'low' && (a.qty_in_stock === 0 || a.qty_in_stock > 5)) return false;
+      if (statusFilter === 'out' && a.qty_in_stock > 0) return false;
+      if (q) {
+        if (!`${a.name_ar} ${a.internal_barcode}`.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+    switch (sortKey) {
+      case 'count_desc': result = [...result].sort((a, b) => b.qty_in_stock - a.qty_in_stock); break;
+      case 'count_asc':  result = [...result].sort((a, b) => a.qty_in_stock - b.qty_in_stock); break;
+      default: result = [...result].sort((a, b) => a.name_ar.localeCompare(b.name_ar, 'ar')); break;
+    }
+    return result;
+  }, [allAccessories, search, statusFilter, sortKey]);
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -539,6 +578,65 @@ export function StockViewPage() {
     },
   ];
 
+  const accStockColumns: Column<Accessory>[] = [
+    {
+      key: 'name_ar',
+      header: 'الاسم / الكود',
+      primary: true,
+      cell: (r) => (
+        <span className="flex flex-col">
+          <span className="font-medium text-foreground">{r.name_ar}</span>
+          <span className="text-[11px] text-foreground-muted font-mono" dir="ltr">
+            {r.internal_barcode}
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: 'qty_in_stock',
+      header: 'الكمية المتاحة',
+      align: 'end',
+      cell: (r) => (
+        <span
+          className={cn(
+            'tabular-num font-semibold',
+            r.qty_in_stock === 0
+              ? 'text-foreground-muted'
+              : r.qty_in_stock <= 5
+                ? 'text-warning-foreground'
+                : 'text-success-foreground',
+          )}
+        >
+          {r.qty_in_stock} قطعة
+        </span>
+      ),
+    },
+    {
+      key: 'purchase_price_egp',
+      header: 'سعر التكلفة',
+      align: 'end',
+      cell: (r) =>
+        r.purchase_price_egp != null ? (
+          <span className="tabular-num" dir="ltr">
+            {fmtMoney(Number(r.purchase_price_egp))}{' '}
+            <span className="text-foreground-muted text-xs">{EGP}</span>
+          </span>
+        ) : (
+          <span className="text-foreground-tertiary">—</span>
+        ),
+    },
+    {
+      key: 'is_active',
+      header: 'الحالة',
+      cell: (r) => {
+        if (!r.is_active) return <StatusPill tone="neutral">موقوف</StatusPill>;
+        if (r.qty_in_stock === 0) return <StatusPill tone="danger">نفد</StatusPill>;
+        if (r.qty_in_stock <= 5) return <StatusPill tone="warning">منخفض</StatusPill>;
+        return <StatusPill tone="success">متوفر</StatusPill>;
+      },
+    },
+  ];
+
   return (
     <PageShell
       title="إدارة المخزون"
@@ -611,8 +709,8 @@ export function StockViewPage() {
           {/* Row 1: category chips + status filter chips */}
           <div className="flex flex-wrap items-center gap-2">
             <FilterChip
-              active={activeCategory === 'all'}
-              onClick={() => setActiveCategory('all')}
+              active={viewMode === 'rolls' && activeCategory === 'all'}
+              onClick={() => { setViewMode('rolls'); setActiveCategory('all'); }}
               count={rows.length}
             >
               الكل
@@ -620,8 +718,8 @@ export function StockViewPage() {
             {categories.map((c) => (
               <FilterChip
                 key={c.name}
-                active={activeCategory === c.name}
-                onClick={() => setActiveCategory(c.name)}
+                active={viewMode === 'rolls' && activeCategory === c.name}
+                onClick={() => { setViewMode('rolls'); setActiveCategory(c.name); }}
                 count={c.count}
               >
                 {c.name}
@@ -629,23 +727,31 @@ export function StockViewPage() {
             ))}
             <div className="h-5 w-px bg-border-subtle self-center" />
             <FilterChip
+              active={viewMode === 'accessories'}
+              onClick={() => setViewMode(viewMode === 'accessories' ? 'rolls' : 'accessories')}
+              count={allAccessories.length}
+            >
+              اكسسوارات
+            </FilterChip>
+            <div className="h-5 w-px bg-border-subtle self-center" />
+            <FilterChip
               active={statusFilter === 'in_stock'}
               onClick={() => setStatusFilter(statusFilter === 'in_stock' ? 'all' : 'in_stock')}
-              count={statusCounts.inStock + statusCounts.low}
+              count={viewMode === 'rolls' ? statusCounts.inStock + statusCounts.low : accStatusCounts.inStock + accStatusCounts.low}
             >
               في المخزون
             </FilterChip>
             <FilterChip
               active={statusFilter === 'low'}
               onClick={() => setStatusFilter(statusFilter === 'low' ? 'all' : 'low')}
-              count={statusCounts.low}
+              count={viewMode === 'rolls' ? statusCounts.low : accStatusCounts.low}
             >
               منخفض
             </FilterChip>
             <FilterChip
               active={statusFilter === 'out'}
               onClick={() => setStatusFilter(statusFilter === 'out' ? 'all' : 'out')}
-              count={statusCounts.out}
+              count={viewMode === 'rolls' ? statusCounts.out : accStatusCounts.out}
             >
               نفد
             </FilterChip>
@@ -674,26 +780,28 @@ export function StockViewPage() {
               <ChevronDown className="absolute top-1/2 -translate-y-1/2 end-3 size-4 text-foreground-muted pointer-events-none" />
             </div>
 
-            <div className="relative inline-flex">
-              <WarehouseIcon className="absolute top-1/2 -translate-y-1/2 start-3 size-4 text-foreground-muted pointer-events-none" />
-              <select
-                value={warehouse}
-                onChange={(e) => setWarehouse(e.target.value as WarehouseChoice)}
-                className={cn(
-                  'h-10 rounded-md border border-border-default bg-surface ps-9 pe-8 text-sm text-foreground',
-                  'appearance-none cursor-pointer min-w-[140px]',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
-                  'hover:bg-surface-hover transition-colors',
-                )}
-              >
-                {WAREHOUSE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute top-1/2 -translate-y-1/2 end-3 size-4 text-foreground-muted pointer-events-none" />
-            </div>
+            {viewMode === 'rolls' && (
+              <div className="relative inline-flex">
+                <WarehouseIcon className="absolute top-1/2 -translate-y-1/2 start-3 size-4 text-foreground-muted pointer-events-none" />
+                <select
+                  value={warehouse}
+                  onChange={(e) => setWarehouse(e.target.value as WarehouseChoice)}
+                  className={cn(
+                    'h-10 rounded-md border border-border-default bg-surface ps-9 pe-8 text-sm text-foreground',
+                    'appearance-none cursor-pointer min-w-[140px]',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+                    'hover:bg-surface-hover transition-colors',
+                  )}
+                >
+                  {WAREHOUSE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute top-1/2 -translate-y-1/2 end-3 size-4 text-foreground-muted pointer-events-none" />
+              </div>
+            )}
 
             <div className="relative flex-1 sm:flex-none sm:w-64">
               <Search className="absolute top-1/2 -translate-y-1/2 start-3 size-4 text-foreground-muted pointer-events-none" />
@@ -707,24 +815,43 @@ export function StockViewPage() {
           </div>
         </div>
 
-        <ResponsiveTable
-          columns={columns}
-          rows={filteredRows}
-          rowKey={rowKey}
-          isLoading={isLoading}
-          isError={isError}
-          onRetry={() => refetch()}
-          errorTitle="تعذر تحميل المخزون"
-          empty={
-            <div className="py-10 text-center text-sm text-foreground-muted">
-              <Package className="size-8 mx-auto mb-2 opacity-50" />
-              لا توجد أصناف مطابقة لهذا البحث.
-            </div>
-          }
-          resetKey={`${warehouse}-${activeCategory}-${statusFilter}-${sortKey}-${search}`}
-          expandedKeys={expanded}
-          expandedContent={(row) => <RollDetailsPanel row={row} />}
-        />
+        {viewMode === 'rolls' ? (
+          <ResponsiveTable
+            columns={columns}
+            rows={filteredRows}
+            rowKey={rowKey}
+            isLoading={isLoading}
+            isError={isError}
+            onRetry={() => refetch()}
+            errorTitle="تعذر تحميل المخزون"
+            empty={
+              <div className="py-10 text-center text-sm text-foreground-muted">
+                <Package className="size-8 mx-auto mb-2 opacity-50" />
+                لا توجد أصناف مطابقة لهذا البحث.
+              </div>
+            }
+            resetKey={`${warehouse}-${activeCategory}-${statusFilter}-${sortKey}-${search}`}
+            expandedKeys={expanded}
+            expandedContent={(row) => <RollDetailsPanel row={row} />}
+          />
+        ) : (
+          <ResponsiveTable
+            columns={accStockColumns}
+            rows={filteredAccessories}
+            rowKey={(r) => String(r.id)}
+            isLoading={accQ.isLoading}
+            isError={accQ.isError}
+            onRetry={() => accQ.refetch()}
+            errorTitle="تعذر تحميل الاكسسوارات"
+            empty={
+              <div className="py-10 text-center text-sm text-foreground-muted">
+                <Package className="size-8 mx-auto mb-2 opacity-50" />
+                لا توجد اكسسوارات مطابقة لهذا البحث.
+              </div>
+            }
+            resetKey={`accessories-${statusFilter}-${sortKey}-${search}`}
+          />
+        )}
       </motion.div>
 
       <div className="text-xs text-foreground-muted flex items-center gap-1.5">
