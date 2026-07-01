@@ -78,7 +78,7 @@ export function AddAccessoryPage() {
   }
 
   return (
-    <PageShell title={t.navTitle} description="تسجيل اكسسوار جديد بالكمية بالقطع">
+    <PageShell title={t.navTitle} description="تسجيل اكسسوار جديد بالكمية بالقطع" backTo="/items">
       <SectionCard>
         <form onSubmit={handleSubmit} noValidate>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">

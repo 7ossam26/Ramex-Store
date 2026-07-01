@@ -22,6 +22,12 @@ const cards: HubCard[] = [
     icon: Plus,
   },
   {
+    label: 'الاكسسوارات',
+    description: 'عرض وبحث في كل الاكسسوارات بالمخزون',
+    href: '/items/accessories',
+    icon: Boxes,
+  },
+  {
     label: ar.labels.rollsTitle,
     description: ar.hubs.itemsRollsDesc,
     href: '/items/rolls',
