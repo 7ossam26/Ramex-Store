@@ -78,14 +78,15 @@ export async function getAccessoryLabel(req: Request, res: Response): Promise<vo
   const row = await svc.getAccessoryById(id);
   if (!row) { res.status(404).json({ error: 'not_found' }); return; }
 
-  // Generate barcode PNG
+  // Generate barcode PNG. Matches the roll label: code text is rendered
+  // separately below (includetext: false) so it can be styled consistently.
   const barcodePng = await bwipjs.toBuffer({
     bcid: 'code128',
     text: row.internal_barcode,
     scale: 3,
-    height: 10,
-    includetext: true,
-    textxalign: 'center',
+    height: 18,
+    includetext: false,
+    paddingwidth: 4,
   });
   const barcodeDataUrl = `data:image/png;base64,${barcodePng.toString('base64')}`;
 
@@ -97,17 +98,67 @@ export async function getAccessoryLabel(req: Request, res: Response): Promise<vo
   const MM_TO_PT = 2.8346;
   const W = 100 * MM_TO_PT;
   const H = 60 * MM_TO_PT;
+  const PAGE_MARGIN = 8;
+
+  type PdfMargin = [number, number, number, number];
+
+  // Hairline grid border, identical to the roll label frame.
+  const hairlineGrid = {
+    hLineWidth: () => 0.5,
+    vLineWidth: () => 0.5,
+    hLineColor: () => '#000000',
+    vLineColor: () => '#000000',
+    paddingLeft: () => 0,
+    paddingRight: () => 0,
+    paddingTop: () => 0,
+    paddingBottom: () => 0,
+  };
 
   const docDef = {
     pageSize: { width: W, height: H },
-    pageMargins: [8, 8, 8, 8] as [number, number, number, number],
-    defaultStyle: { font: 'Cairo', fontSize: 9 },
+    pageMargins: [PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN] as PdfMargin,
+    defaultStyle: { font: 'Cairo', fontSize: 8.5, alignment: 'center', color: '#000000' },
     content: [
       {
-        image: barcodeDataUrl,
-        fit: [W - 20, H - 40] as [number, number],
-        alignment: 'center',
-        margin: [0, 12, 0, 0] as [number, number, number, number],
+        table: {
+          widths: ['*'],
+          heights: [42, 100],
+          dontBreakRows: true,
+          body: [
+            [
+              {
+                text: 'RMX',
+                fontSize: 26,
+                bold: true,
+                alignment: 'center' as const,
+                lineHeight: 0.95,
+                margin: [0, 8, 0, 6] as PdfMargin,
+              },
+            ],
+            [
+              {
+                stack: [
+                  {
+                    image: barcodeDataUrl,
+                    fit: [240, 60] as [number, number],
+                    alignment: 'center' as const,
+                    margin: [0, 3, 0, 3] as PdfMargin,
+                  },
+                  {
+                    text: row.internal_barcode,
+                    fontSize: 11,
+                    bold: true,
+                    characterSpacing: 0.7,
+                    alignment: 'center' as const,
+                    margin: [0, 4, 0, 0] as PdfMargin,
+                  },
+                ],
+                margin: [9, 12, 9, 8] as PdfMargin,
+              },
+            ],
+          ],
+        },
+        layout: hairlineGrid,
       },
     ],
   };
