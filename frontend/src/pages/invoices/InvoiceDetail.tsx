@@ -239,9 +239,9 @@ export function InvoiceDetailPage() {
           <table className="w-full text-sm min-w-[640px]">
             <thead className="text-start text-xs text-foreground-muted uppercase tracking-wide border-b border-border-subtle">
               <tr>
-                <th className="px-3 py-2">الخامة / اللون</th>
-                <th className="px-3 py-2">كود التوب</th>
-                <th className="px-3 py-2">الوزن</th>
+                <th className="px-3 py-2">الصنف</th>
+                <th className="px-3 py-2">الكود</th>
+                <th className="px-3 py-2">الكمية</th>
                 <th className="px-3 py-2">السعر</th>
                 <th className="px-3 py-2">الخصم</th>
                 <th className="px-3 py-2">الإجمالي</th>
@@ -250,9 +250,13 @@ export function InvoiceDetailPage() {
             <tbody>
               {inv.lines.map((l) => (
                 <tr key={l.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
-                  <td className="px-3 py-2.5 text-foreground">{l.fabric_name_ar} / {l.color_name_ar}</td>
-                  <td className="rmx-print-code px-3 py-2.5 font-mono text-xs tabular-num" dir="ltr">{l.roll_sr_no ?? l.internal_barcode}</td>
-                  <td className="px-3 py-2.5 tabular-num" dir="ltr">{rollQtyLabel(l.weight_kg, l.length_m)}</td>
+                  <td className="px-3 py-2.5 text-foreground">
+                    {l.item_type === 'accessory'
+                      ? (l.accessory_name_ar ?? l.internal_barcode)
+                      : `${l.fabric_name_ar} / ${l.color_name_ar}`}
+                  </td>
+                  <td className="rmx-print-code px-3 py-2.5 font-mono text-xs tabular-num" dir="ltr">{l.item_type === 'accessory' ? l.internal_barcode : (l.roll_sr_no ?? l.internal_barcode)}</td>
+                  <td className="px-3 py-2.5 tabular-num" dir="ltr">{l.item_type === 'accessory' ? `${l.qty_pieces} قطعة` : rollQtyLabel(l.weight_kg, l.length_m)}</td>
                   <td className="px-3 py-2.5 tabular-num" dir="ltr">{fmtMoney(l.selling_price_egp)}</td>
                   <td className="px-3 py-2.5 tabular-num" dir="ltr">{fmtMoney(l.line_discount_egp)}</td>
                   <td className="px-3 py-2.5 font-medium tabular-num" dir="ltr">{fmtMoney(l.line_total_egp)}</td>
@@ -1217,10 +1221,10 @@ function ReturnModal({
   const returnMut = useMutation({
     mutationFn: () => {
       const selectedLines = invoice.lines
-        .filter((l) => lineStates[l.id]?.checked)
+        .filter((l) => lineStates[l.id]?.checked && l.item_type === 'roll' && l.roll_id != null)
         .map((l): ReturnLineInput => ({
           originalLineId: l.id,
-          rollId: l.roll_id,
+          rollId: l.roll_id as number,
           refundAmountEgp: parseAmount(lineStates[l.id]!.refundAmount),
           disposition: lineStates[l.id]!.disposition,
         }));
@@ -1285,8 +1289,8 @@ function ReturnModal({
                 <thead className="text-start text-xs text-foreground-muted bg-surface-hover/50 uppercase tracking-wide">
                   <tr>
                     <th className="px-2 py-2 font-medium">✓</th>
-                    <th className="px-2 py-2 font-medium">الخامة / اللون</th>
-                    <th className="px-2 py-2 font-medium">الوزن</th>
+                    <th className="px-2 py-2 font-medium">الصنف</th>
+                    <th className="px-2 py-2 font-medium">الكمية</th>
                     <th className="px-2 py-2 font-medium">{ar.returns.refundAmount}</th>
                     <th className="px-2 py-2 font-medium">{ar.returns.disposition}</th>
                   </tr>
@@ -1294,24 +1298,33 @@ function ReturnModal({
                 <tbody>
                   {invoice.lines.map((l: InvoiceLineDetail) => {
                     const s = lineStates[l.id]!;
+                    const isAccessory = l.item_type === 'accessory';
                     return (
                       <tr key={l.id} className="border-t border-border-subtle hover:bg-surface-hover transition-colors duration-150">
                         <td className="px-2 py-2">
                           <input
                             type="checkbox"
                             checked={s.checked}
+                            disabled={isAccessory}
+                            title={isAccessory ? 'استرجاع الاكسسوارات غير مدعوم حاليًا' : undefined}
                             onChange={(e) => updateLine(l.id, { checked: e.target.checked })}
-                            className="accent-accent cursor-pointer"
+                            className="accent-accent cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                           />
                         </td>
-                        <td className="px-2 py-2 text-foreground">{l.fabric_name_ar} / {l.color_name_ar}</td>
-                        <td className="px-2 py-2 tabular-num" dir="ltr">{rollQtyLabel(l.weight_kg, l.length_m)}</td>
+                        <td className="px-2 py-2 text-foreground">
+                          {isAccessory
+                            ? (l.accessory_name_ar ?? l.internal_barcode)
+                            : `${l.fabric_name_ar} / ${l.color_name_ar}`}
+                        </td>
+                        <td className="px-2 py-2 tabular-num" dir="ltr">
+                          {isAccessory ? `${l.qty_pieces} قطعة` : rollQtyLabel(l.weight_kg, l.length_m)}
+                        </td>
                         <td className="px-2 py-2">
                           <input
                             type="number" inputMode="numeric"
                             className="h-8 w-24 border border-border-default rounded-md px-2 text-sm bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75 disabled:opacity-50"
                             value={s.refundAmount}
-                            disabled={!s.checked}
+                            disabled={!s.checked || isAccessory}
                             onChange={(e) => updateLine(l.id, { refundAmount: e.target.value })}
                             dir="ltr"
                             min="0"
@@ -1322,7 +1335,7 @@ function ReturnModal({
                           <select
                             className="h-8 border border-border-default rounded-md px-2 text-sm bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75 disabled:opacity-50"
                             value={s.disposition}
-                            disabled={!s.checked}
+                            disabled={!s.checked || isAccessory}
                             onChange={(e) => updateLine(l.id, { disposition: e.target.value as RollDisposition })}
                           >
                             <option value="back_to_stock">{ar.returns.dispositions.back_to_stock}</option>

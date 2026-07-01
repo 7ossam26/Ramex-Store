@@ -194,7 +194,7 @@ function InvoicePage({
             <tr key={i}>
               <td>{line.description}</td>
               <td><Num v={fmtInt(line.bolts)} /></td>
-              <td><Num v={`${fmtWeight(line.quantity)} ${line.quantityUnit}`} /></td>
+              <td><Num v={`${line.quantityUnit === 'قطعة' ? fmtInt(line.quantity) : fmtWeight(line.quantity)} ${line.quantityUnit}`} /></td>
               <td><Num v={fmtMoney(line.unitPrice)} /></td>
               <td><Num v={fmtMoney(line.discountPct)} /></td>
               <td><Num v={`${currencyLabel} ${fmtMoney(line.amount)}`} /></td>

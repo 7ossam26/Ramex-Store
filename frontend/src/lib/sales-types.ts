@@ -116,19 +116,23 @@ export type DepositRefundBody = {
 export type InvoiceLineDetail = {
   id: number;
   invoice_id: number;
-  roll_id: number;
+  item_type: 'roll' | 'accessory';
+  roll_id: number | null;
+  accessory_id: number | null;
+  qty_pieces: number | null;
   selling_price_egp: string;
   line_discount_egp: string;
   line_total_egp: string;
   final_price_per_unit: string | null;
-  fabric_name_ar: string;
-  fabric_unit: 'kg' | 'meter';
-  color_name_ar: string;
+  fabric_name_ar: string | null;
+  fabric_unit: 'kg' | 'meter' | null;
+  color_name_ar: string | null;
   color_code: string | null;
   roll_sr_no: string | null;
   weight_kg: string | null;
   length_m: string | null;
   reference_price_per_unit: string | null;
+  accessory_name_ar: string | null;
   internal_barcode: string;
 };
 

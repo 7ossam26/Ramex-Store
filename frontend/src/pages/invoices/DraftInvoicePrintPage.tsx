@@ -14,6 +14,25 @@ import { Skeleton } from '@/components/Skeleton';
 import { ErrorBanner } from '@/components/ErrorBanner';
 
 function mapLineToDraft(l: InvoiceLineDetail): DraftInvoiceLine {
+  if (l.item_type === 'accessory') {
+    const qty = Number(l.qty_pieces ?? 0);
+    const perUnit =
+      l.final_price_per_unit != null
+        ? Number(l.final_price_per_unit)
+        : qty > 0
+          ? Number(l.selling_price_egp) / qty
+          : 0;
+    return {
+      description: l.accessory_name_ar ?? l.internal_barcode,
+      bolts: 1,
+      quantity: qty,
+      quantityUnit: 'قطعة',
+      unitPrice: perUnit,
+      discountPct: 0,
+      amount: Number(l.line_total_egp),
+    };
+  }
+
   const unit = l.fabric_unit === 'meter' ? 'm' : 'kg';
   const qty = unit === 'kg' ? Number(l.weight_kg) : Number(l.length_m ?? l.weight_kg);
   const perUnit =

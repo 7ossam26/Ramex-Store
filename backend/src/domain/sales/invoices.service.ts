@@ -787,9 +787,10 @@ export async function getInvoiceDetail(id: number): Promise<InvoiceDetail | unde
 
   const lines = (await db('invoice_lines as il')
     .where('il.invoice_id', id)
-    .join('rolls as r', 'il.roll_id', 'r.id')
-    .join('fabrics as f', 'r.fabric_id', 'f.id')
-    .join('colors as col', 'r.color_id', 'col.id')
+    .leftJoin('rolls as r', 'il.roll_id', 'r.id')
+    .leftJoin('fabrics as f', 'r.fabric_id', 'f.id')
+    .leftJoin('colors as col', 'r.color_id', 'col.id')
+    .leftJoin('accessories as a', 'il.accessory_id', 'a.id')
     .select(
       'il.*',
       'f.name_ar as fabric_name_ar',
@@ -800,7 +801,8 @@ export async function getInvoiceDetail(id: number): Promise<InvoiceDetail | unde
       'r.weight_kg',
       'r.length_m',
       'r.reference_price_per_unit',
-      'r.internal_barcode',
+      'a.name_ar as accessory_name_ar',
+      db.raw('COALESCE(r.internal_barcode, a.internal_barcode) as internal_barcode'),
     )
     .orderBy('il.id', 'asc')) as InvoiceLineWithDetail[];
 
