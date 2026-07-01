@@ -150,7 +150,6 @@ export const NAV: NavTop[] = [
             descAr: 'تسجيل اكسسوار جديد بالكمية بالقطع',
             icon: Plus,
             route: '/items/accessories/add',
-            permission: 'accessories',
           },
           {
             id: 'items.rolls',
