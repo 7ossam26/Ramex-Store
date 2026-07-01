@@ -43,6 +43,7 @@ itemsRouter.get('/rolls/:id', requirePermission('fabric_rolls', 'read'), rollsCt
 itemsRouter.get('/rolls/:id/fabric-label', requirePermission('fabric_rolls', 'read'), rollsCtl.getFabricLabel);
 itemsRouter.get('/rolls/:id/label-pdf', requirePermission('fabric_rolls', 'read'), rollsCtl.getLabelPdf);
 itemsRouter.post('/rolls/:id/reprint-label', requirePermission('fabric_rolls', 'read'), rollsCtl.reprintLabel);
+itemsRouter.post('/rolls/:id/split', requirePermission('fabric_rolls', 'write'), topsCtl.splitTop);
 itemsRouter.patch('/rolls/:id', requirePermission('inventory', 'write'), rollsCtl.updateRoll);
 itemsRouter.post('/rolls/:id/toggle-pos-visibility', requirePermission('inventory', 'write'), rollsCtl.togglePosVisibility);
 itemsRouter.post('/rolls/:id/return-to-factory', requirePermission('inventory', 'write'), rollsCtl.returnToFactory);

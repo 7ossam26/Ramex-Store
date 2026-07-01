@@ -1,6 +1,7 @@
-import type { Request, Response } from 'express';
-import { CreateTopBatchSchema } from './tops.schemas.js';
+import type { NextFunction, Request, Response } from 'express';
+import { CreateTopBatchSchema, SplitTopSchema } from './tops.schemas.js';
 import * as svc from './tops.service.js';
+import { TopSplitError } from './tops.service.js';
 import { auditLog } from '../../middleware/audit.js';
 
 export async function createTopBatch(req: Request, res: Response): Promise<void> {
@@ -59,4 +60,42 @@ export async function createTopBatch(req: Request, res: Response): Promise<void>
   );
 
   res.status(201).json(result);
+}
+
+export async function splitTop(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const rollId = Number(req.params.id);
+  if (isNaN(rollId)) { res.status(400).json({ error: 'invalid_id' }); return; }
+
+  const { newQuantity } = SplitTopSchema.parse(req.body);
+  const actorUserId = req.user!.sub;
+
+  try {
+    const result = await svc.splitTop(rollId, newQuantity, actorUserId);
+
+    await auditLog(
+      req,
+      'split_top',
+      'roll',
+      rollId,
+      null,
+      {
+        original_roll_id: rollId,
+        rib_roll_id: result.rib.id,
+        rib_barcode: result.rib.internal_barcode,
+      },
+      { severity: 'medium' },
+    );
+
+    res.status(201).json(result);
+  } catch (err) {
+    if (err instanceof TopSplitError) {
+      const status =
+        err.code === 'ROLL_NOT_FOUND' ? 404
+        : err.code === 'ROLL_NOT_SPLITTABLE' || err.code === 'ROLL_QUANTITY_MISSING' || err.code === 'INVALID_SPLIT_QUANTITY' ? 422
+        : 400;
+      res.status(status).json({ error: err.code, message: err.message });
+      return;
+    }
+    next(err);
+  }
 }

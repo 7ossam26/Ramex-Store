@@ -47,4 +47,12 @@ export const itemsApi = {
 
   returnRollToFactory: (rollId: number) =>
     api.post<RollWithDetails>(`/rolls/${rollId}/return-to-factory`).then((r) => r.data),
+
+  getRollByBarcode: (barcode: string) =>
+    api.get<RollWithDetails>(`/rolls/by-barcode/${encodeURIComponent(barcode)}`).then((r) => r.data),
+
+  splitTop: (rollId: number, newQuantity: number) =>
+    api
+      .post<{ original: RollWithDetails; rib: RollWithDetails }>(`/rolls/${rollId}/split`, { newQuantity })
+      .then((r) => r.data),
 };

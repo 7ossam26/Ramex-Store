@@ -6,6 +6,12 @@ import { auditFromService } from '../inventory/audit.helper.js';
 import { generateFabricCode } from './fabrics.service.js';
 import { generateColorCode } from './colors.service.js';
 
+export class TopSplitError extends Error {
+  constructor(public readonly code: string, message: string) {
+    super(message);
+  }
+}
+
 async function generateBarcode(trx: Knex.Transaction): Promise<string> {
   const result = await trx.raw<{ rows: Array<{ n: number | string }> }>(
     'UPDATE db_sequences SET last_value = last_value + 1 WHERE name = ? RETURNING last_value AS n',
@@ -151,5 +157,131 @@ export async function createTopBatch(
       .orderBy('r.id', 'asc')) as RollWithDetails[];
 
     return { fabric, rolls };
+  });
+}
+
+function rollDetailQuery(trx: Knex.Transaction) {
+  return trx('rolls as r')
+    .join('fabrics as f', 'r.fabric_id', 'f.id')
+    .join('colors as c', 'r.color_id', 'c.id')
+    .leftJoin('lots as l', 'r.lot_id', 'l.id')
+    .select(
+      'r.*',
+      'f.code as fabric_code',
+      'f.name_ar as fabric_name_ar',
+      'f.unit as fabric_unit',
+      'c.name_ar as color_name_ar',
+      'c.code as color_code',
+      'l.lot_no as lot_no',
+    );
+}
+
+export async function splitTop(
+  rollId: number,
+  newQuantity: number,
+  actorUserId: number,
+): Promise<{ original: RollWithDetails; rib: RollWithDetails }> {
+  return db.transaction(async (trx) => {
+    const parent = await trx('rolls').where({ id: rollId }).forUpdate().first();
+    if (!parent) throw new TopSplitError('ROLL_NOT_FOUND', 'التوب غير موجود');
+
+    const fabric = await trx('fabrics').where({ id: parent.fabric_id }).first() as Fabric;
+    if (!fabric) throw new TopSplitError('ROLL_NOT_FOUND', 'بيانات الخامة غير موجودة');
+
+    if (parent.status !== 'in_stock') {
+      throw new TopSplitError('ROLL_NOT_SPLITTABLE', 'لا يمكن تقسيم توب غير موجود في المخزن');
+    }
+
+    const qtyField = fabric.unit === 'meter' ? 'length_m' : 'weight_kg';
+    const current = Number(parent[qtyField]);
+    if (!current || current <= 0) {
+      throw new TopSplitError('ROLL_QUANTITY_MISSING', 'الكمية الحالية للتوب غير محددة أو صفر');
+    }
+
+    const rounded = Math.round(newQuantity * 1000) / 1000;
+    if (rounded <= 0 || rounded >= current) {
+      throw new TopSplitError('INVALID_SPLIT_QUANTITY', 'الكمية الجديدة يجب أن تكون أكبر من صفر وأصغر من الكمية الأصلية');
+    }
+
+    const remainder = Math.round((current - rounded) * 1000) / 1000;
+
+    await trx('rolls').where({ id: rollId }).update({
+      [qtyField]: remainder,
+      updated_at: new Date(),
+    });
+
+    const internal_barcode = await generateBarcode(trx);
+
+    const [{ id: ribId }] = await trx('rolls').insert({
+      fabric_id: parent.fabric_id,
+      color_id: parent.color_id,
+      lot_id: parent.lot_id ?? null,
+      weight_kg: qtyField === 'weight_kg' ? rounded : null,
+      length_m: qtyField === 'length_m' ? rounded : null,
+      warehouse: parent.warehouse,
+      status: 'in_stock',
+      selling_price_egp: parent.selling_price_egp ?? null,
+      reference_price_per_unit: parent.reference_price_per_unit ?? null,
+      roll_sr_no: null,
+      order_no: parent.order_no ?? null,
+      supplier_order_no: parent.supplier_order_no ?? null,
+      top_number: null,
+      width_cm: parent.width_cm ?? null,
+      grade_id: parent.grade_id ?? null,
+      composition_id: parent.composition_id ?? null,
+      brand_id: parent.brand_id ?? null,
+      external_barcode: null,
+      is_visible_at_pos: parent.is_visible_at_pos,
+      received_at: null,
+      internal_barcode,
+    }).returning('id');
+
+    await trx('stock_movements').insert({
+      roll_id: rollId,
+      from_warehouse: parent.warehouse,
+      to_warehouse: parent.warehouse,
+      event_type: 'adjustment',
+      reference_type: 'roll_split',
+      reference_id: rollId,
+      actor_user_id: actorUserId,
+      notes_ar: 'تقسيم توب / تحديث الكمية المتبقية',
+    });
+
+    await trx('stock_movements').insert({
+      roll_id: ribId,
+      from_warehouse: null,
+      to_warehouse: parent.warehouse,
+      event_type: 'adjustment',
+      reference_type: 'roll_split',
+      reference_id: rollId,
+      actor_user_id: actorUserId,
+      notes_ar: 'تقسيم توب / إضافة ريب',
+    });
+
+    const updatedParent = await trx('rolls').where({ id: rollId }).first();
+    await auditFromService(trx, {
+      actorUserId,
+      action: 'split_roll',
+      entity: 'roll',
+      entityId: rollId,
+      before: { [qtyField]: current },
+      after: { [qtyField]: remainder, rib_roll_id: ribId },
+      severity: 'medium',
+    });
+
+    const rib = await trx('rolls').where({ id: ribId }).first();
+    await auditFromService(trx, {
+      actorUserId,
+      action: 'create_roll',
+      entity: 'roll',
+      entityId: ribId,
+      after: rib,
+      severity: 'medium',
+    });
+
+    const [originalDetail] = await rollDetailQuery(trx).where('r.id', rollId) as RollWithDetails[];
+    const [ribDetail] = await rollDetailQuery(trx).where('r.id', ribId) as RollWithDetails[];
+
+    return { original: originalDetail, rib: ribDetail };
   });
 }

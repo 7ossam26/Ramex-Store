@@ -40,3 +40,9 @@ export const CreateTopBatchSchema = z.object({
 });
 
 export type CreateTopBatchInput = z.infer<typeof CreateTopBatchSchema>;
+
+export const SplitTopSchema = z.object({
+  newQuantity: z.number().positive(),
+});
+
+export type SplitTopInput = z.infer<typeof SplitTopSchema>;

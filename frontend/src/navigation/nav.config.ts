@@ -40,6 +40,7 @@ import {
   PieChart,
   Plus,
   PlusCircle,
+  Scissors,
   Receipt,
   Scale,
   ScrollText,
@@ -135,6 +136,13 @@ export const NAV: NavTop[] = [
             descAr: 'تسجيل توب جديد بكل بياناته',
             icon: Plus,
             route: '/items/tops/add',
+          },
+          {
+            id: 'items.splitTop',
+            labelAr: 'اضافة ريب',
+            descAr: 'تقسيم توب موجود وإصدار باركود جديد للريب',
+            icon: Scissors,
+            route: '/items/tops/split',
           },
           {
             id: 'items.rolls',
