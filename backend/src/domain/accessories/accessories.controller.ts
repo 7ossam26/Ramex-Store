@@ -105,22 +105,9 @@ export async function getAccessoryLabel(req: Request, res: Response): Promise<vo
     content: [
       {
         image: barcodeDataUrl,
-        fit: [W - 20, 55] as [number, number],
+        fit: [W - 20, H - 40] as [number, number],
         alignment: 'center',
-      },
-      {
-        text: row.name_ar,
-        alignment: 'center',
-        fontSize: 10,
-        bold: true,
-        margin: [0, 4, 0, 0] as [number, number, number, number],
-      },
-      {
-        text: row.internal_barcode,
-        alignment: 'center',
-        fontSize: 8,
-        color: '#666666',
-        font: 'Courier',
+        margin: [0, 12, 0, 0] as [number, number, number, number],
       },
     ],
   };
