@@ -122,19 +122,9 @@ export async function getAccessoryLabel(req: Request, res: Response): Promise<vo
       {
         table: {
           widths: ['*'],
-          heights: [42, 100],
+          heights: [100],
           dontBreakRows: true,
           body: [
-            [
-              {
-                text: 'RMX',
-                fontSize: 26,
-                bold: true,
-                alignment: 'center' as const,
-                lineHeight: 0.95,
-                margin: [0, 8, 0, 6] as PdfMargin,
-              },
-            ],
             [
               {
                 stack: [
