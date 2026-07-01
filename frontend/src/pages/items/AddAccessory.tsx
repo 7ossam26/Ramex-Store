@@ -78,76 +78,89 @@ export function AddAccessoryPage() {
   }
 
   return (
-    <PageShell title={t.navTitle}>
+    <PageShell title={t.navTitle} description="تسجيل اكسسوار جديد بالكمية بالقطع">
       <SectionCard>
-        <form onSubmit={handleSubmit} className="space-y-5 max-w-sm" noValidate>
-          <div className="space-y-1">
-            <Label htmlFor="acc-name">{t.nameLabel}</Label>
-            <Input
-              id="acc-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t.namePlaceholder}
-              autoFocus
-            />
-            {errors.name_ar && (
-              <p className="text-destructive text-sm">{errors.name_ar}</p>
-            )}
+        <form onSubmit={handleSubmit} noValidate>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+
+            {/* Name — full width */}
+            <div className="sm:col-span-2 space-y-1.5">
+              <Label htmlFor="acc-name">{t.nameLabel}</Label>
+              <Input
+                id="acc-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={t.namePlaceholder}
+                autoFocus
+                className="h-10"
+              />
+              {errors.name_ar && (
+                <p className="text-destructive text-sm">{errors.name_ar}</p>
+              )}
+            </div>
+
+            {/* Qty */}
+            <div className="space-y-1.5">
+              <Label htmlFor="acc-qty">{t.qtyLabel}</Label>
+              <Input
+                id="acc-qty"
+                type="number"
+                min={1}
+                step={1}
+                value={qty}
+                onChange={(e) => setQty(e.target.value)}
+                placeholder={t.qtyPlaceholder}
+                className="h-10"
+              />
+              {errors.quantity && (
+                <p className="text-destructive text-sm">{errors.quantity}</p>
+              )}
+            </div>
+
+            {/* Cost */}
+            <div className="space-y-1.5">
+              <Label htmlFor="acc-cost">{t.costLabel}</Label>
+              <Input
+                id="acc-cost"
+                type="number"
+                min={0}
+                step={0.01}
+                value={cost}
+                onChange={(e) => setCost(e.target.value)}
+                placeholder={t.costPlaceholder}
+                className="h-10"
+              />
+            </div>
+
+            {/* Notes — full width */}
+            <div className="sm:col-span-2 space-y-1.5">
+              <Label htmlFor="acc-notes">{t.notesLabel}</Label>
+              <textarea
+                id="acc-notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+              />
+            </div>
+
           </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="acc-qty">{t.qtyLabel}</Label>
-            <Input
-              id="acc-qty"
-              type="number"
-              min={1}
-              step={1}
-              value={qty}
-              onChange={(e) => setQty(e.target.value)}
-              placeholder={t.qtyPlaceholder}
-            />
-            {errors.quantity && (
-              <p className="text-destructive text-sm">{errors.quantity}</p>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="acc-cost">{t.costLabel}</Label>
-            <Input
-              id="acc-cost"
-              type="number"
-              min={0}
-              step={0.01}
-              value={cost}
-              onChange={(e) => setCost(e.target.value)}
-              placeholder={t.costPlaceholder}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="acc-notes">{t.notesLabel}</Label>
-            <textarea
-              id="acc-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            />
-          </div>
-
+          {/* Feedback */}
           {serverError && (
-            <p className="text-destructive text-sm">{serverError}</p>
+            <p className="text-destructive text-sm mt-4">{serverError}</p>
           )}
-
           {lastBarcode && !createMut.isPending && (
-            <p className="text-green-600 text-sm">
+            <p className="text-green-600 text-sm mt-4">
               {t.successMessage} — {lastBarcode}
             </p>
           )}
 
-          <Button type="submit" disabled={createMut.isPending || labelMut.isPending}>
-            {createMut.isPending ? '…' : t.submitButton}
-          </Button>
+          <div className="mt-6 flex justify-end">
+            <Button type="submit" disabled={createMut.isPending || labelMut.isPending} className="h-10 px-6">
+              {createMut.isPending ? '…' : t.submitButton}
+            </Button>
+          </div>
         </form>
       </SectionCard>
     </PageShell>
