@@ -7,8 +7,8 @@ const bankMethodEnum = z.enum(['cash', 'instapay', 'bank_transfer', 'cheque']);
 
 export const ReturnLineSchema = z.object({
   originalLineId: z.coerce.number().int().positive(),
-  rollId: z.coerce.number().int().positive().optional(),
-  accessoryId: z.coerce.number().int().positive().optional(),
+  rollId: z.coerce.number().int().positive().nullable().optional(),
+  accessoryId: z.coerce.number().int().positive().nullable().optional(),
   refundAmountEgp: positiveAmount,
   disposition: z.enum(['back_to_stock', 'damaged']),
   notesAr: z.string().max(2000).nullable().optional(),
