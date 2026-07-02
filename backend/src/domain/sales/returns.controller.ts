@@ -18,6 +18,7 @@ const ERR_MAP: Record<string, { status: number; message: string }> = {
   RETURN_LINE_ACCESSORY_MISMATCH: { status: 400, message: 'الاكسسوار لا يطابق سطر الفاتورة' },
   RETURN_LINE_ALREADY_RETURNED: { status: 409, message: 'تم إرجاع هذا السطر مسبقًا' },
   ACCESSORY_NOT_FOUND: { status: 404, message: 'الاكسسوار غير موجود' },
+  ACCESSORY_NOT_RETURNABLE: { status: 404, message: 'لا توجد عملية بيع قابلة للإرجاع لهذا الاكسسوار' },
   ROLL_NOT_SOLD: { status: 409, message: 'التوب ليس في حالة مباع — لا يمكن إرجاعه' },
   ROLL_NOT_FOUND: { status: 404, message: 'التوب غير موجود' },
   ROLL_NOT_AVAILABLE: { status: 409, message: 'التوب غير متاح' },
@@ -136,18 +137,42 @@ export async function getScanPreview(req: Request, res: Response): Promise<void>
   res.json(meta);
 }
 
+export async function getAccessoryScanPreview(req: Request, res: Response): Promise<void> {
+  const accessoryId = Number(req.params.accessoryId);
+  if (!accessoryId || !Number.isFinite(accessoryId)) {
+    res.status(400).json({ error: 'INVALID_ACCESSORY_ID', message: 'معرّف الاكسسوار غير صالح' });
+    return;
+  }
+  const meta = await svc.getAccessorySaleMeta(accessoryId);
+  if (!meta) {
+    res.status(404).json({ error: 'ACCESSORY_NOT_RETURNABLE', message: 'لا توجد عملية بيع قابلة للإرجاع لهذا الاكسسوار' });
+    return;
+  }
+  res.json(meta);
+}
+
 export async function createScanReturn(req: Request, res: Response): Promise<void> {
   const data = ReturnFromScanSchema.parse(req.body);
   try {
-    const result = await svc.createReturnFromRollScan({
-      rollId: data.rollId,
-      refundMethod: data.refundMethod,
-      bankAccountId: data.bankAccountId ?? null,
-      reference: data.reference ?? null,
-      chequeDetails: data.chequeDetails ?? null,
-      actorUserId: actorId(req),
-      shiftId: req.shiftId ?? null,
-    });
+    const result = data.accessoryId != null
+      ? await svc.createAccessoryReturnFromScan({
+          accessoryId: data.accessoryId,
+          refundMethod: data.refundMethod,
+          bankAccountId: data.bankAccountId ?? null,
+          reference: data.reference ?? null,
+          chequeDetails: data.chequeDetails ?? null,
+          actorUserId: actorId(req),
+          shiftId: req.shiftId ?? null,
+        })
+      : await svc.createReturnFromRollScan({
+          rollId: data.rollId as number,
+          refundMethod: data.refundMethod,
+          bankAccountId: data.bankAccountId ?? null,
+          reference: data.reference ?? null,
+          chequeDetails: data.chequeDetails ?? null,
+          actorUserId: actorId(req),
+          shiftId: req.shiftId ?? null,
+        });
     res.status(201).json(result);
   } catch (e) {
     if (handleDomainError(e, res)) return;

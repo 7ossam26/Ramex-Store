@@ -99,8 +99,12 @@ export const salesApi = {
   scanPreview: (rollId: number) =>
     api.get<ReturnScanMeta>(`/returns/scan-preview/${rollId}`).then((r) => r.data),
 
+  scanPreviewAccessory: (accessoryId: number) =>
+    api.get<ReturnScanMeta>(`/returns/scan-preview-accessory/${accessoryId}`).then((r) => r.data),
+
   scanReturn: (body: {
-    rollId: number;
+    rollId?: number | null;
+    accessoryId?: number | null;
     refundMethod: 'cash' | 'instapay' | 'bank_transfer' | 'cheque';
     bankAccountId?: number | null;
     reference?: string | null;

@@ -215,12 +215,17 @@ export type BankAccount = {
 
 // Phase 6 — Return on Scan
 export type ReturnScanMeta = {
-  rollId: number;
+  itemType: 'roll' | 'accessory';
+  rollId: number | null;
   rollInternalBarcode: string;
   rollSrNo: string | null;
-  fabricNameAr: string;
-  colorNameAr: string;
+  fabricNameAr: string | null;
+  colorNameAr: string | null;
   colorCode: string | null;
+  accessoryId: number | null;
+  accessoryNameAr: string | null;
+  qtyPieces: number | null;
+  originalLineId: number;
   refundEgp: number;
   originalInvoiceId: number;
   originalInvoiceNo: string;

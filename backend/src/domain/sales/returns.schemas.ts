@@ -97,13 +97,21 @@ export type ProcessExchangeInput = z.infer<typeof ProcessExchangeSchema>;
 // Phase 6 — Return on Scan
 export const ReturnFromScanSchema = z
   .object({
-    rollId: z.coerce.number().int().positive(),
+    rollId: z.coerce.number().int().positive().nullable().optional(),
+    accessoryId: z.coerce.number().int().positive().nullable().optional(),
     refundMethod: bankMethodEnum,
     bankAccountId: z.coerce.number().int().positive().nullable().optional(),
     reference: z.string().max(64).nullable().optional(),
     chequeDetails: ChequeDetailsSchema.nullable().optional(),
   })
   .superRefine((v, ctx) => {
+    if ((v.rollId != null) === (v.accessoryId != null)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['rollId'],
+        message: 'exactly one of rollId or accessoryId is required',
+      });
+    }
     if ((v.refundMethod === 'instapay' || v.refundMethod === 'bank_transfer') && v.bankAccountId == null) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

@@ -11,12 +11,17 @@ import type { CreateSaleInput, ChequeDetails } from './sales.types.js';
 // ─── Phase 6 — Return on Scan ──────────────────────────────────────────────
 
 export type ReturnScanMeta = {
-  rollId: number;
+  itemType: 'roll' | 'accessory';
+  rollId: number | null;
   rollInternalBarcode: string;
   rollSrNo: string | null;
-  fabricNameAr: string;
-  colorNameAr: string;
+  fabricNameAr: string | null;
+  colorNameAr: string | null;
   colorCode: string | null;
+  accessoryId: number | null;
+  accessoryNameAr: string | null;
+  qtyPieces: number | null;
+  originalLineId: number;
   refundEgp: number;
   originalInvoiceId: number;
   originalInvoiceNo: string;
@@ -35,6 +40,7 @@ export async function getRollSaleMeta(rollId: number): Promise<ReturnScanMeta | 
     .join('fabrics as f', 'r.fabric_id', 'f.id')
     .join('colors as col', 'r.color_id', 'col.id')
     .select(
+      'il.id as original_line_id',
       'r.id as roll_id',
       'r.internal_barcode',
       'r.roll_sr_no',
@@ -54,12 +60,75 @@ export async function getRollSaleMeta(rollId: number): Promise<ReturnScanMeta | 
   if (!row) return undefined;
 
   return {
+    itemType: 'roll',
     rollId: Number(row.roll_id),
     rollInternalBarcode: row.internal_barcode as string,
     rollSrNo: row.roll_sr_no as string | null,
     fabricNameAr: row.fabric_name_ar as string,
     colorNameAr: row.color_name_ar as string,
     colorCode: row.color_code as string | null,
+    accessoryId: null,
+    accessoryNameAr: null,
+    qtyPieces: null,
+    originalLineId: Number(row.original_line_id),
+    refundEgp: roundEgp(Number(row.line_total_egp)),
+    originalInvoiceId: Number(row.invoice_id),
+    originalInvoiceNo: row.invoice_no as string,
+    customerNameAr: row.customer_name_ar as string,
+    customerPhone: row.customer_phone as string,
+    saleDate: row.sale_date as string,
+  };
+}
+
+/**
+ * Scan-return preview for an accessory. Unlike rolls (unique units whose
+ * `sold` status guards double-return), an accessory is a SKU sold across many
+ * invoices, so we resolve the most recent COMPLETED sale line for this
+ * accessory that has not already been returned.
+ */
+export async function getAccessorySaleMeta(accessoryId: number): Promise<ReturnScanMeta | undefined> {
+  const row = await db('invoice_lines as il')
+    .where('il.accessory_id', accessoryId)
+    .where('il.item_type', 'accessory')
+    .where('inv.status', 'completed')
+    .whereNotExists(function () {
+      this.select('*')
+        .from('return_lines as rl')
+        .whereRaw('rl.original_invoice_line_id = il.id');
+    })
+    .join('accessories as a', 'il.accessory_id', 'a.id')
+    .join('invoices as inv', 'il.invoice_id', 'inv.id')
+    .join('customers as c', 'inv.customer_id', 'c.id')
+    .select(
+      'il.id as original_line_id',
+      'il.qty_pieces',
+      'il.line_total_egp',
+      'a.id as accessory_id',
+      'a.name_ar as accessory_name_ar',
+      'a.internal_barcode',
+      'inv.id as invoice_id',
+      'inv.invoice_no',
+      'c.name_ar as customer_name_ar',
+      'c.phone as customer_phone',
+      'inv.created_at as sale_date',
+    )
+    .orderBy('il.id', 'desc')
+    .first();
+
+  if (!row) return undefined;
+
+  return {
+    itemType: 'accessory',
+    rollId: null,
+    rollInternalBarcode: row.internal_barcode as string,
+    rollSrNo: null,
+    fabricNameAr: null,
+    colorNameAr: null,
+    colorCode: null,
+    accessoryId: Number(row.accessory_id),
+    accessoryNameAr: row.accessory_name_ar as string,
+    qtyPieces: Number(row.qty_pieces),
+    originalLineId: Number(row.original_line_id),
     refundEgp: roundEgp(Number(row.line_total_egp)),
     originalInvoiceId: Number(row.invoice_id),
     originalInvoiceNo: row.invoice_no as string,
@@ -237,6 +306,191 @@ export async function createReturnFromRollScan(
         refund_method: input.refundMethod,
         original_invoice_id: invoiceLine.invoice_id,
         roll_id: input.rollId,
+      },
+    });
+
+    return {
+      ...(ret as ReturnRow),
+      originalInvoiceNo: invoiceLine.invoice_no as string,
+      refundEgp,
+    };
+  });
+}
+
+export type AccessoryReturnFromScanInput = {
+  accessoryId: number;
+  refundMethod: 'cash' | 'instapay' | 'bank_transfer' | 'cheque';
+  bankAccountId?: number | null;
+  reference?: string | null;
+  chequeDetails?: ChequeDetails | null;
+  actorUserId: number;
+  shiftId?: number | null;
+};
+
+/**
+ * Scan-return for an accessory. Mirrors createReturnFromRollScan but resolves
+ * the most recent completed, not-yet-returned sale line for the scanned SKU,
+ * refunds its line total, and restores qty_in_stock.
+ */
+export async function createAccessoryReturnFromScan(
+  input: AccessoryReturnFromScanInput,
+): Promise<ReturnRow & { originalInvoiceNo: string; refundEgp: number }> {
+  return db.transaction(async (trx) => {
+    const accessory = await trx('accessories').where({ id: input.accessoryId }).forUpdate().first();
+    if (!accessory) throw new Error('ACCESSORY_NOT_FOUND');
+
+    const invoiceLine = await trx('invoice_lines as il')
+      .where('il.accessory_id', input.accessoryId)
+      .where('il.item_type', 'accessory')
+      .where('inv.status', 'completed')
+      .whereNotExists(function () {
+        this.select('*')
+          .from('return_lines as rl')
+          .whereRaw('rl.original_invoice_line_id = il.id');
+      })
+      .join('invoices as inv', 'il.invoice_id', 'inv.id')
+      .select(
+        'il.id',
+        'il.invoice_id',
+        'il.qty_pieces',
+        'il.line_total_egp',
+        'inv.invoice_no',
+        'inv.customer_id',
+      )
+      .orderBy('il.id', 'desc')
+      .first();
+
+    if (!invoiceLine) throw new Error('ACCESSORY_NOT_RETURNABLE');
+
+    const qtyPieces = Number(invoiceLine.qty_pieces);
+    const refundEgp = roundEgp(Number(invoiceLine.line_total_egp));
+    const year = new Date().getFullYear();
+    const return_no = await nextReturnNo(trx, year);
+
+    const [{ id: retId }] = await trx('returns')
+      .insert({
+        return_no,
+        original_invoice_id: invoiceLine.invoice_id,
+        customer_id: invoiceLine.customer_id,
+        created_by_user_id: input.actorUserId,
+        total_refund_egp: refundEgp,
+        refund_method: input.refundMethod,
+        bank_account_id: input.bankAccountId ?? null,
+        notes_ar: null,
+        kind: 'refund',
+        shift_id: input.shiftId ?? null,
+      })
+      .returning('id');
+
+    const ret = await trx('returns').where({ id: retId }).first();
+
+    await trx('return_lines').insert({
+      return_id: ret.id,
+      original_invoice_line_id: invoiceLine.id,
+      item_type: 'accessory',
+      roll_id: null,
+      accessory_id: input.accessoryId,
+      qty_pieces: qtyPieces,
+      refund_amount_egp: refundEgp,
+      roll_disposition: 'back_to_stock',
+      notes_ar: null,
+    });
+
+    // Restore accessory stock.
+    await trx('accessories').where({ id: input.accessoryId }).update({
+      qty_in_stock: trx.raw('qty_in_stock + ?', [qtyPieces]),
+      updated_at: trx.fn.now(),
+    });
+
+    const [{ id: paymentId }] = await trx('payments').insert({
+      invoice_id: invoiceLine.invoice_id,
+      method: input.refundMethod,
+      amount_egp: -refundEgp,
+      payment_kind: 'refund',
+      bank_account_id: input.bankAccountId ?? null,
+      reference: input.reference ?? null,
+      notes_ar: `استرجاع مسح: ${return_no}`,
+      actor_user_id: input.actorUserId,
+    }).returning('id');
+    if (input.refundMethod === 'cheque' && input.chequeDetails) {
+      await trx('cheques').insert({
+        payment_id: paymentId,
+        cheque_number: input.chequeDetails.chequeNumber,
+        bank_name_ar: input.chequeDetails.bankNameAr,
+        branch_ar: input.chequeDetails.branchAr ?? null,
+        issuer_name_ar: input.chequeDetails.issuerNameAr ?? null,
+        amount_egp: refundEgp,
+        issue_date: input.chequeDetails.issueDate,
+        due_date: input.chequeDetails.dueDate,
+        notes_ar: input.chequeDetails.notesAr ?? null,
+      });
+    }
+
+    await settlePayment(trx, {
+      method: input.refundMethod,
+      paymentKind: 'refund',
+      amount: refundEgp,
+      bankAccountId: input.bankAccountId ?? null,
+      referenceType: 'return',
+      referenceId: ret.id,
+      actorUserId: input.actorUserId,
+      notesAr: `استرجاع مسح: ${return_no}`,
+    });
+
+    const customer = await trx('customers')
+      .where({ id: invoiceLine.customer_id })
+      .forUpdate()
+      .first();
+
+    const newLifetime = roundEgp(Number(customer.lifetime_volume_egp) - refundEgp);
+    const newBalance = roundEgp(Number(customer.current_balance_egp));
+
+    await trx('customer_ledger_entries').insert({
+      customer_id: invoiceLine.customer_id,
+      entry_type: 'refund',
+      reference_type: 'return',
+      reference_id: ret.id,
+      amount_egp: -refundEgp,
+      balance_after_egp: newBalance,
+      notes_ar: `مرتجع مسح ${return_no}`,
+      actor_user_id: input.actorUserId,
+    });
+
+    await trx('customers').where({ id: invoiceLine.customer_id }).update({
+      lifetime_volume_egp: newLifetime,
+      updated_at: trx.fn.now(),
+    });
+
+    await auditFromService(trx, {
+      actorUserId: input.actorUserId,
+      action: 'return_accessory',
+      entity: 'accessory',
+      entityId: input.accessoryId,
+      before: { qty_in_stock: accessory.qty_in_stock },
+      after: {
+        qty_in_stock: Number(accessory.qty_in_stock) + qtyPieces,
+        return_id: ret.id,
+        original_invoice_id: invoiceLine.invoice_id,
+        refundEgp,
+        method: input.refundMethod,
+        via: 'scan',
+      },
+      severity: 'medium',
+    });
+
+    await notify({
+      recipientRole: 'owner',
+      severity: 'low',
+      eventType: 'return_processed',
+      titleAr: 'مرتجع بالمسح',
+      bodyAr: `تم تسجيل مرتجع رقم ${return_no} بمسح اكسسوار من نقطة البيع`,
+      payload: {
+        return_no,
+        kind: 'refund',
+        total_refund_egp: refundEgp,
+        refund_method: input.refundMethod,
+        original_invoice_id: invoiceLine.invoice_id,
+        accessory_id: input.accessoryId,
       },
     });
 

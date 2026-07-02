@@ -236,6 +236,7 @@ export function POSPage() {
   const [depositOpen, setDepositOpen] = useState(false);
 
   // v2 Phase 6 — return on scan state.
+  const [returnDrawerOpen, setReturnDrawerOpen] = useState(false);
   const [returnDrawerRoll, setReturnDrawerRoll] = useState<RollLookup | null>(null);
   const [returnMeta, setReturnMeta] = useState<ReturnScanMeta | null>(null);
   const [returnMetaLoading, setReturnMetaLoading] = useState(false);
@@ -402,6 +403,7 @@ export function POSPage() {
 
   async function openReturnDrawer(roll: RollLookup) {
     setReturnDrawerRoll(roll);
+    setReturnDrawerOpen(true);
     setReturnMeta(null);
     setReturnMetaLoading(true);
     setReturnMethod('cash');
@@ -410,8 +412,28 @@ export function POSPage() {
       const meta = await salesApi.scanPreview(roll.id);
       setReturnMeta(meta);
     } catch {
+      setReturnDrawerOpen(false);
       setReturnDrawerRoll(null);
       showToast(ar.common.error);
+    } finally {
+      setReturnMetaLoading(false);
+    }
+  }
+
+  async function openAccessoryReturnDrawer(accessoryId: number) {
+    setReturnDrawerRoll(null);
+    setReturnDrawerOpen(true);
+    setReturnMeta(null);
+    setReturnMetaLoading(true);
+    setReturnMethod('cash');
+    setReturnBankId(typeof bankAccountId === 'number' ? bankAccountId : '');
+    try {
+      const meta = await salesApi.scanPreviewAccessory(accessoryId);
+      setReturnMeta(meta);
+    } catch (e) {
+      setReturnDrawerOpen(false);
+      const status = (e as { response?: { status?: number } })?.response?.status;
+      showToast(status === 404 ? ar.pos.accessoryNotReturnable : ar.common.error);
     } finally {
       setReturnMetaLoading(false);
     }
@@ -422,16 +444,19 @@ export function POSPage() {
     setReturnConfirming(true);
     try {
       const result = await salesApi.scanReturn({
-        rollId: returnMeta.rollId,
+        rollId: returnMeta.itemType === 'roll' ? returnMeta.rollId : null,
+        accessoryId: returnMeta.itemType === 'accessory' ? returnMeta.accessoryId : null,
         refundMethod: returnMethod,
         bankAccountId: (returnMethod === 'instapay' || returnMethod === 'bank_transfer') ? (returnBankId || null) : null,
         reference: returnMethod === 'bank_transfer' ? (returnReference || null) : null,
         chequeDetails: returnMethod === 'cheque' ? chequeStateToDetails(returnChequeState) : null,
       });
+      setReturnDrawerOpen(false);
       setReturnDrawerRoll(null);
       setReturnMeta(null);
       qc.invalidateQueries({ queryKey: ['invoices'] });
       qc.invalidateQueries({ queryKey: ['pos-rolls'] });
+      qc.invalidateQueries({ queryKey: ['accessories'] });
       showToast(`${ar.pos.returnSuccess} — ${result.return_no}`);
     } catch (e) {
       showToast(extractApiError(e));
@@ -443,8 +468,22 @@ export function POSPage() {
   async function handleReturnScan(barcode: string) {
     setReturnScanError(null);
     setReturnScanLoading(true);
+    const code = barcode.trim();
     try {
-      const roll = await salesApi.rollByBarcode(barcode.trim());
+      // Accessory barcodes are always RMX-A-NNNNNN — route to the accessory return path.
+      if (code.startsWith('RMX-A-')) {
+        try {
+          const acc = await accessoriesApi.byBarcode(code);
+          setReturnScanDialogOpen(false);
+          await openAccessoryReturnDrawer(acc.id);
+        } catch (e) {
+          const status = (e as { response?: { status?: number } })?.response?.status;
+          setReturnScanError(status === 404 ? ar.pos.notFound : extractApiError(e));
+        }
+        return;
+      }
+
+      const roll = await salesApi.rollByBarcode(code);
       if (roll.status === 'sold') {
         setReturnScanDialogOpen(false);
         await openReturnDrawer(roll);
@@ -1020,7 +1059,7 @@ export function POSPage() {
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-foreground-muted">
-            امسح باركود التوب أو اكتبه يدوياً لبدء الإرجاع
+            امسح باركود التوب أو الاكسسوار أو اكتبه يدوياً لبدء الإرجاع
           </p>
           <ScannerInput
             onScan={handleReturnScan}
@@ -1041,7 +1080,7 @@ export function POSPage() {
 
       {/* Phase 6 — return on scan: side drawer opens when a sold roll is scanned. */}
       <ReturnDrawer
-        roll={returnDrawerRoll}
+        open={returnDrawerOpen}
         meta={returnMeta}
         metaLoading={returnMetaLoading}
         banks={banks}
@@ -1057,6 +1096,7 @@ export function POSPage() {
         onConfirm={() => void confirmScanReturn()}
         onClose={() => {
           if (!returnConfirming) {
+            setReturnDrawerOpen(false);
             setReturnDrawerRoll(null);
             setReturnMeta(null);
           }
@@ -2654,7 +2694,7 @@ function NoLinesDepositDialog({
  * Opens from the right edge (RTL) when a sold roll is scanned.
  * ────────────────────────────────────────────────────────────────────────── */
 function ReturnDrawer({
-  roll,
+  open,
   meta,
   metaLoading,
   banks,
@@ -2670,7 +2710,7 @@ function ReturnDrawer({
   onConfirm,
   onClose,
 }: {
-  roll: RollLookup | null;
+  open: boolean;
   meta: ReturnScanMeta | null;
   metaLoading: boolean;
   banks: BankAccount[];
@@ -2687,7 +2727,7 @@ function ReturnDrawer({
   onClose: () => void;
 }) {
   return (
-    <Sheet open={!!roll} onOpenChange={(o) => !o && onClose()}>
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent side="right" className="w-full sm:max-w-md flex flex-col p-0 gap-0">
         {/* Header */}
         <SheetHeader className="px-4 py-3 border-b border-border-subtle shrink-0">
@@ -2733,20 +2773,32 @@ function ReturnDrawer({
                 <ReturnMetaRow label={ar.pos.returnDrawerSaleDate} value={fmtReturnDate(meta.saleDate)} />
               </div>
 
-              {/* Roll info */}
+              {/* Item info */}
               <div className="rounded-md border border-border-subtle bg-surface-elevated p-3 space-y-1 text-sm">
                 <p className="text-xs font-medium text-foreground-muted uppercase tracking-wide">
-                  {ar.pos.returnDrawerRollInfo}
+                  {meta.itemType === 'accessory' ? ar.pos.returnDrawerAccessoryInfo : ar.pos.returnDrawerRollInfo}
                 </p>
-                <p className="font-medium text-foreground">{meta.fabricNameAr}</p>
-                <p className="text-foreground-muted">
-                  {meta.colorNameAr}
-                  {meta.colorCode ? ` · ${meta.colorCode}` : ''}
-                </p>
-                <p className="text-xs font-mono text-foreground-tertiary" dir="ltr">
-                  {meta.rollInternalBarcode}
-                  {meta.rollSrNo ? ` · ${meta.rollSrNo}` : ''}
-                </p>
+                {meta.itemType === 'accessory' ? (
+                  <>
+                    <p className="font-medium text-foreground">{meta.accessoryNameAr}</p>
+                    <p className="text-foreground-muted">{meta.qtyPieces} قطعة</p>
+                    <p className="text-xs font-mono text-foreground-tertiary" dir="ltr">
+                      {meta.rollInternalBarcode}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium text-foreground">{meta.fabricNameAr}</p>
+                    <p className="text-foreground-muted">
+                      {meta.colorNameAr}
+                      {meta.colorCode ? ` · ${meta.colorCode}` : ''}
+                    </p>
+                    <p className="text-xs font-mono text-foreground-tertiary" dir="ltr">
+                      {meta.rollInternalBarcode}
+                      {meta.rollSrNo ? ` · ${meta.rollSrNo}` : ''}
+                    </p>
+                  </>
+                )}
               </div>
 
               {/* Method picker — 4 tiles */}

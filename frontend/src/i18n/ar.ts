@@ -504,6 +504,8 @@ export const ar = {
     returnDrawerCustomer: 'العميل',
     returnDrawerSaleDate: 'تاريخ البيع',
     returnDrawerRollInfo: 'بيانات التوب',
+    returnDrawerAccessoryInfo: 'بيانات الاكسسوار',
+    accessoryNotReturnable: 'لا توجد عملية بيع قابلة للإرجاع لهذا الاكسسوار',
     returnDrawerConfirm: 'تأكيد الإرجاع',
     returnAlreadyOpen: 'لوحة الإرجاع مفتوحة لهذا التوب بالفعل',
     returnDamagedRoll: 'التوب معطوب — لا يمكن استرجاعه',

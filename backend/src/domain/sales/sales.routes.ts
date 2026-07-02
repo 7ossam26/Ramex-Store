@@ -61,6 +61,7 @@ salesRouter.post('/returns', requirePermission('returns', 'write'), requireOpenS
 salesRouter.post('/returns/exchange', requirePermission('returns', 'write'), requireOpenShift, retCtl.processExchange);
 // Phase 6 — scan routes before /:id to prevent Express capturing the literal segment
 salesRouter.get('/returns/scan-preview/:rollId', requirePermission('returns', 'read'), retCtl.getScanPreview);
+salesRouter.get('/returns/scan-preview-accessory/:accessoryId', requirePermission('returns', 'read'), retCtl.getAccessoryScanPreview);
 salesRouter.post('/returns/from-scan', requirePermission('returns', 'write'), requireOpenShift, retCtl.createScanReturn);
 salesRouter.get('/returns', requirePermission('returns', 'read'), retCtl.listReturns);
 salesRouter.get('/returns/:id/slip-pdf', requirePermission('returns', 'read'), retCtl.getReturnSlipPdf);

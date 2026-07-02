@@ -24,7 +24,7 @@ function mapLineToDraft(l: InvoiceLineDetail): DraftInvoiceLine {
           : 0;
     return {
       description: l.accessory_name_ar ?? l.internal_barcode,
-      bolts: 1,
+      bolts: 0,
       quantity: qty,
       quantityUnit: 'قطعة',
       unitPrice: perUnit,
