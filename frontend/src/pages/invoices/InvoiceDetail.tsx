@@ -1221,10 +1221,11 @@ function ReturnModal({
   const returnMut = useMutation({
     mutationFn: () => {
       const selectedLines = invoice.lines
-        .filter((l) => lineStates[l.id]?.checked && l.item_type === 'roll' && l.roll_id != null)
+        .filter((l) => lineStates[l.id]?.checked)
         .map((l): ReturnLineInput => ({
           originalLineId: l.id,
-          rollId: l.roll_id as number,
+          rollId: l.item_type === 'roll' ? l.roll_id : null,
+          accessoryId: l.item_type === 'accessory' ? l.accessory_id : null,
           refundAmountEgp: parseAmount(lineStates[l.id]!.refundAmount),
           disposition: lineStates[l.id]!.disposition,
         }));
@@ -1305,10 +1306,8 @@ function ReturnModal({
                           <input
                             type="checkbox"
                             checked={s.checked}
-                            disabled={isAccessory}
-                            title={isAccessory ? 'استرجاع الاكسسوارات غير مدعوم حاليًا' : undefined}
                             onChange={(e) => updateLine(l.id, { checked: e.target.checked })}
-                            className="accent-accent cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="accent-accent cursor-pointer"
                           />
                         </td>
                         <td className="px-2 py-2 text-foreground">
@@ -1324,7 +1323,7 @@ function ReturnModal({
                             type="number" inputMode="numeric"
                             className="h-8 w-24 border border-border-default rounded-md px-2 text-sm bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75 disabled:opacity-50"
                             value={s.refundAmount}
-                            disabled={!s.checked || isAccessory}
+                            disabled={!s.checked}
                             onChange={(e) => updateLine(l.id, { refundAmount: e.target.value })}
                             dir="ltr"
                             min="0"
@@ -1335,7 +1334,7 @@ function ReturnModal({
                           <select
                             className="h-8 border border-border-default rounded-md px-2 text-sm bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75 disabled:opacity-50"
                             value={s.disposition}
-                            disabled={!s.checked || isAccessory}
+                            disabled={!s.checked}
                             onChange={(e) => updateLine(l.id, { disposition: e.target.value as RollDisposition })}
                           >
                             <option value="back_to_stock">{ar.returns.dispositions.back_to_stock}</option>

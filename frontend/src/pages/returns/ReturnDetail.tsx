@@ -93,9 +93,9 @@ export function ReturnDetailPage() {
                 <table className="w-full text-sm">
                   <thead className="text-start text-xs text-foreground-muted uppercase tracking-wide border-b border-border-subtle">
                     <tr>
-                      <th className="px-3 py-3 font-medium">الخامة / اللون</th>
-                      <th className="px-3 py-3 font-medium">كود التوب</th>
-                      <th className="px-3 py-3 font-medium">الوزن</th>
+                      <th className="px-3 py-3 font-medium">الصنف</th>
+                      <th className="px-3 py-3 font-medium">الكود</th>
+                      <th className="px-3 py-3 font-medium">الكمية</th>
                       <th className="px-3 py-3 font-medium">{ar.returns.disposition}</th>
                       <th className="px-3 py-3 font-medium">{ar.returns.refundAmount}</th>
                     </tr>
@@ -103,11 +103,17 @@ export function ReturnDetailPage() {
                   <tbody>
                     {ret.lines.map((l) => (
                       <tr key={l.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
-                        <td className="px-3 py-2.5 text-foreground">{l.fabric_name_ar} / {l.color_name_ar}</td>
-                        <td className="px-3 py-2.5 font-mono text-xs tabular-num" dir="ltr">
-                          {l.roll_sr_no ?? l.internal_barcode}
+                        <td className="px-3 py-2.5 text-foreground">
+                          {l.item_type === 'accessory'
+                            ? (l.accessory_name_ar ?? l.internal_barcode)
+                            : `${l.fabric_name_ar} / ${l.color_name_ar}`}
                         </td>
-                        <td className="px-3 py-2.5 tabular-num" dir="ltr">{rollQtyLabel(l.weight_kg, l.length_m)}</td>
+                        <td className="px-3 py-2.5 font-mono text-xs tabular-num" dir="ltr">
+                          {l.item_type === 'accessory' ? l.internal_barcode : (l.roll_sr_no ?? l.internal_barcode)}
+                        </td>
+                        <td className="px-3 py-2.5 tabular-num" dir="ltr">
+                          {l.item_type === 'accessory' ? `${l.qty_pieces} قطعة` : rollQtyLabel(l.weight_kg, l.length_m)}
+                        </td>
                         <td className="px-3 py-2.5">
                           <StatusPill tone={l.roll_disposition === 'back_to_stock' ? 'success' : 'danger'}>
                             {l.roll_disposition === 'back_to_stock'

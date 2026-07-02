@@ -7,10 +7,21 @@ const bankMethodEnum = z.enum(['cash', 'instapay', 'bank_transfer', 'cheque']);
 
 export const ReturnLineSchema = z.object({
   originalLineId: z.coerce.number().int().positive(),
-  rollId: z.coerce.number().int().positive(),
+  rollId: z.coerce.number().int().positive().optional(),
+  accessoryId: z.coerce.number().int().positive().optional(),
   refundAmountEgp: positiveAmount,
   disposition: z.enum(['back_to_stock', 'damaged']),
   notesAr: z.string().max(2000).nullable().optional(),
+}).superRefine((v, ctx) => {
+  const hasRoll = v.rollId != null;
+  const hasAccessory = v.accessoryId != null;
+  if (hasRoll === hasAccessory) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['rollId'],
+      message: 'exactly one of rollId or accessoryId is required',
+    });
+  }
 });
 
 const processReturnRefine = (v: { refundMethod: string; bankAccountId?: number | null; chequeDetails?: unknown }, ctx: z.RefinementCtx) => {

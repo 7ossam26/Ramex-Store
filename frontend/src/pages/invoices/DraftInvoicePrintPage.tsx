@@ -65,7 +65,7 @@ function mapInvoiceToDraft(inv: InvoiceDetail): DraftInvoiceDocumentProps {
     shopName: 'RMX',
     customerName: inv.customer_name_ar,
     phone: inv.customer_phone,
-    totalBolts: inv.lines.length,
+    totalBolts: inv.lines.filter((l) => l.item_type === 'roll').length,
     totalQuantity: totalQty,
     customerCode: inv.customer_code,
     lines: inv.lines.map(mapLineToDraft),

@@ -66,18 +66,21 @@ export async function buildReturnSlipPdf(ret: ReturnDetail): Promise<Buffer> {
   const tableHeader = [
     'الإجمالي المسترجع',
     'الحالة',
-    'الوزن',
-    'كود التوب',
-    'الخامة / اللون',
+    'الكمية',
+    'الكود',
+    'الصنف',
   ].map((h) => ({ text: h, bold: true, alignment: 'right' as const }));
 
-  const itemRows = ret.lines.map((l) => [
-    { text: fmtEgp(l.refund_amount_egp), alignment: 'right' as const },
-    { text: labelDisposition(l.roll_disposition), alignment: 'right' as const },
-    { text: `${Number(l.weight_kg).toFixed(3)} كجم`, alignment: 'right' as const },
-    { text: ar(l.roll_sr_no) || ar(l.internal_barcode), alignment: 'right' as const },
-    { text: `${ar(l.fabric_name_ar)} / ${ar(l.color_name_ar)}`, alignment: 'right' as const },
-  ]);
+  const itemRows = ret.lines.map((l) => {
+    const isAccessory = l.item_type === 'accessory';
+    return [
+      { text: fmtEgp(l.refund_amount_egp), alignment: 'right' as const },
+      { text: labelDisposition(l.roll_disposition), alignment: 'right' as const },
+      { text: isAccessory ? `${l.qty_pieces} قطعة` : `${Number(l.weight_kg).toFixed(3)} كجم`, alignment: 'right' as const },
+      { text: isAccessory ? ar(l.internal_barcode) : (ar(l.roll_sr_no) || ar(l.internal_barcode)), alignment: 'right' as const },
+      { text: isAccessory ? (ar(l.accessory_name_ar) || ar(l.internal_barcode)) : `${ar(l.fabric_name_ar)} / ${ar(l.color_name_ar)}`, alignment: 'right' as const },
+    ];
+  });
 
   const docDefinition: Record<string, unknown> = {
     pageSize: 'A4',

@@ -21,16 +21,20 @@ export type ReturnLineRow = {
   id: number;
   return_id: number;
   original_invoice_line_id: number;
-  roll_id: number;
+  item_type: 'roll' | 'accessory';
+  roll_id: number | null;
+  accessory_id: number | null;
+  qty_pieces: number | null;
   refund_amount_egp: string;
   roll_disposition: RollDisposition;
   notes_ar: string | null;
-  fabric_name_ar: string;
-  color_name_ar: string;
+  fabric_name_ar: string | null;
+  color_name_ar: string | null;
   color_code: string | null;
   roll_sr_no: string | null;
   weight_kg: string | null;
   length_m: string | null;
+  accessory_name_ar: string | null;
   internal_barcode: string;
 };
 
@@ -50,7 +54,8 @@ export type ReturnListRow = ReturnRow & {
 
 export type ReturnLineInput = {
   originalLineId: number;
-  rollId: number;
+  rollId?: number | null;
+  accessoryId?: number | null;
   refundAmountEgp: number;
   disposition: RollDisposition;
   notesAr?: string | null;

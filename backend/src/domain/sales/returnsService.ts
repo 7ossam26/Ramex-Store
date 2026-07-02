@@ -250,7 +250,8 @@ export async function createReturnFromRollScan(
 
 export type ReturnLineInput = {
   originalLineId: number;
-  rollId: number;
+  rollId?: number | null;
+  accessoryId?: number | null;
   refundAmountEgp: number;
   disposition: 'back_to_stock' | 'damaged';
   notesAr?: string | null;
@@ -296,15 +297,19 @@ export type ReturnLineRow = {
   id: number;
   return_id: number;
   original_invoice_line_id: number;
-  roll_id: number;
+  item_type: 'roll' | 'accessory';
+  roll_id: number | null;
+  accessory_id: number | null;
+  qty_pieces: number | null;
   refund_amount_egp: string;
   roll_disposition: 'back_to_stock' | 'damaged';
   notes_ar: string | null;
-  fabric_name_ar: string;
-  color_name_ar: string;
+  fabric_name_ar: string | null;
+  color_name_ar: string | null;
   color_code: string | null;
   roll_sr_no: string | null;
-  weight_kg: string;
+  weight_kg: string | null;
+  accessory_name_ar: string | null;
   internal_barcode: string;
 };
 
@@ -360,7 +365,7 @@ export async function processReturn(input: ProcessReturnInput): Promise<ReturnRo
 
     const invoice = await trx('invoices').where({ id: input.originalInvoiceId }).forUpdate().first();
 
-    // Validate each return line: roll must belong to the original invoice and be sold.
+    // Validate each return line: item must belong to the original invoice.
     const invoiceLineIds = input.lines.map((l) => l.originalLineId);
     const invoiceLines = await trx('invoice_lines')
       .where({ invoice_id: input.originalInvoiceId })
@@ -370,18 +375,38 @@ export async function processReturn(input: ProcessReturnInput): Promise<ReturnRo
       throw new Error('RETURN_LINE_NOT_ON_INVOICE');
     }
 
-    const rollIds = input.lines.map((l) => l.rollId);
-    const rolls = await trx('rolls').whereIn('id', rollIds).forUpdate();
+    // Reject re-returning a line that already has a return recorded against it.
+    const alreadyReturned = await trx('return_lines')
+      .whereIn('original_invoice_line_id', invoiceLineIds)
+      .first();
+    if (alreadyReturned) throw new Error('RETURN_LINE_ALREADY_RETURNED');
+
+    const rollIds = input.lines.filter((l) => l.rollId != null).map((l) => l.rollId as number);
+    const rolls = rollIds.length > 0 ? await trx('rolls').whereIn('id', rollIds).forUpdate() : [];
     for (const roll of rolls) {
       if (roll.status !== 'sold') throw new Error('ROLL_NOT_SOLD');
     }
     const rollMap = new Map(rolls.map((r) => [Number(r.id), r]));
 
-    // Validate roll IDs match lines.
+    const accessoryIds = input.lines.filter((l) => l.accessoryId != null).map((l) => l.accessoryId as number);
+    const accessories = accessoryIds.length > 0
+      ? await trx('accessories').whereIn('id', accessoryIds).forUpdate()
+      : [];
+    const accessoryMap = new Map(accessories.map((a) => [Number(a.id), a]));
+
+    // Validate roll/accessory IDs match the original invoice line.
     for (const line of input.lines) {
       const invLine = invoiceLines.find((il) => Number(il.id) === line.originalLineId);
-      if (!invLine || Number(invLine.roll_id) !== line.rollId) {
-        throw new Error('RETURN_LINE_ROLL_MISMATCH');
+      if (!invLine) throw new Error('RETURN_LINE_NOT_ON_INVOICE');
+      if (invLine.item_type === 'accessory') {
+        if (line.accessoryId == null || Number(invLine.accessory_id) !== line.accessoryId) {
+          throw new Error('RETURN_LINE_ACCESSORY_MISMATCH');
+        }
+        if (!accessoryMap.has(line.accessoryId)) throw new Error('ACCESSORY_NOT_FOUND');
+      } else {
+        if (line.rollId == null || Number(invLine.roll_id) !== line.rollId) {
+          throw new Error('RETURN_LINE_ROLL_MISMATCH');
+        }
       }
     }
 
@@ -405,16 +430,49 @@ export async function processReturn(input: ProcessReturnInput): Promise<ReturnRo
 
     // Process each return line.
     for (const line of input.lines) {
+      const invLine = invoiceLines.find((il) => Number(il.id) === line.originalLineId)!;
+      const isAccessory = invLine.item_type === 'accessory';
+
       await trx('return_lines').insert({
         return_id: ret.id,
         original_invoice_line_id: line.originalLineId,
-        roll_id: line.rollId,
+        item_type: invLine.item_type,
+        roll_id: isAccessory ? null : line.rollId,
+        accessory_id: isAccessory ? line.accessoryId : null,
+        qty_pieces: isAccessory ? invLine.qty_pieces : null,
         refund_amount_egp: roundEgp(line.refundAmountEgp),
         roll_disposition: line.disposition,
         notes_ar: line.notesAr ?? null,
       });
 
-      const roll = rollMap.get(line.rollId)!;
+      if (isAccessory) {
+        const accessory = accessoryMap.get(line.accessoryId!)!;
+        const qtyPieces = Number(invLine.qty_pieces);
+        if (line.disposition === 'back_to_stock') {
+          await trx('accessories').where({ id: line.accessoryId }).update({
+            qty_in_stock: trx.raw('qty_in_stock + ?', [qtyPieces]),
+            updated_at: trx.fn.now(),
+          });
+        }
+        await auditFromService(trx, {
+          actorUserId: input.actorUserId,
+          action: 'return_accessory',
+          entity: 'accessory',
+          entityId: line.accessoryId!,
+          before: { qty_in_stock: accessory.qty_in_stock },
+          after: {
+            qty_in_stock: line.disposition === 'back_to_stock'
+              ? Number(accessory.qty_in_stock) + qtyPieces
+              : Number(accessory.qty_in_stock),
+            return_id: ret.id,
+            disposition: line.disposition,
+          },
+          severity: 'medium',
+        });
+        continue;
+      }
+
+      const roll = rollMap.get(line.rollId!)!;
 
       if (line.disposition === 'back_to_stock') {
         await trx('rolls').where({ id: line.rollId }).update({
@@ -577,17 +635,37 @@ export async function processExchange(input: ProcessExchangeInput): Promise<{
       .whereIn('id', invoiceLineIds);
     if (invoiceLines.length !== input.lines.length) throw new Error('RETURN_LINE_NOT_ON_INVOICE');
 
-    const rollIds = input.lines.map((l) => l.rollId);
-    const rolls = await trx('rolls').whereIn('id', rollIds).forUpdate();
+    // Reject re-returning a line that already has a return recorded against it.
+    const alreadyReturned = await trx('return_lines')
+      .whereIn('original_invoice_line_id', invoiceLineIds)
+      .first();
+    if (alreadyReturned) throw new Error('RETURN_LINE_ALREADY_RETURNED');
+
+    const rollIds = input.lines.filter((l) => l.rollId != null).map((l) => l.rollId as number);
+    const rolls = rollIds.length > 0 ? await trx('rolls').whereIn('id', rollIds).forUpdate() : [];
     for (const roll of rolls) {
       if (roll.status !== 'sold') throw new Error('ROLL_NOT_SOLD');
     }
     const rollMap = new Map(rolls.map((r) => [Number(r.id), r]));
 
+    const accessoryIds = input.lines.filter((l) => l.accessoryId != null).map((l) => l.accessoryId as number);
+    const accessories = accessoryIds.length > 0
+      ? await trx('accessories').whereIn('id', accessoryIds).forUpdate()
+      : [];
+    const accessoryMap = new Map(accessories.map((a) => [Number(a.id), a]));
+
     for (const line of input.lines) {
       const invLine = invoiceLines.find((il) => Number(il.id) === line.originalLineId);
-      if (!invLine || Number(invLine.roll_id) !== line.rollId) {
-        throw new Error('RETURN_LINE_ROLL_MISMATCH');
+      if (!invLine) throw new Error('RETURN_LINE_NOT_ON_INVOICE');
+      if (invLine.item_type === 'accessory') {
+        if (line.accessoryId == null || Number(invLine.accessory_id) !== line.accessoryId) {
+          throw new Error('RETURN_LINE_ACCESSORY_MISMATCH');
+        }
+        if (!accessoryMap.has(line.accessoryId)) throw new Error('ACCESSORY_NOT_FOUND');
+      } else {
+        if (line.rollId == null || Number(invLine.roll_id) !== line.rollId) {
+          throw new Error('RETURN_LINE_ROLL_MISMATCH');
+        }
       }
     }
 
@@ -610,16 +688,49 @@ export async function processExchange(input: ProcessExchangeInput): Promise<{
     const ret = await trx('returns').where({ id: retId }).first();
 
     for (const line of input.lines) {
+      const invLine = invoiceLines.find((il) => Number(il.id) === line.originalLineId)!;
+      const isAccessory = invLine.item_type === 'accessory';
+
       await trx('return_lines').insert({
         return_id: ret.id,
         original_invoice_line_id: line.originalLineId,
-        roll_id: line.rollId,
+        item_type: invLine.item_type,
+        roll_id: isAccessory ? null : line.rollId,
+        accessory_id: isAccessory ? line.accessoryId : null,
+        qty_pieces: isAccessory ? invLine.qty_pieces : null,
         refund_amount_egp: roundEgp(line.refundAmountEgp),
         roll_disposition: line.disposition,
         notes_ar: line.notesAr ?? null,
       });
 
-      const roll = rollMap.get(line.rollId)!;
+      if (isAccessory) {
+        const accessory = accessoryMap.get(line.accessoryId!)!;
+        const qtyPieces = Number(invLine.qty_pieces);
+        if (line.disposition === 'back_to_stock') {
+          await trx('accessories').where({ id: line.accessoryId }).update({
+            qty_in_stock: trx.raw('qty_in_stock + ?', [qtyPieces]),
+            updated_at: trx.fn.now(),
+          });
+        }
+        await auditFromService(trx, {
+          actorUserId: input.actorUserId,
+          action: 'return_accessory',
+          entity: 'accessory',
+          entityId: line.accessoryId!,
+          before: { qty_in_stock: accessory.qty_in_stock },
+          after: {
+            qty_in_stock: line.disposition === 'back_to_stock'
+              ? Number(accessory.qty_in_stock) + qtyPieces
+              : Number(accessory.qty_in_stock),
+            return_id: ret.id,
+            disposition: line.disposition,
+          },
+          severity: 'medium',
+        });
+        continue;
+      }
+
+      const roll = rollMap.get(line.rollId!)!;
       if (line.disposition === 'back_to_stock') {
         await trx('rolls').where({ id: line.rollId }).update({
           status: 'in_stock',
@@ -790,9 +901,10 @@ export async function getReturnDetail(id: number): Promise<ReturnDetail | undefi
 
   const lines = await db('return_lines as rl')
     .where('rl.return_id', id)
-    .join('rolls as ro', 'rl.roll_id', 'ro.id')
-    .join('fabrics as f', 'ro.fabric_id', 'f.id')
-    .join('colors as col', 'ro.color_id', 'col.id')
+    .leftJoin('rolls as ro', 'rl.roll_id', 'ro.id')
+    .leftJoin('fabrics as f', 'ro.fabric_id', 'f.id')
+    .leftJoin('colors as col', 'ro.color_id', 'col.id')
+    .leftJoin('accessories as a', 'rl.accessory_id', 'a.id')
     .select(
       'rl.*',
       'f.name_ar as fabric_name_ar',
@@ -800,7 +912,8 @@ export async function getReturnDetail(id: number): Promise<ReturnDetail | undefi
       'col.code as color_code',
       'ro.roll_sr_no',
       'ro.weight_kg',
-      'ro.internal_barcode',
+      'a.name_ar as accessory_name_ar',
+      db.raw('COALESCE(ro.internal_barcode, a.internal_barcode) as internal_barcode'),
     )
     .orderBy('rl.id', 'asc');
 
