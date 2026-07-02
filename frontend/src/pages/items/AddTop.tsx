@@ -9,7 +9,6 @@ import type {
   Color,
   CreateFabricInput,
   CreateTopBatchResult,
-  FabricCategory,
   FabricFull,
   FabricUnit,
   Lot,
@@ -116,7 +115,6 @@ type FabricDraftState = {
   mad_m: string;
   notes: string;
   unit: FabricUnit;
-  category: FabricCategory;
 };
 
 const blankFabricDraft = (): FabricDraftState => ({
@@ -126,7 +124,6 @@ const blankFabricDraft = (): FabricDraftState => ({
   mad_m: '',
   notes: '',
   unit: 'kg',
-  category: 'main',
 });
 
 function FabricCreateDialog({
@@ -171,7 +168,7 @@ function FabricCreateDialog({
       mad_m: mad_m !== null && mad_m > 0 ? mad_m : null,
       notes: draft.notes.trim() || null,
       unit: draft.unit,
-      category: draft.category,
+      category: null,
       supplier_code: null,
     });
   }
@@ -198,18 +195,6 @@ function FabricCreateDialog({
                     onClick={() => setDraft({ ...draft, unit: u })}
                     className={'cursor-pointer px-4 rounded-sm text-sm transition-colors ' + (draft.unit === u ? 'bg-accent text-accent-foreground' : 'text-foreground-muted hover:text-foreground')}>
                     {u === 'kg' ? ar.fabrics.unitKg : ar.fabrics.unitMeter}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-1 col-span-2">
-              <Label>{ar.fabrics.category}</Label>
-              <div className="inline-flex rounded border border-border bg-canvas p-0.5 h-10" role="radiogroup">
-                {([['main', ar.fabrics.categoryMain], ['rib', ar.fabrics.categoryRib], ['accessory', ar.fabrics.categoryAccessory]] as [FabricCategory, string][]).map(([cat, label]) => (
-                  <button key={cat} type="button" role="radio" aria-checked={draft.category === cat}
-                    onClick={() => setDraft({ ...draft, category: cat })}
-                    className={'cursor-pointer px-4 rounded-sm text-sm transition-colors ' + (draft.category === cat ? 'bg-accent text-accent-foreground' : 'text-foreground-muted hover:text-foreground')}>
-                    {label}
                   </button>
                 ))}
               </div>
