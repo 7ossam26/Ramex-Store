@@ -11,6 +11,7 @@ import { errorHandler } from './middleware/error-handler.js';
 import { apiRouter } from './api/routes.js';
 import { startStaleInvoiceCron } from './domain/sales/staleInvoices.job.js';
 import { startArchiveCron } from './domain/notifications/archiveJob.js';
+import { db } from './db/connection.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -46,7 +47,11 @@ if (process.env.NODE_ENV !== 'test') {
     logger.error({ err }, 'uncaughtException');
   });
 
-  app.listen(env.PORT, () => logger.info({ port: env.PORT }, 'ramex-store server up'));
-  startStaleInvoiceCron();
-  startArchiveCron();
+  (async () => {
+    await db.migrate.latest();
+    logger.info('database migrations applied');
+    app.listen(env.PORT, () => logger.info({ port: env.PORT }, 'ramex-store server up'));
+    startStaleInvoiceCron();
+    startArchiveCron();
+  })();
 }
