@@ -1,5 +1,6 @@
 import type { RequestHandler } from 'express';
 import { can } from '../domain/permissions/permissionsService.js';
+import { logger } from '../lib/logger.js';
 
 /** Matrix-driven permission gate. Replaces hard-coded requireRole() on routes
  *  where the permission key (resource+action) is defined in role_permissions.
@@ -23,6 +24,7 @@ export const requirePermission = (resource: string, action: string): RequestHand
       }
 
       const allowed = await can(user.role, resource, action, user.sub);
+      logger.warn({ role: user.role, userId: user.sub, resource, action, allowed }, 'permission check');
       if (!allowed) {
         res.status(403).json({ error: 'forbidden' });
         return;
