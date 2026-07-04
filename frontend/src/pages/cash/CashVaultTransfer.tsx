@@ -105,30 +105,30 @@ export function CashVaultTransferPage() {
         {!canCreate ? (
           <p className="text-sm text-foreground-muted">{ar.common.apiErrors.forbidden}</p>
         ) : (
-          <form
-            onSubmit={form.handleSubmit((d) => createMut.mutate(d))}
-            className="space-y-4 max-w-sm"
-          >
-            <div className="space-y-1.5">
-              <Label>
-                {ar.vaultTransfers.amount} <span className="text-danger">*</span>
-              </Label>
-              <Input
-                type="number"
-                inputMode="decimal"
-                step="1"
-                min="1"
-                {...form.register('amount', { required: true })}
-              />
-              {exceedsBalance && (
-                <p className="text-danger-foreground text-xs">
-                  {ar.common.apiErrors.INSUFFICIENT_CASH_BALANCE}
-                </p>
-              )}
-            </div>
-            <div className="space-y-1.5">
-              <Label>{ar.vaultTransfers.notes}</Label>
-              <Input {...form.register('notes_ar')} />
+          <form onSubmit={form.handleSubmit((d) => createMut.mutate(d))} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>
+                  {ar.vaultTransfers.amount} <span className="text-danger">*</span>
+                </Label>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  step="1"
+                  min="1"
+                  className="w-full"
+                  {...form.register('amount', { required: true })}
+                />
+                {exceedsBalance && (
+                  <p className="text-danger-foreground text-xs">
+                    {ar.common.apiErrors.INSUFFICIENT_CASH_BALANCE}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label>{ar.vaultTransfers.notes}</Label>
+                <Input className="w-full" {...form.register('notes_ar')} />
+              </div>
             </div>
             {error && (
               <p className="text-danger-foreground text-sm bg-danger-subtle rounded-md p-2.5">{error}</p>
@@ -136,6 +136,7 @@ export function CashVaultTransferPage() {
             <Button
               type="submit"
               variant="accent"
+              className="w-full sm:w-auto"
               disabled={createMut.isPending || exceedsBalance || !amountValue}
             >
               {createMut.isPending ? 'جاري الإرسال...' : ar.vaultTransfers.create}
