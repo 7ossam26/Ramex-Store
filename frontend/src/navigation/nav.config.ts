@@ -362,7 +362,7 @@ export const NAV: NavTop[] = [
             descAr: 'تحويل الرصيد من الخزنة الرئيسية إلى الخزنة العامة',
             icon: ArrowLeftRight,
             route: '/cash-transfers/new',
-            permission: 'cash_drawer',
+            permission: 'cash_vault_transfer',
           },
           {
             id: 'treasury.vaultTransfers',
@@ -370,7 +370,7 @@ export const NAV: NavTop[] = [
             descAr: 'مراجعة واعتماد أو رفض طلبات التحويل',
             icon: ClipboardCheck,
             route: '/cash-transfers',
-            permission: 'cash_drawer',
+            permission: 'cash_vault_transfer',
           },
           {
             id: 'treasury.suppliers',

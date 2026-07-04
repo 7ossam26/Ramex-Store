@@ -44,14 +44,14 @@ const cards: HubCard[] = [
     description: ar.hubs.vaultTransferDesc,
     href: '/cash-transfers/new',
     icon: ArrowLeftRight,
-    permission: 'cash_drawer',
+    permission: 'cash_vault_transfer',
   },
   {
     label: ar.vaultTransfers.managementTitle,
     description: ar.hubs.vaultTransfersManagementDesc,
     href: '/cash-transfers',
     icon: ClipboardCheck,
-    permission: 'cash_drawer',
+    permission: 'cash_vault_transfer',
   },
   {
     label: ar.supplierPayables.title,

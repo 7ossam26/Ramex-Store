@@ -55,9 +55,9 @@ financeRouter.post('/expenses/:id/approve', requirePermission('cash_drawer', 'ap
 financeRouter.post('/expenses/:id/reject', requirePermission('cash_drawer', 'approve'), ctl.rejectExpense);
 
 // ─── Cash Vault Transfers ─────────────────────────────────────────────────────
-financeRouter.get('/general-vault/balance', requirePermission('cash_drawer', 'read'), ctl.getGeneralVaultBalance);
-financeRouter.get('/cash-transfers', requirePermission('cash_drawer', 'read'), ctl.listVaultTransfers);
-financeRouter.post('/cash-transfers', requirePermission('cash_drawer', 'write'), ctl.createVaultTransfer);
-financeRouter.get('/cash-transfers/:id', requirePermission('cash_drawer', 'read'), ctl.getVaultTransfer);
-financeRouter.post('/cash-transfers/:id/confirm', requirePermission('cash_drawer', 'approve'), ctl.confirmVaultTransfer);
-financeRouter.post('/cash-transfers/:id/reject', requirePermission('cash_drawer', 'approve'), ctl.rejectVaultTransfer);
+financeRouter.get('/general-vault/balance', requirePermission('cash_vault_transfer', 'read'), ctl.getGeneralVaultBalance);
+financeRouter.get('/cash-transfers', requirePermission('cash_vault_transfer', 'read'), ctl.listVaultTransfers);
+financeRouter.post('/cash-transfers', requirePermission('cash_vault_transfer', 'write'), ctl.createVaultTransfer);
+financeRouter.get('/cash-transfers/:id', requirePermission('cash_vault_transfer', 'read'), ctl.getVaultTransfer);
+financeRouter.post('/cash-transfers/:id/confirm', requirePermission('cash_vault_transfer', 'approve'), ctl.confirmVaultTransfer);
+financeRouter.post('/cash-transfers/:id/reject', requirePermission('cash_vault_transfer', 'approve'), ctl.rejectVaultTransfer);

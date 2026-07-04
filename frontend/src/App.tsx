@@ -183,8 +183,8 @@ export function App() {
                 <Route path="/banks" element={<PermGate resource="cash_drawer"><BanksPage /></PermGate>} />
                 <Route path="/expenses" element={<PermGate resource="cash_drawer"><ExpensesPage /></PermGate>} />
                 <Route path="/reconcile" element={<PermGate resource="cash_drawer"><CashReconcilePage /></PermGate>} />
-                <Route path="/cash-transfers" element={<PermGate resource="cash_drawer"><CashVaultTransfersManagementPage /></PermGate>} />
-                <Route path="/cash-transfers/new" element={<PermGate resource="cash_drawer"><CashVaultTransferPage /></PermGate>} />
+                <Route path="/cash-transfers" element={<PermGate resource="cash_vault_transfer"><CashVaultTransfersManagementPage /></PermGate>} />
+                <Route path="/cash-transfers/new" element={<PermGate resource="cash_vault_transfer"><CashVaultTransferPage /></PermGate>} />
 
                 <Route path="/notifications" element={<NotificationsPage />} />
 

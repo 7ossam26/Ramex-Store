@@ -7,6 +7,7 @@ import { financeApi } from '@/lib/finance-api';
 import { usePermissions } from '@/lib/permissions';
 import { ar } from '@/i18n/ar';
 import { extractApiError } from '@/lib/api-error';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,11 +28,13 @@ export function CashVaultTransferPage() {
   const { can } = usePermissions();
   const [error, setError] = useState<string | null>(null);
 
-  const canCreate = can('cash_drawer', 'write');
+  const canCreate = can('cash_vault_transfer', 'write');
+  const canSeeStoreBalance = can('cash_drawer', 'read');
 
   const storeBalanceQ = useQuery({
     queryKey: ['cash-balance'],
     queryFn: financeApi.getCashBalance,
+    enabled: canSeeStoreBalance,
   });
 
   const generalBalanceQ = useQuery({
@@ -58,7 +61,7 @@ export function CashVaultTransferPage() {
 
   const storeBalance = storeBalanceQ.data?.current_balance_egp ?? 0;
   const amountValue = Number(form.watch('amount')) || 0;
-  const exceedsBalance = amountValue > storeBalance;
+  const exceedsBalance = canSeeStoreBalance && amountValue > storeBalance;
 
   return (
     <PageShell
@@ -66,20 +69,22 @@ export function CashVaultTransferPage() {
       description={ar.vaultTransfers.description}
       backTo="/treasury"
     >
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="rounded-lg border border-border-subtle bg-surface-elevated p-5 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-foreground-muted mb-1">
-            {ar.vaultTransfers.storeVault}
-          </p>
-          {storeBalanceQ.isLoading ? (
-            <Skeleton className="h-10 w-32" />
-          ) : (
-            <p className="text-3xl font-semibold text-foreground tabular-num leading-none" dir="ltr">
-              {fmt(storeBalance)}
+      <div className={cn('grid grid-cols-1 gap-4', canSeeStoreBalance && 'sm:grid-cols-2')}>
+        {canSeeStoreBalance && (
+          <div className="rounded-lg border border-border-subtle bg-surface-elevated p-5 shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-wide text-foreground-muted mb-1">
+              {ar.vaultTransfers.storeVault}
             </p>
-          )}
-          <p className="text-xs text-foreground-tertiary mt-1.5">ج.م</p>
-        </div>
+            {storeBalanceQ.isLoading ? (
+              <Skeleton className="h-10 w-32" />
+            ) : (
+              <p className="text-3xl font-semibold text-foreground tabular-num leading-none" dir="ltr">
+                {fmt(storeBalance)}
+              </p>
+            )}
+            <p className="text-xs text-foreground-tertiary mt-1.5">ج.م</p>
+          </div>
+        )}
         <div className="rounded-lg border border-border-subtle bg-surface-elevated p-5 shadow-sm">
           <p className="text-xs font-medium uppercase tracking-wide text-foreground-muted mb-1">
             {ar.vaultTransfers.generalVault}

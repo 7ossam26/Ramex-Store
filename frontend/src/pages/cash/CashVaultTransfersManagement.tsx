@@ -53,8 +53,8 @@ export function CashVaultTransfersManagementPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { can } = usePermissions();
-  const canApprove = can('cash_drawer', 'approve');
-  const canCreate = can('cash_drawer', 'write');
+  const canApprove = can('cash_vault_transfer', 'approve');
+  const canCreate = can('cash_vault_transfer', 'write');
 
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
