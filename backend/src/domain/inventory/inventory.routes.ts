@@ -52,4 +52,5 @@ inventoryRouter.get('/adjustments', requirePermission('inventory', 'read'), adju
 inventoryRouter.get('/stock-movements', requirePermission('inventory', 'read'), stockMovementsCtl.listStockMovements);
 
 // --- Stock Summary (inventory landing) ---
+inventoryRouter.get('/inventory/stock-summary/export', requirePermission('inventory', 'read'), stockSummaryCtl.exportStockSummary);
 inventoryRouter.get('/inventory/stock-summary', requirePermission('inventory', 'read'), stockSummaryCtl.stockSummary);

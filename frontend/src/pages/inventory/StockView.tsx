@@ -30,6 +30,7 @@ import {
   ChevronDown,
   ChevronUp,
   Factory,
+  FileDown,
   Layers,
   Package,
   Printer,
@@ -356,6 +357,23 @@ export function StockViewPage() {
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'rolls' | 'accessories'>('rolls');
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const params = warehouse !== 'all' ? { warehouse: warehouse as Warehouse } : undefined;
+      const blob = await inventoryApi.exportStockSummary(params);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `مخزون-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const { data: rows = [], isLoading, isError, refetch } = useQuery<StockSummaryRow[]>({
     queryKey: ['stock-summary', warehouse],
@@ -812,6 +830,13 @@ export function StockViewPage() {
                 className="ps-9"
               />
             </div>
+
+            {viewMode === 'rolls' && (
+              <Button variant="outline" size="sm" disabled={exporting} onClick={handleExport} className="gap-1.5">
+                <FileDown className="size-4" />
+                {exporting ? 'جارٍ التحضير…' : 'تصدير Excel'}
+              </Button>
+            )}
           </div>
         </div>
 

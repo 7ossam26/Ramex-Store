@@ -69,3 +69,6 @@ salesRouter.get('/returns/:id', requirePermission('returns', 'read'), retCtl.get
 
 // Cheques admin list
 salesRouter.get('/cheques', requirePermission('invoices', 'read'), ctl.listCheques);
+
+// Sales export (Excel)
+salesRouter.get('/sales/export', requirePermission('invoices', 'read'), ctl.exportSales);

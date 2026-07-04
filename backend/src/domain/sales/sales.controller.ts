@@ -13,6 +13,9 @@ import {
 import * as svc from './invoices.service.js';
 import * as openSvc from './openInvoices.service.js';
 import { auditLog } from '../../middleware/audit.js';
+import { getSalesExport, salesToExport } from './salesExport.service.js';
+import { buildReportExcel } from '../../lib/reports/excelExport.js';
+import { formatCairo, cairoToday } from '../../lib/datetime/cairo.js';
 
 const ERR_MAP: Record<string, { status: number; message: string }> = {
   CUSTOMER_NOT_FOUND: { status: 404, message: 'العميل غير موجود' },
@@ -228,4 +231,31 @@ export async function auditReprint(req: Request, res: Response): Promise<void> {
   }
   await auditLog(req, 'invoice.reprint', 'invoice', id, null, { invoice_no: detail.invoice_no });
   res.status(204).end();
+}
+
+function datetimeParam(val: unknown, fallback: string): string {
+  if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$/.test(val)) {
+    // Normalise YYYY-MM-DD or YYYY-MM-DDTHH:mm to full ISO with seconds
+    if (val.length === 10) return val + 'T00:00:00';
+    if (val.length === 16) return val + ':00';
+    return val;
+  }
+  return fallback;
+}
+
+export async function exportSales(req: Request, res: Response): Promise<void> {
+  const today = cairoToday();
+  const from = datetimeParam(req.query['from'], today + 'T00:00:00');
+  const to   = datetimeParam(req.query['to'],   today + 'T23:59:59');
+  const status = typeof req.query['status'] === 'string' ? req.query['status'] : undefined;
+  const generatedAt = formatCairo(new Date());
+
+  const rows = await getSalesExport({ from, to, status });
+  const opts = salesToExport(rows, from.replace('T', ' '), to.replace('T', ' '), generatedAt);
+
+  const buf = await buildReportExcel(opts);
+  const date = today;
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="sales-export-${date}.xlsx"`);
+  res.send(buf);
 }

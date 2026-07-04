@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { PackageCheck } from 'lucide-react';
+import { FileDown, PackageCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
@@ -14,6 +14,7 @@ import type {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
@@ -77,11 +78,46 @@ export function InvoicesListPage() {
   );
 }
 
+function toDtLocal(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function DefaultTab({ status }: { status?: InvoiceStatus }) {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [destination, setDestination] = useState<FulfillmentDestination | 'all'>('all');
   const [page, setPage] = useState(1);
+
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportFrom, setExportFrom] = useState(() => {
+    const d = new Date(); d.setHours(0, 0, 0, 0); return toDtLocal(d);
+  });
+  const [exportTo, setExportTo] = useState(() => {
+    const d = new Date(); d.setHours(23, 59, 0, 0); return toDtLocal(d);
+  });
+  const [exportStatus, setExportStatus] = useState('all');
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const blob = await salesApi.exportSales({
+        from: exportFrom,
+        to: exportTo,
+        status: exportStatus !== 'all' ? exportStatus : undefined,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `مبيعات-${exportFrom.slice(0, 10)}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setExportOpen(false);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const q = useQuery({
     queryKey: ['invoices', status, destination, dateFrom, dateTo, page],
@@ -161,6 +197,13 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
             {ar.invoices.fulfillmentFactoryDirect}
           </FilterChip>
         </div>
+      </div>
+
+      <div className="flex justify-end pt-1">
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setExportOpen(true)}>
+          <FileDown className="size-4" />
+          تصدير Excel
+        </Button>
       </div>
     </div>
   );
@@ -303,6 +346,60 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
           <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>التالي</Button>
         </div>
       )}
+
+      <Dialog open={exportOpen} onOpenChange={(v) => { if (!v) setExportOpen(false); }}>
+        <DialogContent className="max-w-sm" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>تصدير المبيعات إلى Excel</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-1">
+            <div className="space-y-1">
+              <Label className="text-sm font-medium">من (التاريخ والوقت)</Label>
+              <Input
+                type="datetime-local"
+                value={exportFrom}
+                onChange={(e) => setExportFrom(e.target.value)}
+                dir="ltr"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-sm font-medium">إلى (التاريخ والوقت)</Label>
+              <Input
+                type="datetime-local"
+                value={exportTo}
+                onChange={(e) => setExportTo(e.target.value)}
+                dir="ltr"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-sm font-medium">حالة الفاتورة</Label>
+              <select
+                value={exportStatus}
+                onChange={(e) => setExportStatus(e.target.value)}
+                className="w-full h-10 rounded-md border border-border-default bg-surface px-3 text-sm text-foreground appearance-none cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+              >
+                <option value="all">كل الفواتير</option>
+                <option value="completed">مكتمل</option>
+                <option value="open">مفتوح</option>
+                <option value="closed_pending_pickup">بانتظار الاستلام</option>
+                <option value="cancelled">ملغي</option>
+              </select>
+            </div>
+
+            <Button
+              className="w-full gap-2"
+              disabled={exporting || !exportFrom || !exportTo}
+              onClick={handleExport}
+            >
+              <FileDown className="size-4" />
+              {exporting ? 'جارٍ التحضير…' : 'تحميل Excel'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

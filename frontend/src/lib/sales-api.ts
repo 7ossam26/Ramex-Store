@@ -123,4 +123,10 @@ export const salesApi = {
     api
       .get<{ rows: Cheque[]; total: number }>('/cheques', { params })
       .then((r) => r.data),
+
+  // Sales export (Excel)
+  exportSales: (params: { from: string; to: string; status?: string }) =>
+    api
+      .get('/sales/export', { params, responseType: 'blob' })
+      .then((r) => r.data as Blob),
 };

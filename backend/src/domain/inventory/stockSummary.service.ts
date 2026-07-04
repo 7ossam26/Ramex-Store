@@ -1,4 +1,5 @@
 import { db } from '../../db/connection.js';
+import type { ReportPdfOptions } from '../../lib/reports/pdfExport.js';
 
 export type WarehouseFilter = 'shop' | 'factory' | 'damaged_shop';
 
@@ -74,4 +75,64 @@ export async function getStockSummary(warehouse?: WarehouseFilter): Promise<Stoc
     selling_price_egp: Number(r.selling_price_egp),
     min_quantity_rolls: Number(r.min_quantity_rolls),
   }));
+}
+
+const WAREHOUSE_LABEL: Record<string, string> = {
+  shop: 'المعرض',
+  factory: 'المصنع',
+  damaged_shop: 'مخزن التالف',
+};
+
+export function stockSummaryToExport(
+  rows: StockSummaryRow[],
+  warehouse: string | undefined,
+  generatedAt: string,
+): ReportPdfOptions {
+  const totalInStock = rows.reduce((s, r) => s + r.count_in_stock, 0);
+  const totalReserved = rows.reduce((s, r) => s + r.count_reserved, 0);
+  const totalWeight = rows.reduce((s, r) => s + r.weight_kg_in_stock, 0);
+
+  return {
+    titleAr: 'ملخص المخزون',
+    subtitleAr: warehouse ? WAREHOUSE_LABEL[warehouse] ?? warehouse : 'كل المخازن',
+    generatedAt,
+    sections: [
+      {
+        titleAr: 'ملخص المخزون',
+        columns: [
+          { label: 'الخامة', key: 'fabric_name_ar', width: 22 },
+          { label: 'كود الخامة', key: 'fabric_code', width: 14 },
+          { label: 'اللون', key: 'color_name_ar', width: 18 },
+          { label: 'كود اللون', key: 'color_code', width: 12 },
+          { label: 'في المخزون (توب)', key: 'count_in_stock', width: 16 },
+          { label: 'محجوز (توب)', key: 'count_reserved', width: 14 },
+          { label: 'الوزن المتاح (كجم)', key: 'weight_kg_in_stock', width: 18 },
+          { label: 'متوسط السعر المرجعي', key: 'avg_reference_price_per_unit', width: 20 },
+          { label: 'آخر سعر مرجعي', key: 'last_reference_price_per_unit', width: 18 },
+          { label: 'سعر البيع', key: 'selling_price_egp', width: 14 },
+          { label: 'الحد الأدنى (توب)', key: 'min_quantity_rolls', width: 16 },
+        ],
+        rows: rows.map((r) => ({
+          fabric_name_ar: r.fabric_name_ar,
+          fabric_code: r.fabric_code,
+          color_name_ar: r.color_name_ar,
+          color_code: r.color_code,
+          count_in_stock: String(r.count_in_stock),
+          count_reserved: String(r.count_reserved),
+          weight_kg_in_stock: r.weight_kg_in_stock.toFixed(3),
+          avg_reference_price_per_unit: r.avg_reference_price_per_unit.toFixed(2),
+          last_reference_price_per_unit: r.last_reference_price_per_unit.toFixed(2),
+          selling_price_egp: r.selling_price_egp.toFixed(2),
+          min_quantity_rolls: String(r.min_quantity_rolls),
+        })),
+        totals: {
+          fabric_name_ar: 'الإجمالي',
+          count_in_stock: String(totalInStock),
+          count_reserved: String(totalReserved),
+          weight_kg_in_stock: totalWeight.toFixed(3),
+        },
+        emptyAr: 'لا توجد أصناف في هذا المخزون',
+      },
+    ],
+  };
 }

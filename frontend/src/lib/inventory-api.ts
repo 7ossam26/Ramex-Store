@@ -146,4 +146,10 @@ export const inventoryApi = {
       .get<{ rows: StockSummaryRow[] }>('/inventory/stock-summary', { params })
       .then((r) => r.data.rows),
 
+  // Stock Summary export
+  exportStockSummary: (params?: { warehouse?: Warehouse }) =>
+    api
+      .get('/inventory/stock-summary/export', { params, responseType: 'blob' })
+      .then((r) => r.data as Blob),
+
 };
