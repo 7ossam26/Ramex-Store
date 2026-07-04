@@ -35,6 +35,9 @@ function rollLabelQuery() {
     .leftJoin('fabric_grades as g', function () {
       this.on('g.id', '=', db.raw('COALESCE(r.grade_id, f.default_grade_id)'));
     })
+    .leftJoin('compositions as comp', function () {
+      this.on('comp.id', '=', db.raw('COALESCE(r.composition_id, f.default_composition_id)'));
+    })
     .leftJoin('brands as br', function () {
       this.on('br.id', '=', db.raw('COALESCE(r.brand_id, f.default_brand_id)'));
     })
@@ -46,10 +49,12 @@ function rollLabelQuery() {
       'f.unit as fabric_unit',
       'f.gsm as fabric_gsm',
       'f.mad_m as fabric_mad_m',
+      'f.composition as fabric_composition',
       'c.name_ar as color_name_ar',
       'c.code as color_code',
       'l.lot_no as lot_no',
       'g.arabic_name as grade_arabic_name',
+      'comp.arabic_name as composition_description',
       'br.arabic_name as brand_arabic_name',
       'br.product_line as brand_product_line',
       'sup.arabic_name as supplier_arabic_name',
@@ -57,12 +62,42 @@ function rollLabelQuery() {
     );
 }
 
+function safeParseJsonArray(raw: unknown): unknown[] | null {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw !== 'string') return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function formatFabricComposition(raw: unknown): string | null {
+  const items = safeParseJsonArray(raw);
+  if (!items || items.length === 0) return null;
+  const parts = items
+    .filter((i): i is { material: string; percent: number } =>
+      !!i && typeof i === 'object' &&
+      typeof (i as { material: unknown }).material === 'string' &&
+      typeof (i as { percent: unknown }).percent === 'number'
+    )
+    .map((i) => `${i.percent}% ${i.material.trim()}`)
+    .filter((s) => s.length > 0);
+  return parts.length > 0 ? parts.join(' / ') : null;
+}
+
 function normalizeLabelRow(row: Record<string, unknown>): RollWithLabelDetails {
-  const { fabric_gsm, fabric_mad_m, ...rest } = row;
+  const { fabric_gsm, fabric_mad_m, composition_description, fabric_composition, ...rest } = row;
+  let compDesc = composition_description as string | null;
+  if (!compDesc && fabric_composition) {
+    compDesc = formatFabricComposition(fabric_composition);
+  }
   return {
     ...rest,
     gsm: fabric_gsm != null ? Number(fabric_gsm) : null,
     mad_m: fabric_mad_m != null ? Number(fabric_mad_m) : null,
+    composition_description: compDesc,
     damage_context: null,
   } as RollWithLabelDetails;
 }

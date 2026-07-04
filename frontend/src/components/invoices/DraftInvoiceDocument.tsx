@@ -116,6 +116,7 @@ function InvoicePage({
   } = props;
 
   const infoItems: { label: string; value: string; ltr?: boolean }[] = [
+    { label: INFO_LABELS.phone, value: phone, ltr: true },
     { label: INFO_LABELS.bolts, value: fmtInt(totalBolts) },
     { label: INFO_LABELS.qty, value: fmtWeight(totalQuantity) },
   ];
@@ -149,13 +150,9 @@ function InvoicePage({
             <span className="rmx-draft-cust-value">{customerName}</span>
           </div>
         )}
-        <div className="rmx-draft-cust-cell" style={{ alignItems: 'center', textAlign: 'center' }}>
+        <div className="rmx-draft-cust-cell" style={{ alignItems: 'flex-end', textAlign: 'left' }}>
           <span className="rmx-draft-cust-label">{CUSTOMER_LABELS.code}</span>
           <span className="rmx-draft-cust-value" dir="ltr">{customerCode}</span>
-        </div>
-        <div className="rmx-draft-cust-cell" style={{ alignItems: 'flex-end', textAlign: 'left' }}>
-          <span className="rmx-draft-cust-label">{INFO_LABELS.phone}</span>
-          <span className="rmx-draft-cust-value" dir="ltr">{phone}</span>
         </div>
       </div>
 

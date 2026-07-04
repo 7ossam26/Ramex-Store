@@ -63,11 +63,14 @@ function sampleRoll(): RollWithLabelDetails {
     color_code: 'OLV-8',
     lot_no: 'LOT-42',
     grade_arabic_name: 'أولى',
+    gsm: null,
+    mad_m: null,
     composition_description: '65% قطن / 35% بوليستر',
     brand_arabic_name: null,
     brand_product_line: null,
     supplier_arabic_name: null,
     supplier_arabic_warning_text: null,
+    damage_context: null,
   };
 }
 
@@ -123,15 +126,15 @@ describe('v2 - modern barcode label PDF', () => {
     const barcodeImages = collectNodes(definition.content, (node) => node.image === 'barcodeImg');
     expect(barcodeImages).toHaveLength(1);
     expect(barcodeImages[0]).toMatchObject({
-      fit: [240, 95],
+      fit: [240, 68],
     });
 
     const text = collectText(definition.content).join(' ');
     expect(text).toContain('رامكس');
     expect(text).toContain('العرض');
-    expect(text).toContain('رقم اللوط');
-    expect(text).toContain('كتان فاخر');
-    expect(text).toContain('أخضر زيتوني');
+    expect(text).toContain('اللوط رقم');
+    expect(text).toContain('فاخر كتان');
+    expect(text).toContain('زيتوني أخضر');
     expect(text).toContain('التركيب');
     expect(text).toContain('65% قطن / 35% بوليستر');
   });

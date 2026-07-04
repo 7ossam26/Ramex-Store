@@ -40,11 +40,14 @@ function sampleRoll(): RollWithLabelDetails {
     color_code: '55',
     lot_no: '55',
     grade_arabic_name: null,
+    gsm: null,
+    mad_m: null,
     composition_description: '65% قطن / 35% بوليستر',
     brand_arabic_name: null,
     brand_product_line: null,
     supplier_arabic_name: null,
     supplier_arabic_warning_text: null,
+    damage_context: null,
   };
 }
 

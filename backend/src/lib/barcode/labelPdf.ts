@@ -11,7 +11,7 @@ const DEFAULT_LABEL_SIZE = `${DEFAULT_LABEL_WIDTH_MM}x${DEFAULT_LABEL_HEIGHT_MM}
 const DEFAULT_LABEL_WIDTH = DEFAULT_LABEL_WIDTH_MM * MM_TO_PT;
 const DEFAULT_LABEL_HEIGHT = DEFAULT_LABEL_HEIGHT_MM * MM_TO_PT;
 const PAGE_MARGIN = 8;
-const BARCODE_FIT: [number, number] = [240, 95];
+const BARCODE_FIT: [number, number] = [240, 68];
 const LEGACY_COMPACT_LABEL_SIZE = '50x30mm';
 
 const DEFAULT_FIELDS = [
@@ -137,7 +137,7 @@ function buildOneLabelContent(
   return [{
     table: {
       widths: [66.5, 66.5, 66.5, 66.5],
-      heights: [45, 45, 65, 50, 145],
+      heights: [36, 36, 52, 36, 38, 92],
       dontBreakRows: true,
       body: [
         [
@@ -145,7 +145,7 @@ function buildOneLabelContent(
             colSpan: 4,
             stack: [
               {
-                text: has('logo') ? 'RMX' : '',
+                text: has('logo') ? 'رامكس' : '',
                 fontSize: 26,
                 bold: true,
                 alignment: 'center' as const,
@@ -164,6 +164,12 @@ function buildOneLabelContent(
           { ...valueBlock('الخامة', fabricDisplay, 15), colSpan: 2 },
           emptySpanCell(),
           { ...valueBlock('اللون', colorDisplay || '—', 13), colSpan: 2 },
+          emptySpanCell(),
+        ],
+        [
+          { ...valueBlock('التركيب', roll.composition_description || '—', 11), colSpan: 4 },
+          emptySpanCell(),
+          emptySpanCell(),
           emptySpanCell(),
         ],
         [
@@ -194,12 +200,12 @@ function infoCell(label: string, value: string): PdfNode {
       { text: label, fontSize: 8, color: '#000000', bold: false, alignment: 'center' as const },
       { text: value, fontSize: 11, bold: true, color: '#000000', alignment: 'center' as const, margin: [0, 3, 0, 0] as PdfMargin },
     ],
-    margin: [5, 6, 5, 5] as PdfMargin,
+    margin: [5, 4, 5, 4] as PdfMargin,
   };
 }
 
 function emptyInfoCell(): PdfNode {
-  return { text: '', margin: [5, 6, 5, 5] as PdfMargin };
+  return { text: '', margin: [5, 4, 5, 4] as PdfMargin };
 }
 
 function emptySpanCell(): PdfNode {
@@ -212,7 +218,7 @@ function valueBlock(label: string, value: string, valueSize: number): PdfNode {
       { text: label, fontSize: 8.5, color: '#000000', bold: false, alignment: 'center' as const },
       { text: value, fontSize: valueSize, bold: true, color: '#000000', alignment: 'center' as const, margin: [0, 4, 0, 0] as PdfMargin, lineHeight: 1.05 },
     ],
-    margin: [8, 9, 8, 8] as PdfMargin,
+    margin: [8, 5, 8, 5] as PdfMargin,
   };
 }
 
@@ -234,7 +240,7 @@ function barcodeBlock(imageKey: string, barcode: string): PdfNode {
         margin: [0, 4, 0, 0] as PdfMargin,
       },
     ],
-    margin: [9, 10, 9, 8] as PdfMargin,
+    margin: [9, 6, 9, 6] as PdfMargin,
   };
 }
 
