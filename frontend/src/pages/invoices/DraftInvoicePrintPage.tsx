@@ -70,6 +70,7 @@ function mapInvoiceToDraft(inv: InvoiceDetail): DraftInvoiceDocumentProps {
     customerCode: inv.customer_code,
     lines: inv.lines.map(mapLineToDraft),
     issuedAt: inv.created_at,
+    invoiceNo: inv.invoice_no,
     subtotal: Number(inv.subtotal_egp),
     rounding: Number(inv.rounding_egp),
     total: Number(inv.total_egp),

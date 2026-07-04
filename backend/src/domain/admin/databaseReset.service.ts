@@ -138,3 +138,74 @@ export async function resetOperationalData(actorUserId: number): Promise<ResetRe
 
   return { wipedTables: wiped.length };
 }
+
+export const PARTIAL_RESET_CONFIRM_PHRASE_A = 'تصفير الأرصدة والمبيعات';
+export const PARTIAL_RESET_CONFIRM_PHRASE_B = 'تصفير الأرصدة والمبيعات وذمم العملاء';
+
+/** Zeros bank accounts, cash drawer, and resets the invoice sequence for the current year only. */
+export async function resetBalancesAndSales(actorUserId: number): Promise<{ ok: true }> {
+  await db.transaction(async (trx) => {
+    if (await trx.schema.hasTable('bank_accounts')) {
+      await trx('bank_accounts').update({ current_balance_egp: 0 });
+    }
+    if (await trx.schema.hasTable('cash_drawer')) {
+      await trx('cash_drawer').update({
+        current_balance_egp: 0,
+        opening_balance_egp: 0,
+        opening_set_at: null,
+        last_movement_at: null,
+      });
+    }
+    const year = new Date().getFullYear();
+    if (await trx.schema.hasTable('invoice_sequence')) {
+      await trx('invoice_sequence').where({ year }).update({ next_no: 1 });
+    }
+    await auditFromService(trx, {
+      actorUserId,
+      action: 'admin_partial_reset_balances_sales',
+      entity: 'system',
+      entityId: null,
+      after: { reset_bank_accounts: true, reset_cash_drawer: true, reset_invoice_sequence_year: year },
+      severity: 'critical',
+    });
+  });
+  return { ok: true };
+}
+
+/** Same as resetBalancesAndSales but also zeros customer current_balance_egp and lifetime_volume_egp. */
+export async function resetBalancesSalesAndCustomers(actorUserId: number): Promise<{ ok: true }> {
+  await db.transaction(async (trx) => {
+    if (await trx.schema.hasTable('bank_accounts')) {
+      await trx('bank_accounts').update({ current_balance_egp: 0 });
+    }
+    if (await trx.schema.hasTable('cash_drawer')) {
+      await trx('cash_drawer').update({
+        current_balance_egp: 0,
+        opening_balance_egp: 0,
+        opening_set_at: null,
+        last_movement_at: null,
+      });
+    }
+    const year = new Date().getFullYear();
+    if (await trx.schema.hasTable('invoice_sequence')) {
+      await trx('invoice_sequence').where({ year }).update({ next_no: 1 });
+    }
+    if (await trx.schema.hasTable('customers')) {
+      await trx('customers').update({ current_balance_egp: 0, lifetime_volume_egp: 0 });
+    }
+    await auditFromService(trx, {
+      actorUserId,
+      action: 'admin_partial_reset_balances_sales_customers',
+      entity: 'system',
+      entityId: null,
+      after: {
+        reset_bank_accounts: true,
+        reset_cash_drawer: true,
+        reset_invoice_sequence_year: year,
+        reset_customer_balances: true,
+      },
+      severity: 'critical',
+    });
+  });
+  return { ok: true };
+}

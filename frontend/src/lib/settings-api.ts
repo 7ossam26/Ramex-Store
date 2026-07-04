@@ -99,6 +99,14 @@ export const adminApi = {
   /** Wipes all operational data. super_admin only; requires phrase + password. */
   resetDatabase: (data: { confirmPhrase: string; password: string }): Promise<{ ok: boolean; wipedTables: number }> =>
     api.post('/admin/reset-database', data).then((r) => r.data),
+
+  /** Zeros bank accounts, cash drawer, and current-year invoice sequence. super_admin only. */
+  resetBalancesAndSales: (data: { confirmPhrase: string; password: string }): Promise<{ ok: boolean }> =>
+    api.post('/admin/reset-balances-sales', data).then((r) => r.data),
+
+  /** Same as resetBalancesAndSales + zeros customer balances and lifetime volume. super_admin only. */
+  resetBalancesSalesAndCustomers: (data: { confirmPhrase: string; password: string }): Promise<{ ok: boolean }> =>
+    api.post('/admin/reset-balances-sales-customers', data).then((r) => r.data),
 };
 
 export const bankAccountsApi = {

@@ -49,6 +49,8 @@ import { RESOURCE_GROUPS } from '@/lib/permissions-config';
  * authoritative; this copy only gates the button for UX.
  */
 const RESET_CONFIRM_PHRASE = 'تصفير قاعدة البيانات';
+const PARTIAL_RESET_CONFIRM_PHRASE_A = 'تصفير الأرصدة والمبيعات';
+const PARTIAL_RESET_CONFIRM_PHRASE_B = 'تصفير الأرصدة والمبيعات وذمم العملاء';
 
 
 type Section = SettingsSectionId;
@@ -1400,9 +1402,130 @@ function ResetDatabaseDialog({
   );
 }
 
+function PartialResetDialog({
+  open,
+  onClose,
+  onDone,
+  phrase: confirmPhrase,
+  title,
+  warning,
+  phraseLabel,
+  buttonLabel,
+  mutationFn,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onDone: () => void;
+  phrase: string;
+  title: string;
+  warning: string;
+  phraseLabel: string;
+  buttonLabel: string;
+  mutationFn: (data: { confirmPhrase: string; password: string }) => Promise<{ ok: boolean }>;
+}) {
+  const [phrase, setPhrase] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const mut = useMutation({
+    mutationFn: () => mutationFn({ confirmPhrase: phrase.trim(), password }),
+    onSuccess: () => {
+      setPhrase('');
+      setPassword('');
+      setError(null);
+      onDone();
+    },
+    onError: (e) => setError(extractApiError(e)),
+  });
+
+  function handleSubmit() {
+    if (mut.isPending) return;
+    if (phrase.trim() !== confirmPhrase) {
+      setError(ar.common.apiErrors.CONFIRM_PHRASE_MISMATCH);
+      return;
+    }
+    if (password.length === 0) {
+      setError(ar.common.apiErrors.PASSWORD_REQUIRED);
+      return;
+    }
+    setError(null);
+    mut.mutate();
+  }
+
+  function handleClose() {
+    if (mut.isPending) return;
+    setPhrase('');
+    setPassword('');
+    setError(null);
+    onClose();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
+      <DialogContent className="max-w-md" dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="size-5 shrink-0" aria-hidden />
+            {title}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3">
+            <p className="text-sm text-foreground">{warning}</p>
+          </div>
+
+          {error && <SaveErrorBanner message={error} onDismiss={() => setError(null)} />}
+
+          <FieldRow label={phraseLabel}>
+            <TextInput value={phrase} onChange={setPhrase} placeholder={confirmPhrase} />
+          </FieldRow>
+
+          <FieldRow label={ar.settings.system.passwordLabel}>
+            <input
+              type="password"
+              dir="ltr"
+              autoComplete="current-password"
+              className={cn(
+                'h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground text-start',
+                'transition-colors duration-75 ease-standard',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:border-accent',
+              )}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </FieldRow>
+
+          <div className="flex justify-start gap-2 pt-2">
+            <Button
+              size="sm"
+              onClick={handleSubmit}
+              disabled={mut.isPending}
+              className="gap-2 bg-destructive text-[#F5C400] hover:bg-destructive/90"
+            >
+              {mut.isPending && (
+                <span
+                  className="inline-block size-4 rounded-full border-2 border-foreground-on-accent/40 border-t-foreground-on-accent animate-spin"
+                  aria-hidden
+                />
+              )}
+              {mut.isPending ? ar.loading : buttonLabel}
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleClose} disabled={mut.isPending}>
+              {ar.common.cancel}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function SystemSection({ notifySaved }: { notifySaved: () => void }) {
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [partialAOpen, setPartialAOpen] = useState(false);
+  const [partialBOpen, setPartialBOpen] = useState(false);
 
   return (
     <div className="space-y-8">
@@ -1416,6 +1539,8 @@ function SystemSection({ notifySaved }: { notifySaved: () => void }) {
       {/* Danger zone */}
       <section className="space-y-3">
         <h3 className="text-base font-semibold text-destructive">{ar.settings.system.dangerZone}</h3>
+
+        {/* Full wipe */}
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 space-y-3">
           <div className="flex items-start gap-3">
             <AlertTriangle className="size-5 shrink-0 text-destructive mt-0.5" aria-hidden />
@@ -1432,6 +1557,42 @@ function SystemSection({ notifySaved }: { notifySaved: () => void }) {
             {ar.settings.system.resetButton}
           </Button>
         </div>
+
+        {/* Partial reset A: balances + invoice sequence */}
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 space-y-3">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="size-5 shrink-0 text-destructive mt-0.5" aria-hidden />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-foreground">{ar.settings.system.partialResetATitle}</p>
+              <p className="text-sm text-foreground-muted">{ar.settings.system.partialResetADescription}</p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setPartialAOpen(true)}
+            className="bg-destructive text-[#F5C400] hover:bg-destructive/90"
+          >
+            {ar.settings.system.partialResetAButton}
+          </Button>
+        </div>
+
+        {/* Partial reset B: balances + invoice sequence + customer balances */}
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 space-y-3">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="size-5 shrink-0 text-destructive mt-0.5" aria-hidden />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-foreground">{ar.settings.system.partialResetBTitle}</p>
+              <p className="text-sm text-foreground-muted">{ar.settings.system.partialResetBDescription}</p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setPartialBOpen(true)}
+            className="bg-destructive text-[#F5C400] hover:bg-destructive/90"
+          >
+            {ar.settings.system.partialResetBButton}
+          </Button>
+        </div>
       </section>
 
       <ResetDatabaseDialog
@@ -1443,6 +1604,30 @@ function SystemSection({ notifySaved }: { notifySaved: () => void }) {
           qc.invalidateQueries();
           notifySaved();
         }}
+      />
+
+      <PartialResetDialog
+        open={partialAOpen}
+        onClose={() => setPartialAOpen(false)}
+        onDone={() => { setPartialAOpen(false); qc.invalidateQueries(); notifySaved(); }}
+        phrase={PARTIAL_RESET_CONFIRM_PHRASE_A}
+        title={ar.settings.system.partialResetAConfirmTitle}
+        warning={ar.settings.system.partialResetAConfirmWarning}
+        phraseLabel={ar.settings.system.partialResetAPhraseLabel}
+        buttonLabel={ar.settings.system.partialResetAButton}
+        mutationFn={adminApi.resetBalancesAndSales}
+      />
+
+      <PartialResetDialog
+        open={partialBOpen}
+        onClose={() => setPartialBOpen(false)}
+        onDone={() => { setPartialBOpen(false); qc.invalidateQueries(); notifySaved(); }}
+        phrase={PARTIAL_RESET_CONFIRM_PHRASE_B}
+        title={ar.settings.system.partialResetBConfirmTitle}
+        warning={ar.settings.system.partialResetBConfirmWarning}
+        phraseLabel={ar.settings.system.partialResetBPhraseLabel}
+        buttonLabel={ar.settings.system.partialResetBButton}
+        mutationFn={adminApi.resetBalancesSalesAndCustomers}
       />
     </div>
   );

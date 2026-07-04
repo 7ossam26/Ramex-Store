@@ -81,7 +81,7 @@ export const CreateSaleSchema = z.object({
   fulfillmentDestination: FulfillmentDestinationEnum.optional().default('shop'),
   lines: z.array(SaleLineSchema),
   cartTargetFinal: nonNegativeAmount.nullable().optional(),
-  payments: z.array(SalePaymentSchema).min(1),
+  payments: z.array(SalePaymentSchema).min(0),
   notesAr: z.string().max(2000).nullable().optional(),
 });
 export type CreateSaleInput = z.infer<typeof CreateSaleSchema>;

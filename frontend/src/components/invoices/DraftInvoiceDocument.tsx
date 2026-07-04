@@ -29,6 +29,7 @@ export interface DraftInvoiceDocumentProps {
   invoiceType?: 'sale' | 'open';
   depositPaid?: number;
   balance?: number;
+  invoiceNo?: string;
 }
 
 const DEFAULT_NOTES = [
@@ -111,6 +112,7 @@ function InvoicePage({
     invoiceType = 'sale',
     depositPaid = 0,
     balance = 0,
+    invoiceNo,
   } = props;
 
   const infoItems: { label: string; value: string; ltr?: boolean }[] = [
@@ -133,6 +135,9 @@ function InvoicePage({
         </h1>
         {issuedAt && (
           <div className="rmx-draft-issued-at" dir="ltr">{fmtIssuedAt(issuedAt)}</div>
+        )}
+        {invoiceNo && (
+          <div className="rmx-draft-invoice-no" dir="ltr">رقم الفاتورة: {invoiceNo}</div>
         )}
       </div>
 

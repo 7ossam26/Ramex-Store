@@ -646,6 +646,7 @@ export function POSPage() {
       }
       return effectivePerUnit(l) <= 0;
     })) return ar.pos.finalPriceRequired;
+    if (saveAsOpen && paymentSum <= 0) return null; // zero payment allowed when saving as open
     if (paymentSum <= 0) return ar.pos.payment;
     if (saveAsOpen) return null;
     if (paymentSum < total - 0.01) return ar.pos.sumMustEqualTotal; // allow overpayment

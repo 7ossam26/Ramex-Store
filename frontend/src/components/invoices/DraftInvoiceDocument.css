@@ -117,6 +117,15 @@
   font-variant-numeric: tabular-nums;
 }
 
+.rmx-draft-invoice-no {
+  font-size: 9pt;
+  font-weight: 600;
+  color: #000;
+  margin-top: 1mm;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---- Info grid (2–3 columns; count set via inline style) ---- */
 .rmx-draft-info-grid {
   display: grid;

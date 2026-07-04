@@ -349,12 +349,12 @@ export async function createSale(
 
     // 4) Validate payment(s).
     const paidTotal = roundEgp(input.payments.reduce((s, p) => s + Number(p.amount), 0));
-    if (paidTotal <= 0) throw new Error('NO_PAYMENT_PROVIDED');
 
     if (isNoLinesDeposit) {
       // For no-lines deposits the deposit acts as the placeholder total. The
       // running total_egp will be replaced with sum(lines) once lines are
       // added via addLinesToOpenInvoice.
+      if (paidTotal <= 0) throw new Error('NO_PAYMENT_PROVIDED');
       totals.total = paidTotal;
       totals.subtotal = paidTotal;
     } else {
@@ -362,7 +362,9 @@ export async function createSale(
     }
 
     const isFullyPaid = !isNoLinesDeposit && paidTotal >= totals.total - 0.001;
-    if (!isNoLinesDeposit && !isFullyPaid) {
+    // Enforce minimum deposit only when a partial payment is provided (> 0).
+    // A zero-payment invoice is allowed — it opens as full-credit (balance = total).
+    if (!isNoLinesDeposit && !isFullyPaid && paidTotal > 0) {
       const minDeposit = roundEgp(totals.total * settings.minDepositPct);
       if (paidTotal < minDeposit) throw new Error('DEPOSIT_BELOW_MIN');
     }
