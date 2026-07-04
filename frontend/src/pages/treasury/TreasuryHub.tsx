@@ -1,4 +1,4 @@
-import { Banknote, Landmark, Receipt, Calculator, LayoutDashboard, CreditCard } from 'lucide-react';
+import { Banknote, Landmark, Receipt, Calculator, LayoutDashboard, CreditCard, ArrowLeftRight, ClipboardCheck } from 'lucide-react';
 import { HubLanding, type HubCard } from '@/components/Layout/HubLanding';
 import { ar } from '@/i18n/ar';
 
@@ -37,6 +37,20 @@ const cards: HubCard[] = [
     description: ar.hubs.reconcileDesc,
     href: '/reconcile',
     icon: Calculator,
+    permission: 'cash_drawer',
+  },
+  {
+    label: ar.vaultTransfers.title,
+    description: ar.hubs.vaultTransferDesc,
+    href: '/cash-transfers/new',
+    icon: ArrowLeftRight,
+    permission: 'cash_drawer',
+  },
+  {
+    label: ar.vaultTransfers.managementTitle,
+    description: ar.hubs.vaultTransfersManagementDesc,
+    href: '/cash-transfers',
+    icon: ClipboardCheck,
     permission: 'cash_drawer',
   },
   {

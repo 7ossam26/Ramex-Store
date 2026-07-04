@@ -32,6 +32,8 @@ import { CashDrawerPage } from './pages/cash/CashDrawer';
 import { BanksPage } from './pages/cash/Banks';
 import { ExpensesPage } from './pages/cash/Expenses';
 import { CashReconcilePage } from './pages/cash/CashReconcile';
+import { CashVaultTransferPage } from './pages/cash/CashVaultTransfer';
+import { CashVaultTransfersManagementPage } from './pages/cash/CashVaultTransfersManagement';
 import { TreasuryHubPage } from './pages/treasury/TreasuryHub';
 import { TreasuriesOverviewPage } from './pages/treasury/TreasuriesOverview';
 import { SuppliersPage } from './pages/treasury/SuppliersPage';
@@ -181,6 +183,8 @@ export function App() {
                 <Route path="/banks" element={<PermGate resource="cash_drawer"><BanksPage /></PermGate>} />
                 <Route path="/expenses" element={<PermGate resource="cash_drawer"><ExpensesPage /></PermGate>} />
                 <Route path="/reconcile" element={<PermGate resource="cash_drawer"><CashReconcilePage /></PermGate>} />
+                <Route path="/cash-transfers" element={<PermGate resource="cash_drawer"><CashVaultTransfersManagementPage /></PermGate>} />
+                <Route path="/cash-transfers/new" element={<PermGate resource="cash_drawer"><CashVaultTransferPage /></PermGate>} />
 
                 <Route path="/notifications" element={<NotificationsPage />} />
 

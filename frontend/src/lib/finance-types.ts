@@ -6,7 +6,8 @@ export type CashEventType =
   | 'cash_to_bank'
   | 'owner_withdrawal'
   | 'opening_balance_set'
-  | 'reconciliation_adjustment';
+  | 'reconciliation_adjustment'
+  | 'vault_transfer_out';
 
 export type BankEventType =
   | 'instapay_payment'
@@ -135,4 +136,31 @@ export type TreasuriesOverview = {
     by_account: TreasuriesOverviewBankAccount[];
     recent_movements: TreasuriesOverviewBankMovement[];
   };
+  general_vault: {
+    balance_egp: string;
+    last_movement_at: string | null;
+  };
+};
+
+export type GeneralVaultBalance = {
+  current_balance_egp: number;
+  last_movement_at: string | null;
+};
+
+export type CashVaultTransferStatus = 'pending' | 'confirmed' | 'rejected' | 'cancelled';
+
+export type CashVaultTransfer = {
+  id: number;
+  amount_egp: string;
+  status: CashVaultTransferStatus;
+  notes_ar: string | null;
+  reject_reason_ar: string | null;
+  created_by_user_id: number;
+  created_at: string;
+  reviewed_by_user_id: number | null;
+  reviewed_at: string | null;
+  cash_movement_id: number | null;
+  general_vault_movement_id: number | null;
+  created_by_username: string | null;
+  reviewed_by_username: string | null;
 };

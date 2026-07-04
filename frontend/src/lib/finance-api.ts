@@ -4,7 +4,10 @@ import type {
   BankMovement,
   CashDrawerBalance,
   CashMovement,
+  CashVaultTransfer,
+  CashVaultTransferStatus,
   Expense,
+  GeneralVaultBalance,
   ReconciliationResult,
   TreasuriesOverview,
 } from './finance-types';
@@ -100,4 +103,31 @@ export const financeApi = {
 
   rejectExpense: (id: number, reason_ar: string) =>
     api.post<Expense>(`/expenses/${id}/reject`, { reason_ar }).then((r) => r.data),
+
+  // ── Cash Vault Transfers ─────────────────────────────────────────────────
+  getGeneralVaultBalance: () =>
+    api.get<GeneralVaultBalance>('/general-vault/balance').then((r) => r.data),
+
+  listVaultTransfers: (params?: {
+    status?: CashVaultTransferStatus | 'all';
+    from?: string;
+    to?: string;
+    page?: number;
+    limit?: number;
+  }) =>
+    api
+      .get<{ rows: CashVaultTransfer[]; total: number }>('/cash-transfers', { params })
+      .then((r) => r.data),
+
+  createVaultTransfer: (body: { amount: number; notes_ar?: string | null }) =>
+    api.post<CashVaultTransfer>('/cash-transfers', body).then((r) => r.data),
+
+  getVaultTransfer: (id: number) =>
+    api.get<CashVaultTransfer>(`/cash-transfers/${id}`).then((r) => r.data),
+
+  confirmVaultTransfer: (id: number) =>
+    api.post<CashVaultTransfer>(`/cash-transfers/${id}/confirm`).then((r) => r.data),
+
+  rejectVaultTransfer: (id: number, reason_ar: string) =>
+    api.post<CashVaultTransfer>(`/cash-transfers/${id}/reject`, { reason_ar }).then((r) => r.data),
 };

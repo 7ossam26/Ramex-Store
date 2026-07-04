@@ -2,6 +2,8 @@ import type { RequestHandler } from 'express';
 import * as cashDrawer from './cashDrawerService.js';
 import * as bank from './bankService.js';
 import * as expenses from './expensesService.js';
+import * as generalVault from './generalVaultService.js';
+import * as vaultTransfers from './cashVaultTransferService.js';
 import { getTreasuriesOverview } from './treasuriesOverviewService.js';
 import { db } from '../../db/connection.js';
 import { auditFromService } from '../inventory/audit.helper.js';
@@ -18,6 +20,9 @@ import {
   CreateExpenseSchema,
   RejectExpenseSchema,
   ExpensesQuerySchema,
+  CreateVaultTransferSchema,
+  RejectVaultTransferSchema,
+  VaultTransfersQuerySchema,
 } from './finance.schemas.js';
 
 const ERR_MAP: Record<string, number> = {
@@ -31,6 +36,8 @@ const ERR_MAP: Record<string, number> = {
   INSTAPAY_REQUIRES_BANK_ACCOUNT: 400,
   INSUFFICIENT_CASH_BALANCE: 422,
   INSUFFICIENT_BANK_BALANCE: 422,
+  TRANSFER_NOT_FOUND: 404,
+  TRANSFER_NOT_PENDING: 409,
 };
 
 function handleErr(res: Parameters<RequestHandler>[1], err: unknown): void {
@@ -247,6 +254,57 @@ export const rejectExpense: RequestHandler = async (req, res) => {
     const id = Number(req.params['id']);
     const body = RejectExpenseSchema.parse(req.body);
     const row = await expenses.rejectExpense(id, body.reason_ar, req.user!.sub);
+    res.json(row);
+  } catch (e) { handleErr(res, e); }
+};
+
+// ─── Cash Vault Transfers ──────────────────────────────────────────────────────
+
+export const getGeneralVaultBalance: RequestHandler = async (_req, res) => {
+  try {
+    res.json(await generalVault.getBalance());
+  } catch (e) { handleErr(res, e); }
+};
+
+export const createVaultTransfer: RequestHandler = async (req, res) => {
+  try {
+    const body = CreateVaultTransferSchema.parse(req.body);
+    const row = await vaultTransfers.createTransfer({
+      amount: body.amount,
+      notesAr: body.notes_ar,
+      actorUserId: req.user!.sub,
+    });
+    res.status(201).json(row);
+  } catch (e) { handleErr(res, e); }
+};
+
+export const listVaultTransfers: RequestHandler = async (req, res) => {
+  try {
+    const q = VaultTransfersQuerySchema.parse(req.query);
+    res.json(await vaultTransfers.listTransfers(q));
+  } catch (e) { handleErr(res, e); }
+};
+
+export const getVaultTransfer: RequestHandler = async (req, res) => {
+  try {
+    const id = Number(req.params['id']);
+    res.json(await vaultTransfers.getTransfer(id));
+  } catch (e) { handleErr(res, e); }
+};
+
+export const confirmVaultTransfer: RequestHandler = async (req, res) => {
+  try {
+    const id = Number(req.params['id']);
+    const row = await vaultTransfers.confirmTransfer(id, req.user!.sub);
+    res.json(row);
+  } catch (e) { handleErr(res, e); }
+};
+
+export const rejectVaultTransfer: RequestHandler = async (req, res) => {
+  try {
+    const id = Number(req.params['id']);
+    const body = RejectVaultTransferSchema.parse(req.body);
+    const row = await vaultTransfers.rejectTransfer(id, body.reason_ar, req.user!.sub);
     res.json(row);
   } catch (e) { handleErr(res, e); }
 };

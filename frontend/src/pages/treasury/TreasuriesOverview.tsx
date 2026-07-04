@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { RefreshCw, Banknote, Landmark, TrendingDown, TrendingUp } from 'lucide-react';
+import { RefreshCw, Banknote, Landmark, TrendingDown, TrendingUp, Building2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { financeApi } from '@/lib/finance-api';
 import { ar } from '@/i18n/ar';
@@ -450,6 +450,33 @@ export function TreasuriesOverviewPage() {
               <MovementFeed movements={data.bank.recent_movements} tone="info" showBank />
             </div>
           </motion.div>
+        </motion.div>
+      )}
+
+      {data && (
+        <motion.div variants={itemVariants} initial="hidden" animate="show">
+          <div className="rounded-lg border border-border-subtle bg-surface-elevated p-5 shadow-sm flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="size-7 rounded-md bg-accent-subtle inline-flex items-center justify-center shrink-0">
+                <Building2 className="size-4 text-accent" aria-hidden />
+              </span>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-foreground-muted mb-1">
+                  {ar.vaultTransfers.generalVault}
+                </p>
+                <p className="text-2xl font-semibold text-foreground tabular-num leading-none" dir="ltr">
+                  {formatEgp(data.general_vault.balance_egp)}
+                  <span className="text-xs text-foreground-tertiary font-normal"> ج.م</span>
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/cash-transfers"
+              className="text-xs text-accent hover:text-accent-hover transition-colors duration-150 cursor-pointer shrink-0"
+            >
+              {ar.treasuriesOverview.viewAll}
+            </Link>
+          </div>
         </motion.div>
       )}
     </PageShell>

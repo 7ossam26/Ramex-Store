@@ -50,7 +50,7 @@ function maskAccountNumber(raw: string | null): string | null {
 }
 
 export async function getTreasuriesOverview() {
-  const [cashDrawerRow, recentCashRaw, bankAccounts, recentBankRaw] = await Promise.all([
+  const [cashDrawerRow, recentCashRaw, bankAccounts, recentBankRaw, generalVaultRow] = await Promise.all([
     db('cash_drawer').where({ id: 1 }).first() as Promise<{
       current_balance_egp: string;
       opening_balance_egp: string;
@@ -86,6 +86,11 @@ export async function getTreasuriesOverview() {
         'ba.name_ar as bank_name_ar', 'u.username as actor_username')
       .orderBy('bm.created_at', 'desc')
       .limit(10) as Promise<BankMovementRow[]>,
+
+    db('general_vault').where({ id: 1 }).first() as Promise<{
+      current_balance_egp: string;
+      last_movement_at: string | null;
+    }>,
   ]);
 
   const bankTotal = bankAccounts.reduce(
@@ -139,6 +144,10 @@ export async function getTreasuriesOverview() {
         actor_username: m.actor_username,
         created_at: m.created_at,
       })),
+    },
+    general_vault: {
+      balance_egp: Number(generalVaultRow.current_balance_egp).toFixed(2),
+      last_movement_at: generalVaultRow.last_movement_at,
     },
   };
 }
