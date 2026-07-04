@@ -48,8 +48,12 @@ if (process.env.NODE_ENV !== 'test') {
   });
 
   (async () => {
-    await db.migrate.latest();
-    logger.info('database migrations applied');
+    try {
+      await db.migrate.latest();
+      logger.info('database migrations applied');
+    } catch (err) {
+      logger.error({ err }, 'db.migrate.latest failed — server starting without pending migrations');
+    }
     app.listen(env.PORT, () => logger.info({ port: env.PORT }, 'ramex-store server up'));
     startStaleInvoiceCron();
     startArchiveCron();
