@@ -1,7 +1,5 @@
 import { db } from '../../../db/connection.js';
 import { auditFromService } from '../../inventory/audit.helper.js';
-import { recordMovement as cashRecordMovement } from '../../finance/cashDrawerService.js';
-import { recordMovement as bankRecordMovement } from '../../finance/bankService.js';
 import * as repo from './suppliers.repository.js';
 import type { SupplierInvoice, SupplierPayment, SupplierWithBalance } from './suppliers.types.js';
 import type { CreateSupplierInvoiceInput, CreateSupplierPaymentInput } from './suppliers.schemas.js';
@@ -67,23 +65,8 @@ export async function recordPayment(
       actor_user_id: actorUserId,
     });
 
-    // Debit cash drawer or bank account
-    const supplierRow = await trx('suppliers').where({ id: data.supplier_id }).first() as { arabic_name: string } | undefined;
-    const supplierName = supplierRow?.arabic_name ?? `#${data.supplier_id}`;
-
-    if (data.method === 'cash') {
-      await cashRecordMovement(
-        trx, 'out', 'expense', data.amount_egp, actorUserId,
-        'supplier_payment', payment.id,
-        `دفعة مورد: ${supplierName}`,
-      );
-    } else if (data.bank_account_id) {
-      await bankRecordMovement(
-        trx, data.bank_account_id, 'out', 'other_out', data.amount_egp, actorUserId,
-        'supplier_payment', payment.id,
-        `دفعة مورد: ${supplierName}`,
-      );
-    }
+    // Supplier payments are off-treasury: no cash drawer / bank debit.
+    // `method` and `bank_account_id` are retained as informational only.
 
     await auditFromService(trx, {
       actorUserId,
