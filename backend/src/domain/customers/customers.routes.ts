@@ -22,3 +22,6 @@ customersRouter.post('/customers', requirePermission('customers', 'write'), ctl.
 customersRouter.get('/customers/:id', requirePermission('customers', 'read'), ctl.getCustomer);
 customersRouter.patch('/customers/:id', requirePermission('customers', 'write'), ctl.updateCustomer);
 customersRouter.get('/customers/:id/ledger', requirePermission('customers', 'read'), ctl.getCustomerLedger);
+customersRouter.get('/customers/:id/statement', requirePermission('customers', 'read'), ctl.getStatement);
+customersRouter.post('/customers/:id/opening-balance', requirePermission('customers', 'write'), ctl.setOpeningBalance);
+customersRouter.post('/customers/:id/receipts', requirePermission('customers', 'write'), ctl.recordReceipt);

@@ -29,28 +29,30 @@ export async function getCustomerLedger(
   const customer = await db('customers').where({ id: customerId }).first() as Record<string, unknown> | undefined;
   if (!customer) throw new Error('CUSTOMER_NOT_FOUND');
 
-  // Balance before the period
+  // Balance before the period. `amount_egp` is signed (negative = the customer
+  // owes us more, positive = a payment); the running balance is just their sum.
   const preAgg = await db('customer_ledger_entries')
     .where('customer_id', customerId)
     .where('created_at', '<', from)
-    .select(
-      db.raw(
-        "COALESCE(SUM(CASE WHEN direction = 'credit' THEN amount_egp ELSE -amount_egp END), 0) as net",
-      ),
-    )
+    .select(db.raw('COALESCE(SUM(amount_egp), 0) as net'))
     .first() as { net: string } | undefined;
   const openingBal = Number(preAgg?.net ?? 0);
 
   const entries = await db('customer_ledger_entries as cle')
-    .leftJoin('invoices as i', 'cle.invoice_id', 'i.id')
+    // Only invoice-referenced entries carry an invoice number.
+    .leftJoin('invoices as i', function joinInvoice() {
+      this.on('i.id', '=', 'cle.reference_id').andOn(
+        db.raw("cle.reference_type = 'invoice'"),
+      );
+    })
     .where('cle.customer_id', customerId)
     .whereBetween('cle.created_at', [from, to])
     .orderBy('cle.created_at', 'asc')
+    .orderBy('cle.id', 'asc')
     .select(
       'cle.created_at',
       'cle.entry_type',
       'cle.amount_egp',
-      'cle.direction',
       'i.invoice_no',
       'cle.notes_ar',
     );
@@ -58,13 +60,13 @@ export async function getCustomerLedger(
   let running = openingBal;
   const mapped: CustomerLedgerEntry[] = entries.map((e: Record<string, unknown>) => {
     const amt = Number(e['amount_egp']);
-    if (e['direction'] === 'credit') running += amt;
-    else running -= amt;
+    running += amt;
     return {
       created_at: formatCairo(String(e['created_at'])),
       entry_type: String(e['entry_type']),
       amount_egp: amt.toFixed(2),
-      direction: e['direction'] === 'credit' ? 'دائن' : 'مدين',
+      // Signed amount → accounting side: debit (owes more) vs credit (paid).
+      direction: amt < 0 ? 'مدين' : 'دائن',
       invoice_no: e['invoice_no'] as string | null,
       notes_ar: e['notes_ar'] as string | null,
       running_balance_egp: running.toFixed(2),

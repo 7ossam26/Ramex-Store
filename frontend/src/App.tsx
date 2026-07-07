@@ -22,6 +22,7 @@ import { DamagePage } from './pages/inventory/Damage';
 import { InventoryHubPage } from './pages/inventory/InventoryHub';
 import { CustomersListPage } from './pages/customers/CustomersList';
 import { CustomerDetailPage } from './pages/customers/CustomerDetail';
+import { CustomerStatementPage } from './pages/customers/CustomerStatementPage';
 import { POSPage } from './pages/pos/POS';
 import { InvoicesListPage } from './pages/invoices/InvoicesList';
 import { InvoiceDetailPage } from './pages/invoices/InvoiceDetail';
@@ -106,6 +107,17 @@ export function App() {
           <ProtectedRoute>
             <PermGate resource="suppliers">
               <SupplierStatementPage />
+            </PermGate>
+          </ProtectedRoute>
+        }
+      />
+      {/* Customer account statement — full-page preview + print, no AppShell chrome */}
+      <Route
+        path="/customers/:id/statement"
+        element={
+          <ProtectedRoute>
+            <PermGate resource="customers">
+              <CustomerStatementPage />
             </PermGate>
           </ProtectedRoute>
         }

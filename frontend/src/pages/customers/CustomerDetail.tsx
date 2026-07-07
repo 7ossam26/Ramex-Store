@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { FileText, Wallet, PlusCircle } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { motion } from 'framer-motion';
@@ -44,6 +45,11 @@ function fmtMoney(v: string | number) {
   });
 }
 
+/** Cairo-local "today" as `YYYY-MM-DD` (default as-of date for opening balance). */
+function cairoToday(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+}
+
 type EditFormVals = {
   name_ar: string;
   phone: string;
@@ -61,6 +67,71 @@ export function CustomerDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const qc = useQueryClient();
+
+  // Opening balance + standalone receipt dialogs (both audited on the backend).
+  const [openingOpen, setOpeningOpen] = useState(false);
+  const [openingAmount, setOpeningAmount] = useState('');
+  const [openingDate, setOpeningDate] = useState(cairoToday());
+  const [openingError, setOpeningError] = useState<string | null>(null);
+
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const [receiptAmount, setReceiptAmount] = useState('');
+  const [receiptNotes, setReceiptNotes] = useState('');
+  const [receiptError, setReceiptError] = useState<string | null>(null);
+
+  const invalidateCustomer = () => {
+    qc.invalidateQueries({ queryKey: ['customer', customerId] });
+    qc.invalidateQueries({ queryKey: ['customers'] });
+    qc.invalidateQueries({ queryKey: ['customer-statement', customerId] });
+  };
+
+  const openingMut = useMutation({
+    mutationFn: () =>
+      customersApi.setOpeningBalance(customerId, {
+        amount: Number(openingAmount),
+        as_of_date: openingDate,
+      }),
+    onSuccess: () => {
+      invalidateCustomer();
+      setOpeningOpen(false);
+      setOpeningError(null);
+    },
+    onError: (e) => setOpeningError(extractApiError(e)),
+  });
+
+  const receiptMut = useMutation({
+    mutationFn: () =>
+      customersApi.recordReceipt(customerId, {
+        amount: Number(receiptAmount),
+        notes_ar: receiptNotes.trim() || null,
+      }),
+    onSuccess: () => {
+      invalidateCustomer();
+      setReceiptOpen(false);
+      setReceiptAmount('');
+      setReceiptNotes('');
+      setReceiptError(null);
+    },
+    onError: (e) => setReceiptError(extractApiError(e)),
+  });
+
+  const submitOpening = () => {
+    const n = Number(openingAmount);
+    if (openingAmount.trim() === '' || !Number.isFinite(n)) {
+      setOpeningError(ar.customers.openingAmountHint);
+      return;
+    }
+    openingMut.mutate();
+  };
+
+  const submitReceipt = () => {
+    const n = Number(receiptAmount);
+    if (!Number.isFinite(n) || n <= 0) {
+      setReceiptError(ar.customers.receiptAmountError);
+      return;
+    }
+    receiptMut.mutate();
+  };
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['customer', customerId, ledgerPage],
@@ -167,6 +238,24 @@ export function CustomerDetailPage() {
           <p className={`text-2xl font-semibold tabular-num mt-0.5 ${balanceColor(data.current_balance_egp)}`} dir="ltr">
             {fmtMoney(data.current_balance_egp)} <span className="text-sm text-foreground-tertiary font-normal">ج.م</span>
           </p>
+        </div>
+
+        {/* Account actions — receipt, opening balance, statement */}
+        <div className="grid grid-cols-1 gap-2 pt-1">
+          <Button variant="outline" size="sm" className="justify-start" onClick={() => { setReceiptError(null); setReceiptOpen(true); }}>
+            <PlusCircle className="size-4 me-1.5" aria-hidden />
+            {ar.customers.recordReceipt}
+          </Button>
+          <Button variant="outline" size="sm" className="justify-start" onClick={() => { setOpeningError(null); setOpeningAmount(''); setOpeningDate(cairoToday()); setOpeningOpen(true); }}>
+            <Wallet className="size-4 me-1.5" aria-hidden />
+            {ar.customers.setOpeningBalance}
+          </Button>
+          <Button asChild variant="outline" size="sm" className="justify-start">
+            <Link to={`/customers/${customerId}/statement`}>
+              <FileText className="size-4 me-1.5" aria-hidden />
+              {ar.customers.statement.open}
+            </Link>
+          </Button>
         </div>
       </div>
     </div>
@@ -350,6 +439,103 @@ export function CustomerDetailPage() {
                 <Button type="button" variant="outline">{ar.common.cancel}</Button>
               </DialogClose>
               <Button type="submit" disabled={update.isPending}>{ar.common.save}</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Opening balance dialog */}
+      <Dialog open={openingOpen} onOpenChange={setOpeningOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{ar.customers.setOpeningBalance}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={(e) => { e.preventDefault(); submitOpening(); }} className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="opening-amount" className="text-sm font-medium text-foreground">
+                {ar.customers.openingAmount}
+                <span className="text-danger ms-1" aria-hidden>*</span>
+              </Label>
+              <Input
+                id="opening-amount"
+                type="number"
+                step="0.01"
+                inputMode="decimal"
+                dir="ltr"
+                value={openingAmount}
+                onChange={(e) => setOpeningAmount(e.target.value)}
+                placeholder="-1000.00"
+              />
+              <p className="text-xs text-foreground-muted">{ar.customers.openingAmountHint}</p>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="opening-date" className="text-sm font-medium text-foreground">
+                {ar.customers.openingAsOfDate}
+                <span className="text-danger ms-1" aria-hidden>*</span>
+              </Label>
+              <Input
+                id="opening-date"
+                type="date"
+                dir="ltr"
+                value={openingDate}
+                max={cairoToday()}
+                onChange={(e) => setOpeningDate(e.target.value)}
+              />
+            </div>
+            {openingError && (
+              <p className="text-sm text-danger" role="alert">{openingError}</p>
+            )}
+            <div className="flex gap-2 justify-end">
+              <DialogClose asChild>
+                <Button type="button" variant="outline">{ar.common.cancel}</Button>
+              </DialogClose>
+              <Button type="submit" disabled={openingMut.isPending}>{ar.common.save}</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Standalone receipt dialog */}
+      <Dialog open={receiptOpen} onOpenChange={setReceiptOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{ar.customers.recordReceiptTitle}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={(e) => { e.preventDefault(); submitReceipt(); }} className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="receipt-amount" className="text-sm font-medium text-foreground">
+                {ar.customers.receiptAmount}
+                <span className="text-danger ms-1" aria-hidden>*</span>
+              </Label>
+              <Input
+                id="receipt-amount"
+                type="number"
+                step="0.01"
+                min="0"
+                inputMode="decimal"
+                dir="ltr"
+                value={receiptAmount}
+                onChange={(e) => setReceiptAmount(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="receipt-notes" className="text-sm font-medium text-foreground">{ar.customers.receiptNotes}</Label>
+              <Input
+                id="receipt-notes"
+                dir="rtl"
+                value={receiptNotes}
+                onChange={(e) => setReceiptNotes(e.target.value)}
+              />
+            </div>
+            {receiptError && (
+              <p className="text-sm text-danger" role="alert">{receiptError}</p>
+            )}
+            <div className="flex gap-2 justify-end">
+              <DialogClose asChild>
+                <Button type="button" variant="outline">{ar.common.cancel}</Button>
+              </DialogClose>
+              <Button type="submit" disabled={receiptMut.isPending}>{ar.customers.recordReceipt}</Button>
             </div>
           </form>
         </DialogContent>

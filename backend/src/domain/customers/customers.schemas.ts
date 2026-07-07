@@ -47,3 +47,29 @@ export const LedgerQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(30),
 });
 export type LedgerQueryInput = z.infer<typeof LedgerQuerySchema>;
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Signed opening balance in ledger convention: negative = customer owes us (مدين),
+// positive = customer has credit (دائن). 0 clears an existing opening balance.
+export const OpeningBalanceSchema = z.object({
+  amount: z.number().finite('قيمة غير صالحة'),
+  as_of_date: z.string().regex(ISO_DATE, 'تاريخ غير صالح'),
+  notes_ar: z.string().max(5000).nullable().optional(),
+});
+export type OpeningBalanceInput = z.infer<typeof OpeningBalanceSchema>;
+
+// Standalone receipt — a positive amount the customer pays outside a POS sale.
+export const StandaloneReceiptSchema = z.object({
+  amount: z.number().positive('يجب أن يكون المبلغ أكبر من صفر'),
+  notes_ar: z.string().max(5000).nullable().optional(),
+});
+export type StandaloneReceiptInput = z.infer<typeof StandaloneReceiptSchema>;
+
+export const StatementQuerySchema = z.object({
+  from: z.string().regex(ISO_DATE).optional(),
+  to: z.string().regex(ISO_DATE).optional(),
+  variant: z.enum(['summary', 'detailed']).optional().default('summary'),
+  format: z.enum(['json', 'pdf', 'excel', 'print']).optional().default('json'),
+});
+export type StatementQueryInput = z.infer<typeof StatementQuerySchema>;
