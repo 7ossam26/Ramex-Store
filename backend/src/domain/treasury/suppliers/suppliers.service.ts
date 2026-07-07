@@ -24,28 +24,50 @@ function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-/** Compute each line_total and the invoice subtotal/total from raw line input. */
-function computeTotals(
-  lines: SupplierInvoiceLineInput[],
-  extraCharges: number,
-): { computed: ComputedLine[]; subtotal: number; total: number; extra: number } {
-  const computed: ComputedLine[] = lines.map((l) => ({
-    description: l.description.trim(),
-    quantity: l.quantity,
-    unit: l.unit,
-    unit_price: l.unit_price,
-    line_total: round2(l.quantity * l.unit_price),
-  }));
-  const subtotal = round2(computed.reduce((s, l) => s + l.line_total, 0));
-  const extra = round2(extraCharges);
-  const total = round2(subtotal + extra);
-  return { computed, subtotal, total, extra };
-}
+/** Largest value a `decimal(14,2)` money column can hold (12 integer digits). */
+const MAX_MONEY = 999_999_999_999.99;
 
 export class SupplierValidationError extends Error {
   constructor(public readonly code: string, message: string, public readonly status = 422) {
     super(message);
   }
+}
+
+/**
+ * Guard a computed money figure against the `decimal(14,2)` ceiling so an
+ * oversized line/total surfaces a clean Arabic 422 instead of a raw Postgres
+ * "numeric field overflow" 500.
+ */
+function assertMoneyInRange(n: number): void {
+  if (Math.abs(n) > MAX_MONEY) {
+    throw new SupplierValidationError(
+      'AMOUNT_TOO_LARGE',
+      'القيمة تتجاوز الحد الأقصى المسموح به',
+    );
+  }
+}
+
+/** Compute each line_total and the invoice subtotal/total from raw line input. */
+function computeTotals(
+  lines: SupplierInvoiceLineInput[],
+  extraCharges: number,
+): { computed: ComputedLine[]; subtotal: number; total: number; extra: number } {
+  const computed: ComputedLine[] = lines.map((l) => {
+    const line_total = round2(l.quantity * l.unit_price);
+    assertMoneyInRange(line_total);
+    return {
+      description: l.description.trim(),
+      quantity: l.quantity,
+      unit: l.unit,
+      unit_price: l.unit_price,
+      line_total,
+    };
+  });
+  const subtotal = round2(computed.reduce((s, l) => s + l.line_total, 0));
+  const extra = round2(extraCharges);
+  const total = round2(subtotal + extra);
+  assertMoneyInRange(total);
+  return { computed, subtotal, total, extra };
 }
 
 // ─── Suppliers CRUD ─────────────────────────────────────────────────────────
@@ -62,6 +84,7 @@ export async function createSupplier(
   data: CreateSupplierInput,
   actorUserId: number,
 ): Promise<Supplier> {
+  if (data.opening_balance != null) assertMoneyInRange(data.opening_balance);
   const supplier = await repo.createSupplier({
     arabic_name: data.arabic_name.trim(),
     english_name: data.english_name?.trim() || null,
@@ -95,6 +118,8 @@ export async function updateSupplier(
 ): Promise<Supplier> {
   const before = await repo.getSupplier(id);
   if (!before) throw new SupplierValidationError('SUPPLIER_NOT_FOUND', 'المورد غير موجود', 404);
+
+  if (patch.opening_balance != null) assertMoneyInRange(patch.opening_balance);
 
   // Currency is immutable once any invoice or payment exists; changing it silently
   // would corrupt the meaning of every stored amount. Reject clearly.
@@ -305,6 +330,7 @@ export async function recordPayment(
 ): Promise<SupplierPayment> {
   const supplier = await repo.getSupplier(data.supplier_id);
   if (!supplier) throw new SupplierValidationError('SUPPLIER_NOT_FOUND', 'المورد غير موجود', 404);
+  assertMoneyInRange(data.amount_egp);
 
   return db.transaction(async (trx) => {
     const paidAt = data.paid_at ?? new Date().toISOString();
@@ -343,6 +369,8 @@ export async function updatePayment(
 ): Promise<SupplierPayment> {
   const before = await repo.getPayment(id);
   if (!before) throw new SupplierValidationError('PAYMENT_NOT_FOUND', 'الدفعة غير موجودة', 404);
+
+  if (patch.amount_egp != null) assertMoneyInRange(patch.amount_egp);
 
   // Non-cash methods require a bank account (informational).
   const method = patch.method ?? before.method;
