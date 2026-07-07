@@ -1,10 +1,13 @@
 import type { Knex } from 'knex';
 import { db } from '../../../db/connection.js';
 import type {
+  ComputedLine,
   Currency,
   Supplier,
   SupplierBalance,
   SupplierInvoice,
+  SupplierInvoiceLine,
+  SupplierInvoiceWithLines,
   SupplierPayment,
   SupplierWithBalance,
 } from './suppliers.types.js';
@@ -162,8 +165,13 @@ export async function insertInvoice(
   data: {
     supplier_id: number;
     invoice_no: string | null;
+    internal_no: string | null;
     invoice_date: string;
+    due_date: string | null;
     amount_egp: number;
+    subtotal: number;
+    extra_charges: number;
+    total: number;
     currency: Currency;
     notes_ar: string | null;
     source: 'manual' | 'shipment_receive';
@@ -173,6 +181,74 @@ export async function insertInvoice(
 ): Promise<SupplierInvoice> {
   const [{ id }] = await trxOrDb('supplier_invoices').insert(data).returning('id');
   return trxOrDb('supplier_invoices').where({ id }).first() as Promise<SupplierInvoice>;
+}
+
+export async function updateInvoiceRow(
+  trx: Knex.Transaction,
+  id: number,
+  patch: Partial<{
+    invoice_no: string | null;
+    invoice_date: string;
+    due_date: string | null;
+    amount_egp: number;
+    subtotal: number;
+    extra_charges: number;
+    total: number;
+    notes_ar: string | null;
+  }>,
+): Promise<void> {
+  await trx('supplier_invoices').where({ id }).update(patch);
+}
+
+export async function deleteInvoice(trx: Knex.Transaction, id: number): Promise<void> {
+  // Lines cascade via the ON DELETE CASCADE FK.
+  await trx('supplier_invoices').where({ id }).delete();
+}
+
+export async function listLines(
+  trxOrDb: Knex | Knex.Transaction,
+  invoiceId: number,
+): Promise<SupplierInvoiceLine[]> {
+  return trxOrDb('supplier_invoice_lines')
+    .where({ supplier_invoice_id: invoiceId })
+    .orderBy('id')
+    .select('*') as Promise<SupplierInvoiceLine[]>;
+}
+
+export async function insertLines(
+  trx: Knex.Transaction,
+  invoiceId: number,
+  lines: ComputedLine[],
+): Promise<void> {
+  if (lines.length === 0) return;
+  await trx('supplier_invoice_lines').insert(
+    lines.map((l) => ({
+      supplier_invoice_id: invoiceId,
+      description: l.description,
+      quantity: l.quantity,
+      unit: l.unit,
+      unit_price: l.unit_price,
+      line_total: l.line_total,
+    })),
+  );
+}
+
+export async function deleteLines(trx: Knex.Transaction, invoiceId: number): Promise<void> {
+  await trx('supplier_invoice_lines').where({ supplier_invoice_id: invoiceId }).delete();
+}
+
+export async function getInvoiceWithLines(
+  trxOrDb: Knex | Knex.Transaction,
+  id: number,
+): Promise<SupplierInvoiceWithLines | undefined> {
+  const invoice = (await trxOrDb('supplier_invoices as si')
+    .leftJoin('suppliers as s', 'si.supplier_id', 's.id')
+    .where('si.id', id)
+    .select('si.*', 's.arabic_name as supplier_name')
+    .first()) as SupplierInvoice | undefined;
+  if (!invoice) return undefined;
+  const lines = await listLines(trxOrDb, id);
+  return { ...invoice, lines };
 }
 
 export async function insertPayment(

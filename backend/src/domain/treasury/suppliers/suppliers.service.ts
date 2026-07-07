@@ -1,14 +1,46 @@
 import { db } from '../../../db/connection.js';
 import { auditFromService } from '../../inventory/audit.helper.js';
 import * as repo from './suppliers.repository.js';
-import type { Supplier, SupplierInvoice, SupplierPayment, SupplierWithBalance } from './suppliers.types.js';
+import { nextPurchaseInvoiceNo } from './purchaseInvoiceNumber.service.js';
+import type {
+  ComputedLine,
+  Supplier,
+  SupplierInvoiceWithLines,
+  SupplierPayment,
+  SupplierWithBalance,
+} from './suppliers.types.js';
 import type {
   CreateSupplierInput,
   CreateSupplierInvoiceInput,
   CreateSupplierPaymentInput,
+  SupplierInvoiceLineInput,
   UpdateSupplierInput,
+  UpdateSupplierInvoiceInput,
   UpdateSupplierPaymentInput,
 } from './suppliers.schemas.js';
+
+/** Round to 2 decimals (money) — avoids binary FP drift on totals. */
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+/** Compute each line_total and the invoice subtotal/total from raw line input. */
+function computeTotals(
+  lines: SupplierInvoiceLineInput[],
+  extraCharges: number,
+): { computed: ComputedLine[]; subtotal: number; total: number; extra: number } {
+  const computed: ComputedLine[] = lines.map((l) => ({
+    description: l.description.trim(),
+    quantity: l.quantity,
+    unit: l.unit,
+    unit_price: l.unit_price,
+    line_total: round2(l.quantity * l.unit_price),
+  }));
+  const subtotal = round2(computed.reduce((s, l) => s + l.line_total, 0));
+  const extra = round2(extraCharges);
+  const total = round2(subtotal + extra);
+  return { computed, subtotal, total, extra };
+}
 
 export class SupplierValidationError extends Error {
   constructor(public readonly code: string, message: string, public readonly status = 422) {
@@ -129,35 +161,140 @@ export async function getLedger(supplierId: number) {
 
 // ─── Invoices ─────────────────────────────────────────────────────────────────
 
+export async function getInvoice(id: number): Promise<SupplierInvoiceWithLines> {
+  const invoice = await repo.getInvoiceWithLines(db, id);
+  if (!invoice) throw new SupplierValidationError('INVOICE_NOT_FOUND', 'الفاتورة غير موجودة', 404);
+  return invoice;
+}
+
 export async function createInvoice(
   data: CreateSupplierInvoiceInput,
   actorUserId: number,
-): Promise<SupplierInvoice> {
+): Promise<SupplierInvoiceWithLines> {
   const supplier = await repo.getSupplier(data.supplier_id);
   if (!supplier) throw new SupplierValidationError('SUPPLIER_NOT_FOUND', 'المورد غير موجود', 404);
 
-  const invoice = await repo.insertInvoice(db, {
-    supplier_id: data.supplier_id,
-    invoice_no: data.invoice_no ?? null,
-    invoice_date: data.invoice_date,
-    amount_egp: data.amount_egp,
-    currency: supplier.currency,
-    notes_ar: data.notes_ar ?? null,
-    source: 'manual',
-    source_ref: null,
-    created_by_user_id: actorUserId,
-  });
+  const { computed, subtotal, total, extra } = computeTotals(data.lines, data.extra_charges ?? 0);
+  // The document year drives the PINV sequence (resets every January 1st).
+  const year = Number(data.invoice_date.slice(0, 4));
 
-  await auditFromService(db, {
-    actorUserId,
-    action: 'supplier_invoice_created',
-    entity: 'supplier_invoice',
-    entityId: invoice.id,
-    after: { supplier_id: data.supplier_id, amount_egp: data.amount_egp, currency: supplier.currency, source: 'manual' },
-    severity: 'medium',
-  });
+  return db.transaction(async (trx) => {
+    const internalNo = await nextPurchaseInvoiceNo(trx, year);
 
-  return invoice;
+    const invoice = await repo.insertInvoice(trx, {
+      supplier_id: data.supplier_id,
+      invoice_no: data.invoice_no?.trim() || null,
+      internal_no: internalNo,
+      invoice_date: data.invoice_date,
+      due_date: data.due_date ?? null,
+      // `amount_egp` is kept in lock-step with `total` for back-compat.
+      amount_egp: total,
+      subtotal,
+      extra_charges: extra,
+      total,
+      currency: supplier.currency,
+      notes_ar: data.notes_ar?.trim() || null,
+      source: 'manual',
+      source_ref: null,
+      created_by_user_id: actorUserId,
+    });
+
+    await repo.insertLines(trx, invoice.id, computed);
+
+    await auditFromService(trx, {
+      actorUserId,
+      action: 'supplier_invoice_created',
+      entity: 'supplier_invoice',
+      entityId: invoice.id,
+      after: {
+        internal_no: internalNo,
+        supplier_id: data.supplier_id,
+        currency: supplier.currency,
+        subtotal,
+        extra_charges: extra,
+        total,
+        line_count: computed.length,
+        source: 'manual',
+      },
+      severity: 'medium',
+    });
+
+    return (await repo.getInvoiceWithLines(trx, invoice.id))!;
+  });
+}
+
+export async function updateInvoice(
+  id: number,
+  patch: UpdateSupplierInvoiceInput,
+  actorUserId: number,
+): Promise<SupplierInvoiceWithLines> {
+  const before = await repo.getInvoiceWithLines(db, id);
+  if (!before) throw new SupplierValidationError('INVOICE_NOT_FOUND', 'الفاتورة غير موجودة', 404);
+
+  // Effective lines: the replacement set if provided, else the existing lines.
+  const effectiveLineInput: SupplierInvoiceLineInput[] = patch.lines
+    ? patch.lines
+    : before.lines.map((l) => ({
+        description: l.description,
+        quantity: Number(l.quantity),
+        unit: l.unit,
+        unit_price: Number(l.unit_price),
+      }));
+  const effectiveExtra = patch.extra_charges ?? Number(before.extra_charges);
+  const { computed, subtotal, total, extra } = computeTotals(effectiveLineInput, effectiveExtra);
+
+  return db.transaction(async (trx) => {
+    const dbPatch: Parameters<typeof repo.updateInvoiceRow>[2] = {
+      subtotal,
+      extra_charges: extra,
+      total,
+      amount_egp: total,
+    };
+    if (patch.invoice_no !== undefined) dbPatch.invoice_no = patch.invoice_no?.trim() || null;
+    if (patch.invoice_date !== undefined) dbPatch.invoice_date = patch.invoice_date;
+    if (patch.due_date !== undefined) dbPatch.due_date = patch.due_date;
+    if (patch.notes_ar !== undefined) dbPatch.notes_ar = patch.notes_ar?.trim() || null;
+
+    await repo.updateInvoiceRow(trx, id, dbPatch);
+
+    // Replace lines only when a new set was supplied.
+    if (patch.lines) {
+      await repo.deleteLines(trx, id);
+      await repo.insertLines(trx, id, computed);
+    }
+
+    const after = (await repo.getInvoiceWithLines(trx, id))!;
+
+    await auditFromService(trx, {
+      actorUserId,
+      action: 'supplier_invoice_updated',
+      entity: 'supplier_invoice',
+      entityId: id,
+      before,
+      after,
+      severity: 'medium',
+    });
+
+    return after;
+  });
+}
+
+export async function deleteInvoice(id: number, actorUserId: number): Promise<void> {
+  const before = await repo.getInvoiceWithLines(db, id);
+  if (!before) throw new SupplierValidationError('INVOICE_NOT_FOUND', 'الفاتورة غير موجودة', 404);
+
+  await db.transaction(async (trx) => {
+    await repo.deleteInvoice(trx, id); // lines cascade
+
+    await auditFromService(trx, {
+      actorUserId,
+      action: 'supplier_invoice_deleted',
+      entity: 'supplier_invoice',
+      entityId: id,
+      before,
+      severity: 'medium',
+    });
+  });
 }
 
 // ─── Payments ─────────────────────────────────────────────────────────────────

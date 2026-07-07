@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Truck, Plus, Search, ChevronRight, Pencil, Trash2, Ban } from 'lucide-react';
+import { Truck, Plus, Search, ChevronRight, Pencil, Trash2, Ban, X, FileText } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import {
   suppliersApi,
   type SupplierWithBalance,
   type SupplierInvoice,
+  type SupplierInvoiceWithLines,
   type SupplierPayment,
   type Currency,
+  type Unit,
 } from '@/lib/suppliers-api';
 import { bankAccountsApi } from '@/lib/settings-api';
 import { currencySymbol, fmtCurrency, fmtMoney } from '@/components/dashboard/format';
@@ -199,81 +201,390 @@ function SupplierFormDialog({
   );
 }
 
-// ─── Add Debt Dialog ──────────────────────────────────────────────────────────
+// ─── Purchase-invoice form (create + edit) ────────────────────────────────────
 
-function AddDebtDialog({
+const UNIT_KEYS: Unit[] = ['kg', 'meter', 'roll', 'piece'];
+
+type LineDraft = { description: string; quantity: string; unit: Unit; unit_price: string };
+
+const emptyLine = (): LineDraft => ({ description: '', quantity: '1', unit: 'piece', unit_price: '' });
+
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+function PurchaseInvoiceFormDialog({
   supplierId,
   currency,
+  invoice,
   onClose,
   onDone,
 }: {
   supplierId: number;
   currency: Currency;
+  invoice: SupplierInvoiceWithLines | null; // null = create
   onClose: () => void;
   onDone: () => void;
 }) {
+  const isEdit = invoice !== null;
   const today = format(new Date(), 'yyyy-MM-dd');
-  const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(today);
-  const [notes, setNotes] = useState('');
+  const [invoiceNo, setInvoiceNo] = useState(invoice?.invoice_no ?? '');
+  const [invoiceDate, setInvoiceDate] = useState(invoice?.invoice_date ?? today);
+  const [dueDate, setDueDate] = useState(invoice?.due_date ?? '');
+  const [extraCharges, setExtraCharges] = useState(
+    invoice && Number(invoice.extra_charges) !== 0 ? String(Number(invoice.extra_charges)) : '',
+  );
+  const [notes, setNotes] = useState(invoice?.notes_ar ?? '');
+  const [lines, setLines] = useState<LineDraft[]>(
+    invoice && invoice.lines.length > 0
+      ? invoice.lines.map((l) => ({
+          description: l.description,
+          quantity: String(Number(l.quantity)),
+          unit: l.unit,
+          unit_price: String(Number(l.unit_price)),
+        }))
+      : [emptyLine()],
+  );
   const [error, setError] = useState<string | null>(null);
 
   const qc = useQueryClient();
   const mut = useMutation({
-    mutationFn: () =>
-      suppliersApi.createInvoice({
-        supplier_id: supplierId,
-        invoice_date: date,
-        amount_egp: Number(amount),
+    mutationFn: () => {
+      const body = {
+        invoice_no: invoiceNo.trim() || null,
+        invoice_date: invoiceDate,
+        due_date: dueDate || null,
+        extra_charges: extraCharges === '' ? 0 : Number(extraCharges),
+        lines: lines.map((l) => ({
+          description: l.description.trim(),
+          quantity: Number(l.quantity),
+          unit: l.unit,
+          unit_price: Number(l.unit_price),
+        })),
         notes_ar: notes.trim() || null,
-      }),
+      };
+      if (isEdit) return suppliersApi.updateInvoice(invoice!.id, body);
+      return suppliersApi.createInvoice({ supplier_id: supplierId, ...body });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['supplier-ledger', supplierId] });
       qc.invalidateQueries({ queryKey: ['suppliers-list'] });
+      if (isEdit) qc.invalidateQueries({ queryKey: ['supplier-invoice', invoice!.id] });
       onDone();
     },
     onError: (e) => setError(extractApiError(e)),
   });
 
+  const updateLine = (i: number, patch: Partial<LineDraft>) =>
+    setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
+  const addLine = () => setLines((prev) => [...prev, emptyLine()]);
+  const removeLine = (i: number) => setLines((prev) => prev.filter((_, idx) => idx !== i));
+
+  const lineTotal = (l: LineDraft) => round2((Number(l.quantity) || 0) * (Number(l.unit_price) || 0));
+  const subtotal = round2(lines.reduce((s, l) => s + lineTotal(l), 0));
+  const extra = extraCharges === '' ? 0 : Number(extraCharges) || 0;
+  const total = round2(subtotal + extra);
+
+  const linesValid =
+    lines.length > 0 &&
+    lines.every(
+      (l) =>
+        l.description.trim() !== '' &&
+        Number(l.quantity) > 0 &&
+        l.unit_price !== '' &&
+        Number(l.unit_price) >= 0,
+    );
+  const canSubmit = linesValid && !!invoiceDate && extra >= 0;
+
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>{ar.supplierPayables.addDebt}</DialogTitle>
+          <DialogTitle>{isEdit ? ar.supplierPayables.editInvoice : ar.supplierPayables.newInvoice}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-[75vh] overflow-y-auto pe-1">
           {error && <ErrorBanner title={ar.common.error} description={error} />}
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-foreground">المبلغ ({currencySymbol(currency)})</Label>
-            <input
-              type="number"
-              min={1}
-              step="0.01"
-              className={inputCls}
-              style={{ unicodeBidi: 'plaintext' }}
-              placeholder="0"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              onFocus={(e) => e.target.select()}
-            />
+
+          {/* Header fields */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium text-foreground">{ar.supplierPayables.invoiceDate}</Label>
+              <input type="date" className={inputCls} value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium text-foreground">{ar.supplierPayables.dueDate}</Label>
+              <input type="date" className={inputCls} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            </div>
+            <div className="space-y-1.5 col-span-2">
+              <Label className="text-sm font-medium text-foreground">{ar.supplierPayables.supplierInvoiceNo}</Label>
+              <input
+                className={inputCls}
+                dir="ltr"
+                placeholder="INV-001"
+                value={invoiceNo}
+                onChange={(e) => setInvoiceNo(e.target.value)}
+              />
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-foreground">{ar.supplierPayables.invoiceDate}</Label>
-            <input type="date" className={inputCls} value={date} onChange={(e) => setDate(e.target.value)} />
+
+          {/* Lines */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-semibold text-foreground">{ar.supplierPayables.lines}</Label>
+              <Button type="button" size="sm" variant="outline" className="h-8" onClick={addLine}>
+                <Plus className="size-4" aria-hidden />
+                {ar.supplierPayables.addLine}
+              </Button>
+            </div>
+
+            {lines.map((l, i) => (
+              <div key={i} className="rounded-lg border border-border-subtle bg-surface p-3 space-y-2">
+                <div className="flex items-start gap-2">
+                  <div className="flex-1 space-y-1">
+                    <Label className="text-xs text-foreground-muted">{ar.supplierPayables.lineDescription}</Label>
+                    <Input dir="rtl" value={l.description} onChange={(e) => updateLine(i, { description: e.target.value })} />
+                  </div>
+                  <button
+                    type="button"
+                    title={ar.supplierPayables.removeLine}
+                    aria-label={ar.supplierPayables.removeLine}
+                    onClick={() => removeLine(i)}
+                    disabled={lines.length === 1}
+                    className="mt-6 size-8 shrink-0 flex items-center justify-center rounded-md text-danger-foreground hover:bg-danger/10 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-foreground-muted">{ar.supplierPayables.quantity}</Label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.001"
+                      className={inputCls}
+                      style={{ unicodeBidi: 'plaintext' }}
+                      value={l.quantity}
+                      onChange={(e) => updateLine(i, { quantity: e.target.value })}
+                      onFocus={(e) => e.target.select()}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-foreground-muted">{ar.supplierPayables.unit}</Label>
+                    <select
+                      className={inputCls}
+                      value={l.unit}
+                      onChange={(e) => updateLine(i, { unit: e.target.value as Unit })}
+                    >
+                      {UNIT_KEYS.map((u) => (
+                        <option key={u} value={u}>{ar.supplierPayables.units[u]}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-foreground-muted">
+                      {ar.supplierPayables.unitPrice} ({currencySymbol(currency)})
+                    </Label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      className={inputCls}
+                      style={{ unicodeBidi: 'plaintext' }}
+                      placeholder="0"
+                      value={l.unit_price}
+                      onChange={(e) => updateLine(i, { unit_price: e.target.value })}
+                      onFocus={(e) => e.target.select()}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-foreground-muted">{ar.supplierPayables.lineTotal}</Label>
+                    <div
+                      className="h-10 flex items-center px-3 rounded-md border border-border-subtle bg-surface-row-alt text-sm font-semibold tabular-num text-foreground"
+                      dir="ltr"
+                    >
+                      {fmtCurrency(lineTotal(l), currency)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-foreground">{ar.supplierPayables.notes}</Label>
-            <Input dir="rtl" value={notes} onChange={(e) => setNotes(e.target.value)} />
+
+          {/* Extra charges + notes */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium text-foreground">
+                {ar.supplierPayables.extraCharges} ({currencySymbol(currency)})
+              </Label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                className={inputCls}
+                style={{ unicodeBidi: 'plaintext' }}
+                placeholder="0"
+                value={extraCharges}
+                onChange={(e) => setExtraCharges(e.target.value)}
+                onFocus={(e) => e.target.select()}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium text-foreground">{ar.supplierPayables.notes}</Label>
+              <Input dir="rtl" value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </div>
           </div>
-          <div className="flex gap-2 justify-end">
+
+          {/* Totals footer */}
+          <div className="rounded-lg border border-border-subtle bg-surface-row-alt p-3 space-y-1.5">
+            <div className="flex justify-between text-sm text-foreground-muted">
+              <span>{ar.supplierPayables.subtotal}</span>
+              <span className="tabular-num" dir="ltr">{fmtCurrency(subtotal, currency)}</span>
+            </div>
+            <div className="flex justify-between text-sm text-foreground-muted">
+              <span>{ar.supplierPayables.extraCharges}</span>
+              <span className="tabular-num" dir="ltr">{fmtCurrency(extra, currency)}</span>
+            </div>
+            <div className="flex justify-between text-base font-bold text-foreground pt-1.5 border-t border-border-subtle">
+              <span>{ar.supplierPayables.total}</span>
+              <span className="tabular-num" dir="ltr">{fmtCurrency(total, currency)}</span>
+            </div>
+          </div>
+
+          <div className="flex gap-2 justify-end pt-1">
             <DialogClose asChild>
               <Button type="button" variant="outline">{ar.common.cancel}</Button>
             </DialogClose>
-            <Button onClick={() => mut.mutate()} disabled={mut.isPending || Number(amount) <= 0 || !date}>
+            <Button onClick={() => mut.mutate()} disabled={mut.isPending || !canSubmit}>
               {mut.isPending ? ar.loading : ar.common.save}
             </Button>
           </div>
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Invoice detail dialog ────────────────────────────────────────────────────
+
+function InvoiceDetailDialog({
+  invoiceId,
+  currency,
+  onClose,
+  onEdit,
+  onDelete,
+}: {
+  invoiceId: number;
+  currency: Currency;
+  onClose: () => void;
+  onEdit: (inv: SupplierInvoiceWithLines) => void;
+  onDelete: (inv: SupplierInvoiceWithLines) => void;
+}) {
+  const { data: invoice, isLoading } = useQuery({
+    queryKey: ['supplier-invoice', invoiceId],
+    queryFn: () => suppliersApi.getInvoice(invoiceId),
+  });
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{ar.supplierPayables.invoiceDetails}</DialogTitle>
+        </DialogHeader>
+        {isLoading || !invoice ? (
+          <p className="p-6 text-center text-sm text-foreground-muted">{ar.loading}</p>
+        ) : (
+          <div className="space-y-4 max-h-[75vh] overflow-y-auto pe-1">
+            {/* Header meta */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <div className="flex justify-between gap-2">
+                <span className="text-foreground-muted">{ar.supplierPayables.internalNo}</span>
+                <span className="font-mono font-semibold text-foreground" dir="ltr">{invoice.internal_no ?? '—'}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-foreground-muted">{ar.supplierPayables.supplierInvoiceNo}</span>
+                <span className="font-mono text-foreground" dir="ltr">{invoice.invoice_no ?? '—'}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-foreground-muted">{ar.supplierPayables.invoiceDate}</span>
+                <span className="tabular-num text-foreground" dir="ltr">{invoice.invoice_date}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-foreground-muted">{ar.supplierPayables.dueDate}</span>
+                <span className="tabular-num text-foreground" dir="ltr">{invoice.due_date ?? '—'}</span>
+              </div>
+            </div>
+
+            {invoice.notes_ar && (
+              <p className="text-sm text-foreground-muted border-e-2 border-border-subtle pe-2">{invoice.notes_ar}</p>
+            )}
+
+            {/* Lines */}
+            <div className="rounded-lg border border-border-subtle overflow-hidden">
+              <table className="w-full text-sm" dir="rtl">
+                <thead className="bg-surface-row-alt text-foreground-muted border-b border-border-subtle">
+                  <tr>
+                    <th className="py-2 px-3 text-start font-medium">{ar.supplierPayables.lineDescription}</th>
+                    <th className="py-2 px-3 text-end font-medium">{ar.supplierPayables.quantity}</th>
+                    <th className="py-2 px-3 text-center font-medium">{ar.supplierPayables.unit}</th>
+                    <th className="py-2 px-3 text-end font-medium">{ar.supplierPayables.unitPrice}</th>
+                    <th className="py-2 px-3 text-end font-medium">{ar.supplierPayables.lineTotal}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border-subtle bg-surface-elevated">
+                  {invoice.lines.length === 0 ? (
+                    <tr><td colSpan={5} className="py-4 text-center text-foreground-muted">{ar.supplierPayables.noLines}</td></tr>
+                  ) : (
+                    invoice.lines.map((l) => (
+                      <tr key={l.id}>
+                        <td className="py-2 px-3 text-foreground">{l.description}</td>
+                        <td className="py-2 px-3 text-end tabular-num text-foreground-muted" dir="ltr">{fmtMoney(Number(l.quantity))}</td>
+                        <td className="py-2 px-3 text-center text-foreground-muted">{ar.supplierPayables.units[l.unit]}</td>
+                        <td className="py-2 px-3 text-end tabular-num text-foreground-muted" dir="ltr">{fmtCurrency(l.unit_price, currency)}</td>
+                        <td className="py-2 px-3 text-end tabular-num font-semibold text-foreground" dir="ltr">{fmtCurrency(l.line_total, currency)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Totals */}
+            <div className="rounded-lg border border-border-subtle bg-surface-row-alt p-3 space-y-1.5">
+              <div className="flex justify-between text-sm text-foreground-muted">
+                <span>{ar.supplierPayables.subtotal}</span>
+                <span className="tabular-num" dir="ltr">{fmtCurrency(invoice.subtotal, currency)}</span>
+              </div>
+              <div className="flex justify-between text-sm text-foreground-muted">
+                <span>{ar.supplierPayables.extraCharges}</span>
+                <span className="tabular-num" dir="ltr">{fmtCurrency(invoice.extra_charges, currency)}</span>
+              </div>
+              <div className="flex justify-between text-base font-bold text-foreground pt-1.5 border-t border-border-subtle">
+                <span>{ar.supplierPayables.total}</span>
+                <span className="tabular-num" dir="ltr">{fmtCurrency(invoice.total, currency)}</span>
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-between pt-1">
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-danger-foreground hover:text-danger-foreground"
+                onClick={() => onDelete(invoice)}
+              >
+                <Trash2 className="size-4" aria-hidden />
+                {ar.supplierPayables.deleteInvoice}
+              </Button>
+              <div className="flex gap-2">
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">{ar.common.close}</Button>
+                </DialogClose>
+                <Button onClick={() => onEdit(invoice)}>
+                  <Pencil className="size-4" aria-hidden />
+                  {ar.supplierPayables.editInvoice}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -448,7 +759,12 @@ function ConfirmDialog({
 
 export function SuppliersPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [showAddDebt, setShowAddDebt] = useState(false);
+  const [invoiceForm, setInvoiceForm] = useState<{ open: boolean; invoice: SupplierInvoiceWithLines | null }>({
+    open: false,
+    invoice: null,
+  });
+  const [viewingInvoiceId, setViewingInvoiceId] = useState<number | null>(null);
+  const [deletingInvoice, setDeletingInvoice] = useState<SupplierInvoiceWithLines | null>(null);
   const [showPayment, setShowPayment] = useState(false);
   const [editingPayment, setEditingPayment] = useState<SupplierPayment | null>(null);
   const [deletingPayment, setDeletingPayment] = useState<SupplierPayment | null>(null);
@@ -478,6 +794,16 @@ export function SuppliersPage() {
       qc.invalidateQueries({ queryKey: ['supplier-ledger', selectedId] });
       qc.invalidateQueries({ queryKey: ['suppliers-list'] });
       setDeletingPayment(null);
+    },
+  });
+
+  const deleteInvoiceMut = useMutation({
+    mutationFn: (id: number) => suppliersApi.deleteInvoice(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['supplier-ledger', selectedId] });
+      qc.invalidateQueries({ queryKey: ['suppliers-list'] });
+      setDeletingInvoice(null);
+      setViewingInvoiceId(null);
     },
   });
 
@@ -663,8 +989,9 @@ export function SuppliersPage() {
                   <Button variant="outline" onClick={() => setShowPayment(true)} className="w-full">
                     {ar.supplierPayables.recordPayment}
                   </Button>
-                  <Button onClick={() => setShowAddDebt(true)} className="w-full">
-                    {ar.supplierPayables.addDebt}
+                  <Button onClick={() => setInvoiceForm({ open: true, invoice: null })} className="w-full">
+                    <FileText className="size-4" aria-hidden />
+                    {ar.supplierPayables.newInvoice}
                   </Button>
                 </div>
               </div>
@@ -695,7 +1022,14 @@ export function SuppliersPage() {
                       {entries.map((entry) => {
                         const isDebt = entry.kind === 'debt';
                         return (
-                          <tr key={`${entry.kind}-${entry.row.id}`} className="hover:bg-surface-hover/50 transition-colors">
+                          <tr
+                            key={`${entry.kind}-${entry.row.id}`}
+                            onClick={isDebt ? () => setViewingInvoiceId(entry.row.id) : undefined}
+                            className={cn(
+                              'hover:bg-surface-hover/50 transition-colors',
+                              isDebt && 'cursor-pointer',
+                            )}
+                          >
                             <td className="py-2.5 px-4 text-foreground-muted tabular-num text-xs">
                               {isDebt
                                 ? entry.row.invoice_date
@@ -711,9 +1045,10 @@ export function SuppliersPage() {
                                 {isDebt ? 'دين' : 'دفعة'}
                               </span>
                             </td>
-                            <td className="py-2.5 px-4 text-foreground-muted text-xs max-w-40 truncate">
+                            <td className="py-2.5 px-4 text-foreground-muted text-xs max-w-48 truncate">
                               {entry.kind === 'debt'
-                                ? (entry.row.notes_ar ?? '—')
+                                ? [entry.row.internal_no, entry.row.invoice_no, entry.row.notes_ar]
+                                    .filter(Boolean).join(' · ') || '—'
                                 : [
                                     ar.supplierPayables.method[entry.row.method],
                                     entry.row.bank_name_ar,
@@ -730,12 +1065,24 @@ export function SuppliersPage() {
                               {isDebt ? '+' : '−'} {fmtMoney(Number(entry.row.amount_egp))}
                             </td>
                             <td className="py-2.5 px-4 text-end">
-                              {entry.kind === 'payment' && (
+                              {entry.kind === 'debt' ? (
+                                <div className="flex items-center gap-1 justify-end">
+                                  <button
+                                    type="button"
+                                    title={ar.supplierPayables.invoiceDetails}
+                                    aria-label={ar.supplierPayables.invoiceDetails}
+                                    onClick={(e) => { e.stopPropagation(); setViewingInvoiceId(entry.row.id); }}
+                                    className="size-7 flex items-center justify-center rounded-md text-foreground-muted hover:text-foreground hover:bg-surface-hover cursor-pointer"
+                                  >
+                                    <FileText className="size-3.5" aria-hidden />
+                                  </button>
+                                </div>
+                              ) : (
                                 <div className="flex items-center gap-1 justify-end">
                                   <button
                                     type="button"
                                     title={ar.supplierPayables.editPayment}
-                                    onClick={() => setEditingPayment(entry.row)}
+                                    onClick={(e) => { e.stopPropagation(); setEditingPayment(entry.row); }}
                                     className="size-7 flex items-center justify-center rounded-md text-foreground-muted hover:text-foreground hover:bg-surface-hover cursor-pointer"
                                   >
                                     <Pencil className="size-3.5" aria-hidden />
@@ -743,7 +1090,7 @@ export function SuppliersPage() {
                                   <button
                                     type="button"
                                     title={ar.supplierPayables.deletePayment}
-                                    onClick={() => setDeletingPayment(entry.row)}
+                                    onClick={(e) => { e.stopPropagation(); setDeletingPayment(entry.row); }}
                                     className="size-7 flex items-center justify-center rounded-md text-danger-foreground hover:bg-danger/10 cursor-pointer"
                                   >
                                     <Trash2 className="size-3.5" aria-hidden />
@@ -776,12 +1123,37 @@ export function SuppliersPage() {
         />
       )}
 
-      {showAddDebt && selectedId !== null && (
-        <AddDebtDialog
+      {invoiceForm.open && selectedId !== null && (
+        <PurchaseInvoiceFormDialog
           supplierId={selectedId}
           currency={currency}
-          onClose={() => setShowAddDebt(false)}
-          onDone={() => setShowAddDebt(false)}
+          invoice={invoiceForm.invoice}
+          onClose={() => setInvoiceForm({ open: false, invoice: null })}
+          onDone={() => setInvoiceForm({ open: false, invoice: null })}
+        />
+      )}
+
+      {viewingInvoiceId !== null && (
+        <InvoiceDetailDialog
+          invoiceId={viewingInvoiceId}
+          currency={currency}
+          onClose={() => setViewingInvoiceId(null)}
+          onEdit={(inv) => {
+            setViewingInvoiceId(null);
+            setInvoiceForm({ open: true, invoice: inv });
+          }}
+          onDelete={(inv) => setDeletingInvoice(inv)}
+        />
+      )}
+
+      {deletingInvoice && (
+        <ConfirmDialog
+          title={ar.supplierPayables.deleteInvoice}
+          message={ar.supplierPayables.deleteInvoiceConfirm}
+          confirmLabel={ar.supplierPayables.deleteInvoice}
+          pending={deleteInvoiceMut.isPending}
+          onConfirm={() => deleteInvoiceMut.mutate(deletingInvoice.id)}
+          onClose={() => setDeletingInvoice(null)}
         />
       )}
 

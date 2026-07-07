@@ -2,6 +2,25 @@ import { api } from './api';
 
 export type Currency = 'EGP' | 'RMB';
 
+export type Unit = 'kg' | 'meter' | 'roll' | 'piece';
+
+export type SupplierInvoiceLine = {
+  id: number;
+  supplier_invoice_id: number;
+  description: string;
+  quantity: string;
+  unit: Unit;
+  unit_price: string;
+  line_total: string;
+};
+
+export type SupplierInvoiceLineInput = {
+  description: string;
+  quantity: number;
+  unit: Unit;
+  unit_price: number;
+};
+
 export type SupplierWithBalance = {
   id: number;
   arabic_name: string;
@@ -34,8 +53,13 @@ export type SupplierInvoice = {
   id: number;
   supplier_id: number;
   invoice_no: string | null;
+  internal_no: string | null;
   invoice_date: string;
+  due_date: string | null;
   amount_egp: string;
+  subtotal: string;
+  extra_charges: string;
+  total: string;
   currency: Currency;
   notes_ar: string | null;
   source: 'manual' | 'shipment_receive';
@@ -43,6 +67,10 @@ export type SupplierInvoice = {
   created_by_user_id: number;
   created_at: string;
   supplier_name?: string;
+};
+
+export type SupplierInvoiceWithLines = SupplierInvoice & {
+  lines: SupplierInvoiceLine[];
 };
 
 export type SupplierPayment = {
@@ -113,10 +141,31 @@ export const suppliersApi = {
     supplier_id: number;
     invoice_no?: string | null;
     invoice_date: string;
-    amount_egp: number;
+    due_date?: string | null;
+    extra_charges?: number;
+    lines: SupplierInvoiceLineInput[];
     notes_ar?: string | null;
-  }): Promise<SupplierInvoice> =>
+  }): Promise<SupplierInvoiceWithLines> =>
     api.post('/treasury/suppliers/invoices', data).then((r) => r.data),
+
+  getInvoice: (id: number): Promise<SupplierInvoiceWithLines> =>
+    api.get(`/treasury/suppliers/invoices/${id}`).then((r) => r.data),
+
+  updateInvoice: (
+    id: number,
+    data: {
+      invoice_no?: string | null;
+      invoice_date?: string;
+      due_date?: string | null;
+      extra_charges?: number;
+      lines?: SupplierInvoiceLineInput[];
+      notes_ar?: string | null;
+    },
+  ): Promise<SupplierInvoiceWithLines> =>
+    api.patch(`/treasury/suppliers/invoices/${id}`, data).then((r) => r.data),
+
+  deleteInvoice: (id: number): Promise<{ ok: true }> =>
+    api.delete(`/treasury/suppliers/invoices/${id}`).then((r) => r.data),
 
   recordPayment: (data: {
     supplier_id: number;

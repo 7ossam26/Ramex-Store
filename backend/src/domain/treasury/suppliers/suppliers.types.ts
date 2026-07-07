@@ -1,5 +1,7 @@
 export type Currency = 'EGP' | 'RMB';
 
+export type Unit = 'kg' | 'meter' | 'roll' | 'piece';
+
 export type Supplier = {
   id: number;
   arabic_name: string;
@@ -18,8 +20,13 @@ export type SupplierInvoice = {
   id: number;
   supplier_id: number;
   invoice_no: string | null;
+  internal_no: string | null;
   invoice_date: string;
+  due_date: string | null;
   amount_egp: string;
+  subtotal: string;
+  extra_charges: string;
+  total: string;
   currency: Currency;
   notes_ar: string | null;
   source: 'manual' | 'shipment_receive';
@@ -27,6 +34,29 @@ export type SupplierInvoice = {
   created_by_user_id: number;
   created_at: string;
   supplier_name?: string;
+};
+
+export type SupplierInvoiceLine = {
+  id: number;
+  supplier_invoice_id: number;
+  description: string;
+  quantity: string;
+  unit: Unit;
+  unit_price: string;
+  line_total: string;
+};
+
+export type SupplierInvoiceWithLines = SupplierInvoice & {
+  lines: SupplierInvoiceLine[];
+};
+
+/** A computed line ready for insertion (line_total already rounded). */
+export type ComputedLine = {
+  description: string;
+  quantity: number;
+  unit: Unit;
+  unit_price: number;
+  line_total: number;
 };
 
 export type SupplierPayment = {

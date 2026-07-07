@@ -48,7 +48,10 @@ function AddDebtDialog({ onClose, onDone }: { onClose: () => void; onDone: () =>
         supplier_id: Number(supplierId),
         invoice_no: invoiceNo.trim() || null,
         invoice_date: invoiceDate,
-        amount_egp: Number(amount),
+        // Legacy quick-debt entry maps to a single free-text line item.
+        lines: [
+          { description: notes.trim() || 'دين', quantity: 1, unit: 'piece', unit_price: Number(amount) },
+        ],
         notes_ar: notes.trim() || null,
       }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['suppliers-list'] }); onDone(); },

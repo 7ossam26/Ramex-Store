@@ -47,11 +47,41 @@ export const UpdateSupplierSchema = z.object({
     .optional(),
 });
 
+export const UNITS = ['kg', 'meter', 'roll', 'piece'] as const;
+
+export const SupplierInvoiceLineSchema = z.object({
+  description: z.string().min(1, 'الوصف مطلوب').max(500, 'الوصف طويل جداً'),
+  quantity: z
+    .number({ invalid_type_error: 'الكمية يجب أن تكون رقماً' })
+    .positive('الكمية يجب أن تكون أكبر من صفر'),
+  unit: z.enum(UNITS, { errorMap: () => ({ message: 'الوحدة غير صحيحة' }) }),
+  unit_price: z
+    .number({ invalid_type_error: 'سعر الوحدة يجب أن يكون رقماً' })
+    .nonnegative('سعر الوحدة لا يمكن أن يكون سالباً'),
+});
+
 export const CreateSupplierInvoiceSchema = z.object({
   supplier_id: z.number().int().positive(),
   invoice_no: z.string().max(128).nullable().optional(),
   invoice_date: z.string().regex(ISO_DATE, 'صيغة التاريخ غير صحيحة — YYYY-MM-DD'),
-  amount_egp: z.number({ invalid_type_error: 'المبلغ يجب أن يكون رقماً' }).positive('المبلغ يجب أن يكون أكبر من صفر'),
+  due_date: z.string().regex(ISO_DATE, 'صيغة التاريخ غير صحيحة — YYYY-MM-DD').nullable().optional(),
+  extra_charges: z
+    .number({ invalid_type_error: 'المصاريف الإضافية يجب أن تكون رقماً' })
+    .nonnegative('المصاريف الإضافية لا يمكن أن تكون سالبة')
+    .optional(),
+  lines: z.array(SupplierInvoiceLineSchema).min(1, 'يجب إضافة سطر واحد على الأقل'),
+  notes_ar: z.string().max(2000).nullable().optional(),
+});
+
+export const UpdateSupplierInvoiceSchema = z.object({
+  invoice_no: z.string().max(128).nullable().optional(),
+  invoice_date: z.string().regex(ISO_DATE, 'صيغة التاريخ غير صحيحة — YYYY-MM-DD').optional(),
+  due_date: z.string().regex(ISO_DATE, 'صيغة التاريخ غير صحيحة — YYYY-MM-DD').nullable().optional(),
+  extra_charges: z
+    .number({ invalid_type_error: 'المصاريف الإضافية يجب أن تكون رقماً' })
+    .nonnegative('المصاريف الإضافية لا يمكن أن تكون سالبة')
+    .optional(),
+  lines: z.array(SupplierInvoiceLineSchema).min(1, 'يجب إضافة سطر واحد على الأقل').optional(),
   notes_ar: z.string().max(2000).nullable().optional(),
 });
 
@@ -77,6 +107,8 @@ export const UpdateSupplierPaymentSchema = z.object({
 
 export type CreateSupplierInput = z.infer<typeof CreateSupplierSchema>;
 export type UpdateSupplierInput = z.infer<typeof UpdateSupplierSchema>;
+export type SupplierInvoiceLineInput = z.infer<typeof SupplierInvoiceLineSchema>;
 export type CreateSupplierInvoiceInput = z.infer<typeof CreateSupplierInvoiceSchema>;
+export type UpdateSupplierInvoiceInput = z.infer<typeof UpdateSupplierInvoiceSchema>;
 export type CreateSupplierPaymentInput = z.infer<typeof CreateSupplierPaymentSchema>;
 export type UpdateSupplierPaymentInput = z.infer<typeof UpdateSupplierPaymentSchema>;

@@ -6,6 +6,7 @@ import {
   CreateSupplierInvoiceSchema,
   CreateSupplierPaymentSchema,
   CreateSupplierSchema,
+  UpdateSupplierInvoiceSchema,
   UpdateSupplierPaymentSchema,
   UpdateSupplierSchema,
 } from './suppliers.schemas.js';
@@ -63,6 +64,27 @@ suppliersRouter.post('/invoices', requirePermission('suppliers', 'write'), async
     const data = CreateSupplierInvoiceSchema.parse(req.body);
     const inv = await svc.createInvoice(data, req.user!.sub);
     res.status(201).json(inv);
+  } catch (e) { handle(res, e, next); }
+});
+
+suppliersRouter.get('/invoices/:id', requirePermission('suppliers', 'view'), async (req, res, next) => {
+  try {
+    res.json(await svc.getInvoice(Number(req.params['id'])));
+  } catch (e) { handle(res, e, next); }
+});
+
+suppliersRouter.patch('/invoices/:id', requirePermission('suppliers', 'write'), async (req, res, next) => {
+  try {
+    const data = UpdateSupplierInvoiceSchema.parse(req.body);
+    const inv = await svc.updateInvoice(Number(req.params['id']), data, req.user!.sub);
+    res.json(inv);
+  } catch (e) { handle(res, e, next); }
+});
+
+suppliersRouter.delete('/invoices/:id', requirePermission('suppliers', 'write'), async (req, res, next) => {
+  try {
+    await svc.deleteInvoice(Number(req.params['id']), req.user!.sub);
+    res.json({ ok: true });
   } catch (e) { handle(res, e, next); }
 });
 
