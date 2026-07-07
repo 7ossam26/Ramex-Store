@@ -104,12 +104,62 @@ export type SupplierLedger = {
   balance: SupplierBalance;
 };
 
+// ─── Account statement ────────────────────────────────────────────────────────
+
+export type StatementLineItem = {
+  description: string;
+  quantity: number;
+  unit: string;
+  unit_price: number;
+  line_total: number;
+};
+
+export type StatementRow = {
+  date: string;
+  createdAt: string;
+  kind: 'invoice' | 'payment' | 'opening' | 'adjustment';
+  ref: string;
+  description: string;
+  debit: number;
+  credit: number;
+  balance: number;
+  lineItems?: StatementLineItem[];
+};
+
+export type SupplierStatement = {
+  titleAr: string;
+  currency: Currency;
+  from: string;
+  to: string;
+  broughtForward: number;
+  rows: StatementRow[];
+  totalDebit: number;
+  totalCredit: number;
+  closing: number;
+};
+
+export type StatementVariant = 'summary' | 'detailed';
+export type StatementExportFormat = 'pdf' | 'excel' | 'print';
+
+/** Authenticated export/print URL — token in the query so `<a>`/new-tab links auth. */
+export function supplierStatementExportUrl(
+  id: number,
+  params: { from: string; to: string; variant: StatementVariant; format: StatementExportFormat },
+): string {
+  const token = localStorage.getItem('ramex_token') ?? '';
+  const query = new URLSearchParams({ ...params, token }).toString();
+  return `/api/treasury/suppliers/${id}/statement?${query}`;
+}
+
 export const suppliersApi = {
   list: (): Promise<SupplierWithBalance[]> =>
     api.get('/treasury/suppliers').then((r) => r.data),
 
   getLedger: (id: number): Promise<SupplierLedger> =>
     api.get(`/treasury/suppliers/${id}/ledger`).then((r) => r.data),
+
+  getStatement: (id: number, from: string, to: string): Promise<SupplierStatement> =>
+    api.get(`/treasury/suppliers/${id}/statement`, { params: { from, to, format: 'json' } }).then((r) => r.data),
 
   createSupplier: (data: {
     arabic_name: string;

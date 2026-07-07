@@ -26,6 +26,7 @@ import { POSPage } from './pages/pos/POS';
 import { InvoicesListPage } from './pages/invoices/InvoicesList';
 import { InvoiceDetailPage } from './pages/invoices/InvoiceDetail';
 import { DraftInvoicePrintPage } from './pages/invoices/DraftInvoicePrintPage';
+import { SupplierStatementPage } from './pages/treasury/SupplierStatementPage';
 import { InvoicesReturnsHubPage } from './pages/invoicesReturns/InvoicesReturnsHub';
 import { ChequesPage } from './pages/invoicesReturns/ChequesPage';
 import { CashDrawerPage } from './pages/cash/CashDrawer';
@@ -95,6 +96,17 @@ export function App() {
         element={
           <ProtectedRoute>
             <DraftInvoicePrintPage />
+          </ProtectedRoute>
+        }
+      />
+      {/* Supplier account statement — full-page preview + print, no AppShell chrome */}
+      <Route
+        path="/treasury/suppliers/:id/statement"
+        element={
+          <ProtectedRoute>
+            <PermGate resource="suppliers">
+              <SupplierStatementPage />
+            </PermGate>
           </ProtectedRoute>
         }
       />

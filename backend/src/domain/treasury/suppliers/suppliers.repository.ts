@@ -140,6 +140,31 @@ export async function listInvoices(supplierId: number): Promise<SupplierInvoice[
     .orderBy('si.created_at', 'desc') as Promise<SupplierInvoice[]>;
 }
 
+/** All invoices for a supplier, each with its line items — for the statement engine. */
+export async function listInvoicesWithLines(supplierId: number): Promise<SupplierInvoiceWithLines[]> {
+  const invoices = (await db('supplier_invoices')
+    .where({ supplier_id: supplierId })
+    .orderBy('invoice_date', 'asc')
+    .orderBy('created_at', 'asc')
+    .select('*')) as SupplierInvoice[];
+  if (invoices.length === 0) return [];
+
+  const ids = invoices.map((i) => i.id);
+  const lines = (await db('supplier_invoice_lines')
+    .whereIn('supplier_invoice_id', ids)
+    .orderBy('id')
+    .select('*')) as SupplierInvoiceLine[];
+
+  const byInvoice = new Map<number, SupplierInvoiceLine[]>();
+  for (const l of lines) {
+    const arr = byInvoice.get(l.supplier_invoice_id);
+    if (arr) arr.push(l);
+    else byInvoice.set(l.supplier_invoice_id, [l]);
+  }
+
+  return invoices.map((inv) => ({ ...inv, lines: byInvoice.get(inv.id) ?? [] }));
+}
+
 export async function listPayments(supplierId: number): Promise<SupplierPayment[]> {
   return db('supplier_payments as sp')
     .leftJoin('suppliers as s', 'sp.supplier_id', 's.id')

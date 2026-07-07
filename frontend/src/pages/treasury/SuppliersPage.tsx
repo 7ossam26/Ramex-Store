@@ -963,6 +963,12 @@ export function SuppliersPage() {
                   <div className="text-end space-y-1">
                     <p className="text-lg font-semibold text-foreground">{selected.arabic_name}</p>
                     <div className="flex items-center gap-1 justify-end">
+                      <Button asChild size="sm" variant="ghost" className="h-7 px-2 text-xs">
+                        <Link to={`/treasury/suppliers/${selected.id}/statement`}>
+                          <FileText className="size-3.5" aria-hidden />
+                          {ar.supplierPayables.statement.open}
+                        </Link>
+                      </Button>
                       <Button
                         size="sm"
                         variant="ghost"
