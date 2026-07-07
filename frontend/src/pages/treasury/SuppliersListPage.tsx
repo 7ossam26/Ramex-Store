@@ -19,13 +19,10 @@ import {
 import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { currencySymbol, fmtCurrency, fmtMoney } from '@/components/dashboard/format';
 import { cn } from '@/lib/utils';
 import { extractApiError } from '@/lib/api-error';
 import { format } from 'date-fns';
-
-function fmt(v: number) {
-  return v.toLocaleString('en-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 // ─── Add Debt Dialog ──────────────────────────────────────────────────────────
 
@@ -154,7 +151,14 @@ export function SuppliersListPage() {
     queryFn: suppliersApi.list,
   });
 
-  const totalBalance = suppliers.reduce((s, r) => s + r.balance_egp, 0);
+  // Per-currency subtotals — EGP and RMB must never be summed into one number.
+  const subtotals = suppliers.reduce(
+    (acc, r) => {
+      acc[r.currency] += r.balance_egp;
+      return acc;
+    },
+    { EGP: 0, RMB: 0 } as Record<'EGP' | 'RMB', number>,
+  );
 
   const columns: Column<SupplierWithBalance>[] = [
     {
@@ -164,34 +168,41 @@ export function SuppliersListPage() {
       cell: (r) => <span className="font-medium text-foreground">{r.arabic_name}</span>,
     },
     {
+      key: 'currency',
+      header: ar.supplierPayables.currency,
+      align: 'center',
+      secondary: true,
+      cell: (r) => <span className="text-foreground-muted">{currencySymbol(r.currency)}</span>,
+    },
+    {
       key: 'invoiced',
-      header: `${ar.supplierPayables.totalInvoiced} (ج.م)`,
+      header: ar.supplierPayables.totalInvoiced,
       align: 'end',
       secondary: true,
       cell: (r) => (
         <span className="tabular-num text-foreground-muted" dir="ltr">
-          {r.total_invoiced_egp > 0 ? fmt(r.total_invoiced_egp) : '—'}
+          {r.total_invoiced_egp > 0 ? fmtCurrency(r.total_invoiced_egp, r.currency) : '—'}
         </span>
       ),
     },
     {
       key: 'paid',
-      header: `${ar.supplierPayables.totalPaid} (ج.م)`,
+      header: ar.supplierPayables.totalPaid,
       align: 'end',
       secondary: true,
       cell: (r) => (
         <span className="tabular-num text-foreground-muted" dir="ltr">
-          {r.total_paid_egp > 0 ? fmt(r.total_paid_egp) : '—'}
+          {r.total_paid_egp > 0 ? fmtCurrency(r.total_paid_egp, r.currency) : '—'}
         </span>
       ),
     },
     {
       key: 'balance',
-      header: `${ar.supplierPayables.balance} (ج.م)`,
+      header: ar.supplierPayables.balance,
       align: 'end',
       cell: (r) => (
         <span className={cn('tabular-num font-semibold', r.balance_egp > 0 ? 'text-danger-foreground' : 'text-foreground-muted')} dir="ltr">
-          {r.balance_egp > 0 ? fmt(r.balance_egp) : ar.supplierPayables.zeroBalance}
+          {r.balance_egp !== 0 ? fmtCurrency(r.balance_egp, r.currency) : ar.supplierPayables.zeroBalance}
         </span>
       ),
     },
@@ -203,11 +214,17 @@ export function SuppliersListPage() {
       description={ar.hubs.supplierPayablesDesc}
       backTo="/treasury"
       actions={
-        <div className="flex items-center gap-2">
-          {!isLoading && totalBalance > 0 && (
+        <div className="flex items-center gap-3">
+          {!isLoading && subtotals.EGP > 0 && (
             <span className="text-sm text-foreground-muted tabular-num">
-              إجمالي الديون:{' '}
-              <span className="font-semibold text-danger-foreground">{fmt(totalBalance)} ج.م</span>
+              {ar.supplierPayables.subtotalEgp}:{' '}
+              <span className="font-semibold text-danger-foreground">{fmtMoney(subtotals.EGP)}</span>
+            </span>
+          )}
+          {!isLoading && subtotals.RMB > 0 && (
+            <span className="text-sm text-foreground-muted tabular-num">
+              {ar.supplierPayables.subtotalRmb}:{' '}
+              <span className="font-semibold text-danger-foreground">{fmtMoney(subtotals.RMB)}</span>
             </span>
           )}
           <Button size="sm" onClick={() => setShowAddDebt(true)}>{ar.supplierPayables.addDebt}</Button>

@@ -22,6 +22,19 @@ export function fmtWeight(n: number): string {
 }
 
 export const EGP = 'ج.م';
+export const RMB = '¥';
+
+export type Currency = 'EGP' | 'RMB';
+
+/** Currency symbol for a supplier's own currency. */
+export function currencySymbol(currency: Currency): string {
+  return currency === 'RMB' ? RMB : EGP;
+}
+
+/** Money formatted with the supplier's own currency symbol (Western digits). */
+export function fmtCurrency(amount: number | string, currency: Currency): string {
+  return `${fmtMoney(Number(amount))} ${currencySymbol(currency)}`;
+}
 
 /* Cairo timezone "today" — server's calendar day, used for owner queries. */
 export function cairoTodayIso(): string {

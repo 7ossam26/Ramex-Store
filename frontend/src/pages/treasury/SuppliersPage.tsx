@@ -1,17 +1,17 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
-import { Truck, Plus, Search, ChevronRight } from 'lucide-react';
+import { Truck, Plus, Search, ChevronRight, Pencil, Trash2, Ban } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import {
   suppliersApi,
   type SupplierWithBalance,
   type SupplierInvoice,
   type SupplierPayment,
+  type Currency,
 } from '@/lib/suppliers-api';
 import { bankAccountsApi } from '@/lib/settings-api';
-import { codesApi } from '@/lib/codes-api';
+import { currencySymbol, fmtCurrency, fmtMoney } from '@/components/dashboard/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,21 +27,188 @@ import { cn } from '@/lib/utils';
 import { extractApiError } from '@/lib/api-error';
 import { format } from 'date-fns';
 
-function fmtAmount(v: string | number) {
-  return Number(v).toLocaleString('en-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 const inputCls =
   'h-10 w-full rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
+
+const EGYPTIAN_PHONE_REGEX = /^01[0125][0-9]{8}$/;
+function validateEgyptianPhone(phone: string): boolean {
+  if (!phone) return true;
+  return EGYPTIAN_PHONE_REGEX.test(phone);
+}
+
+// ─── Add / Edit Supplier Dialog ───────────────────────────────────────────────
+
+function SupplierFormDialog({
+  supplier,
+  hasTransactions,
+  onClose,
+  onDone,
+}: {
+  supplier: SupplierWithBalance | null; // null = create mode
+  hasTransactions: boolean;
+  onClose: () => void;
+  onDone: (id: number) => void;
+}) {
+  const isEdit = supplier !== null;
+  const [arabicName, setArabicName] = useState(supplier?.arabic_name ?? '');
+  const [englishName, setEnglishName] = useState(supplier?.english_name ?? '');
+  const [phone, setPhone] = useState(supplier?.phone ?? '');
+  const [currency, setCurrency] = useState<Currency>(supplier?.currency ?? 'EGP');
+  const [openingBalance, setOpeningBalance] = useState(
+    supplier && Number(supplier.opening_balance) !== 0 ? String(supplier.opening_balance) : '',
+  );
+  const [openingDate, setOpeningDate] = useState(supplier?.opening_balance_date ?? '');
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const qc = useQueryClient();
+  const mut = useMutation({
+    mutationFn: () => {
+      const body = {
+        arabic_name: arabicName.trim(),
+        english_name: englishName.trim() || null,
+        phone: phone.trim() || null,
+        opening_balance: openingBalance === '' ? 0 : Number(openingBalance),
+        opening_balance_date: openingDate || null,
+      };
+      if (isEdit) {
+        return suppliersApi.updateSupplier(supplier!.id, {
+          ...body,
+          // Only send currency when it can still change (no transactions yet).
+          ...(hasTransactions ? {} : { currency }),
+        });
+      }
+      return suppliersApi.createSupplier({ ...body, currency });
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['suppliers-list'] });
+      if (isEdit) qc.invalidateQueries({ queryKey: ['supplier-ledger', supplier!.id] });
+      onDone(data.id);
+    },
+    onError: (e) => setError(extractApiError(e)),
+  });
+
+  const submit = () => {
+    if (!validateEgyptianPhone(phone.trim())) {
+      setPhoneError('رقم الهاتف يجب أن يكون بصيغة مصرية: 01[0-1-2-5]XXXXXXXX');
+      return;
+    }
+    mut.mutate();
+  };
+
+  const currencyLocked = isEdit && hasTransactions;
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {isEdit ? ar.supplierPayables.editSupplierTitle : ar.supplierPayables.addSupplier}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          {error && <ErrorBanner title={ar.common.error} description={error} />}
+
+          <div className="space-y-1">
+            <Label className="text-sm font-medium text-foreground">
+              {ar.supplierPayables.supplierName}
+              <span className="text-danger ms-1" aria-hidden>*</span>
+            </Label>
+            <Input value={arabicName} onChange={(e) => setArabicName(e.target.value)} dir="rtl" />
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-sm font-medium text-foreground">الاسم بالإنجليزي</Label>
+            <Input value={englishName} onChange={(e) => setEnglishName(e.target.value)} dir="ltr" />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-foreground">{ar.supplierPayables.phone}</Label>
+            <Input
+              value={phone}
+              placeholder="01012345678"
+              dir="ltr"
+              inputMode="tel"
+              onChange={(e) => {
+                setPhone(e.target.value);
+                setPhoneError(
+                  e.target.value && !validateEgyptianPhone(e.target.value)
+                    ? 'رقم الهاتف يجب أن يكون بصيغة مصرية: 01[0-1-2-5]XXXXXXXX'
+                    : null,
+                );
+              }}
+            />
+            {phoneError && <p className="text-xs text-danger">{phoneError}</p>}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-foreground">{ar.supplierPayables.currency}</Label>
+            <select
+              className={cn(inputCls, currencyLocked && 'opacity-60 cursor-not-allowed')}
+              value={currency}
+              disabled={currencyLocked}
+              onChange={(e) => setCurrency(e.target.value as Currency)}
+            >
+              <option value="EGP">{ar.supplierPayables.currencyEgp}</option>
+              <option value="RMB">{ar.supplierPayables.currencyRmb}</option>
+            </select>
+            {currencyLocked && (
+              <p className="text-xs text-foreground-muted">{ar.supplierPayables.currencyLocked}</p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium text-foreground">
+                {ar.supplierPayables.openingBalance} ({currencySymbol(currency)})
+              </Label>
+              <input
+                type="number"
+                step="0.01"
+                className={inputCls}
+                style={{ unicodeBidi: 'plaintext' }}
+                placeholder="0"
+                value={openingBalance}
+                onChange={(e) => setOpeningBalance(e.target.value)}
+                onFocus={(e) => e.target.select()}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium text-foreground">{ar.supplierPayables.openingBalanceDate}</Label>
+              <input
+                type="date"
+                className={inputCls}
+                value={openingDate}
+                onChange={(e) => setOpeningDate(e.target.value)}
+              />
+            </div>
+          </div>
+          <p className="text-xs text-foreground-muted">{ar.supplierPayables.openingBalanceHint}</p>
+
+          <div className="flex gap-2 justify-end pt-1">
+            <DialogClose asChild>
+              <Button type="button" variant="outline">{ar.common.cancel}</Button>
+            </DialogClose>
+            <Button onClick={submit} disabled={mut.isPending || !arabicName.trim() || !!phoneError}>
+              {mut.isPending ? ar.loading : ar.common.save}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 // ─── Add Debt Dialog ──────────────────────────────────────────────────────────
 
 function AddDebtDialog({
   supplierId,
+  currency,
   onClose,
   onDone,
 }: {
   supplierId: number;
+  currency: Currency;
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -77,11 +244,11 @@ function AddDebtDialog({
         <div className="space-y-4">
           {error && <ErrorBanner title={ar.common.error} description={error} />}
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-foreground">{ar.supplierPayables.amount}</Label>
+            <Label className="text-sm font-medium text-foreground">المبلغ ({currencySymbol(currency)})</Label>
             <input
               type="number"
               min={1}
-              step={1}
+              step="0.01"
               className={inputCls}
               style={{ unicodeBidi: 'plaintext' }}
               placeholder="0"
@@ -102,10 +269,7 @@ function AddDebtDialog({
             <DialogClose asChild>
               <Button type="button" variant="outline">{ar.common.cancel}</Button>
             </DialogClose>
-            <Button
-              onClick={() => mut.mutate()}
-              disabled={mut.isPending || Number(amount) <= 0 || !date}
-            >
+            <Button onClick={() => mut.mutate()} disabled={mut.isPending || Number(amount) <= 0 || !date}>
               {mut.isPending ? ar.loading : ar.common.save}
             </Button>
           </div>
@@ -115,35 +279,42 @@ function AddDebtDialog({
   );
 }
 
-// ─── Record Payment Dialog ────────────────────────────────────────────────────
+// ─── Record / Edit Payment Dialog ─────────────────────────────────────────────
 
-function RecordPaymentDialog({
+function PaymentDialog({
   supplierId,
+  currency,
+  payment,
   onClose,
   onDone,
 }: {
   supplierId: number;
+  currency: Currency;
+  payment: SupplierPayment | null; // null = create
   onClose: () => void;
   onDone: () => void;
 }) {
-  const [amount, setAmount] = useState('');
-  const [method, setMethod] = useState<'cash' | 'instapay' | 'bank_transfer'>('cash');
-  const [bankAccountId, setBankAccountId] = useState('');
-  const [notes, setNotes] = useState('');
+  const isEdit = payment !== null;
+  const [amount, setAmount] = useState(payment ? String(payment.amount_egp) : '');
+  const [method, setMethod] = useState<'cash' | 'instapay' | 'bank_transfer'>(payment?.method ?? 'cash');
+  const [bankAccountId, setBankAccountId] = useState(payment?.bank_account_id ? String(payment.bank_account_id) : '');
+  const [notes, setNotes] = useState(payment?.notes_ar ?? '');
   const [error, setError] = useState<string | null>(null);
 
   const { data: banks = [] } = useQuery({ queryKey: ['bank-accounts'], queryFn: bankAccountsApi.list });
 
   const qc = useQueryClient();
   const mut = useMutation({
-    mutationFn: () =>
-      suppliersApi.recordPayment({
-        supplier_id: supplierId,
+    mutationFn: () => {
+      const body = {
         amount_egp: Number(amount),
         method,
         bank_account_id: method !== 'cash' ? Number(bankAccountId) : null,
         notes_ar: notes.trim() || null,
-      }),
+      };
+      if (isEdit) return suppliersApi.updatePayment(payment!.id, body);
+      return suppliersApi.recordPayment({ supplier_id: supplierId, ...body });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['supplier-ledger', supplierId] });
       qc.invalidateQueries({ queryKey: ['suppliers-list'] });
@@ -159,16 +330,18 @@ function RecordPaymentDialog({
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>{ar.supplierPayables.recordPayment}</DialogTitle>
+          <DialogTitle>
+            {isEdit ? ar.supplierPayables.editPaymentTitle : ar.supplierPayables.recordPayment}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           {error && <ErrorBanner title={ar.common.error} description={error} />}
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-foreground">{ar.supplierPayables.amount}</Label>
+            <Label className="text-sm font-medium text-foreground">المبلغ ({currencySymbol(currency)})</Label>
             <input
               type="number"
               min={1}
-              step={1}
+              step="0.01"
               className={cn(inputCls, 'w-44')}
               style={{ unicodeBidi: 'plaintext' }}
               placeholder="0"
@@ -200,11 +373,7 @@ function RecordPaymentDialog({
           {needsBank && (
             <div className="space-y-1.5">
               <Label className="text-sm font-medium text-foreground">{ar.supplierPayables.bankAccount}</Label>
-              <select
-                className={inputCls}
-                value={bankAccountId}
-                onChange={(e) => setBankAccountId(e.target.value)}
-              >
+              <select className={inputCls} value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)}>
                 <option value="">— اختر حساباً —</option>
                 {banks.filter((b) => b.is_active).map((b) => (
                   <option key={b.id} value={b.id}>
@@ -223,7 +392,50 @@ function RecordPaymentDialog({
               <Button type="button" variant="outline">{ar.common.cancel}</Button>
             </DialogClose>
             <Button onClick={() => mut.mutate()} disabled={mut.isPending || !canSubmit}>
-              {mut.isPending ? ar.loading : ar.supplierPayables.recordPayment}
+              {mut.isPending ? ar.loading : ar.common.save}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Confirm dialog ────────────────────────────────────────────────────────────
+
+function ConfirmDialog({
+  title,
+  message,
+  confirmLabel,
+  pending,
+  onConfirm,
+  onClose,
+}: {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  pending: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-foreground-muted">{message}</p>
+          <div className="flex gap-2 justify-end">
+            <DialogClose asChild>
+              <Button type="button" variant="outline">{ar.common.cancel}</Button>
+            </DialogClose>
+            <Button
+              onClick={onConfirm}
+              disabled={pending}
+              className="bg-danger text-white hover:opacity-90"
+            >
+              {pending ? ar.loading : confirmLabel}
             </Button>
           </div>
         </div>
@@ -234,27 +446,19 @@ function RecordPaymentDialog({
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-type AddSupplierForm = { arabic_name: string; phone: string };
-
-const EGYPTIAN_PHONE_REGEX = /^01[0125][0-9]{8}$/;
-
-function validateEgyptianPhone(phone: string): boolean {
-  if (!phone) return true;
-  return EGYPTIAN_PHONE_REGEX.test(phone);
-}
-
 export function SuppliersPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showAddDebt, setShowAddDebt] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
-  const [showAddSupplier, setShowAddSupplier] = useState(false);
-  const [addSupplierError, setAddSupplierError] = useState<string | null>(null);
-  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [editingPayment, setEditingPayment] = useState<SupplierPayment | null>(null);
+  const [deletingPayment, setDeletingPayment] = useState<SupplierPayment | null>(null);
+  const [supplierForm, setSupplierForm] = useState<{ open: boolean; supplier: SupplierWithBalance | null }>({
+    open: false,
+    supplier: null,
+  });
+  const [confirmDeactivate, setConfirmDeactivate] = useState(false);
   const [search, setSearch] = useState('');
 
-  const supplierForm = useForm<AddSupplierForm>({
-    defaultValues: { arabic_name: '', phone: '' },
-  });
   const qc = useQueryClient();
 
   const listQ = useQuery<SupplierWithBalance[]>({
@@ -268,41 +472,48 @@ export function SuppliersPage() {
     enabled: selectedId !== null,
   });
 
-  const createSupplier = useMutation({
-    mutationFn: (v: AddSupplierForm) =>
-      codesApi.create('suppliers', {
-        arabic_name: v.arabic_name.trim(),
-        phone: v.phone.trim() || null,
-      }),
-    onSuccess: (data: unknown) => {
+  const deletePaymentMut = useMutation({
+    mutationFn: (id: number) => suppliersApi.deletePayment(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['supplier-ledger', selectedId] });
       qc.invalidateQueries({ queryKey: ['suppliers-list'] });
-      qc.invalidateQueries({ queryKey: ['codes-suppliers'] });
-      supplierForm.reset();
-      setShowAddSupplier(false);
-      setAddSupplierError(null);
-      const id = (data as { id?: number })?.id;
-      if (id) setSelectedId(id);
+      setDeletingPayment(null);
     },
-    onError: (e) => setAddSupplierError(extractApiError(e)),
+  });
+
+  const deactivateMut = useMutation({
+    mutationFn: (id: number) => suppliersApi.deactivateSupplier(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['suppliers-list'] });
+      setConfirmDeactivate(false);
+      setSelectedId(null);
+    },
   });
 
   const suppliers = listQ.data ?? [];
   const q = search.trim();
   const filtered = q ? suppliers.filter((s) => s.arabic_name.includes(q)) : suppliers;
   const selected = suppliers.find((s) => s.id === selectedId) ?? null;
+  const currency: Currency = selected?.currency ?? 'EGP';
 
   const invoices = ledgerQ.data?.invoices ?? [];
   const payments = ledgerQ.data?.payments ?? [];
-  const entries = [
-    ...invoices.map((r) => ({ date: r.invoice_date, kind: 'debt' as const, row: r as SupplierInvoice | SupplierPayment })),
-    ...payments.map((r) => ({ date: r.paid_at, kind: 'payment' as const, row: r as SupplierInvoice | SupplierPayment })),
+  const hasTransactions = invoices.length > 0 || payments.length > 0;
+  const balance = ledgerQ.data?.balance;
+  const openingBalance = balance?.opening_balance ?? selected?.opening_balance ?? 0;
+
+  type LedgerRow =
+    | { date: string; kind: 'debt'; row: SupplierInvoice }
+    | { date: string; kind: 'payment'; row: SupplierPayment };
+  const entries: LedgerRow[] = [
+    ...invoices.map((r): LedgerRow => ({ date: r.invoice_date, kind: 'debt', row: r })),
+    ...payments.map((r): LedgerRow => ({ date: r.paid_at, kind: 'payment', row: r })),
   ].sort((a, b) => b.date.localeCompare(a.date));
 
-  const balance = ledgerQ.data?.balance.balance_egp ?? selected?.balance_egp ?? 0;
+  const totalBalance = balance?.balance_egp ?? selected?.balance_egp ?? 0;
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      {/* Header card — title + truck icon on the right, grouped action buttons on the left */}
       <header className="rounded-xl border border-border-subtle bg-surface-elevated px-4 py-4 shadow-sm flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <span className="flex size-11 items-center justify-center rounded-xl bg-accent/10">
@@ -317,42 +528,32 @@ export function SuppliersPage() {
               {ar.hubs.treasuryTitle}
             </Link>
           </Button>
-          <Button
-            onClick={() => { setAddSupplierError(null); supplierForm.reset(); setShowAddSupplier(true); }}
-          >
+          <Button onClick={() => setSupplierForm({ open: true, supplier: null })}>
             <Plus className="size-4" aria-hidden />
             {ar.supplierPayables.addSupplier}
           </Button>
         </div>
       </header>
 
-      {/* flex-col on mobile, flex-row on md+. In RTL flex-row: first child = RIGHT, second = LEFT */}
       <div className="flex flex-col gap-4 md:flex-row">
-
         {/* RIGHT: supplier list sidebar */}
         <div className="md:w-80 w-full shrink-0 self-start rounded-xl border border-border-subtle bg-surface-elevated overflow-hidden">
           <div className="px-4 py-3 border-b border-border-subtle space-y-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <Truck className="size-5 text-foreground-muted" aria-hidden />
-                <span className="text-base font-semibold text-foreground">
-                  الموردون ({suppliers.length})
-                </span>
-              </div>
-              <p className="text-xs text-foreground-muted mt-1">الأرصدة: إجمالي كل الفروع</p>
+            <div className="flex items-center gap-2">
+              <Truck className="size-5 text-foreground-muted" aria-hidden />
+              <span className="text-base font-semibold text-foreground">
+                الموردون ({suppliers.length})
+              </span>
             </div>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute top-1/2 -translate-y-1/2 end-3 size-4 text-foreground-muted pointer-events-none" aria-hidden />
-                <Input
-                  dir="rtl"
-                  placeholder="بحث بالاسم..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="h-9 pe-9"
-                />
-              </div>
-              <Button type="button" size="sm" variant="outline" className="h-9 shrink-0">بحث</Button>
+            <div className="relative">
+              <Search className="absolute top-1/2 -translate-y-1/2 end-3 size-4 text-foreground-muted pointer-events-none" aria-hidden />
+              <Input
+                dir="rtl"
+                placeholder="بحث بالاسم..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-9 pe-9"
+              />
             </div>
           </div>
           <div className="overflow-y-auto md:max-h-[calc(100vh-260px)]">
@@ -375,18 +576,23 @@ export function SuppliersPage() {
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className={cn(
-                      'shrink-0 text-sm font-bold tabular-num text-start',
-                      s.balance_egp > 0 ? 'text-danger-foreground' : 'text-foreground-muted',
-                    )} dir="ltr">
-                      EGP {fmtAmount(s.balance_egp)}
+                    <p
+                      className={cn(
+                        'shrink-0 text-sm font-bold tabular-num text-start',
+                        s.balance_egp > 0 ? 'text-danger-foreground' : 'text-foreground-muted',
+                      )}
+                      dir="ltr"
+                    >
+                      {fmtCurrency(s.balance_egp, s.currency)}
                     </p>
                     <div className="min-w-0 text-end">
                       <p className="text-base font-bold text-foreground truncate">{s.arabic_name}</p>
-                      <p className={cn(
-                        'text-xs mt-0.5',
-                        s.balance_egp > 0 ? 'text-danger-foreground' : 'text-foreground-muted',
-                      )}>
+                      <p
+                        className={cn(
+                          'text-xs mt-0.5',
+                          s.balance_egp > 0 ? 'text-danger-foreground' : 'text-foreground-muted',
+                        )}
+                      >
                         {s.balance_egp > 0 ? 'مستحق' : 'متعادل'}
                       </p>
                     </div>
@@ -410,18 +616,47 @@ export function SuppliersPage() {
             <>
               {/* Supplier header */}
               <div className="rounded-xl border border-border-subtle bg-surface-elevated p-4 space-y-4">
-                <div className="flex justify-between items-start">
+                <div className="flex justify-between items-start gap-3">
                   <div className="space-y-0.5">
-                    <p className="text-xs text-foreground-muted">الرصيد المستحق</p>
-                    <p className={cn(
-                      'text-2xl font-bold tabular-num',
-                      balance > 0 ? 'text-danger-foreground' : 'text-success-foreground',
-                    )}>
-                      {fmtAmount(balance)}{' '}
-                      <span className="text-sm font-normal text-foreground-muted">ج.م</span>
+                    <p className="text-xs text-foreground-muted">{ar.supplierPayables.balance}</p>
+                    <p
+                      className={cn(
+                        'text-2xl font-bold tabular-num',
+                        totalBalance > 0 ? 'text-danger-foreground' : 'text-success-foreground',
+                      )}
+                      dir="ltr"
+                    >
+                      {fmtCurrency(totalBalance, currency)}
                     </p>
+                    {Number(openingBalance) !== 0 && (
+                      <p className="text-xs text-foreground-muted" dir="ltr">
+                        {ar.supplierPayables.broughtForward}: {fmtCurrency(openingBalance, currency)}
+                      </p>
+                    )}
                   </div>
-                  <p className="text-lg font-semibold text-foreground">{selected.arabic_name}</p>
+                  <div className="text-end space-y-1">
+                    <p className="text-lg font-semibold text-foreground">{selected.arabic_name}</p>
+                    <div className="flex items-center gap-1 justify-end">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => setSupplierForm({ open: true, supplier: selected })}
+                      >
+                        <Pencil className="size-3.5" aria-hidden />
+                        {ar.supplierPayables.editSupplier}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs text-danger-foreground hover:text-danger-foreground"
+                        onClick={() => setConfirmDeactivate(true)}
+                      >
+                        <Ban className="size-3.5" aria-hidden />
+                        {ar.supplierPayables.deactivateSupplier}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -452,38 +687,37 @@ export function SuppliersPage() {
                         <th className="py-2.5 px-4 text-start font-medium">التاريخ</th>
                         <th className="py-2.5 px-4 text-start font-medium">النوع</th>
                         <th className="py-2.5 px-4 text-start font-medium">ملاحظات</th>
-                        <th className="py-2.5 px-4 text-end font-medium">المبلغ (ج.م)</th>
+                        <th className="py-2.5 px-4 text-end font-medium">المبلغ ({currencySymbol(currency)})</th>
+                        <th className="py-2.5 px-4 text-end font-medium">{ar.supplierPayables.actions}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border-subtle bg-surface-elevated">
-                      {entries.map(({ kind, row }) => {
-                        const isDebt = kind === 'debt';
-                        const inv = row as SupplierInvoice;
-                        const pmt = row as SupplierPayment;
+                      {entries.map((entry) => {
+                        const isDebt = entry.kind === 'debt';
                         return (
-                          <tr key={`${kind}-${row.id}`} className="hover:bg-surface-hover/50 transition-colors">
+                          <tr key={`${entry.kind}-${entry.row.id}`} className="hover:bg-surface-hover/50 transition-colors">
                             <td className="py-2.5 px-4 text-foreground-muted tabular-num text-xs">
                               {isDebt
-                                ? inv.invoice_date
-                                : format(new Date(pmt.paid_at), 'yyyy-MM-dd')}
+                                ? entry.row.invoice_date
+                                : format(new Date(entry.row.paid_at), 'yyyy-MM-dd')}
                             </td>
                             <td className="py-2.5 px-4">
-                              <span className={cn(
-                                'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium',
-                                isDebt
-                                  ? 'bg-danger/10 text-danger-foreground'
-                                  : 'bg-success/10 text-success-foreground',
-                              )}>
+                              <span
+                                className={cn(
+                                  'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium',
+                                  isDebt ? 'bg-danger/10 text-danger-foreground' : 'bg-success/10 text-success-foreground',
+                                )}
+                              >
                                 {isDebt ? 'دين' : 'دفعة'}
                               </span>
                             </td>
                             <td className="py-2.5 px-4 text-foreground-muted text-xs max-w-40 truncate">
-                              {isDebt
-                                ? (inv.notes_ar ?? '—')
+                              {entry.kind === 'debt'
+                                ? (entry.row.notes_ar ?? '—')
                                 : [
-                                    ar.supplierPayables.method[pmt.method],
-                                    pmt.bank_name_ar,
-                                    pmt.notes_ar,
+                                    ar.supplierPayables.method[entry.row.method],
+                                    entry.row.bank_name_ar,
+                                    entry.row.notes_ar,
                                   ].filter(Boolean).join(' · ')}
                             </td>
                             <td
@@ -493,7 +727,29 @@ export function SuppliersPage() {
                               )}
                               dir="ltr"
                             >
-                              {isDebt ? '+' : '−'} {fmtAmount(row.amount_egp)}
+                              {isDebt ? '+' : '−'} {fmtMoney(Number(entry.row.amount_egp))}
+                            </td>
+                            <td className="py-2.5 px-4 text-end">
+                              {entry.kind === 'payment' && (
+                                <div className="flex items-center gap-1 justify-end">
+                                  <button
+                                    type="button"
+                                    title={ar.supplierPayables.editPayment}
+                                    onClick={() => setEditingPayment(entry.row)}
+                                    className="size-7 flex items-center justify-center rounded-md text-foreground-muted hover:text-foreground hover:bg-surface-hover cursor-pointer"
+                                  >
+                                    <Pencil className="size-3.5" aria-hidden />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    title={ar.supplierPayables.deletePayment}
+                                    onClick={() => setDeletingPayment(entry.row)}
+                                    className="size-7 flex items-center justify-center rounded-md text-danger-foreground hover:bg-danger/10 cursor-pointer"
+                                  >
+                                    <Trash2 className="size-3.5" aria-hidden />
+                                  </button>
+                                </div>
+                              )}
                             </td>
                           </tr>
                         );
@@ -508,92 +764,68 @@ export function SuppliersPage() {
       </div>
 
       {/* Dialogs */}
+      {supplierForm.open && (
+        <SupplierFormDialog
+          supplier={supplierForm.supplier}
+          hasTransactions={supplierForm.supplier !== null && hasTransactions}
+          onClose={() => setSupplierForm({ open: false, supplier: null })}
+          onDone={(id) => {
+            setSupplierForm({ open: false, supplier: null });
+            setSelectedId(id);
+          }}
+        />
+      )}
+
       {showAddDebt && selectedId !== null && (
         <AddDebtDialog
           supplierId={selectedId}
+          currency={currency}
           onClose={() => setShowAddDebt(false)}
           onDone={() => setShowAddDebt(false)}
         />
       )}
+
       {showPayment && selectedId !== null && (
-        <RecordPaymentDialog
+        <PaymentDialog
           supplierId={selectedId}
+          currency={currency}
+          payment={null}
           onClose={() => setShowPayment(false)}
           onDone={() => setShowPayment(false)}
         />
       )}
 
-      <Dialog
-        open={showAddSupplier}
-        onOpenChange={(open) => {
-          setShowAddSupplier(open);
-          if (!open) {
-            setAddSupplierError(null);
-            setPhoneError(null);
-          }
-        }}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{ar.supplierPayables.addSupplier}</DialogTitle>
-          </DialogHeader>
-          <form
-            onSubmit={supplierForm.handleSubmit((v) => {
-              if (!validateEgyptianPhone(v.phone)) {
-                setPhoneError('رقم الهاتف يجب أن يكون بصيغة مصرية: 01[0-1-2-5]XXXXXXXX');
-                return;
-              }
-              createSupplier.mutate(v);
-            })}
-            className="space-y-3"
-          >
-            <div className="space-y-1">
-              <Label className="text-sm font-medium text-foreground">
-                اسم المورد
-                <span className="text-danger ms-1" aria-hidden>*</span>
-              </Label>
-              <Input {...supplierForm.register('arabic_name', { required: true })} dir="rtl" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-foreground">رقم الهاتف</Label>
-              <Input
-                {...supplierForm.register('phone')}
-                placeholder="01012345678"
-                dir="ltr"
-                inputMode="tel"
-                onChange={(e) => {
-                  supplierForm.setValue('phone', e.target.value);
-                  if (e.target.value && !validateEgyptianPhone(e.target.value)) {
-                    setPhoneError('رقم الهاتف يجب أن يكون بصيغة مصرية: 01[0-1-2-5]XXXXXXXX');
-                  } else {
-                    setPhoneError(null);
-                  }
-                }}
-              />
-              {phoneError && (
-                <p className="text-xs text-danger">{phoneError}</p>
-              )}
-              {!phoneError && (
-                <p className="text-xs text-foreground-muted">الصيغة: 01[0 أو 1 أو 2 أو 5]XXXXXXXX</p>
-              )}
-            </div>
-            {addSupplierError && (
-              <p className="text-sm text-danger" role="alert">{addSupplierError}</p>
-            )}
-            <div className="flex gap-2 justify-end">
-              <DialogClose asChild>
-                <Button type="button" variant="outline">{ar.common.cancel}</Button>
-              </DialogClose>
-              <Button
-                type="submit"
-                disabled={createSupplier.isPending || !!phoneError}
-              >
-                {ar.common.save}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {editingPayment && selectedId !== null && (
+        <PaymentDialog
+          supplierId={selectedId}
+          currency={currency}
+          payment={editingPayment}
+          onClose={() => setEditingPayment(null)}
+          onDone={() => setEditingPayment(null)}
+        />
+      )}
+
+      {deletingPayment && (
+        <ConfirmDialog
+          title={ar.supplierPayables.deletePayment}
+          message={ar.supplierPayables.deletePaymentConfirm}
+          confirmLabel={ar.supplierPayables.deletePayment}
+          pending={deletePaymentMut.isPending}
+          onConfirm={() => deletePaymentMut.mutate(deletingPayment.id)}
+          onClose={() => setDeletingPayment(null)}
+        />
+      )}
+
+      {confirmDeactivate && selected && (
+        <ConfirmDialog
+          title={ar.supplierPayables.deactivateSupplier}
+          message={ar.supplierPayables.deactivateConfirm}
+          confirmLabel={ar.supplierPayables.deactivateSupplier}
+          pending={deactivateMut.isPending}
+          onConfirm={() => deactivateMut.mutate(selected.id)}
+          onClose={() => setConfirmDeactivate(false)}
+        />
+      )}
     </div>
   );
 }
