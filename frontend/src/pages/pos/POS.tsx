@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { Toast } from '@/components/Toast';
 import { Tooltip } from '@/components/Tooltip';
+import { ErrorBanner } from '@/components/ErrorBanner';
 import { ar } from '@/i18n/ar';
 import { salesApi } from '@/lib/sales-api';
 import { customersApi } from '@/lib/customers-api';
@@ -2245,18 +2246,29 @@ function ProductsGrid({
 }) {
   const [search, setSearch] = useState('');
 
-  const { data: rolls = [], isLoading: rollsLoading } = useQuery<RollLookup[]>({
+  const {
+    data: rolls = [],
+    isLoading: rollsLoading,
+    isError: rollsError,
+    refetch: refetchRolls,
+  } = useQuery<RollLookup[]>({
     queryKey: ['pos-rolls'],
     queryFn: () =>
       salesApi.searchRolls({ status: 'in_stock', is_visible_at_pos: true }),
   });
 
-  const { data: accessories = [], isLoading: accsLoading } = useQuery<Accessory[]>({
+  const {
+    data: accessories = [],
+    isLoading: accsLoading,
+    isError: accsError,
+    refetch: refetchAccs,
+  } = useQuery<Accessory[]>({
     queryKey: ['pos-accessories'],
     queryFn: () => accessoriesApi.list({ is_active: true }),
   });
 
   const isLoading = rollsLoading || accsLoading;
+  const isError = rollsError || accsError;
 
   const cartRollIds = useMemo(
     () => new Set(cart.filter((l): l is RollCartLine => l.type === 'roll').map((l) => l.roll.id)),
@@ -2334,6 +2346,15 @@ function ProductsGrid({
             />
           ))}
         </div>
+      ) : isError ? (
+        <ErrorBanner
+          title="تعذّر تحميل المنتجات"
+          description="حدث خطأ أثناء جلب التوبات والإكسسوارات. تأكد من الاتصال بالخادم ثم أعد المحاولة."
+          onRetry={() => {
+            void refetchRolls();
+            void refetchAccs();
+          }}
+        />
       ) : filtered.length === 0 ? (
         <div className="text-center py-8 text-sm text-foreground-tertiary">
           {ar.common.none}

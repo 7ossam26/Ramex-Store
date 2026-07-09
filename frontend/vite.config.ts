@@ -12,7 +12,22 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    proxy: { '/api': 'http://localhost:3000' },
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3000',
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', (err, _req, res) => {
+            if ((err as NodeJS.ErrnoException).code === 'ECONNREFUSED') {
+              if ('writeHead' in res) {
+                (res as import('http').ServerResponse).writeHead(503, { 'Content-Type': 'application/json' });
+                (res as import('http').ServerResponse).end(JSON.stringify({ ok: false, db: 'down' }));
+              }
+            }
+          });
+        },
+      },
+    },
   },
   build: {
     /* Split vendor chunks so the heavy dependencies don't block the

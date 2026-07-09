@@ -1,4 +1,9 @@
 import express from 'express';
+// Patches Express 4 so async route handlers / middleware that throw (or reject)
+// forward the error to `errorHandler` instead of hanging the request forever.
+// Must be imported before any router is constructed. See errorHandler + the
+// former unhandledRejection escape hatch below.
+import 'express-async-errors';
 import helmet from 'helmet';
 import cors from 'cors';
 import pinoHttp from 'pino-http';
@@ -36,9 +41,11 @@ export { app };
 
 // Only start listening when this file is run directly (not imported by tests)
 if (process.env.NODE_ENV !== 'test') {
-  // Express 4 doesn't auto-forward async route handler rejections to next().
-  // Some controllers omit `next` and rely on the unhandledRejection escape hatch,
-  // which on Node 20+ kills the process by default. Log and survive.
+  // `express-async-errors` (imported at the top) now forwards async handler
+  // rejections to `errorHandler`, so requests no longer hang on a throw. These
+  // remain as a last-resort backstop for rejections raised outside the request
+  // lifecycle (cron jobs, event emitters), so the process logs and survives
+  // instead of the Node 20+ default of crashing.
   process.on('unhandledRejection', (reason, promise) => {
     logger.error({ err: reason, promise }, 'unhandledRejection — request may have hung');
   });
