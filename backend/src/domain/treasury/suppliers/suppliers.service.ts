@@ -47,6 +47,21 @@ function assertMoneyInRange(n: number): void {
   }
 }
 
+/**
+ * A payment can never exceed the supplier's outstanding balance (what we still
+ * owe them). `remaining` is that ceiling; a tiny epsilon absorbs FP drift so a
+ * payment that exactly clears the debt is accepted.
+ */
+function assertPaymentWithinBalance(amount: number, remaining: number): void {
+  const cap = round2(Math.max(remaining, 0));
+  if (round2(amount) > cap + 0.005) {
+    throw new SupplierValidationError(
+      'PAYMENT_EXCEEDS_BALANCE',
+      `المبلغ يتجاوز الرصيد المتبقي (${cap})`,
+    );
+  }
+}
+
 /** Compute each line_total and the invoice subtotal/total from raw line input. */
 function computeTotals(
   lines: SupplierInvoiceLineInput[],
@@ -332,6 +347,9 @@ export async function recordPayment(
   if (!supplier) throw new SupplierValidationError('SUPPLIER_NOT_FOUND', 'المورد غير موجود', 404);
   assertMoneyInRange(data.amount_egp);
 
+  const { balance_egp } = await repo.getSupplierBalance(data.supplier_id);
+  assertPaymentWithinBalance(data.amount_egp, balance_egp);
+
   return db.transaction(async (trx) => {
     const paidAt = data.paid_at ?? new Date().toISOString();
 
@@ -371,6 +389,13 @@ export async function updatePayment(
   if (!before) throw new SupplierValidationError('PAYMENT_NOT_FOUND', 'الدفعة غير موجودة', 404);
 
   if (patch.amount_egp != null) assertMoneyInRange(patch.amount_egp);
+
+  // The new amount can't exceed the debt this payment could cover. The current
+  // balance already has this payment subtracted, so add it back to get the ceiling.
+  if (patch.amount_egp != null) {
+    const { balance_egp } = await repo.getSupplierBalance(before.supplier_id);
+    assertPaymentWithinBalance(patch.amount_egp, balance_egp + Number(before.amount_egp));
+  }
 
   // Non-cash methods require a bank account (informational).
   const method = patch.method ?? before.method;

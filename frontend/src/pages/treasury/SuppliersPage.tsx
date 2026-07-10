@@ -594,12 +594,14 @@ function PaymentDialog({
   supplierId,
   currency,
   payment,
+  maxAmount,
   onClose,
   onDone,
 }: {
   supplierId: number;
   currency: Currency;
   payment: SupplierPayment | null; // null = create
+  maxAmount: number; // outstanding balance this payment may not exceed
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -633,7 +635,9 @@ function PaymentDialog({
   });
 
   const needsBank = method !== 'cash';
-  const canSubmit = Number(amount) > 0 && (!needsBank || !!bankAccountId);
+  const cap = round2(Math.max(maxAmount, 0));
+  const overCap = Number(amount) > cap + 0.005;
+  const canSubmit = Number(amount) > 0 && !overCap && (!needsBank || !!bankAccountId);
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -658,6 +662,12 @@ function PaymentDialog({
               onChange={(e) => setAmount(e.target.value)}
               onFocus={(e) => e.target.select()}
             />
+            <p className="text-xs text-foreground-muted">
+              الرصيد المتبقي: <span className="tabular-num" dir="ltr">{fmtCurrency(cap, currency)}</span>
+            </p>
+            {overCap && (
+              <p className="text-xs text-danger">لا يمكن أن يتجاوز المبلغ الرصيد المتبقي</p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label className="text-sm font-medium text-foreground">{ar.supplierPayables.paymentMethod}</Label>
@@ -1166,6 +1176,7 @@ export function SuppliersPage() {
           supplierId={selectedId}
           currency={currency}
           payment={null}
+          maxAmount={Number(totalBalance)}
           onClose={() => setShowPayment(false)}
           onDone={() => setShowPayment(false)}
         />
@@ -1176,6 +1187,7 @@ export function SuppliersPage() {
           supplierId={selectedId}
           currency={currency}
           payment={editingPayment}
+          maxAmount={Number(totalBalance) + Number(editingPayment.amount_egp)}
           onClose={() => setEditingPayment(null)}
           onDone={() => setEditingPayment(null)}
         />
