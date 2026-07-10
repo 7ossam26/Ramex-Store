@@ -228,7 +228,6 @@ function PurchaseInvoiceFormDialog({
   const today = format(new Date(), 'yyyy-MM-dd');
   const [invoiceNo, setInvoiceNo] = useState(invoice?.invoice_no ?? '');
   const [invoiceDate, setInvoiceDate] = useState(invoice?.invoice_date ?? today);
-  const [dueDate, setDueDate] = useState(invoice?.due_date ?? '');
   const [extraCharges, setExtraCharges] = useState(
     invoice && Number(invoice.extra_charges) !== 0 ? String(Number(invoice.extra_charges)) : '',
   );
@@ -251,7 +250,7 @@ function PurchaseInvoiceFormDialog({
       const body = {
         invoice_no: invoiceNo.trim() || null,
         invoice_date: invoiceDate,
-        due_date: dueDate || null,
+        due_date: null,
         extra_charges: extraCharges === '' ? 0 : Number(extraCharges),
         lines: lines.map((l) => ({
           description: l.description.trim(),
@@ -310,11 +309,10 @@ function PurchaseInvoiceFormDialog({
               <input type="date" className={inputCls} value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-foreground">{ar.supplierPayables.dueDate}</Label>
-              <input type="date" className={inputCls} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-            </div>
-            <div className="space-y-1.5 col-span-2">
-              <Label className="text-sm font-medium text-foreground">{ar.supplierPayables.supplierInvoiceNo}</Label>
+              <Label className="text-sm font-medium text-foreground">
+                {ar.supplierPayables.supplierInvoiceNo}
+                <span className="ms-1 text-xs font-normal text-foreground-muted">(اختياري)</span>
+              </Label>
               <input
                 className={inputCls}
                 dir="ltr"
