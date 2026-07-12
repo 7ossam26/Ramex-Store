@@ -257,12 +257,12 @@ export function RollsPage() {
       ),
     },
     {
-      key: 'purchase_price_egp',
-      header: 'تكلفة الشراء',
+      key: 'selling_price_egp',
+      header: 'سعر البيع',
       cell: (r) =>
-        r.purchase_price_egp != null ? (
+        r.selling_price_egp != null ? (
           <span className="tabular-num text-foreground-muted" dir="ltr">
-            {Number(r.purchase_price_egp).toFixed(2)} ج.م
+            {Number(r.selling_price_egp).toFixed(2)} ج.م
           </span>
         ) : (
           <span className="text-foreground-tertiary">—</span>

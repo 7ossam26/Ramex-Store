@@ -31,7 +31,7 @@ function validate(name: string, qty: string): FormErrors {
 export function AddAccessoryPage() {
   const [name, setName] = useState('');
   const [qty, setQty] = useState('');
-  const [cost, setCost] = useState('');
+  const [price, setPrice] = useState('');
   const [notes, setNotes] = useState('');
   const [errors, setErrors] = useState<FormErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
@@ -47,7 +47,7 @@ export function AddAccessoryPage() {
       accessoriesApi.create({
         name_ar: name.trim(),
         quantity: Number(qty),
-        purchase_price_egp: cost !== '' ? Number(cost) : undefined,
+        selling_price_egp: price !== '' ? Number(price) : undefined,
         notes_ar: notes.trim() || undefined,
       }),
     onSuccess: (acc) => {
@@ -55,7 +55,7 @@ export function AddAccessoryPage() {
       setServerError(null);
       setName('');
       setQty('');
-      setCost('');
+      setPrice('');
       setNotes('');
       setErrors({});
       labelMut.mutate(acc.id);
@@ -117,17 +117,17 @@ export function AddAccessoryPage() {
               )}
             </div>
 
-            {/* Cost */}
+            {/* Selling price */}
             <div className="space-y-1.5">
-              <Label htmlFor="acc-cost">{t.costLabel}</Label>
+              <Label htmlFor="acc-price">{t.priceLabel}</Label>
               <Input
-                id="acc-cost"
+                id="acc-price"
                 type="number"
                 min={0}
                 step={0.01}
-                value={cost}
-                onChange={(e) => setCost(e.target.value)}
-                placeholder={t.costPlaceholder}
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder={t.pricePlaceholder}
                 className="h-10"
               />
             </div>

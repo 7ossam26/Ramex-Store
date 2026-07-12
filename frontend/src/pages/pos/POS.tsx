@@ -161,6 +161,15 @@ function lineSubtotal(line: CartLine): number {
   return Math.max(0, price - disc);
 }
 
+// Pre-fill the POS price-per-piece from the accessory's saved selling price.
+// Empty/0/null → '' so the cashier types it manually (falls back to old behavior).
+// The pre-filled value stays editable — the cashier can override it per sale.
+function accessoryInitialPrice(a: Accessory): string {
+  return a.selling_price_egp != null && Number(a.selling_price_egp) > 0
+    ? String(a.selling_price_egp)
+    : '';
+}
+
 function isFabricRoll(r: RollLookup): boolean {
   return Boolean(
     r.brand_arabic_name || r.grade_arabic_name || r.gsm != null || r.mad_m != null || r.width_cm,
@@ -341,7 +350,7 @@ export function POSPage() {
           flagScanFailure(ar.pos.alreadyInCart);
           return;
         }
-        setCart((c) => [...c, { type: 'accessory', accessory: acc, qtyPieces: '', pricePerPiece: '', lineDiscount: '' }]);
+        setCart((c) => [...c, { type: 'accessory', accessory: acc, qtyPieces: '', pricePerPiece: accessoryInitialPrice(acc), lineDiscount: '' }]);
         setScannerFeedback('success');
         setFlashRowId(-(acc.id));
       } catch {
@@ -800,7 +809,7 @@ export function POSPage() {
           }}
           onPickAccessory={(acc) => {
             if (!cart.find((l) => l.type === 'accessory' && l.accessory.id === acc.id)) {
-              setCart((c) => [...c, { type: 'accessory', accessory: acc, qtyPieces: '', pricePerPiece: '', lineDiscount: '' }]);
+              setCart((c) => [...c, { type: 'accessory', accessory: acc, qtyPieces: '', pricePerPiece: accessoryInitialPrice(acc), lineDiscount: '' }]);
               setScannerFeedback('success');
               setFlashRowId(-(acc.id));
             }

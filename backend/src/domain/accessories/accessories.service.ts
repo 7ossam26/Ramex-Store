@@ -8,7 +8,7 @@ export type Accessory = {
   internal_barcode: string;
   name_ar: string;
   qty_in_stock: number;
-  purchase_price_egp: string | null;
+  selling_price_egp: string | null;
   notes_ar: string | null;
   is_active: boolean;
   created_by_user_id: number | null;
@@ -35,7 +35,7 @@ export async function createAccessory(
       internal_barcode,
       name_ar: input.name_ar,
       qty_in_stock: input.quantity,
-      purchase_price_egp: input.purchase_price_egp ?? null,
+      selling_price_egp: input.selling_price_egp ?? null,
       notes_ar: input.notes_ar ?? null,
       is_active: true,
       created_by_user_id: actorUserId,
@@ -53,7 +53,7 @@ export async function createAccessory(
         internal_barcode: created.internal_barcode,
         name_ar: created.name_ar,
         qty_in_stock: created.qty_in_stock,
-        purchase_price_egp: created.purchase_price_egp,
+        selling_price_egp: created.selling_price_egp,
       },
       severity: 'medium',
     });
@@ -109,7 +109,7 @@ export async function updateAccessory(
 
   const update: Record<string, unknown> = { updated_at: db.fn.now() };
   if (patch.name_ar !== undefined) update.name_ar = patch.name_ar;
-  if (patch.purchase_price_egp !== undefined) update.purchase_price_egp = patch.purchase_price_egp ?? null;
+  if (patch.selling_price_egp !== undefined) update.selling_price_egp = patch.selling_price_egp ?? null;
   if (patch.notes_ar !== undefined) update.notes_ar = patch.notes_ar ?? null;
 
   await db('accessories').where({ id }).update(update);
@@ -120,8 +120,8 @@ export async function updateAccessory(
     action: 'update_accessory',
     entity: 'accessory',
     entityId: id,
-    before: { name_ar: before.name_ar, purchase_price_egp: before.purchase_price_egp, notes_ar: before.notes_ar },
-    after: { name_ar: after.name_ar, purchase_price_egp: after.purchase_price_egp, notes_ar: after.notes_ar },
+    before: { name_ar: before.name_ar, selling_price_egp: before.selling_price_egp, notes_ar: before.notes_ar },
+    after: { name_ar: after.name_ar, selling_price_egp: after.selling_price_egp, notes_ar: after.notes_ar },
     severity: 'medium',
   });
 

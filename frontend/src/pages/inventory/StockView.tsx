@@ -630,13 +630,13 @@ export function StockViewPage() {
       ),
     },
     {
-      key: 'purchase_price_egp',
-      header: 'سعر التكلفة',
+      key: 'selling_price_egp',
+      header: 'سعر البيع',
       align: 'end',
       cell: (r) =>
-        r.purchase_price_egp != null ? (
+        r.selling_price_egp != null ? (
           <span className="tabular-num" dir="ltr">
-            {fmtMoney(Number(r.purchase_price_egp))}{' '}
+            {fmtMoney(Number(r.selling_price_egp))}{' '}
             <span className="text-foreground-muted text-xs">{EGP}</span>
           </span>
         ) : (
