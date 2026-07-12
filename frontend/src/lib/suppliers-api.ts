@@ -32,6 +32,7 @@ export type SupplierWithBalance = {
   is_active: boolean;
   total_invoiced_egp: number;
   total_paid_egp: number;
+  total_returned_egp: number;
   balance_egp: number;
 };
 
@@ -73,6 +74,38 @@ export type SupplierInvoiceWithLines = SupplierInvoice & {
   lines: SupplierInvoiceLine[];
 };
 
+export type SupplierReturnLine = {
+  id: number;
+  supplier_return_id: number;
+  description: string;
+  quantity: string;
+  unit: Unit;
+  unit_price: string;
+  line_total: string;
+};
+
+/** Purchase return (مرتجع مشتريات) — credit-side mirror of a purchase invoice. */
+export type SupplierReturn = {
+  id: number;
+  supplier_id: number;
+  return_no: string | null;
+  internal_no: string | null;
+  return_date: string;
+  amount_egp: string;
+  subtotal: string;
+  extra_charges: string;
+  total: string;
+  currency: Currency;
+  notes_ar: string | null;
+  created_by_user_id: number;
+  created_at: string;
+  supplier_name?: string;
+};
+
+export type SupplierReturnWithLines = SupplierReturn & {
+  lines: SupplierReturnLine[];
+};
+
 export type SupplierPayment = {
   id: number;
   supplier_id: number;
@@ -94,6 +127,7 @@ export type SupplierBalance = {
   opening_balance: number;
   total_invoiced_egp: number;
   total_paid_egp: number;
+  total_returned_egp: number;
   balance_egp: number;
 };
 
@@ -101,6 +135,7 @@ export type SupplierLedger = {
   supplier: Supplier | null;
   invoices: SupplierInvoice[];
   payments: SupplierPayment[];
+  returns: SupplierReturn[];
   balance: SupplierBalance;
 };
 
@@ -117,7 +152,7 @@ export type StatementLineItem = {
 export type StatementRow = {
   date: string;
   createdAt: string;
-  kind: 'invoice' | 'payment' | 'opening' | 'adjustment';
+  kind: 'invoice' | 'payment' | 'opening' | 'adjustment' | 'purchase_return';
   ref: string;
   description: string;
   debit: number;
@@ -216,6 +251,34 @@ export const suppliersApi = {
 
   deleteInvoice: (id: number): Promise<{ ok: true }> =>
     api.delete(`/treasury/suppliers/invoices/${id}`).then((r) => r.data),
+
+  createReturn: (data: {
+    supplier_id: number;
+    return_no?: string | null;
+    return_date: string;
+    extra_charges?: number;
+    lines: SupplierInvoiceLineInput[];
+    notes_ar?: string | null;
+  }): Promise<SupplierReturnWithLines> =>
+    api.post('/treasury/suppliers/returns', data).then((r) => r.data),
+
+  getReturn: (id: number): Promise<SupplierReturnWithLines> =>
+    api.get(`/treasury/suppliers/returns/${id}`).then((r) => r.data),
+
+  updateReturn: (
+    id: number,
+    data: {
+      return_no?: string | null;
+      return_date?: string;
+      extra_charges?: number;
+      lines?: SupplierInvoiceLineInput[];
+      notes_ar?: string | null;
+    },
+  ): Promise<SupplierReturnWithLines> =>
+    api.patch(`/treasury/suppliers/returns/${id}`, data).then((r) => r.data),
+
+  deleteReturn: (id: number): Promise<{ ok: true }> =>
+    api.delete(`/treasury/suppliers/returns/${id}`).then((r) => r.data),
 
   recordPayment: (data: {
     supplier_id: number;

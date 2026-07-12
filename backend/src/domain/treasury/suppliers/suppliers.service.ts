@@ -2,21 +2,25 @@ import { db } from '../../../db/connection.js';
 import { auditFromService } from '../../inventory/audit.helper.js';
 import * as repo from './suppliers.repository.js';
 import { nextPurchaseInvoiceNo } from './purchaseInvoiceNumber.service.js';
+import { nextPurchaseReturnNo } from './purchaseReturnNumber.service.js';
 import type {
   ComputedLine,
   Supplier,
   SupplierInvoiceWithLines,
   SupplierPayment,
+  SupplierReturnWithLines,
   SupplierWithBalance,
 } from './suppliers.types.js';
 import type {
   CreateSupplierInput,
   CreateSupplierInvoiceInput,
   CreateSupplierPaymentInput,
+  CreateSupplierReturnInput,
   SupplierInvoiceLineInput,
   UpdateSupplierInput,
   UpdateSupplierInvoiceInput,
   UpdateSupplierPaymentInput,
+  UpdateSupplierReturnInput,
 } from './suppliers.schemas.js';
 
 /** Round to 2 decimals (money) — avoids binary FP drift on totals. */
@@ -190,13 +194,14 @@ export async function deactivateSupplier(id: number, actorUserId: number): Promi
 // ─── Ledger ─────────────────────────────────────────────────────────────────
 
 export async function getLedger(supplierId: number) {
-  const [supplier, invoices, payments, balance] = await Promise.all([
+  const [supplier, invoices, payments, returns, balance] = await Promise.all([
     repo.getSupplier(supplierId),
     repo.listInvoices(supplierId),
     repo.listPayments(supplierId),
+    repo.listReturns(supplierId),
     repo.getSupplierBalance(supplierId),
   ]);
-  return { supplier, invoices, payments, balance };
+  return { supplier, invoices, payments, returns, balance };
 }
 
 // ─── Invoices ─────────────────────────────────────────────────────────────────
@@ -330,6 +335,143 @@ export async function deleteInvoice(id: number, actorUserId: number): Promise<vo
       actorUserId,
       action: 'supplier_invoice_deleted',
       entity: 'supplier_invoice',
+      entityId: id,
+      before,
+      severity: 'medium',
+    });
+  });
+}
+
+// ─── Purchase returns (مرتجع مشتريات) ──────────────────────────────────────────
+// A return mirrors an invoice but credits the account. Standalone document (no
+// link to an original invoice), and intentionally has NO balance cap: a return
+// may exceed the outstanding debt and drive the balance negative (a credit we
+// hold with the supplier).
+
+export async function getReturn(id: number): Promise<SupplierReturnWithLines> {
+  const ret = await repo.getReturnWithLines(db, id);
+  if (!ret) throw new SupplierValidationError('RETURN_NOT_FOUND', 'المرتجع غير موجود', 404);
+  return ret;
+}
+
+export async function createReturn(
+  data: CreateSupplierReturnInput,
+  actorUserId: number,
+): Promise<SupplierReturnWithLines> {
+  const supplier = await repo.getSupplier(data.supplier_id);
+  if (!supplier) throw new SupplierValidationError('SUPPLIER_NOT_FOUND', 'المورد غير موجود', 404);
+
+  const { computed, subtotal, total, extra } = computeTotals(data.lines, data.extra_charges ?? 0);
+  // The document year drives the PRET sequence (resets every January 1st).
+  const year = Number(data.return_date.slice(0, 4));
+
+  return db.transaction(async (trx) => {
+    const internalNo = await nextPurchaseReturnNo(trx, year);
+
+    const ret = await repo.insertReturn(trx, {
+      supplier_id: data.supplier_id,
+      return_no: data.return_no?.trim() || null,
+      internal_no: internalNo,
+      return_date: data.return_date,
+      // `amount_egp` is kept in lock-step with `total` for the balance sum.
+      amount_egp: total,
+      subtotal,
+      extra_charges: extra,
+      total,
+      currency: supplier.currency,
+      notes_ar: data.notes_ar?.trim() || null,
+      created_by_user_id: actorUserId,
+    });
+
+    await repo.insertReturnLines(trx, ret.id, computed);
+
+    await auditFromService(trx, {
+      actorUserId,
+      action: 'supplier_return_created',
+      entity: 'supplier_return',
+      entityId: ret.id,
+      after: {
+        internal_no: internalNo,
+        supplier_id: data.supplier_id,
+        currency: supplier.currency,
+        subtotal,
+        extra_charges: extra,
+        total,
+        line_count: computed.length,
+      },
+      severity: 'medium',
+    });
+
+    return (await repo.getReturnWithLines(trx, ret.id))!;
+  });
+}
+
+export async function updateReturn(
+  id: number,
+  patch: UpdateSupplierReturnInput,
+  actorUserId: number,
+): Promise<SupplierReturnWithLines> {
+  const before = await repo.getReturnWithLines(db, id);
+  if (!before) throw new SupplierValidationError('RETURN_NOT_FOUND', 'المرتجع غير موجود', 404);
+
+  // Effective lines: the replacement set if provided, else the existing lines.
+  const effectiveLineInput: SupplierInvoiceLineInput[] = patch.lines
+    ? patch.lines
+    : before.lines.map((l) => ({
+        description: l.description,
+        quantity: Number(l.quantity),
+        unit: l.unit,
+        unit_price: Number(l.unit_price),
+      }));
+  const effectiveExtra = patch.extra_charges ?? Number(before.extra_charges);
+  const { computed, subtotal, total, extra } = computeTotals(effectiveLineInput, effectiveExtra);
+
+  return db.transaction(async (trx) => {
+    const dbPatch: Parameters<typeof repo.updateReturnRow>[2] = {
+      subtotal,
+      extra_charges: extra,
+      total,
+      amount_egp: total,
+    };
+    if (patch.return_no !== undefined) dbPatch.return_no = patch.return_no?.trim() || null;
+    if (patch.return_date !== undefined) dbPatch.return_date = patch.return_date;
+    if (patch.notes_ar !== undefined) dbPatch.notes_ar = patch.notes_ar?.trim() || null;
+
+    await repo.updateReturnRow(trx, id, dbPatch);
+
+    // Replace lines only when a new set was supplied.
+    if (patch.lines) {
+      await repo.deleteReturnLines(trx, id);
+      await repo.insertReturnLines(trx, id, computed);
+    }
+
+    const after = (await repo.getReturnWithLines(trx, id))!;
+
+    await auditFromService(trx, {
+      actorUserId,
+      action: 'supplier_return_updated',
+      entity: 'supplier_return',
+      entityId: id,
+      before,
+      after,
+      severity: 'medium',
+    });
+
+    return after;
+  });
+}
+
+export async function deleteReturn(id: number, actorUserId: number): Promise<void> {
+  const before = await repo.getReturnWithLines(db, id);
+  if (!before) throw new SupplierValidationError('RETURN_NOT_FOUND', 'المرتجع غير موجود', 404);
+
+  await db.transaction(async (trx) => {
+    await repo.deleteReturn(trx, id); // lines cascade
+
+    await auditFromService(trx, {
+      actorUserId,
+      action: 'supplier_return_deleted',
+      entity: 'supplier_return',
       entityId: id,
       before,
       severity: 'medium',

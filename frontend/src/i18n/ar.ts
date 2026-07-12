@@ -1649,6 +1649,15 @@ export const ar = {
     noLines: 'لا توجد بنود',
     atLeastOneLine: 'يجب إضافة بند واحد على الأقل',
     invoiceNoOptional: 'رقم فاتورة المورد (اختياري)',
+    // ── Purchase returns (مرتجع مشتريات) ────────────────────────────────────
+    newReturn: 'مرتجع مشتريات جديد',
+    editReturn: 'تعديل المرتجع',
+    returnDetails: 'تفاصيل المرتجع',
+    returnDate: 'تاريخ المرتجع',
+    returnNo: 'رقم المرتجع',
+    returnBadge: 'مرتجع',
+    deleteReturn: 'حذف المرتجع',
+    deleteReturnConfirm: 'سيتم حذف المرتجع وجميع بنوده نهائياً، وسيتحدّث رصيد المورد. هل تريد المتابعة؟',
     // ── Phase 3 — account statement ────────────────────────────────────────
     statement: {
       open: 'كشف حساب',

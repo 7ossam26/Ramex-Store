@@ -5,9 +5,11 @@ import { requirePermission } from '../../../middleware/requirePermission.js';
 import {
   CreateSupplierInvoiceSchema,
   CreateSupplierPaymentSchema,
+  CreateSupplierReturnSchema,
   CreateSupplierSchema,
   UpdateSupplierInvoiceSchema,
   UpdateSupplierPaymentSchema,
+  UpdateSupplierReturnSchema,
   UpdateSupplierSchema,
 } from './suppliers.schemas.js';
 import * as svc from './suppliers.service.js';
@@ -148,6 +150,36 @@ suppliersRouter.patch('/invoices/:id', requirePermission('suppliers', 'write'), 
 suppliersRouter.delete('/invoices/:id', requirePermission('suppliers', 'write'), async (req, res, next) => {
   try {
     await svc.deleteInvoice(Number(req.params['id']), req.user!.sub);
+    res.json({ ok: true });
+  } catch (e) { handle(res, e, next); }
+});
+
+// ── Purchase returns (مرتجع مشتريات) — same 'write' gate as invoices ──
+suppliersRouter.post('/returns', requirePermission('suppliers', 'write'), async (req, res, next) => {
+  try {
+    const data = CreateSupplierReturnSchema.parse(req.body);
+    const ret = await svc.createReturn(data, req.user!.sub);
+    res.status(201).json(ret);
+  } catch (e) { handle(res, e, next); }
+});
+
+suppliersRouter.get('/returns/:id', requirePermission('suppliers', 'view'), async (req, res, next) => {
+  try {
+    res.json(await svc.getReturn(Number(req.params['id'])));
+  } catch (e) { handle(res, e, next); }
+});
+
+suppliersRouter.patch('/returns/:id', requirePermission('suppliers', 'write'), async (req, res, next) => {
+  try {
+    const data = UpdateSupplierReturnSchema.parse(req.body);
+    const ret = await svc.updateReturn(Number(req.params['id']), data, req.user!.sub);
+    res.json(ret);
+  } catch (e) { handle(res, e, next); }
+});
+
+suppliersRouter.delete('/returns/:id', requirePermission('suppliers', 'write'), async (req, res, next) => {
+  try {
+    await svc.deleteReturn(Number(req.params['id']), req.user!.sub);
     res.json({ ok: true });
   } catch (e) { handle(res, e, next); }
 });

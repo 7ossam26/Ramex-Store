@@ -85,6 +85,34 @@ export const UpdateSupplierInvoiceSchema = z.object({
   notes_ar: z.string().max(2000).nullable().optional(),
 });
 
+// ── Purchase returns (مرتجع مشتريات) ───────────────────────────────────────────
+// Mirror of the invoice schemas: a standalone document with the same line-item
+// shape, keyed on `return_date` / optional `return_no`. Reuses the invoice line
+// schema. A return credits (decreases) the supplier balance; no balance cap.
+
+export const CreateSupplierReturnSchema = z.object({
+  supplier_id: z.number().int().positive(),
+  return_no: z.string().max(128).nullable().optional(),
+  return_date: z.string().regex(ISO_DATE, 'صيغة التاريخ غير صحيحة — YYYY-MM-DD'),
+  extra_charges: z
+    .number({ invalid_type_error: 'المصاريف الإضافية يجب أن تكون رقماً' })
+    .nonnegative('المصاريف الإضافية لا يمكن أن تكون سالبة')
+    .optional(),
+  lines: z.array(SupplierInvoiceLineSchema).min(1, 'يجب إضافة سطر واحد على الأقل'),
+  notes_ar: z.string().max(2000).nullable().optional(),
+});
+
+export const UpdateSupplierReturnSchema = z.object({
+  return_no: z.string().max(128).nullable().optional(),
+  return_date: z.string().regex(ISO_DATE, 'صيغة التاريخ غير صحيحة — YYYY-MM-DD').optional(),
+  extra_charges: z
+    .number({ invalid_type_error: 'المصاريف الإضافية يجب أن تكون رقماً' })
+    .nonnegative('المصاريف الإضافية لا يمكن أن تكون سالبة')
+    .optional(),
+  lines: z.array(SupplierInvoiceLineSchema).min(1, 'يجب إضافة سطر واحد على الأقل').optional(),
+  notes_ar: z.string().max(2000).nullable().optional(),
+});
+
 export const CreateSupplierPaymentSchema = z.object({
   supplier_id: z.number().int().positive(),
   amount_egp: z.number({ invalid_type_error: 'المبلغ يجب أن يكون رقماً' }).positive('المبلغ يجب أن يكون أكبر من صفر'),
@@ -110,5 +138,7 @@ export type UpdateSupplierInput = z.infer<typeof UpdateSupplierSchema>;
 export type SupplierInvoiceLineInput = z.infer<typeof SupplierInvoiceLineSchema>;
 export type CreateSupplierInvoiceInput = z.infer<typeof CreateSupplierInvoiceSchema>;
 export type UpdateSupplierInvoiceInput = z.infer<typeof UpdateSupplierInvoiceSchema>;
+export type CreateSupplierReturnInput = z.infer<typeof CreateSupplierReturnSchema>;
+export type UpdateSupplierReturnInput = z.infer<typeof UpdateSupplierReturnSchema>;
 export type CreateSupplierPaymentInput = z.infer<typeof CreateSupplierPaymentSchema>;
 export type UpdateSupplierPaymentInput = z.infer<typeof UpdateSupplierPaymentSchema>;

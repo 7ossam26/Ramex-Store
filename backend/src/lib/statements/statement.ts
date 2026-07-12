@@ -22,7 +22,7 @@ import type { ReportPdfOptions, ReportSection } from '../reports/pdfExport.js';
 
 export type Currency = 'EGP' | 'RMB';
 
-export type StatementKind = 'invoice' | 'payment' | 'opening' | 'adjustment';
+export type StatementKind = 'invoice' | 'payment' | 'opening' | 'adjustment' | 'purchase_return';
 
 export type StatementLineItem = {
   description: string;

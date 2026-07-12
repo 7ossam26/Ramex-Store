@@ -50,6 +50,41 @@ export type SupplierInvoiceWithLines = SupplierInvoice & {
   lines: SupplierInvoiceLine[];
 };
 
+/**
+ * Purchase return (مرتجع مشتريات) — mirror of {@link SupplierInvoice} but a
+ * balance-*decreasing* (credit) document. `amount_egp` is kept equal to `total`.
+ */
+export type SupplierReturn = {
+  id: number;
+  supplier_id: number;
+  return_no: string | null;
+  internal_no: string | null;
+  return_date: string;
+  amount_egp: string;
+  subtotal: string;
+  extra_charges: string;
+  total: string;
+  currency: Currency;
+  notes_ar: string | null;
+  created_by_user_id: number;
+  created_at: string;
+  supplier_name?: string;
+};
+
+export type SupplierReturnLine = {
+  id: number;
+  supplier_return_id: number;
+  description: string;
+  quantity: string;
+  unit: Unit;
+  unit_price: string;
+  line_total: string;
+};
+
+export type SupplierReturnWithLines = SupplierReturn & {
+  lines: SupplierReturnLine[];
+};
+
 /** A computed line ready for insertion (line_total already rounded). */
 export type ComputedLine = {
   description: string;
@@ -86,6 +121,7 @@ export type SupplierWithBalance = {
   is_active: boolean;
   total_invoiced_egp: number;
   total_paid_egp: number;
+  total_returned_egp: number;
   balance_egp: number;
 };
 
@@ -94,9 +130,11 @@ export type SupplierBalance = {
   opening_balance: number;
   total_invoiced_egp: number;
   total_paid_egp: number;
+  total_returned_egp: number;
   balance_egp: number;
 };
 
 export type SupplierLedgerEntry =
   | ({ kind: 'invoice' } & SupplierInvoice)
-  | ({ kind: 'payment' } & SupplierPayment);
+  | ({ kind: 'payment' } & SupplierPayment)
+  | ({ kind: 'return' } & SupplierReturn);

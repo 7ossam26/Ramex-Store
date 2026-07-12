@@ -9,6 +9,9 @@ import type {
   SupplierInvoiceLine,
   SupplierInvoiceWithLines,
   SupplierPayment,
+  SupplierReturn,
+  SupplierReturnLine,
+  SupplierReturnWithLines,
   SupplierWithBalance,
 } from './suppliers.types.js';
 
@@ -48,12 +51,19 @@ export async function listSuppliersWithBalance(): Promise<SupplierWithBalance[]>
     .select('supplier_id')
     .sum('amount_egp as total');
 
+  const returnTotals = await db('supplier_returns')
+    .groupBy('supplier_id')
+    .select('supplier_id')
+    .sum('amount_egp as total');
+
   const invoiceMap = new Map(invoiceTotals.map((r) => [Number(r.supplier_id), Number(r.total ?? 0)]));
   const paymentMap = new Map(paymentTotals.map((r) => [Number(r.supplier_id), Number(r.total ?? 0)]));
+  const returnMap = new Map(returnTotals.map((r) => [Number(r.supplier_id), Number(r.total ?? 0)]));
 
   return suppliers.map((s) => {
     const invoiced = invoiceMap.get(s.id) ?? 0;
     const paid = paymentMap.get(s.id) ?? 0;
+    const returned = returnMap.get(s.id) ?? 0;
     const opening = Number(s.opening_balance ?? 0);
     return {
       id: s.id,
@@ -66,7 +76,9 @@ export async function listSuppliersWithBalance(): Promise<SupplierWithBalance[]>
       is_active: s.is_active,
       total_invoiced_egp: invoiced,
       total_paid_egp: paid,
-      balance_egp: opening + invoiced - paid,
+      total_returned_egp: returned,
+      // A return credits the account: opening + invoiced − paid − returned.
+      balance_egp: opening + invoiced - paid - returned,
     };
   });
 }
@@ -78,15 +90,19 @@ export async function getSupplierBalance(supplierId: number): Promise<SupplierBa
     .first();
   const [{ inv }] = await db('supplier_invoices').where({ supplier_id: supplierId }).sum<[{ inv: string | null }]>('amount_egp as inv');
   const [{ paid }] = await db('supplier_payments').where({ supplier_id: supplierId }).sum<[{ paid: string | null }]>('amount_egp as paid');
+  const [{ ret }] = await db('supplier_returns').where({ supplier_id: supplierId }).sum<[{ ret: string | null }]>('amount_egp as ret');
   const invoiced = Number(inv ?? 0);
   const totalPaid = Number(paid ?? 0);
+  const totalReturned = Number(ret ?? 0);
   const opening = Number(supplier?.opening_balance ?? 0);
   return {
     currency: (supplier?.currency ?? 'EGP') as Currency,
     opening_balance: opening,
     total_invoiced_egp: invoiced,
     total_paid_egp: totalPaid,
-    balance_egp: opening + invoiced - totalPaid,
+    total_returned_egp: totalReturned,
+    // A return credits the account: opening + invoiced − paid − returned.
+    balance_egp: opening + invoiced - totalPaid - totalReturned,
   };
 }
 
@@ -94,7 +110,9 @@ export async function supplierHasTransactions(supplierId: number): Promise<boole
   const inv = await db('supplier_invoices').where({ supplier_id: supplierId }).first('id');
   if (inv) return true;
   const pay = await db('supplier_payments').where({ supplier_id: supplierId }).first('id');
-  return !!pay;
+  if (pay) return true;
+  const ret = await db('supplier_returns').where({ supplier_id: supplierId }).first('id');
+  return !!ret;
 }
 
 export async function createSupplier(
@@ -320,4 +338,128 @@ export async function updatePayment(
 
 export async function deletePayment(trx: Knex.Transaction, id: number): Promise<void> {
   await trx('supplier_payments').where({ id }).delete();
+}
+
+// ─── Purchase returns (مرتجع مشتريات) ──────────────────────────────────────────
+// Mirror of the invoice queries; a return credits (decreases) the balance.
+
+export async function listReturns(supplierId: number): Promise<SupplierReturn[]> {
+  return db('supplier_returns as sr')
+    .leftJoin('suppliers as s', 'sr.supplier_id', 's.id')
+    .where('sr.supplier_id', supplierId)
+    .select('sr.*', 's.arabic_name as supplier_name')
+    .orderBy('sr.return_date', 'desc')
+    .orderBy('sr.created_at', 'desc') as Promise<SupplierReturn[]>;
+}
+
+/** All returns for a supplier, each with its line items — for the statement engine. */
+export async function listReturnsWithLines(supplierId: number): Promise<SupplierReturnWithLines[]> {
+  const returns = (await db('supplier_returns')
+    .where({ supplier_id: supplierId })
+    .orderBy('return_date', 'asc')
+    .orderBy('created_at', 'asc')
+    .select('*')) as SupplierReturn[];
+  if (returns.length === 0) return [];
+
+  const ids = returns.map((r) => r.id);
+  const lines = (await db('supplier_return_lines')
+    .whereIn('supplier_return_id', ids)
+    .orderBy('id')
+    .select('*')) as SupplierReturnLine[];
+
+  const byReturn = new Map<number, SupplierReturnLine[]>();
+  for (const l of lines) {
+    const arr = byReturn.get(l.supplier_return_id);
+    if (arr) arr.push(l);
+    else byReturn.set(l.supplier_return_id, [l]);
+  }
+
+  return returns.map((ret) => ({ ...ret, lines: byReturn.get(ret.id) ?? [] }));
+}
+
+export async function insertReturn(
+  trxOrDb: Knex | Knex.Transaction,
+  data: {
+    supplier_id: number;
+    return_no: string | null;
+    internal_no: string | null;
+    return_date: string;
+    amount_egp: number;
+    subtotal: number;
+    extra_charges: number;
+    total: number;
+    currency: Currency;
+    notes_ar: string | null;
+    created_by_user_id: number;
+  },
+): Promise<SupplierReturn> {
+  const [{ id }] = await trxOrDb('supplier_returns').insert(data).returning('id');
+  return trxOrDb('supplier_returns').where({ id }).first() as Promise<SupplierReturn>;
+}
+
+export async function updateReturnRow(
+  trx: Knex.Transaction,
+  id: number,
+  patch: Partial<{
+    return_no: string | null;
+    return_date: string;
+    amount_egp: number;
+    subtotal: number;
+    extra_charges: number;
+    total: number;
+    notes_ar: string | null;
+  }>,
+): Promise<void> {
+  await trx('supplier_returns').where({ id }).update(patch);
+}
+
+export async function deleteReturn(trx: Knex.Transaction, id: number): Promise<void> {
+  // Lines cascade via the ON DELETE CASCADE FK.
+  await trx('supplier_returns').where({ id }).delete();
+}
+
+export async function listReturnLines(
+  trxOrDb: Knex | Knex.Transaction,
+  returnId: number,
+): Promise<SupplierReturnLine[]> {
+  return trxOrDb('supplier_return_lines')
+    .where({ supplier_return_id: returnId })
+    .orderBy('id')
+    .select('*') as Promise<SupplierReturnLine[]>;
+}
+
+export async function insertReturnLines(
+  trx: Knex.Transaction,
+  returnId: number,
+  lines: ComputedLine[],
+): Promise<void> {
+  if (lines.length === 0) return;
+  await trx('supplier_return_lines').insert(
+    lines.map((l) => ({
+      supplier_return_id: returnId,
+      description: l.description,
+      quantity: l.quantity,
+      unit: l.unit,
+      unit_price: l.unit_price,
+      line_total: l.line_total,
+    })),
+  );
+}
+
+export async function deleteReturnLines(trx: Knex.Transaction, returnId: number): Promise<void> {
+  await trx('supplier_return_lines').where({ supplier_return_id: returnId }).delete();
+}
+
+export async function getReturnWithLines(
+  trxOrDb: Knex | Knex.Transaction,
+  id: number,
+): Promise<SupplierReturnWithLines | undefined> {
+  const ret = (await trxOrDb('supplier_returns as sr')
+    .leftJoin('suppliers as s', 'sr.supplier_id', 's.id')
+    .where('sr.id', id)
+    .select('sr.*', 's.arabic_name as supplier_name')
+    .first()) as SupplierReturn | undefined;
+  if (!ret) return undefined;
+  const lines = await listReturnLines(trxOrDb, id);
+  return { ...ret, lines };
 }

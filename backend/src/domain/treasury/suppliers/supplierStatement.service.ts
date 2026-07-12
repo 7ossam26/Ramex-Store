@@ -35,9 +35,10 @@ export async function loadSupplierAccount(supplierId: number): Promise<Statement
   const supplier = await repo.getSupplier(supplierId);
   if (!supplier) throw new SupplierValidationError('SUPPLIER_NOT_FOUND', 'المورد غير موجود', 404);
 
-  const [invoices, payments] = await Promise.all([
+  const [invoices, payments, returns] = await Promise.all([
     repo.listInvoicesWithLines(supplierId),
     repo.listPayments(supplierId),
+    repo.listReturnsWithLines(supplierId),
   ]);
 
   const entries: StatementEntry[] = [];
@@ -53,6 +54,29 @@ export async function loadSupplierAccount(supplierId: number): Promise<Statement
       credit: 0,
       ref: inv.internal_no ?? inv.invoice_no ?? '',
       lineItems: inv.lines.map((l) => ({
+        description: l.description,
+        quantity: Number(l.quantity),
+        unit: l.unit,
+        unit_price: Number(l.unit_price),
+        line_total: Number(l.line_total),
+      })),
+    });
+  }
+
+  // Purchase returns are the credit-side mirror of invoices: same line items,
+  // but they DECREASE the balance. Carrying `lineItems` makes them expand fully
+  // in the Detailed (تفصيلي) statement exactly like invoices do.
+  for (const ret of returns) {
+    const credit = Number(ret.total ?? ret.amount_egp ?? 0);
+    entries.push({
+      date: ret.return_date, // `date` column → already Cairo-local `YYYY-MM-DD`
+      createdAt: toIso(ret.created_at),
+      kind: 'purchase_return',
+      description: 'مرتجع مشتريات',
+      debit: 0,
+      credit,
+      ref: ret.internal_no ?? ret.return_no ?? '',
+      lineItems: ret.lines.map((l) => ({
         description: l.description,
         quantity: Number(l.quantity),
         unit: l.unit,

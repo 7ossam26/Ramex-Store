@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Truck, Plus, Search, ChevronRight, Pencil, Trash2, Ban, X, FileText } from 'lucide-react';
+import { Truck, Plus, Search, ChevronRight, Pencil, Trash2, Ban, X, FileText, Undo2 } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import {
   suppliersApi,
@@ -9,6 +9,8 @@ import {
   type SupplierInvoice,
   type SupplierInvoiceWithLines,
   type SupplierPayment,
+  type SupplierReturn,
+  type SupplierReturnWithLines,
   type Currency,
   type Unit,
 } from '@/lib/suppliers-api';
@@ -588,6 +590,382 @@ function InvoiceDetailDialog({
   );
 }
 
+// ─── Purchase-return form (create + edit) ─────────────────────────────────────
+// Mirror of PurchaseInvoiceFormDialog, but a balance-*decreasing* document keyed
+// on return_date / return_no. Same line-item editor, extra charges and totals.
+
+function PurchaseReturnFormDialog({
+  supplierId,
+  currency,
+  returnDoc,
+  onClose,
+  onDone,
+}: {
+  supplierId: number;
+  currency: Currency;
+  returnDoc: SupplierReturnWithLines | null; // null = create
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const isEdit = returnDoc !== null;
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const [returnNo, setReturnNo] = useState(returnDoc?.return_no ?? '');
+  const [returnDate, setReturnDate] = useState(returnDoc?.return_date ?? today);
+  const [extraCharges, setExtraCharges] = useState(
+    returnDoc && Number(returnDoc.extra_charges) !== 0 ? String(Number(returnDoc.extra_charges)) : '',
+  );
+  const [notes, setNotes] = useState(returnDoc?.notes_ar ?? '');
+  const [lines, setLines] = useState<LineDraft[]>(
+    returnDoc && returnDoc.lines.length > 0
+      ? returnDoc.lines.map((l) => ({
+          description: l.description,
+          quantity: String(Number(l.quantity)),
+          unit: l.unit,
+          unit_price: String(Number(l.unit_price)),
+        }))
+      : [emptyLine()],
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  const qc = useQueryClient();
+  const mut = useMutation({
+    mutationFn: () => {
+      const body = {
+        return_no: returnNo.trim() || null,
+        return_date: returnDate,
+        extra_charges: extraCharges === '' ? 0 : Number(extraCharges),
+        lines: lines.map((l) => ({
+          description: l.description.trim(),
+          quantity: Number(l.quantity),
+          unit: l.unit,
+          unit_price: Number(l.unit_price),
+        })),
+        notes_ar: notes.trim() || null,
+      };
+      if (isEdit) return suppliersApi.updateReturn(returnDoc!.id, body);
+      return suppliersApi.createReturn({ supplier_id: supplierId, ...body });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['supplier-ledger', supplierId] });
+      qc.invalidateQueries({ queryKey: ['suppliers-list'] });
+      if (isEdit) qc.invalidateQueries({ queryKey: ['supplier-return', returnDoc!.id] });
+      onDone();
+    },
+    onError: (e) => setError(extractApiError(e)),
+  });
+
+  const updateLine = (i: number, patch: Partial<LineDraft>) =>
+    setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
+  const addLine = () => setLines((prev) => [...prev, emptyLine()]);
+  const removeLine = (i: number) => setLines((prev) => prev.filter((_, idx) => idx !== i));
+
+  const lineTotal = (l: LineDraft) => round2((Number(l.quantity) || 0) * (Number(l.unit_price) || 0));
+  const subtotal = round2(lines.reduce((s, l) => s + lineTotal(l), 0));
+  const extra = extraCharges === '' ? 0 : Number(extraCharges) || 0;
+  const total = round2(subtotal + extra);
+
+  const linesValid =
+    lines.length > 0 &&
+    lines.every(
+      (l) =>
+        l.description.trim() !== '' &&
+        Number(l.quantity) > 0 &&
+        l.unit_price !== '' &&
+        Number(l.unit_price) >= 0,
+    );
+  const canSubmit = linesValid && !!returnDate && extra >= 0;
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? ar.supplierPayables.editReturn : ar.supplierPayables.newReturn}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 max-h-[75vh] overflow-y-auto pe-1">
+          {error && <ErrorBanner title={ar.common.error} description={error} />}
+
+          {/* Header fields */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium text-foreground">{ar.supplierPayables.returnDate}</Label>
+              <input type="date" className={inputCls} value={returnDate} onChange={(e) => setReturnDate(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium text-foreground">
+                {ar.supplierPayables.returnNo}
+                <span className="ms-1 text-xs font-normal text-foreground-muted">(اختياري)</span>
+              </Label>
+              <input
+                className={inputCls}
+                dir="ltr"
+                placeholder="RET-001"
+                value={returnNo}
+                onChange={(e) => setReturnNo(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Lines */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-semibold text-foreground">{ar.supplierPayables.lines}</Label>
+              <Button type="button" size="sm" variant="outline" className="h-8" onClick={addLine}>
+                <Plus className="size-4" aria-hidden />
+                {ar.supplierPayables.addLine}
+              </Button>
+            </div>
+
+            {lines.map((l, i) => (
+              <div key={i} className="rounded-lg border border-border-subtle bg-surface p-3 space-y-2">
+                <div className="flex items-start gap-2">
+                  <div className="flex-1 space-y-1">
+                    <Label className="text-xs text-foreground-muted">{ar.supplierPayables.lineDescription}</Label>
+                    <Input dir="rtl" value={l.description} onChange={(e) => updateLine(i, { description: e.target.value })} />
+                  </div>
+                  <button
+                    type="button"
+                    title={ar.supplierPayables.removeLine}
+                    aria-label={ar.supplierPayables.removeLine}
+                    onClick={() => removeLine(i)}
+                    disabled={lines.length === 1}
+                    className="mt-6 size-8 shrink-0 flex items-center justify-center rounded-md text-danger-foreground hover:bg-danger/10 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-foreground-muted">{ar.supplierPayables.quantity}</Label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.001"
+                      className={inputCls}
+                      style={{ unicodeBidi: 'plaintext' }}
+                      value={l.quantity}
+                      onChange={(e) => updateLine(i, { quantity: e.target.value })}
+                      onFocus={(e) => e.target.select()}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-foreground-muted">{ar.supplierPayables.unit}</Label>
+                    <select
+                      className={inputCls}
+                      value={l.unit}
+                      onChange={(e) => updateLine(i, { unit: e.target.value as Unit })}
+                    >
+                      {UNIT_KEYS.map((u) => (
+                        <option key={u} value={u}>{ar.supplierPayables.units[u]}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-foreground-muted">
+                      {ar.supplierPayables.unitPrice} ({currencySymbol(currency)})
+                    </Label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      className={inputCls}
+                      style={{ unicodeBidi: 'plaintext' }}
+                      placeholder="0"
+                      value={l.unit_price}
+                      onChange={(e) => updateLine(i, { unit_price: e.target.value })}
+                      onFocus={(e) => e.target.select()}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-foreground-muted">{ar.supplierPayables.lineTotal}</Label>
+                    <div
+                      className="h-10 flex items-center px-3 rounded-md border border-border-subtle bg-surface-row-alt text-sm font-semibold tabular-num text-foreground"
+                      dir="ltr"
+                    >
+                      {fmtCurrency(lineTotal(l), currency)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Extra charges + notes */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium text-foreground">
+                {ar.supplierPayables.extraCharges} ({currencySymbol(currency)})
+              </Label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                className={inputCls}
+                style={{ unicodeBidi: 'plaintext' }}
+                placeholder="0"
+                value={extraCharges}
+                onChange={(e) => setExtraCharges(e.target.value)}
+                onFocus={(e) => e.target.select()}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium text-foreground">{ar.supplierPayables.notes}</Label>
+              <Input dir="rtl" value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </div>
+          </div>
+
+          {/* Totals footer */}
+          <div className="rounded-lg border border-border-subtle bg-surface-row-alt p-3 space-y-1.5">
+            <div className="flex justify-between text-sm text-foreground-muted">
+              <span>{ar.supplierPayables.subtotal}</span>
+              <span className="tabular-num" dir="ltr">{fmtCurrency(subtotal, currency)}</span>
+            </div>
+            <div className="flex justify-between text-sm text-foreground-muted">
+              <span>{ar.supplierPayables.extraCharges}</span>
+              <span className="tabular-num" dir="ltr">{fmtCurrency(extra, currency)}</span>
+            </div>
+            <div className="flex justify-between text-base font-bold text-foreground pt-1.5 border-t border-border-subtle">
+              <span>{ar.supplierPayables.total}</span>
+              <span className="tabular-num" dir="ltr">{fmtCurrency(total, currency)}</span>
+            </div>
+          </div>
+
+          <div className="flex gap-2 justify-end pt-1">
+            <DialogClose asChild>
+              <Button type="button" variant="outline">{ar.common.cancel}</Button>
+            </DialogClose>
+            <Button onClick={() => mut.mutate()} disabled={mut.isPending || !canSubmit}>
+              {mut.isPending ? ar.loading : ar.common.save}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Return detail dialog ─────────────────────────────────────────────────────
+
+function ReturnDetailDialog({
+  returnId,
+  currency,
+  onClose,
+  onEdit,
+  onDelete,
+}: {
+  returnId: number;
+  currency: Currency;
+  onClose: () => void;
+  onEdit: (ret: SupplierReturnWithLines) => void;
+  onDelete: (ret: SupplierReturnWithLines) => void;
+}) {
+  const { data: ret, isLoading } = useQuery({
+    queryKey: ['supplier-return', returnId],
+    queryFn: () => suppliersApi.getReturn(returnId),
+  });
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{ar.supplierPayables.returnDetails}</DialogTitle>
+        </DialogHeader>
+        {isLoading || !ret ? (
+          <p className="p-6 text-center text-sm text-foreground-muted">{ar.loading}</p>
+        ) : (
+          <div className="space-y-4 max-h-[75vh] overflow-y-auto pe-1">
+            {/* Header meta */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <div className="flex justify-between gap-2">
+                <span className="text-foreground-muted">{ar.supplierPayables.internalNo}</span>
+                <span className="font-mono font-semibold text-foreground" dir="ltr">{ret.internal_no ?? '—'}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-foreground-muted">{ar.supplierPayables.returnNo}</span>
+                <span className="font-mono text-foreground" dir="ltr">{ret.return_no ?? '—'}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-foreground-muted">{ar.supplierPayables.returnDate}</span>
+                <span className="tabular-num text-foreground" dir="ltr">{ret.return_date}</span>
+              </div>
+            </div>
+
+            {ret.notes_ar && (
+              <p className="text-sm text-foreground-muted border-e-2 border-border-subtle pe-2">{ret.notes_ar}</p>
+            )}
+
+            {/* Lines */}
+            <div className="rounded-lg border border-border-subtle overflow-hidden">
+              <table className="w-full text-sm" dir="rtl">
+                <thead className="bg-surface-row-alt text-foreground-muted border-b border-border-subtle">
+                  <tr>
+                    <th className="py-2 px-3 text-start font-medium">{ar.supplierPayables.lineDescription}</th>
+                    <th className="py-2 px-3 text-end font-medium">{ar.supplierPayables.quantity}</th>
+                    <th className="py-2 px-3 text-center font-medium">{ar.supplierPayables.unit}</th>
+                    <th className="py-2 px-3 text-end font-medium">{ar.supplierPayables.unitPrice}</th>
+                    <th className="py-2 px-3 text-end font-medium">{ar.supplierPayables.lineTotal}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border-subtle bg-surface-elevated">
+                  {ret.lines.length === 0 ? (
+                    <tr><td colSpan={5} className="py-4 text-center text-foreground-muted">{ar.supplierPayables.noLines}</td></tr>
+                  ) : (
+                    ret.lines.map((l) => (
+                      <tr key={l.id}>
+                        <td className="py-2 px-3 text-foreground">{l.description}</td>
+                        <td className="py-2 px-3 text-end tabular-num text-foreground-muted" dir="ltr">{fmtMoney(Number(l.quantity))}</td>
+                        <td className="py-2 px-3 text-center text-foreground-muted">{ar.supplierPayables.units[l.unit]}</td>
+                        <td className="py-2 px-3 text-end tabular-num text-foreground-muted" dir="ltr">{fmtCurrency(l.unit_price, currency)}</td>
+                        <td className="py-2 px-3 text-end tabular-num font-semibold text-foreground" dir="ltr">{fmtCurrency(l.line_total, currency)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Totals */}
+            <div className="rounded-lg border border-border-subtle bg-surface-row-alt p-3 space-y-1.5">
+              <div className="flex justify-between text-sm text-foreground-muted">
+                <span>{ar.supplierPayables.subtotal}</span>
+                <span className="tabular-num" dir="ltr">{fmtCurrency(ret.subtotal, currency)}</span>
+              </div>
+              <div className="flex justify-between text-sm text-foreground-muted">
+                <span>{ar.supplierPayables.extraCharges}</span>
+                <span className="tabular-num" dir="ltr">{fmtCurrency(ret.extra_charges, currency)}</span>
+              </div>
+              <div className="flex justify-between text-base font-bold text-foreground pt-1.5 border-t border-border-subtle">
+                <span>{ar.supplierPayables.total}</span>
+                <span className="tabular-num" dir="ltr">{fmtCurrency(ret.total, currency)}</span>
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-between pt-1">
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-danger-foreground hover:text-danger-foreground"
+                onClick={() => onDelete(ret)}
+              >
+                <Trash2 className="size-4" aria-hidden />
+                {ar.supplierPayables.deleteReturn}
+              </Button>
+              <div className="flex gap-2">
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">{ar.common.close}</Button>
+                </DialogClose>
+                <Button onClick={() => onEdit(ret)}>
+                  <Pencil className="size-4" aria-hidden />
+                  {ar.supplierPayables.editReturn}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Record / Edit Payment Dialog ─────────────────────────────────────────────
 
 function PaymentDialog({
@@ -773,6 +1151,12 @@ export function SuppliersPage() {
   });
   const [viewingInvoiceId, setViewingInvoiceId] = useState<number | null>(null);
   const [deletingInvoice, setDeletingInvoice] = useState<SupplierInvoiceWithLines | null>(null);
+  const [returnForm, setReturnForm] = useState<{ open: boolean; returnDoc: SupplierReturnWithLines | null }>({
+    open: false,
+    returnDoc: null,
+  });
+  const [viewingReturnId, setViewingReturnId] = useState<number | null>(null);
+  const [deletingReturn, setDeletingReturn] = useState<SupplierReturnWithLines | null>(null);
   const [showPayment, setShowPayment] = useState(false);
   const [editingPayment, setEditingPayment] = useState<SupplierPayment | null>(null);
   const [deletingPayment, setDeletingPayment] = useState<SupplierPayment | null>(null);
@@ -815,6 +1199,16 @@ export function SuppliersPage() {
     },
   });
 
+  const deleteReturnMut = useMutation({
+    mutationFn: (id: number) => suppliersApi.deleteReturn(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['supplier-ledger', selectedId] });
+      qc.invalidateQueries({ queryKey: ['suppliers-list'] });
+      setDeletingReturn(null);
+      setViewingReturnId(null);
+    },
+  });
+
   const deactivateMut = useMutation({
     mutationFn: (id: number) => suppliersApi.deactivateSupplier(id),
     onSuccess: () => {
@@ -832,16 +1226,19 @@ export function SuppliersPage() {
 
   const invoices = ledgerQ.data?.invoices ?? [];
   const payments = ledgerQ.data?.payments ?? [];
-  const hasTransactions = invoices.length > 0 || payments.length > 0;
+  const returns = ledgerQ.data?.returns ?? [];
+  const hasTransactions = invoices.length > 0 || payments.length > 0 || returns.length > 0;
   const balance = ledgerQ.data?.balance;
   const openingBalance = balance?.opening_balance ?? selected?.opening_balance ?? 0;
 
   type LedgerRow =
     | { date: string; kind: 'debt'; row: SupplierInvoice }
-    | { date: string; kind: 'payment'; row: SupplierPayment };
+    | { date: string; kind: 'payment'; row: SupplierPayment }
+    | { date: string; kind: 'return'; row: SupplierReturn };
   const entries: LedgerRow[] = [
     ...invoices.map((r): LedgerRow => ({ date: r.invoice_date, kind: 'debt', row: r })),
     ...payments.map((r): LedgerRow => ({ date: r.paid_at, kind: 'payment', row: r })),
+    ...returns.map((r): LedgerRow => ({ date: r.return_date, kind: 'return', row: r })),
   ].sort((a, b) => b.date.localeCompare(a.date));
 
   const totalBalance = balance?.balance_egp ?? selected?.balance_egp ?? 0;
@@ -1007,6 +1404,14 @@ export function SuppliersPage() {
                     <FileText className="size-4" aria-hidden />
                     {ar.supplierPayables.newInvoice}
                   </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setReturnForm({ open: true, returnDoc: null })}
+                    className="w-full col-span-2"
+                  >
+                    <Undo2 className="size-4" aria-hidden />
+                    {ar.supplierPayables.newReturn}
+                  </Button>
                 </div>
               </div>
 
@@ -1035,39 +1440,63 @@ export function SuppliersPage() {
                     <tbody className="divide-y divide-border-subtle bg-surface-elevated">
                       {entries.map((entry) => {
                         const isDebt = entry.kind === 'debt';
+                        // Debt increases the balance (+/danger); payments and
+                        // returns both decrease it (−/success). The badge tells
+                        // returns and payments apart.
+                        const dateText =
+                          entry.kind === 'payment'
+                            ? format(new Date(entry.row.paid_at), 'yyyy-MM-dd')
+                            : entry.kind === 'return'
+                              ? entry.row.return_date
+                              : entry.row.invoice_date;
+                        const badge =
+                          entry.kind === 'debt'
+                            ? { label: 'دين', cls: 'bg-danger/10 text-danger-foreground' }
+                            : entry.kind === 'return'
+                              ? { label: ar.supplierPayables.returnBadge, cls: 'bg-accent/10 text-accent' }
+                              : { label: 'دفعة', cls: 'bg-success/10 text-success-foreground' };
+                        const notesText =
+                          entry.kind === 'debt'
+                            ? [entry.row.internal_no, entry.row.invoice_no, entry.row.notes_ar]
+                                .filter(Boolean).join(' · ') || '—'
+                            : entry.kind === 'return'
+                              ? [entry.row.internal_no, entry.row.return_no, entry.row.notes_ar]
+                                  .filter(Boolean).join(' · ') || '—'
+                              : [
+                                  ar.supplierPayables.method[entry.row.method],
+                                  entry.row.bank_name_ar,
+                                  entry.row.notes_ar,
+                                ].filter(Boolean).join(' · ');
+                        const onRowClick =
+                          entry.kind === 'debt'
+                            ? () => setViewingInvoiceId(entry.row.id)
+                            : entry.kind === 'return'
+                              ? () => setViewingReturnId(entry.row.id)
+                              : undefined;
                         return (
                           <tr
                             key={`${entry.kind}-${entry.row.id}`}
-                            onClick={isDebt ? () => setViewingInvoiceId(entry.row.id) : undefined}
+                            onClick={onRowClick}
                             className={cn(
                               'hover:bg-surface-hover/50 transition-colors',
-                              isDebt && 'cursor-pointer',
+                              onRowClick && 'cursor-pointer',
                             )}
                           >
                             <td className="py-2.5 px-4 text-foreground-muted tabular-num text-xs">
-                              {isDebt
-                                ? entry.row.invoice_date
-                                : format(new Date(entry.row.paid_at), 'yyyy-MM-dd')}
+                              {dateText}
                             </td>
                             <td className="py-2.5 px-4">
                               <span
                                 className={cn(
                                   'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium',
-                                  isDebt ? 'bg-danger/10 text-danger-foreground' : 'bg-success/10 text-success-foreground',
+                                  badge.cls,
                                 )}
                               >
-                                {isDebt ? 'دين' : 'دفعة'}
+                                {badge.label}
                               </span>
                             </td>
                             <td className="py-2.5 px-4 text-foreground-muted text-xs max-w-48 truncate">
-                              {entry.kind === 'debt'
-                                ? [entry.row.internal_no, entry.row.invoice_no, entry.row.notes_ar]
-                                    .filter(Boolean).join(' · ') || '—'
-                                : [
-                                    ar.supplierPayables.method[entry.row.method],
-                                    entry.row.bank_name_ar,
-                                    entry.row.notes_ar,
-                                  ].filter(Boolean).join(' · ')}
+                              {notesText}
                             </td>
                             <td
                               className={cn(
@@ -1086,6 +1515,18 @@ export function SuppliersPage() {
                                     title={ar.supplierPayables.invoiceDetails}
                                     aria-label={ar.supplierPayables.invoiceDetails}
                                     onClick={(e) => { e.stopPropagation(); setViewingInvoiceId(entry.row.id); }}
+                                    className="size-7 flex items-center justify-center rounded-md text-foreground-muted hover:text-foreground hover:bg-surface-hover cursor-pointer"
+                                  >
+                                    <FileText className="size-3.5" aria-hidden />
+                                  </button>
+                                </div>
+                              ) : entry.kind === 'return' ? (
+                                <div className="flex items-center gap-1 justify-end">
+                                  <button
+                                    type="button"
+                                    title={ar.supplierPayables.returnDetails}
+                                    aria-label={ar.supplierPayables.returnDetails}
+                                    onClick={(e) => { e.stopPropagation(); setViewingReturnId(entry.row.id); }}
                                     className="size-7 flex items-center justify-center rounded-md text-foreground-muted hover:text-foreground hover:bg-surface-hover cursor-pointer"
                                   >
                                     <FileText className="size-3.5" aria-hidden />
@@ -1168,6 +1609,40 @@ export function SuppliersPage() {
           pending={deleteInvoiceMut.isPending}
           onConfirm={() => deleteInvoiceMut.mutate(deletingInvoice.id)}
           onClose={() => setDeletingInvoice(null)}
+        />
+      )}
+
+      {returnForm.open && selectedId !== null && (
+        <PurchaseReturnFormDialog
+          supplierId={selectedId}
+          currency={currency}
+          returnDoc={returnForm.returnDoc}
+          onClose={() => setReturnForm({ open: false, returnDoc: null })}
+          onDone={() => setReturnForm({ open: false, returnDoc: null })}
+        />
+      )}
+
+      {viewingReturnId !== null && (
+        <ReturnDetailDialog
+          returnId={viewingReturnId}
+          currency={currency}
+          onClose={() => setViewingReturnId(null)}
+          onEdit={(ret) => {
+            setViewingReturnId(null);
+            setReturnForm({ open: true, returnDoc: ret });
+          }}
+          onDelete={(ret) => setDeletingReturn(ret)}
+        />
+      )}
+
+      {deletingReturn && (
+        <ConfirmDialog
+          title={ar.supplierPayables.deleteReturn}
+          message={ar.supplierPayables.deleteReturnConfirm}
+          confirmLabel={ar.supplierPayables.deleteReturn}
+          pending={deleteReturnMut.isPending}
+          onConfirm={() => deleteReturnMut.mutate(deletingReturn.id)}
+          onClose={() => setDeletingReturn(null)}
         />
       )}
 
