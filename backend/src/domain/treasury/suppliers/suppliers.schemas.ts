@@ -51,6 +51,7 @@ export const UNITS = ['kg', 'meter', 'roll', 'piece'] as const;
 
 export const SupplierInvoiceLineSchema = z.object({
   description: z.string().min(1, 'الوصف مطلوب').max(500, 'الوصف طويل جداً'),
+  color: z.string().max(64, 'اللون طويل جداً').nullable().optional(),
   quantity: z
     .number({ invalid_type_error: 'الكمية يجب أن تكون رقماً' })
     .positive('الكمية يجب أن تكون أكبر من صفر'),

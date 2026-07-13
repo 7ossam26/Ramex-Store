@@ -26,6 +26,8 @@ export type StatementKind = 'invoice' | 'payment' | 'opening' | 'adjustment' | '
 
 export type StatementLineItem = {
   description: string;
+  /** Fabric color (اللون), when the source line carries one. Supplier-only field. */
+  color?: string | null;
   quantity: number;
   unit: string;
   unit_price: number;

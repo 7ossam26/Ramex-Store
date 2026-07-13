@@ -7,8 +7,7 @@ import {
   suppliersApi,
   supplierStatementExportUrl,
   type SupplierStatement,
-  type StatementRow,
-  type StatementVariant,
+  type SupplierLedgerRow,
   type StatementExportFormat,
   type Currency,
 } from '@/lib/suppliers-api';
@@ -16,7 +15,6 @@ import { currencySymbol, fmtMoney } from '@/components/dashboard/format';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/Skeleton';
 import { ErrorBanner } from '@/components/ErrorBanner';
-import { cn } from '@/lib/utils';
 
 const st = ar.supplierPayables.statement;
 
@@ -38,12 +36,19 @@ function Num({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Money with the account's currency symbol; blank for zero (debit/credit cells). */
-function money(n: number, currency: Currency): string {
+/** Money with the account's currency symbol; blank for zero/null (value/return/payment cells). */
+function money(n: number | null, currency: Currency): string {
+  if (n === null || n === 0) return '';
   return `${fmtMoney(n)} ${currencySymbol(currency)}`;
 }
 
 const UNIT_AR: Record<string, string> = { kg: 'كجم', meter: 'متر', roll: 'توب', piece: 'قطعة' };
+
+function qty(n: number | null, unit: string | null): string {
+  if (n === null) return '';
+  const unitAr = unit ? (UNIT_AR[unit] ?? unit) : '';
+  return `${fmtMoney(n)} ${unitAr}`.trim();
+}
 
 function triggerDownload(url: string): void {
   const a = document.createElement('a');
@@ -62,16 +67,12 @@ export function SupplierStatementPage() {
 
   const [from, setFrom] = useState(params.get('from') || firstOfCairoMonth());
   const [to, setTo] = useState(params.get('to') || cairoToday());
-  const [variant, setVariant] = useState<StatementVariant>(
-    params.get('variant') === 'detailed' ? 'detailed' : 'summary',
-  );
 
   // Keep the URL in sync so a reload / share preserves the view.
-  const syncUrl = (next: { from?: string; to?: string; variant?: StatementVariant }) => {
+  const syncUrl = (next: { from?: string; to?: string }) => {
     const p = new URLSearchParams(params);
     p.set('from', next.from ?? from);
     p.set('to', next.to ?? to);
-    p.set('variant', next.variant ?? variant);
     setParams(p, { replace: true });
   };
 
@@ -82,10 +83,9 @@ export function SupplierStatementPage() {
   });
 
   const data = stmtQ.data;
-  const currency: Currency = data?.currency ?? 'EGP';
 
   const exportUrl = (format: StatementExportFormat) =>
-    supplierStatementExportUrl(idNum, { from, to, variant, format });
+    supplierStatementExportUrl(idNum, { from, to, format });
 
   return (
     <div className="min-h-screen bg-surface print:bg-white">
@@ -94,7 +94,7 @@ export function SupplierStatementPage() {
         data-print="hide"
         className="sticky top-0 z-10 border-b border-border-subtle bg-surface-elevated/95 backdrop-blur"
       >
-        <div className="mx-auto flex max-w-4xl flex-wrap items-end gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-end gap-3 px-4 py-3">
           <div className="flex flex-col gap-1">
             <label htmlFor="stmt-from" className="text-xs text-foreground-muted">{st.from}</label>
             <input
@@ -116,29 +116,6 @@ export function SupplierStatementPage() {
               onChange={(e) => { setTo(e.target.value); syncUrl({ to: e.target.value }); }}
               className="h-9 rounded-md border border-border-default bg-surface px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
-          </div>
-
-          {/* Variant toggle */}
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-foreground-muted">{st.variant}</span>
-            <div className="inline-flex h-9 rounded-md border border-border-subtle bg-surface p-0.5" role="group" aria-label={st.variant}>
-              {(['summary', 'detailed'] as const).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  aria-pressed={variant === v}
-                  onClick={() => { setVariant(v); syncUrl({ variant: v }); }}
-                  className={cn(
-                    'px-3 rounded text-xs font-medium transition-colors cursor-pointer',
-                    variant === v
-                      ? 'bg-accent text-foreground-on-accent'
-                      : 'text-foreground-muted hover:text-foreground',
-                  )}
-                >
-                  {v === 'summary' ? st.summary : st.detailed}
-                </button>
-              ))}
-            </div>
           </div>
 
           <div className="ms-auto flex items-end gap-2">
@@ -163,7 +140,7 @@ export function SupplierStatementPage() {
       </div>
 
       {/* ── Document ── */}
-      <div className="mx-auto max-w-4xl px-4 py-6 print:p-0">
+      <div className="mx-auto max-w-6xl px-4 py-6 print:p-0">
         {stmtQ.isLoading ? (
           <div className="rounded-lg bg-white p-8 shadow-sm">
             <Skeleton className="mb-4 h-8 w-64" />
@@ -173,7 +150,7 @@ export function SupplierStatementPage() {
         ) : stmtQ.isError || !data ? (
           <ErrorBanner title={st.loadError} onRetry={() => stmtQ.refetch()} />
         ) : (
-          <StatementDocument data={data} variant={variant} />
+          <StatementDocument data={data} />
         )}
       </div>
     </div>
@@ -182,7 +159,7 @@ export function SupplierStatementPage() {
 
 // ─── Printable document ─────────────────────────────────────────────────────────
 
-function StatementDocument({ data, variant }: { data: SupplierStatement; variant: StatementVariant }) {
+function StatementDocument({ data }: { data: SupplierStatement }) {
   const currency = data.currency;
   const generatedAt = useMemo(
     () => new Date().toLocaleString('en-GB', {
@@ -195,8 +172,8 @@ function StatementDocument({ data, variant }: { data: SupplierStatement; variant
   return (
     <div
       dir="rtl"
-      className="mx-auto rounded-lg bg-white p-8 text-neutral-900 shadow-sm print:rounded-none print:shadow-none print:p-0"
-      style={{ maxWidth: '210mm' }}
+      className="mx-auto overflow-x-auto rounded-lg bg-white p-8 text-neutral-900 shadow-sm print:rounded-none print:shadow-none print:p-0"
+      style={{ maxWidth: '297mm' }}
     >
       {/* Header */}
       <header className="mb-4 border-b border-neutral-200 pb-3 text-center">
@@ -211,25 +188,28 @@ function StatementDocument({ data, variant }: { data: SupplierStatement; variant
         </p>
       </header>
 
-      <table className="w-full border-collapse text-sm">
+      <table className="w-full min-w-[1000px] border-collapse text-sm">
         <thead>
           <tr className="bg-neutral-100 text-neutral-700">
+            <th className="border border-neutral-200 px-2 py-1.5 text-start font-semibold">{st.permitNo}</th>
             <th className="border border-neutral-200 px-2 py-1.5 text-start font-semibold">{st.date}</th>
-            <th className="border border-neutral-200 px-2 py-1.5 text-start font-semibold">{st.ref}</th>
             <th className="border border-neutral-200 px-2 py-1.5 text-start font-semibold">{st.description}</th>
-            <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.debit}</th>
-            <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.credit}</th>
+            <th className="border border-neutral-200 px-2 py-1.5 text-start font-semibold">{st.color}</th>
+            <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.quantity}</th>
+            <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.unitPrice}</th>
+            <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.value}</th>
+            <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.returnQty}</th>
+            <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.returnValue}</th>
+            <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.payment}</th>
             <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.balance}</th>
           </tr>
         </thead>
         <tbody>
           {/* Brought forward */}
           <tr className="bg-neutral-50 font-medium" style={{ pageBreakInside: 'avoid' }}>
-            <td className="border border-neutral-200 px-2 py-1.5" />
-            <td className="border border-neutral-200 px-2 py-1.5" />
+            <td className="border border-neutral-200 px-2 py-1.5" colSpan={2} />
             <td className="border border-neutral-200 px-2 py-1.5">{st.broughtForward}</td>
-            <td className="border border-neutral-200 px-2 py-1.5" />
-            <td className="border border-neutral-200 px-2 py-1.5" />
+            <td className="border border-neutral-200 px-2 py-1.5" colSpan={7} />
             <td className="border border-neutral-200 px-2 py-1.5 text-end">
               <Num>{money(data.broughtForward, currency)}</Num>
             </td>
@@ -237,26 +217,26 @@ function StatementDocument({ data, variant }: { data: SupplierStatement; variant
 
           {data.rows.length === 0 ? (
             <tr>
-              <td colSpan={6} className="border border-neutral-200 px-2 py-6 text-center italic text-neutral-400">
+              <td colSpan={11} className="border border-neutral-200 px-2 py-6 text-center italic text-neutral-400">
                 {st.noRows}
               </td>
             </tr>
           ) : (
-            data.rows.map((r, i) => (
-              <StatementRows key={i} row={r} currency={currency} detailed={variant === 'detailed'} />
-            ))
+            data.rows.map((r, i) => <StatementRow key={i} row={r} currency={currency} />)
           )}
 
           {/* Closing / totals */}
           <tr className="bg-neutral-100 font-bold" style={{ pageBreakInside: 'avoid' }}>
-            <td className="border border-neutral-200 px-2 py-2" />
-            <td className="border border-neutral-200 px-2 py-2" />
-            <td className="border border-neutral-200 px-2 py-2">{st.closing}</td>
+            <td className="border border-neutral-200 px-2 py-2" colSpan={6} />
             <td className="border border-neutral-200 px-2 py-2 text-end">
-              <Num>{money(data.totalDebit, currency)}</Num>
+              <Num>{money(data.totalValue, currency)}</Num>
+            </td>
+            <td className="border border-neutral-200 px-2 py-2" />
+            <td className="border border-neutral-200 px-2 py-2 text-end">
+              <Num>{money(data.totalReturnValue, currency)}</Num>
             </td>
             <td className="border border-neutral-200 px-2 py-2 text-end">
-              <Num>{money(data.totalCredit, currency)}</Num>
+              <Num>{money(data.totalPayment, currency)}</Num>
             </td>
             <td className="border border-neutral-200 px-2 py-2 text-end">
               <Num>{money(data.closing, currency)}</Num>
@@ -268,34 +248,30 @@ function StatementDocument({ data, variant }: { data: SupplierStatement; variant
   );
 }
 
-function StatementRows({ row, currency, detailed }: { row: StatementRow; currency: Currency; detailed: boolean }) {
+function StatementRow({ row, currency }: { row: SupplierLedgerRow; currency: Currency }) {
   return (
-    <>
-      <tr style={{ pageBreakInside: 'avoid' }}>
-        <td className="border border-neutral-200 px-2 py-1.5 whitespace-nowrap"><Num>{row.date}</Num></td>
-        <td className="border border-neutral-200 px-2 py-1.5 whitespace-nowrap font-mono text-xs"><Num>{row.ref || '—'}</Num></td>
-        <td className="border border-neutral-200 px-2 py-1.5">{row.description}</td>
-        <td className="border border-neutral-200 px-2 py-1.5 text-end">
-          {row.debit ? <Num>{money(row.debit, currency)}</Num> : ''}
-        </td>
-        <td className="border border-neutral-200 px-2 py-1.5 text-end">
-          {row.credit ? <Num>{money(row.credit, currency)}</Num> : ''}
-        </td>
-        <td className="border border-neutral-200 px-2 py-1.5 text-end font-medium">
-          <Num>{money(row.balance, currency)}</Num>
-        </td>
-      </tr>
-      {detailed && row.lineItems && row.lineItems.length > 0 && row.lineItems.map((li, j) => (
-        <tr key={j} className="text-xs text-neutral-500" style={{ pageBreakInside: 'avoid' }}>
-          <td className="border border-neutral-200 px-2 py-1" />
-          <td className="border border-neutral-200 px-2 py-1" />
-          <td className="border border-neutral-200 px-2 py-1" colSpan={4}>
-            ↳ {li.description} — <Num>{fmtMoney(li.quantity)}</Num> {UNIT_AR[li.unit] ?? li.unit}
-            {' × '}<Num>{money(li.unit_price, currency)}</Num>
-            {' = '}<Num>{money(li.line_total, currency)}</Num>
-          </td>
-        </tr>
-      ))}
-    </>
+    <tr style={{ pageBreakInside: 'avoid' }}>
+      <td className="border border-neutral-200 px-2 py-1.5 whitespace-nowrap font-mono text-xs"><Num>{row.permitNo || '—'}</Num></td>
+      <td className="border border-neutral-200 px-2 py-1.5 whitespace-nowrap"><Num>{row.date}</Num></td>
+      <td className="border border-neutral-200 px-2 py-1.5">{row.description}</td>
+      <td className="border border-neutral-200 px-2 py-1.5">{row.color || '—'}</td>
+      <td className="border border-neutral-200 px-2 py-1.5 text-end"><Num>{qty(row.quantity, row.unit)}</Num></td>
+      <td className="border border-neutral-200 px-2 py-1.5 text-end">
+        {row.unitPrice !== null ? <Num>{money(row.unitPrice, currency)}</Num> : ''}
+      </td>
+      <td className="border border-neutral-200 px-2 py-1.5 text-end">
+        <Num>{money(row.value, currency)}</Num>
+      </td>
+      <td className="border border-neutral-200 px-2 py-1.5 text-end"><Num>{qty(row.returnQty, row.unit)}</Num></td>
+      <td className="border border-neutral-200 px-2 py-1.5 text-end">
+        <Num>{money(row.returnValue, currency)}</Num>
+      </td>
+      <td className="border border-neutral-200 px-2 py-1.5 text-end">
+        <Num>{money(row.payment, currency)}</Num>
+      </td>
+      <td className="border border-neutral-200 px-2 py-1.5 text-end font-medium">
+        <Num>{money(row.balance, currency)}</Num>
+      </td>
+    </tr>
   );
 }

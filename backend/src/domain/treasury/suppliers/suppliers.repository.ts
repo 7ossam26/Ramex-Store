@@ -268,6 +268,7 @@ export async function insertLines(
     lines.map((l) => ({
       supplier_invoice_id: invoiceId,
       description: l.description,
+      color: l.color,
       quantity: l.quantity,
       unit: l.unit,
       unit_price: l.unit_price,
@@ -438,6 +439,7 @@ export async function insertReturnLines(
     lines.map((l) => ({
       supplier_return_id: returnId,
       description: l.description,
+      color: l.color,
       quantity: l.quantity,
       unit: l.unit,
       unit_price: l.unit_price,

@@ -207,9 +207,9 @@ function SupplierFormDialog({
 
 const UNIT_KEYS: Unit[] = ['kg', 'meter', 'roll', 'piece'];
 
-type LineDraft = { description: string; quantity: string; unit: Unit; unit_price: string };
+type LineDraft = { description: string; color: string; quantity: string; unit: Unit; unit_price: string };
 
-const emptyLine = (): LineDraft => ({ description: '', quantity: '1', unit: 'piece', unit_price: '' });
+const emptyLine = (): LineDraft => ({ description: '', color: '', quantity: '1', unit: 'piece', unit_price: '' });
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -238,6 +238,7 @@ function PurchaseInvoiceFormDialog({
     invoice && invoice.lines.length > 0
       ? invoice.lines.map((l) => ({
           description: l.description,
+          color: l.color ?? '',
           quantity: String(Number(l.quantity)),
           unit: l.unit,
           unit_price: String(Number(l.unit_price)),
@@ -256,6 +257,7 @@ function PurchaseInvoiceFormDialog({
         extra_charges: extraCharges === '' ? 0 : Number(extraCharges),
         lines: lines.map((l) => ({
           description: l.description.trim(),
+          color: l.color.trim() || null,
           quantity: Number(l.quantity),
           unit: l.unit,
           unit_price: Number(l.unit_price),
@@ -341,6 +343,10 @@ function PurchaseInvoiceFormDialog({
                   <div className="flex-1 space-y-1">
                     <Label className="text-xs text-foreground-muted">{ar.supplierPayables.lineDescription}</Label>
                     <Input dir="rtl" value={l.description} onChange={(e) => updateLine(i, { description: e.target.value })} />
+                  </div>
+                  <div className="w-32 shrink-0 space-y-1">
+                    <Label className="text-xs text-foreground-muted">{ar.supplierPayables.color}</Label>
+                    <Input dir="rtl" value={l.color} onChange={(e) => updateLine(i, { color: e.target.value })} />
                   </div>
                   <button
                     type="button"
@@ -523,6 +529,7 @@ function InvoiceDetailDialog({
                 <thead className="bg-surface-row-alt text-foreground-muted border-b border-border-subtle">
                   <tr>
                     <th className="py-2 px-3 text-start font-medium">{ar.supplierPayables.lineDescription}</th>
+                    <th className="py-2 px-3 text-center font-medium">{ar.supplierPayables.color}</th>
                     <th className="py-2 px-3 text-end font-medium">{ar.supplierPayables.quantity}</th>
                     <th className="py-2 px-3 text-center font-medium">{ar.supplierPayables.unit}</th>
                     <th className="py-2 px-3 text-end font-medium">{ar.supplierPayables.unitPrice}</th>
@@ -531,11 +538,12 @@ function InvoiceDetailDialog({
                 </thead>
                 <tbody className="divide-y divide-border-subtle bg-surface-elevated">
                   {invoice.lines.length === 0 ? (
-                    <tr><td colSpan={5} className="py-4 text-center text-foreground-muted">{ar.supplierPayables.noLines}</td></tr>
+                    <tr><td colSpan={6} className="py-4 text-center text-foreground-muted">{ar.supplierPayables.noLines}</td></tr>
                   ) : (
                     invoice.lines.map((l) => (
                       <tr key={l.id}>
                         <td className="py-2 px-3 text-foreground">{l.description}</td>
+                        <td className="py-2 px-3 text-center text-foreground-muted">{l.color ?? '—'}</td>
                         <td className="py-2 px-3 text-end tabular-num text-foreground-muted" dir="ltr">{fmtMoney(Number(l.quantity))}</td>
                         <td className="py-2 px-3 text-center text-foreground-muted">{ar.supplierPayables.units[l.unit]}</td>
                         <td className="py-2 px-3 text-end tabular-num text-foreground-muted" dir="ltr">{fmtCurrency(l.unit_price, currency)}</td>
@@ -619,6 +627,7 @@ function PurchaseReturnFormDialog({
     returnDoc && returnDoc.lines.length > 0
       ? returnDoc.lines.map((l) => ({
           description: l.description,
+          color: l.color ?? '',
           quantity: String(Number(l.quantity)),
           unit: l.unit,
           unit_price: String(Number(l.unit_price)),
@@ -636,6 +645,7 @@ function PurchaseReturnFormDialog({
         extra_charges: extraCharges === '' ? 0 : Number(extraCharges),
         lines: lines.map((l) => ({
           description: l.description.trim(),
+          color: l.color.trim() || null,
           quantity: Number(l.quantity),
           unit: l.unit,
           unit_price: Number(l.unit_price),
@@ -721,6 +731,10 @@ function PurchaseReturnFormDialog({
                   <div className="flex-1 space-y-1">
                     <Label className="text-xs text-foreground-muted">{ar.supplierPayables.lineDescription}</Label>
                     <Input dir="rtl" value={l.description} onChange={(e) => updateLine(i, { description: e.target.value })} />
+                  </div>
+                  <div className="w-32 shrink-0 space-y-1">
+                    <Label className="text-xs text-foreground-muted">{ar.supplierPayables.color}</Label>
+                    <Input dir="rtl" value={l.color} onChange={(e) => updateLine(i, { color: e.target.value })} />
                   </div>
                   <button
                     type="button"
@@ -899,6 +913,7 @@ function ReturnDetailDialog({
                 <thead className="bg-surface-row-alt text-foreground-muted border-b border-border-subtle">
                   <tr>
                     <th className="py-2 px-3 text-start font-medium">{ar.supplierPayables.lineDescription}</th>
+                    <th className="py-2 px-3 text-center font-medium">{ar.supplierPayables.color}</th>
                     <th className="py-2 px-3 text-end font-medium">{ar.supplierPayables.quantity}</th>
                     <th className="py-2 px-3 text-center font-medium">{ar.supplierPayables.unit}</th>
                     <th className="py-2 px-3 text-end font-medium">{ar.supplierPayables.unitPrice}</th>
@@ -907,11 +922,12 @@ function ReturnDetailDialog({
                 </thead>
                 <tbody className="divide-y divide-border-subtle bg-surface-elevated">
                   {ret.lines.length === 0 ? (
-                    <tr><td colSpan={5} className="py-4 text-center text-foreground-muted">{ar.supplierPayables.noLines}</td></tr>
+                    <tr><td colSpan={6} className="py-4 text-center text-foreground-muted">{ar.supplierPayables.noLines}</td></tr>
                   ) : (
                     ret.lines.map((l) => (
                       <tr key={l.id}>
                         <td className="py-2 px-3 text-foreground">{l.description}</td>
+                        <td className="py-2 px-3 text-center text-foreground-muted">{l.color ?? '—'}</td>
                         <td className="py-2 px-3 text-end tabular-num text-foreground-muted" dir="ltr">{fmtMoney(Number(l.quantity))}</td>
                         <td className="py-2 px-3 text-center text-foreground-muted">{ar.supplierPayables.units[l.unit]}</td>
                         <td className="py-2 px-3 text-end tabular-num text-foreground-muted" dir="ltr">{fmtCurrency(l.unit_price, currency)}</td>

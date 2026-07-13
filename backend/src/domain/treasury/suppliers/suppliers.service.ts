@@ -76,6 +76,7 @@ function computeTotals(
     assertMoneyInRange(line_total);
     return {
       description: l.description.trim(),
+      color: l.color?.trim() || null,
       quantity: l.quantity,
       unit: l.unit,
       unit_price: l.unit_price,

@@ -1,13 +1,12 @@
 import * as repo from './suppliers.repository.js';
 import { SupplierValidationError } from './suppliers.service.js';
-import {
-  buildStatement,
-  statementToExport,
-  type StatementAccount,
-  type StatementEntry,
-  type StatementResult,
-} from '../../../lib/statements/statement.js';
+import type { StatementAccount, StatementEntry } from '../../../lib/statements/statement.js';
 import type { ReportPdfOptions } from '../../../lib/reports/pdfExport.js';
+import {
+  buildSupplierLedger,
+  supplierLedgerToExport,
+  type SupplierLedgerResult,
+} from './supplierLedger.export.js';
 
 const METHOD_AR: Record<string, string> = {
   cash: 'نقدي',
@@ -52,9 +51,12 @@ export async function loadSupplierAccount(supplierId: number): Promise<Statement
       description: 'فاتورة مشتريات',
       debit,
       credit: 0,
-      ref: inv.internal_no ?? inv.invoice_no ?? '',
+      // Prefer the external permit/إذن number (رقم الاذن) the shop actually
+      // recognises; fall back to the internal PINV number when absent.
+      ref: inv.invoice_no ?? inv.internal_no ?? '',
       lineItems: inv.lines.map((l) => ({
         description: l.description,
+        color: l.color,
         quantity: Number(l.quantity),
         unit: l.unit,
         unit_price: Number(l.unit_price),
@@ -75,9 +77,10 @@ export async function loadSupplierAccount(supplierId: number): Promise<Statement
       description: 'مرتجع مشتريات',
       debit: 0,
       credit,
-      ref: ret.internal_no ?? ret.return_no ?? '',
+      ref: ret.return_no ?? ret.internal_no ?? '',
       lineItems: ret.lines.map((l) => ({
         description: l.description,
+        color: l.color,
         quantity: Number(l.quantity),
         unit: l.unit,
         unit_price: Number(l.unit_price),
@@ -109,24 +112,23 @@ export async function loadSupplierAccount(supplierId: number): Promise<Statement
   };
 }
 
-/** Build the supplier statement for the on-screen preview (`json`). */
+/** Build the supplier fabric-ledger statement for the on-screen preview (`json`). */
 export async function getSupplierStatement(
   supplierId: number,
   from: string,
   to: string,
-): Promise<StatementResult> {
+): Promise<SupplierLedgerResult> {
   const account = await loadSupplierAccount(supplierId);
-  return buildStatement(account, from, to);
+  return buildSupplierLedger(account, from, to);
 }
 
-/** Build the supplier statement mapped to the shared exporter options. */
+/** Build the supplier fabric-ledger statement mapped to the shared exporter options. */
 export async function getSupplierStatementExport(
   supplierId: number,
   from: string,
   to: string,
-  variant: 'summary' | 'detailed',
   generatedAt: string,
 ): Promise<ReportPdfOptions> {
   const result = await getSupplierStatement(supplierId, from, to);
-  return statementToExport(result, variant, generatedAt);
+  return supplierLedgerToExport(result, generatedAt);
 }

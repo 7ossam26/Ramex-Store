@@ -2572,7 +2572,7 @@ function NoLinesDepositDialog({
     mutationFn: () => {
       if (!customer) throw new Error('NO_CUSTOMER');
       const value = Number(amount);
-      if (!Number.isFinite(value) || value <= 0) throw new Error('AMOUNT_INVALID');
+      if (!Number.isFinite(value) || value < 0) throw new Error('AMOUNT_INVALID');
       const bankId = (method === 'instapay' || method === 'bank_transfer')
         ? (bankAccountId === '' ? null : Number(bankAccountId))
         : null;
@@ -2581,13 +2581,13 @@ function NoLinesDepositDialog({
         fulfillmentDestination: destination,
         lines: [],
         cartTargetFinal: null,
-        payments: [{
+        payments: value > 0 ? [{
           method,
           amount: value,
           bankAccountId: bankId,
           reference: method === 'bank_transfer' ? (reference || null) : null,
           chequeDetails: method === 'cheque' ? chequeStateToDetails(chequeState) : null,
-        }],
+        }] : [],
         notesAr: notes || null,
       });
     },
@@ -2707,7 +2707,7 @@ function NoLinesDepositDialog({
             </DialogClose>
             <Button
               className="h-11 cursor-pointer gap-2"
-              disabled={!customer || mut.isPending || Number(amount) <= 0}
+              disabled={!customer || mut.isPending || (amount !== '' && Number(amount) < 0)}
               onClick={() => mut.mutate()}
             >
               <Receipt className="size-4" />

@@ -353,10 +353,12 @@ export async function createSale(
     if (isNoLinesDeposit) {
       // For no-lines deposits the deposit acts as the placeholder total. The
       // running total_egp will be replaced with sum(lines) once lines are
-      // added via addLinesToOpenInvoice.
-      if (paidTotal <= 0) throw new Error('NO_PAYMENT_PROVIDED');
-      totals.total = paidTotal;
-      totals.subtotal = paidTotal;
+      // added via addLinesToOpenInvoice. A zero deposit is allowed — the
+      // invoice opens as an empty shell (total/balance = 0) awaiting lines.
+      if (paidTotal > 0) {
+        totals.total = paidTotal;
+        totals.subtotal = paidTotal;
+      }
     } else {
       if (paidTotal > totals.total) throw new Error('OVERPAYMENT_NOT_ALLOWED');
     }

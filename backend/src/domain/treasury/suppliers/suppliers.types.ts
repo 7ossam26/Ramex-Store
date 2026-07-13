@@ -40,6 +40,7 @@ export type SupplierInvoiceLine = {
   id: number;
   supplier_invoice_id: number;
   description: string;
+  color: string | null;
   quantity: string;
   unit: Unit;
   unit_price: string;
@@ -75,6 +76,7 @@ export type SupplierReturnLine = {
   id: number;
   supplier_return_id: number;
   description: string;
+  color: string | null;
   quantity: string;
   unit: Unit;
   unit_price: string;
@@ -88,6 +90,7 @@ export type SupplierReturnWithLines = SupplierReturn & {
 /** A computed line ready for insertion (line_total already rounded). */
 export type ComputedLine = {
   description: string;
+  color: string | null;
   quantity: number;
   unit: Unit;
   unit_price: number;

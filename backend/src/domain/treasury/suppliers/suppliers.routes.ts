@@ -62,7 +62,6 @@ suppliersRouter.get('/:id/statement', requirePermission('suppliers', 'view'), as
     const id = Number(req.params['id']);
     const from = dateParam(req.query['from'], firstOfCairoMonth());
     const to = dateParam(req.query['to'], cairoToday());
-    const variant = req.query['variant'] === 'detailed' ? 'detailed' : 'summary';
     const format = typeof req.query['format'] === 'string' ? req.query['format'] : 'json';
 
     if (format === 'json') {
@@ -71,7 +70,7 @@ suppliersRouter.get('/:id/statement', requirePermission('suppliers', 'view'), as
     }
 
     const generatedAt = formatCairo(new Date());
-    const opts = await getSupplierStatementExport(id, from, to, variant, generatedAt);
+    const opts = await getSupplierStatementExport(id, from, to, generatedAt);
     const fileBase = `supplier-${id}-statement-${from}_${to}`;
 
     // Audit every file/print export of an account statement.
@@ -80,7 +79,7 @@ suppliersRouter.get('/:id/statement', requirePermission('suppliers', 'view'), as
       action: 'supplier_statement_exported',
       entity: 'supplier',
       entityId: id,
-      after: { from, to, variant, format },
+      after: { from, to, format },
       severity: 'low',
     });
 

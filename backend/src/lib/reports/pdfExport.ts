@@ -36,6 +36,8 @@ export type ReportPdfOptions = {
   subtitleAr?: string;
   generatedAt: string;
   sections: ReportSection[];
+  /** Defaults to 'portrait'. Wide tables (many columns) should use 'landscape'. */
+  orientation?: 'portrait' | 'landscape';
 };
 
 function fmtNum(v: string): string {
@@ -81,7 +83,8 @@ export async function buildReportPdf(opts: ReportPdfOptions): Promise<Buffer> {
     margin: [0, 0, 0, 10],
   });
 
-  content.push({ canvas: [{ type: 'line', x1: 0, y1: 0, x2: 535, y2: 0, lineWidth: 0.5 }] });
+  const contentWidth = opts.orientation === 'landscape' ? 782 : 535;
+  content.push({ canvas: [{ type: 'line', x1: 0, y1: 0, x2: contentWidth, y2: 0, lineWidth: 0.5 }] });
 
   for (const section of opts.sections) {
     content.push({
@@ -133,6 +136,7 @@ export async function buildReportPdf(opts: ReportPdfOptions): Promise<Buffer> {
 
   const docDef: Record<string, unknown> = {
     pageSize: 'A4',
+    pageOrientation: opts.orientation ?? 'portrait',
     pageMargins: [30, 30, 30, 40],
     defaultStyle: { font: 'Amiri', fontSize: 9, alignment: 'right' },
     info: { title: opts.titleAr, author: 'Ramex Store' },

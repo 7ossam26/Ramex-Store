@@ -8,6 +8,7 @@ export type SupplierInvoiceLine = {
   id: number;
   supplier_invoice_id: number;
   description: string;
+  color: string | null;
   quantity: string;
   unit: Unit;
   unit_price: string;
@@ -16,6 +17,7 @@ export type SupplierInvoiceLine = {
 
 export type SupplierInvoiceLineInput = {
   description: string;
+  color?: string | null;
   quantity: number;
   unit: Unit;
   unit_price: number;
@@ -78,6 +80,7 @@ export type SupplierReturnLine = {
   id: number;
   supplier_return_id: number;
   description: string;
+  color: string | null;
   quantity: string;
   unit: Unit;
   unit_price: string;
@@ -139,26 +142,21 @@ export type SupplierLedger = {
   balance: SupplierBalance;
 };
 
-// ─── Account statement ────────────────────────────────────────────────────────
+// ─── Account statement (fabric-ledger format) ─────────────────────────────────
 
-export type StatementLineItem = {
-  description: string;
-  quantity: number;
-  unit: string;
-  unit_price: number;
-  line_total: number;
-};
-
-export type StatementRow = {
+export type SupplierLedgerRow = {
+  permitNo: string;
   date: string;
-  createdAt: string;
-  kind: 'invoice' | 'payment' | 'opening' | 'adjustment' | 'purchase_return';
-  ref: string;
   description: string;
-  debit: number;
-  credit: number;
+  color: string;
+  quantity: number | null;
+  unit: string | null;
+  unitPrice: number | null;
+  value: number | null;
+  returnQty: number | null;
+  returnValue: number | null;
+  payment: number | null;
   balance: number;
-  lineItems?: StatementLineItem[];
 };
 
 export type SupplierStatement = {
@@ -167,19 +165,19 @@ export type SupplierStatement = {
   from: string;
   to: string;
   broughtForward: number;
-  rows: StatementRow[];
-  totalDebit: number;
-  totalCredit: number;
+  rows: SupplierLedgerRow[];
+  totalValue: number;
+  totalReturnValue: number;
+  totalPayment: number;
   closing: number;
 };
 
-export type StatementVariant = 'summary' | 'detailed';
 export type StatementExportFormat = 'pdf' | 'excel' | 'print';
 
 /** Authenticated export/print URL — token in the query so `<a>`/new-tab links auth. */
 export function supplierStatementExportUrl(
   id: number,
-  params: { from: string; to: string; variant: StatementVariant; format: StatementExportFormat },
+  params: { from: string; to: string; format: StatementExportFormat },
 ): string {
   const token = localStorage.getItem('ramex_token') ?? '';
   const query = new URLSearchParams({ ...params, token }).toString();
