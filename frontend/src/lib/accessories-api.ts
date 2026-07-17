@@ -22,4 +22,9 @@ export const accessoriesApi = {
 
   labelBlob: (id: number) =>
     api.get<Blob>(`/accessories/${id}/label`, { responseType: 'blob' }).then((r) => r.data),
+
+  /** POST /api/accessories/labels/batch — returns a single merged PDF Blob. */
+  batchLabelsBlob: (ids: number[]) =>
+    api.post<Blob>('/accessories/labels/batch', { ids }, { responseType: 'blob' }).then((r) => r.data),
 };
+

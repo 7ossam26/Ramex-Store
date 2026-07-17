@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { accessoriesApi } from '@/lib/accessories-api';
+import type { Accessory } from '@/lib/accessories-types';
 import { extractApiError } from '@/lib/api-error';
 import { openPdfBlob } from '@/lib/pdf';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,9 @@ type FormErrors = {
   name_ar?: string;
   quantity?: string;
 };
+
+// Minimal shape needed to display the queue row and drive the batch print.
+type QueueItem = Pick<Accessory, 'id' | 'internal_barcode' | 'name_ar' | 'qty_in_stock'>;
 
 function validate(name: string, qty: string): FormErrors {
   const errs: FormErrors = {};
@@ -37,8 +41,19 @@ export function AddAccessoryPage() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [lastBarcode, setLastBarcode] = useState<string | null>(null);
 
-  const labelMut = useMutation({
-    mutationFn: (id: number) => accessoriesApi.labelBlob(id),
+  // ── Print queue (additive — does not change any existing behaviour) ──────
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+
+  const removeFromQueue = (id: number) =>
+    setQueue((prev) => prev.filter((item) => item.id !== id));
+
+  const clearQueue = () => setQueue([]);
+  // ────────────────────────────────────────────────────────────────────────
+
+
+  // Batch-print mutation — used only by the "Print All" button.
+  const batchMut = useMutation({
+    mutationFn: (ids: number[]) => accessoriesApi.batchLabelsBlob(ids),
     onSuccess: (blob) => openPdfBlob(blob),
   });
 
@@ -58,7 +73,16 @@ export function AddAccessoryPage() {
       setPrice('');
       setNotes('');
       setErrors({});
-      labelMut.mutate(acc.id);
+      // ── Push to the print queue ──────────────────────────────────────────
+      setQueue((prev) => [
+        ...prev,
+        {
+          id: acc.id,
+          internal_barcode: acc.internal_barcode,
+          name_ar: acc.name_ar,
+          qty_in_stock: acc.qty_in_stock,
+        },
+      ]);
     },
     onError: (err) => {
       setServerError(extractApiError(err));
@@ -76,6 +100,8 @@ export function AddAccessoryPage() {
     setServerError(null);
     createMut.mutate();
   }
+
+  const isPrinting = createMut.isPending;
 
   return (
     <PageShell title={t.navTitle} description="تسجيل اكسسوار جديد بالكمية بالقطع" backTo="/items">
@@ -157,12 +183,77 @@ export function AddAccessoryPage() {
           )}
 
           <div className="mt-6 flex justify-end">
-            <Button type="submit" disabled={createMut.isPending || labelMut.isPending} className="h-10 px-6">
-              {createMut.isPending ? '…' : t.submitButton}
+            <Button type="submit" disabled={createMut.isPending} className="h-10 px-6">
+              {isPrinting ? '…' : t.submitButton}
             </Button>
           </div>
         </form>
       </SectionCard>
+
+      {/* ── Print queue section ──────────────────────────────────────────── */}
+      <SectionCard className="mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold">{t.queue.sectionTitle}</h2>
+          <div className="flex gap-2">
+            {queue.length > 0 && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearQueue}
+                  disabled={batchMut.isPending}
+                >
+                  {t.queue.clearBtn}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => batchMut.mutate(queue.map((item) => item.id))}
+                  disabled={batchMut.isPending}
+                >
+                  {batchMut.isPending ? t.queue.printingAll : t.queue.printAllBtn}
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {queue.length === 0 ? (
+          <p className="text-muted-foreground text-sm text-center py-6">{t.queue.empty}</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-muted-foreground">
+                  <th className="text-right pb-2 font-medium">{t.queue.colBarcode}</th>
+                  <th className="text-right pb-2 font-medium">{t.queue.colName}</th>
+                  <th className="text-right pb-2 font-medium">{t.queue.colQty}</th>
+                  <th className="pb-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {queue.map((item) => (
+                  <tr key={item.id} className="border-b last:border-0">
+                    <td className="py-2 font-mono text-xs">{item.internal_barcode}</td>
+                    <td className="py-2">{item.name_ar}</td>
+                    <td className="py-2">{item.qty_in_stock}</td>
+                    <td className="py-2 text-left">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive h-7 px-2"
+                        onClick={() => removeFromQueue(item.id)}
+                      >
+                        {t.queue.removeBtn}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SectionCard>
+      {/* ── End print queue section ──────────────────────────────────────── */}
     </PageShell>
   );
 }

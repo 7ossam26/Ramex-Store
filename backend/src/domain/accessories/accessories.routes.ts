@@ -22,12 +22,20 @@ accessoriesRouter.get(
   ctl.searchAccessories,
 );
 
-// Label PDF
+// Label PDF — single
 accessoriesRouter.get(
   '/accessories/:id/label',
   requirePermission('accessories', 'read'),
   ctl.getAccessoryLabel,
 );
+
+// Batch label PDF — POST body: { ids: number[] }
+accessoriesRouter.post(
+  '/accessories/labels/batch',
+  requirePermission('accessories', 'read'),
+  ctl.batchLabels,
+);
+
 
 // Create
 accessoriesRouter.post(
