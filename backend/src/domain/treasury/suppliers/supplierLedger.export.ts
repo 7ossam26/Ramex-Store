@@ -206,16 +206,15 @@ const UNIT_AR: Record<string, string> = {
   piece: 'قطعة',
 };
 
-function fmtAmount(n: number, currency: Currency): string {
-  const s = Number(n).toLocaleString('en-US', {
+function fmtAmount(n: number): string {
+  return Number(n).toLocaleString('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  return `${s} ${CURRENCY_SYMBOL[currency]}`;
 }
 
-function fmtOrBlank(n: number | null, currency: Currency): string {
-  return n === null || n === 0 ? '' : fmtAmount(n, currency);
+function fmtOrBlank(n: number | null): string {
+  return n === null || n === 0 ? '' : fmtAmount(n);
 }
 
 function fmtQty(n: number | null): string {
@@ -233,10 +232,11 @@ export function supplierLedgerToExport(
     { label: 'البيان', key: 'description', width: '*' as const },
     { label: 'اللون', key: 'color', width: 'auto' as const },
     { label: 'الكمية', key: 'quantity', width: 'auto' as const },
-    { label: 'السعر', key: 'unitPrice', width: 'auto' as const },
-    { label: 'القيمة', key: 'value', width: 'auto' as const },
+    { label: 'الوحدة', key: 'unit', width: 'auto' as const },
+    { label: `السعر (${CURRENCY_SYMBOL[currency]})`, key: 'unitPrice', width: 'auto' as const },
+    { label: `القيمة (${CURRENCY_SYMBOL[currency]})`, key: 'value', width: 'auto' as const },
     { label: 'كمية المرتجع', key: 'returnQty', width: 'auto' as const },
-    { label: 'قيمة المرتجع', key: 'returnValue', width: 'auto' as const },
+    { label: `قيمة المرتجع (${CURRENCY_SYMBOL[currency]})`, key: 'returnValue', width: 'auto' as const },
     { label: 'الدفعات', key: 'payment', width: 'auto' as const },
     { label: 'الرصيد', key: 'balance', width: 'auto' as const, bold: true },
   ];
@@ -249,12 +249,13 @@ export function supplierLedgerToExport(
     description: 'رصيد سابق',
     color: '',
     quantity: '',
+    unit: '',
     unitPrice: '',
     value: '',
     returnQty: '',
     returnValue: '',
     payment: '',
-    balance: fmtAmount(result.broughtForward, currency),
+    balance: fmtAmount(result.broughtForward),
   });
 
   for (const r of result.rows) {
@@ -264,13 +265,14 @@ export function supplierLedgerToExport(
       date: r.date,
       description: r.description,
       color: r.color,
-      quantity: r.quantity === null ? '' : `${fmtQty(r.quantity)} ${unitAr}`,
-      unitPrice: fmtOrBlank(r.unitPrice, currency),
-      value: fmtOrBlank(r.value, currency),
-      returnQty: r.returnQty === null ? '' : `${fmtQty(r.returnQty)} ${unitAr}`,
-      returnValue: fmtOrBlank(r.returnValue, currency),
-      payment: fmtOrBlank(r.payment, currency),
-      balance: fmtAmount(r.balance, currency),
+      quantity: r.quantity === null ? '' : fmtQty(r.quantity),
+      unit: unitAr,
+      unitPrice: fmtOrBlank(r.unitPrice),
+      value: fmtOrBlank(r.value),
+      returnQty: r.returnQty === null ? '' : fmtQty(r.returnQty),
+      returnValue: fmtOrBlank(r.returnValue),
+      payment: fmtOrBlank(r.payment),
+      balance: fmtAmount(r.balance),
     });
   }
 
@@ -280,10 +282,10 @@ export function supplierLedgerToExport(
     rows,
     totals: {
       description: 'الإجمالي',
-      value: fmtAmount(result.totalValue, currency),
-      returnValue: fmtAmount(result.totalReturnValue, currency),
-      payment: fmtAmount(result.totalPayment, currency),
-      balance: fmtAmount(result.closing, currency),
+      value: fmtAmount(result.totalValue),
+      returnValue: fmtAmount(result.totalReturnValue),
+      payment: fmtAmount(result.totalPayment),
+      balance: fmtAmount(result.closing),
     },
     emptyAr: 'لا توجد حركات في هذه الفترة',
   };

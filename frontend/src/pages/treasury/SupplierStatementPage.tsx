@@ -36,18 +36,17 @@ function Num({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Money with the account's currency symbol; blank for zero/null (value/return/payment cells). */
-function money(n: number | null, currency: Currency): string {
+/** Money formatted as a bare number; blank for zero/null. */
+function money(n: number | null): string {
   if (n === null || n === 0) return '';
-  return `${fmtMoney(n)} ${currencySymbol(currency)}`;
+  return fmtMoney(n);
 }
 
 const UNIT_AR: Record<string, string> = { kg: 'كجم', meter: 'متر', roll: 'توب', piece: 'قطعة' };
 
-function qty(n: number | null, unit: string | null): string {
+function qty(n: number | null): string {
   if (n === null) return '';
-  const unitAr = unit ? (UNIT_AR[unit] ?? unit) : '';
-  return `${fmtMoney(n)} ${unitAr}`.trim();
+  return fmtMoney(n);
 }
 
 function triggerDownload(url: string): void {
@@ -196,10 +195,11 @@ function StatementDocument({ data }: { data: SupplierStatement }) {
             <th className="border border-neutral-200 px-2 py-1.5 text-start font-semibold">{st.description}</th>
             <th className="border border-neutral-200 px-2 py-1.5 text-start font-semibold">{st.color}</th>
             <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.quantity}</th>
-            <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.unitPrice}</th>
-            <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.value}</th>
+            <th className="border border-neutral-200 px-2 py-1.5 text-center font-semibold">الوحدة</th>
+            <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.unitPrice} ({currencySymbol(currency)})</th>
+            <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.value} ({currencySymbol(currency)})</th>
             <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.returnQty}</th>
-            <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.returnValue}</th>
+            <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.returnValue} ({currencySymbol(currency)})</th>
             <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.payment}</th>
             <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.balance}</th>
           </tr>
@@ -209,37 +209,37 @@ function StatementDocument({ data }: { data: SupplierStatement }) {
           <tr className="bg-neutral-50 font-medium" style={{ pageBreakInside: 'avoid' }}>
             <td className="border border-neutral-200 px-2 py-1.5" colSpan={2} />
             <td className="border border-neutral-200 px-2 py-1.5">{st.broughtForward}</td>
-            <td className="border border-neutral-200 px-2 py-1.5" colSpan={7} />
+            <td className="border border-neutral-200 px-2 py-1.5" colSpan={8} />
             <td className="border border-neutral-200 px-2 py-1.5 text-end">
-              <Num>{money(data.broughtForward, currency)}</Num>
+              <Num>{money(data.broughtForward)}</Num>
             </td>
           </tr>
 
           {data.rows.length === 0 ? (
             <tr>
-              <td colSpan={11} className="border border-neutral-200 px-2 py-6 text-center italic text-neutral-400">
+              <td colSpan={12} className="border border-neutral-200 px-2 py-6 text-center italic text-neutral-400">
                 {st.noRows}
               </td>
             </tr>
           ) : (
-            data.rows.map((r, i) => <StatementRow key={i} row={r} currency={currency} />)
+            data.rows.map((r, i) => <StatementRow key={i} row={r} />)
           )}
 
           {/* Closing / totals */}
           <tr className="bg-neutral-100 font-bold" style={{ pageBreakInside: 'avoid' }}>
-            <td className="border border-neutral-200 px-2 py-2" colSpan={6} />
+            <td className="border border-neutral-200 px-2 py-2" colSpan={7} />
             <td className="border border-neutral-200 px-2 py-2 text-end">
-              <Num>{money(data.totalValue, currency)}</Num>
+              <Num>{money(data.totalValue)}</Num>
             </td>
             <td className="border border-neutral-200 px-2 py-2" />
             <td className="border border-neutral-200 px-2 py-2 text-end">
-              <Num>{money(data.totalReturnValue, currency)}</Num>
+              <Num>{money(data.totalReturnValue)}</Num>
             </td>
             <td className="border border-neutral-200 px-2 py-2 text-end">
-              <Num>{money(data.totalPayment, currency)}</Num>
+              <Num>{money(data.totalPayment)}</Num>
             </td>
             <td className="border border-neutral-200 px-2 py-2 text-end">
-              <Num>{money(data.closing, currency)}</Num>
+              <Num>{money(data.closing)}</Num>
             </td>
           </tr>
         </tbody>
@@ -248,29 +248,31 @@ function StatementDocument({ data }: { data: SupplierStatement }) {
   );
 }
 
-function StatementRow({ row, currency }: { row: SupplierLedgerRow; currency: Currency }) {
+function StatementRow({ row }: { row: SupplierLedgerRow }) {
+  const unitAr = row.unit ? (UNIT_AR[row.unit] ?? row.unit) : '';
   return (
     <tr style={{ pageBreakInside: 'avoid' }}>
       <td className="border border-neutral-200 px-2 py-1.5 whitespace-nowrap font-mono text-xs"><Num>{row.permitNo || '—'}</Num></td>
       <td className="border border-neutral-200 px-2 py-1.5 whitespace-nowrap"><Num>{row.date}</Num></td>
       <td className="border border-neutral-200 px-2 py-1.5">{row.description}</td>
       <td className="border border-neutral-200 px-2 py-1.5">{row.color || '—'}</td>
-      <td className="border border-neutral-200 px-2 py-1.5 text-end"><Num>{qty(row.quantity, row.unit)}</Num></td>
+      <td className="border border-neutral-200 px-2 py-1.5 text-end"><Num>{qty(row.quantity)}</Num></td>
+      <td className="border border-neutral-200 px-2 py-1.5 text-center">{unitAr}</td>
       <td className="border border-neutral-200 px-2 py-1.5 text-end">
-        {row.unitPrice !== null ? <Num>{money(row.unitPrice, currency)}</Num> : ''}
+        {row.unitPrice !== null ? <Num>{money(row.unitPrice)}</Num> : ''}
       </td>
       <td className="border border-neutral-200 px-2 py-1.5 text-end">
-        <Num>{money(row.value, currency)}</Num>
+        <Num>{money(row.value)}</Num>
       </td>
-      <td className="border border-neutral-200 px-2 py-1.5 text-end"><Num>{qty(row.returnQty, row.unit)}</Num></td>
+      <td className="border border-neutral-200 px-2 py-1.5 text-end"><Num>{qty(row.returnQty)}</Num></td>
       <td className="border border-neutral-200 px-2 py-1.5 text-end">
-        <Num>{money(row.returnValue, currency)}</Num>
+        <Num>{money(row.returnValue)}</Num>
       </td>
       <td className="border border-neutral-200 px-2 py-1.5 text-end">
-        <Num>{money(row.payment, currency)}</Num>
+        <Num>{money(row.payment)}</Num>
       </td>
       <td className="border border-neutral-200 px-2 py-1.5 text-end font-medium">
-        <Num>{money(row.balance, currency)}</Num>
+        <Num>{money(row.balance)}</Num>
       </td>
     </tr>
   );
