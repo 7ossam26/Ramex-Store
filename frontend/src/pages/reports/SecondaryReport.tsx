@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { reportsApi } from '@/lib/reports-api';
+import { inventoryApi } from '@/lib/inventory-api';
 import { ar } from '@/i18n/ar';
 import { ReportShell, ReportTable, type DateRange } from './ReportShell';
 import { Input } from '@/components/ui/input';
@@ -31,6 +32,7 @@ type ReportConfig = {
   totals?: (data: unknown) => Record<string, string | number> | undefined;
   needsDateRange: boolean;
   needsCustomer?: boolean;
+  needsFabricColor?: boolean;
   chart?: ChartConfig;
 };
 
@@ -55,6 +57,7 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
   salesByFabricColor: {
     titleAr: ar.reports.salesByFabricColor,
     needsDateRange: true,
+    needsFabricColor: true,
     columns: [
       { label: 'الخامة', key: 'fabric_name_ar' },
       { label: 'اللون', key: 'color_name_ar' },
@@ -638,6 +641,9 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
   },
 };
 
+const selectClass =
+  'flex h-10 w-40 rounded border border-border bg-canvas px-3 py-2 text-sm focus-visible:outline-none focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 cursor-pointer appearance-none';
+
 function cairoToday(): string {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' }))
     .toISOString()
@@ -651,17 +657,32 @@ export function SecondaryReportPage() {
 
   const [range, setRange] = useState<DateRange>({ from: cairoToday(), to: cairoToday() });
   const [customerId, setCustomerId] = useState('');
+  const [fabricId, setFabricId] = useState('');
+  const [colorId, setColorId] = useState('');
+
+  const fabricsQ = useQuery({
+    queryKey: ['fabrics'],
+    queryFn: inventoryApi.listFabrics,
+    enabled: Boolean(config?.needsFabricColor),
+  });
+  const colorsQ = useQuery({
+    queryKey: ['colors'],
+    queryFn: inventoryApi.listColors,
+    enabled: Boolean(config?.needsFabricColor),
+  });
 
   const params: Record<string, string | number | undefined> = {
     from: range.from,
     to: range.to,
     ...(config?.needsCustomer && customerId ? { customerId: Number(customerId) } : {}),
+    ...(config?.needsFabricColor && fabricId ? { fabricId: Number(fabricId) } : {}),
+    ...(config?.needsFabricColor && colorId ? { colorId: Number(colorId) } : {}),
   };
 
   const enabled = !config?.needsCustomer || Boolean(customerId);
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['report-secondary', key, range.from, range.to, customerId],
+    queryKey: ['report-secondary', key, range.from, range.to, customerId, fabricId, colorId],
     queryFn: () => reportsApi.getSecondary(key, params),
     enabled,
   });
@@ -680,6 +701,8 @@ export function SecondaryReportPage() {
     to: range.to,
     token,
     ...(customerId ? { customerId } : {}),
+    ...(fabricId ? { fabricId } : {}),
+    ...(colorId ? { colorId } : {}),
   });
   const pdfUrl = `/api/reports/secondary/${key}/export?${exportParams}&format=pdf`;
   const excelUrl = `/api/reports/secondary/${key}/export?${exportParams}&format=excel`;
@@ -720,21 +743,63 @@ export function SecondaryReportPage() {
       loading={isLoading}
       chart={chartPane}
       extraFilters={
-        config.needsCustomer ? (
-          <div className="space-y-1">
-            <Label className="text-xs text-foreground-muted">
-              {ar.reports.selectCustomer} (ID)
-            </Label>
-            <Input
-              type="number"
-              inputMode="numeric"
-              step="1"
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              placeholder="رقم العميل"
-              className="h-10 w-32"
-            />
-          </div>
+        config.needsCustomer || config.needsFabricColor ? (
+          <>
+            {config.needsCustomer && (
+              <div className="space-y-1">
+                <Label className="text-xs text-foreground-muted">
+                  {ar.reports.selectCustomer} (ID)
+                </Label>
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  step="1"
+                  value={customerId}
+                  onChange={(e) => setCustomerId(e.target.value)}
+                  placeholder="رقم العميل"
+                  className="h-10 w-32"
+                />
+              </div>
+            )}
+            {config.needsFabricColor && (
+              <>
+                <div className="space-y-1">
+                  <Label className="text-xs text-foreground-muted">{ar.labels.fabricFilter}</Label>
+                  <select
+                    value={fabricId}
+                    onChange={(e) => setFabricId(e.target.value)}
+                    disabled={fabricsQ.isLoading}
+                    dir="rtl"
+                    className={selectClass}
+                  >
+                    <option value="">كل الخامات</option>
+                    {(fabricsQ.data ?? []).map((f) => (
+                      <option key={f.id} value={String(f.id)}>
+                        {f.name_ar}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-foreground-muted">{ar.labels.colorFilter}</Label>
+                  <select
+                    value={colorId}
+                    onChange={(e) => setColorId(e.target.value)}
+                    disabled={colorsQ.isLoading}
+                    dir="rtl"
+                    className={selectClass}
+                  >
+                    <option value="">كل الألوان</option>
+                    {(colorsQ.data ?? []).map((c) => (
+                      <option key={c.id} value={String(c.id)}>
+                        {c.name_ar}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+          </>
         ) : undefined
       }
     >

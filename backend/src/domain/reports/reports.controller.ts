@@ -116,7 +116,12 @@ export const getSecondaryReportJson: RequestHandler = async (req, res) => {
     const to = dateParam(req.query['to'], cairoToday()) + 'T23:59:59.999Z';
 
     switch (key) {
-      case 'salesByFabricColor': res.json(await getSalesByFabricColor(from, to)); break;
+      case 'salesByFabricColor': {
+        const fabricId = req.query['fabricId'] ? Number(req.query['fabricId']) : undefined;
+        const colorId = req.query['colorId'] ? Number(req.query['colorId']) : undefined;
+        res.json(await getSalesByFabricColor(from, to, fabricId, colorId));
+        break;
+      }
       case 'customerLedger': {
         const cid = Number(req.query['customerId']);
         if (!cid) { res.status(400).json({ error: 'customerId required' }); return; }
@@ -170,7 +175,9 @@ export const exportSecondaryReport: RequestHandler = async (req, res) => {
     let opts;
     switch (key) {
       case 'salesByFabricColor': {
-        const data = await getSalesByFabricColor(from, to);
+        const fabricId = req.query['fabricId'] ? Number(req.query['fabricId']) : undefined;
+        const colorId = req.query['colorId'] ? Number(req.query['colorId']) : undefined;
+        const data = await getSalesByFabricColor(from, to, fabricId, colorId);
         opts = salesByFabricColorToExport(data, fromDisplay, toDisplay, generatedAt);
         break;
       }

@@ -34,13 +34,27 @@ export const UpdateCustomerSchema = z
   .refine((v) => Object.keys(v).length > 0, { message: 'يجب تحديد حقل واحد على الأقل' });
 export type UpdateCustomerInput = z.infer<typeof UpdateCustomerSchema>;
 
+// Balance-direction filter (ledger sign convention): debt = balance < 0
+// (customer owes us / مدين), credit = balance > 0 (دائن), settled = 0 (متعادل).
+export const BalanceFilterSchema = z.enum(['all', 'debt', 'credit', 'settled']).optional().default('all');
+
 export const ListCustomersQuerySchema = z.object({
   search: z.string().optional(),
+  balance: BalanceFilterSchema,
   sort: z.enum(['name_ar', 'created_at', 'lifetime_volume_egp']).optional().default('created_at'),
   page: z.coerce.number().int().min(1).optional().default(1),
   limit: z.coerce.number().int().min(1).max(100).optional().default(30),
 });
 export type ListCustomersQueryInput = z.infer<typeof ListCustomersQuerySchema>;
+
+// Whole-list export (no pagination) — reuses the same search + balance filters.
+export const ListCustomersExportQuerySchema = z.object({
+  search: z.string().optional(),
+  balance: BalanceFilterSchema,
+  sort: z.enum(['name_ar', 'created_at', 'lifetime_volume_egp']).optional().default('created_at'),
+  format: z.enum(['pdf', 'excel', 'print']).optional().default('pdf'),
+});
+export type ListCustomersExportQueryInput = z.infer<typeof ListCustomersExportQuerySchema>;
 
 export const LedgerQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),

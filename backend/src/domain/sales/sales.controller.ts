@@ -33,7 +33,6 @@ const ERR_MAP: Record<string, { status: number; message: string }> = {
   },
   NO_PAYMENT_PROVIDED: { status: 400, message: 'يجب إدخال طريقة دفع واحدة على الأقل' },
   OVERPAYMENT_NOT_ALLOWED: { status: 400, message: 'مجموع الدفعات أكبر من الإجمالي' },
-  DEPOSIT_BELOW_MIN: { status: 400, message: 'العربون أقل من الحد الأدنى المطلوب' },
   NO_DEFAULT_BANK_ACCOUNT: { status: 500, message: 'لا يوجد حساب بنكي افتراضي' },
   INVOICE_NOT_VOIDABLE: { status: 409, message: 'لا يمكن إلغاء هذه الفاتورة' },
   VOID_TIME_LIMIT_EXCEEDED: { status: 409, message: 'انتهت فترة السماح بإلغاء الفاتورة' },

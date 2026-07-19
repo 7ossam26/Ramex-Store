@@ -28,7 +28,6 @@ const ERR_MAP: Record<string, { status: number; message: string }> = {
   NO_DEFAULT_BANK_ACCOUNT: { status: 500, message: 'لا يوجد حساب بنكي افتراضي' },
   NO_PAYMENT_PROVIDED: { status: 400, message: 'يجب إدخال طريقة دفع' },
   OVERPAYMENT_NOT_ALLOWED: { status: 400, message: 'مجموع الدفعات أكبر من الإجمالي' },
-  DEPOSIT_BELOW_MIN: { status: 400, message: 'العربون أقل من الحد الأدنى' },
 };
 
 function handleDomainError(e: unknown, res: Response): boolean {

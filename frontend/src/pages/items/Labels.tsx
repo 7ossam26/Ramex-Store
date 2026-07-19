@@ -4,9 +4,12 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { itemsApi } from '@/lib/items-api';
 import { inventoryApi } from '@/lib/inventory-api';
+import { accessoriesApi } from '@/lib/accessories-api';
 import { openPdfBlob } from '@/lib/pdf';
 import type { RollWithDetails } from '@/lib/items-types';
+import type { Accessory } from '@/lib/accessories-types';
 import { rollQtyLabel } from '@/lib/fabric-unit';
+import { usePermissions } from '@/lib/permissions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,18 +23,56 @@ import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
 import { PageShell } from '@/components/Layout/PageShell';
 import { RollStatusPill } from '@/components/items/RollStatusPill';
+import { StatusPill } from '@/components/StatusPill';
+
+type ItemType = 'all' | 'tops' | 'accessories';
+
+// A Labels-page row is either a fabric roll (توب) or an accessory (اكسسوار).
+// Both carry `id`, `internal_barcode` and `created_at`; the `kind` discriminant
+// lets the shared table, selection and print flows treat them uniformly while
+// each still routes to its own existing label endpoint.
+type LabelRow =
+  | ({ kind: 'roll' } & RollWithDetails)
+  | ({ kind: 'accessory' } & Accessory);
+
+// Composite key — a roll and an accessory can share a numeric id, so the
+// selection Set and table rowKey are namespaced by kind (`roll:12`, `accessory:12`).
+const rowKeyOf = (row: LabelRow) => `${row.kind}:${row.id}`;
+
+type Filters = {
+  barcode: string;
+  fabric: string;
+  color: string;
+  rollSrNo: string;
+  status: string;
+  warehouse: string;
+  itemType: ItemType;
+};
+
+const EMPTY_FILTERS: Filters = {
+  barcode: '', fabric: '', color: '', rollSrNo: '', status: '', warehouse: '', itemType: 'all',
+};
 
 export function LabelsPage() {
-  const [filters, setFilters] = useState({ barcode: '', fabric: '', color: '', rollSrNo: '', status: '', warehouse: '' });
-  const [applied, setApplied] = useState<typeof filters | null>({ barcode: '', fabric: '', color: '', rollSrNo: '', status: '', warehouse: '' });
-  const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [reprintTarget, setReprintTarget] = useState<RollWithDetails | null>(null);
+  const { can } = usePermissions();
+  const canReadAccessories = can('accessories', 'read');
+
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [applied, setApplied] = useState<Filters | null>(EMPTY_FILTERS);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [reprintTarget, setReprintTarget] = useState<LabelRow | null>(null);
   const [reprintReason, setReprintReason] = useState('');
 
   const fabricsQ = useQuery({ queryKey: ['fabrics-list'], queryFn: inventoryApi.listFabrics });
   const colorsQ = useQuery({ queryKey: ['colors-list'], queryFn: inventoryApi.listColors });
 
-  const q = useQuery({
+  // Tops drop out only when the user has explicitly narrowed to accessories.
+  const rollsEnabled = applied !== null && applied.itemType !== 'accessories';
+  // Accessories participate whenever the user can read them and hasn't narrowed to tops.
+  const accessoriesEnabled =
+    applied !== null && applied.itemType !== 'tops' && canReadAccessories;
+
+  const rollsQ = useQuery({
     queryKey: ['rolls-search', applied],
     queryFn: () =>
       applied
@@ -43,22 +84,48 @@ export function LabelsPage() {
             warehouse: applied.warehouse || undefined,
           })
         : Promise.resolve<RollWithDetails[]>([]),
-    enabled: applied !== null,
+    enabled: rollsEnabled,
   });
 
+  // Shares the AccessoriesList cache key so creating an accessory (which
+  // invalidates ['accessories-list']) refreshes this queue too. Barcode/type
+  // filtering happens client-side below.
+  const accessoriesQ = useQuery({
+    queryKey: ['accessories-list'],
+    queryFn: () => accessoriesApi.list(),
+    enabled: accessoriesEnabled,
+  });
+
+  // Batch print — splits the mixed selection back into its two native endpoints.
+  // Rolls and accessories use different label stock (100×150 vs 100×60 mm), so
+  // each yields its own PDF and both open; no new/merged print path is created.
   const batchMut = useMutation({
-    mutationFn: (ids: number[]) => itemsApi.batchLabelsPdf(ids),
-    onSuccess: (blob) => openPdfBlob(blob),
+    mutationFn: async (keys: string[]) => {
+      const rollIds = keys.filter((k) => k.startsWith('roll:')).map((k) => Number(k.slice(5)));
+      const accIds = keys.filter((k) => k.startsWith('accessory:')).map((k) => Number(k.slice(10)));
+      const blobs: Blob[] = [];
+      if (rollIds.length) blobs.push(await itemsApi.batchLabelsPdf(rollIds));
+      if (accIds.length) blobs.push(await accessoriesApi.batchLabelsBlob(accIds));
+      return blobs;
+    },
+    onSuccess: (blobs) => blobs.forEach(openPdfBlob),
   });
 
-  const labelPdfMut = useMutation({
-    mutationFn: (rollId: number) => itemsApi.labelPdfBlob(rollId),
-    onSuccess: (blob) => openPdfBlob(blob),
+  // Single-row print — routes to the roll or accessory label endpoint by kind.
+  const printMut = useMutation({
+    mutationFn: (row: LabelRow) =>
+      row.kind === 'roll' ? itemsApi.labelPdfBlob(row.id) : accessoriesApi.labelBlob(row.id),
+    onSuccess: openPdfBlob,
   });
 
+  // Reprint-with-reason (lost/damaged sticker) — an identical action for both
+  // kinds: same dialog, same required reason, same server-side `label_reprinted`
+  // audit — each routed to its own existing reprint endpoint.
   const reprintMut = useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
-      itemsApi.reprintLabel(id, reason),
+    mutationFn: ({ row, reason }: { row: LabelRow; reason: string }) =>
+      row.kind === 'roll'
+        ? itemsApi.reprintLabel(row.id, reason)
+        : accessoriesApi.reprintLabel(row.id, reason),
     onSuccess: (blob) => {
       openPdfBlob(blob);
       setReprintTarget(null);
@@ -66,25 +133,70 @@ export function LabelsPage() {
     },
   });
 
-  const rolls = (q.data ?? []).filter((r) => {
-    if (applied?.status && r.status !== applied.status) return false;
-    if (applied?.warehouse === 'shop' && r.status !== 'in_stock') return false;
-    return true;
-  });
-  const activeFilters = Object.values(filters).filter((v) => v.trim()).length;
+  // ── Assemble the unified row list ────────────────────────────────────────
+  const rollRows: LabelRow[] = rollsEnabled
+    ? (rollsQ.data ?? [])
+        .filter((r) => {
+          if (applied?.status && r.status !== applied.status) return false;
+          if (applied?.warehouse === 'shop' && r.status !== 'in_stock') return false;
+          return true;
+        })
+        .map((r): LabelRow => ({ kind: 'roll', ...r }))
+    : [];
+
+  const accessoryRows: LabelRow[] = accessoriesEnabled
+    ? (accessoriesQ.data ?? [])
+        .filter((a) => {
+          const bc = applied?.barcode.trim().toLowerCase();
+          if (bc && !a.internal_barcode.toLowerCase().includes(bc)) return false;
+          // Roll-attribute filters (fabric/color/SR/warehouse/status) can't apply to
+          // an accessory. In "all" mode they narrow the view to tops, so drop
+          // accessories when any is active; in "accessories" mode they're ignored.
+          if (
+            applied?.itemType === 'all' &&
+            (applied.fabric || applied.color || applied.rollSrNo || applied.warehouse || applied.status)
+          ) {
+            return false;
+          }
+          return true;
+        })
+        .map((a): LabelRow => ({ kind: 'accessory', ...a }))
+    : [];
+
+  const rows: LabelRow[] = [...rollRows, ...accessoryRows];
+  // In the combined view, interleave by recency so a just-created top OR
+  // accessory surfaces at the top of the queue.
+  if (applied?.itemType === 'all') {
+    rows.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+  }
+
+  const isFetching = rollsQ.isFetching || accessoriesQ.isFetching;
+  const isLoading =
+    (rollsEnabled && rollsQ.isLoading) || (accessoriesEnabled && accessoriesQ.isLoading);
+  // Only the tops query drives the page-level error state — a failed accessories
+  // fetch degrades to "no accessories" rather than blocking the tops workflow.
+  const isError = rollsEnabled && rollsQ.isError;
+  const refetch = () => {
+    if (rollsEnabled) rollsQ.refetch();
+    if (accessoriesEnabled) accessoriesQ.refetch();
+  };
+
+  const activeFilters = Object.entries(filters).filter(([k, v]) =>
+    k === 'itemType' ? v !== 'all' : String(v).trim(),
+  ).length;
   const resetKey = JSON.stringify(applied);
 
-  function toggleSelect(id: number) {
+  function toggleSelect(key: string) {
     setSelected((s) => {
       const next = new Set(s);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
   }
 
   function toggleAll() {
-    if (selected.size === rolls.length) setSelected(new Set());
-    else setSelected(new Set(rolls.map((r) => r.id)));
+    if (selected.size === rows.length) setSelected(new Set());
+    else setSelected(new Set(rows.map(rowKeyOf)));
   }
 
   function handleSearch() {
@@ -93,9 +205,8 @@ export function LabelsPage() {
   }
 
   function handleReset() {
-    const empty = { barcode: '', fabric: '', color: '', rollSrNo: '', status: '', warehouse: '' };
-    setFilters(empty);
-    setApplied(empty);
+    setFilters(EMPTY_FILTERS);
+    setApplied(EMPTY_FILTERS);
     setSelected(new Set());
   }
 
@@ -125,6 +236,24 @@ export function LabelsPage() {
           />
         </div>
       </div>
+
+      {/* Item type — tops / accessories / all. Hidden entirely when the user
+          cannot read accessories, leaving the tops-only page unchanged. */}
+      {canReadAccessories && (
+        <div className="space-y-1">
+          <Label className="text-sm font-medium text-foreground">{ar.labels.itemType}</Label>
+          <select
+            value={filters.itemType}
+            onChange={(e) => setFilters((f) => ({ ...f, itemType: e.target.value as ItemType }))}
+            dir="rtl"
+            className={`${selectClass} sm:max-w-xs`}
+          >
+            <option value="all">{ar.labels.itemTypeAll}</option>
+            <option value="tops">{ar.labels.itemTypeTops}</option>
+            <option value="accessories">{ar.labels.itemTypeAccessories}</option>
+          </select>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
         <div className="space-y-1">
@@ -197,8 +326,8 @@ export function LabelsPage() {
       </div>
 
       <div className="flex gap-2 flex-wrap">
-        <Button onClick={handleSearch} disabled={q.isFetching} className="h-11 md:h-10">
-          {q.isFetching ? ar.loading : ar.labels.search}
+        <Button onClick={handleSearch} disabled={isFetching} className="h-11 md:h-10">
+          {isFetching ? ar.loading : ar.labels.search}
         </Button>
         {activeFilters > 0 && (
           <Button
@@ -214,13 +343,13 @@ export function LabelsPage() {
     </div>
   );
 
-  const columns: Column<RollWithDetails>[] = [
+  const columns: Column<LabelRow>[] = [
     {
       key: 'select',
       header: (
         <input
           type="checkbox"
-          checked={selected.size === rolls.length && rolls.length > 0}
+          checked={selected.size === rows.length && rows.length > 0}
           onChange={toggleAll}
           className="size-4 accent-accent cursor-pointer"
           aria-label="تحديد الكل"
@@ -229,8 +358,8 @@ export function LabelsPage() {
       cell: (r) => (
         <input
           type="checkbox"
-          checked={selected.has(r.id)}
-          onChange={() => toggleSelect(r.id)}
+          checked={selected.has(rowKeyOf(r))}
+          onChange={() => toggleSelect(rowKeyOf(r))}
           onClick={(e) => e.stopPropagation()}
           className="size-5 accent-accent cursor-pointer"
           aria-label={`تحديد ${r.internal_barcode}`}
@@ -243,16 +372,25 @@ export function LabelsPage() {
       key: 'fabric',
       header: ar.labels.fabricFilter,
       cell: (r) => (
-        <span className="inline-flex items-center gap-2 md:gap-0">
+        <span className="inline-flex items-center gap-2 md:gap-1.5">
           <input
             type="checkbox"
-            checked={selected.has(r.id)}
-            onChange={() => toggleSelect(r.id)}
+            checked={selected.has(rowKeyOf(r))}
+            onChange={() => toggleSelect(rowKeyOf(r))}
             onClick={(e) => e.stopPropagation()}
             className="size-5 md:hidden accent-accent cursor-pointer"
             aria-label={`تحديد ${r.internal_barcode}`}
           />
-          {r.fabric_name_ar}
+          {r.kind === 'roll' ? (
+            r.fabric_name_ar
+          ) : (
+            <>
+              {r.name_ar}
+              <StatusPill tone="info" className="px-1.5 py-0 text-[10px]">
+                {ar.labels.accessoryTag}
+              </StatusPill>
+            </>
+          )}
         </span>
       ),
       primary: true,
@@ -260,10 +398,19 @@ export function LabelsPage() {
     {
       key: 'sr_no',
       header: ar.labels.rollSrNoFilter,
-      cell: (r) => <span className="font-mono text-sm text-foreground">{r.roll_sr_no ?? '—'}</span>,
+      cell: (r) => (
+        <span className="font-mono text-sm text-foreground">
+          {r.kind === 'roll' ? (r.roll_sr_no ?? '—') : '—'}
+        </span>
+      ),
       secondary: true,
     },
-    { key: 'color', header: ar.labels.colorFilter, cell: (r) => r.color_name_ar, secondary: true },
+    {
+      key: 'color',
+      header: ar.labels.colorFilter,
+      cell: (r) => (r.kind === 'roll' ? r.color_name_ar : '—'),
+      secondary: true,
+    },
     {
       key: 'barcode',
       header: ar.labels.barcode,
@@ -272,12 +419,23 @@ export function LabelsPage() {
     {
       key: 'weight',
       header: ar.labels.weight,
-      cell: (r) => <span className="tabular-num" dir="ltr">{rollQtyLabel(r.weight_kg, r.length_m)}</span>,
+      cell: (r) => (
+        <span className="tabular-num" dir="ltr">
+          {r.kind === 'roll' ? rollQtyLabel(r.weight_kg, r.length_m) : '—'}
+        </span>
+      ),
     },
     {
       key: 'status',
       header: ar.labels.status,
-      cell: (r) => <RollStatusPill status={r.status} />,
+      cell: (r) =>
+        r.kind === 'roll' ? (
+          <RollStatusPill status={r.status} />
+        ) : (
+          <StatusPill tone={r.is_active ? 'success' : 'neutral'}>
+            {r.is_active ? 'نشط' : 'موقوف'}
+          </StatusPill>
+        ),
     },
   ];
 
@@ -290,7 +448,7 @@ export function LabelsPage() {
         <>
           <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="text-sm text-foreground-muted">
-              {ar.labels.results}: <span className="tabular-num text-foreground" dir="ltr">{rolls.length}</span>
+              {ar.labels.results}: <span className="tabular-num text-foreground" dir="ltr">{rows.length}</span>
               {selected.size > 0 ? <> · المحدد: <span className="tabular-num text-foreground" dir="ltr">{selected.size}</span></> : ''}
             </div>
             <div className="flex gap-2">
@@ -298,10 +456,10 @@ export function LabelsPage() {
                 size="sm"
                 variant="outline"
                 onClick={toggleAll}
-                disabled={rolls.length === 0}
+                disabled={rows.length === 0}
                 className="md:hidden h-11"
               >
-                {selected.size === rolls.length && rolls.length > 0 ? 'إلغاء الكل' : 'تحديد الكل'}
+                {selected.size === rows.length && rows.length > 0 ? 'إلغاء الكل' : 'تحديد الكل'}
               </Button>
               {selected.size > 0 && (
                 <Button
@@ -318,20 +476,24 @@ export function LabelsPage() {
 
           <ResponsiveTable
             columns={columns}
-            rows={rolls}
-            rowKey={(r) => String(r.id)}
+            rows={rows}
+            rowKey={rowKeyOf}
             empty={ar.common.none}
-            isLoading={q.isLoading}
-            isError={q.isError}
-            onRetry={() => q.refetch()}
+            isLoading={isLoading}
+            isError={isError}
+            onRetry={refetch}
             resetKey={resetKey}
             actions={(r) => (
               <div className="flex gap-1">
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={labelPdfMut.isPending && labelPdfMut.variables === r.id}
-                  onClick={() => labelPdfMut.mutate(r.id)}
+                  disabled={
+                    printMut.isPending &&
+                    printMut.variables != null &&
+                    rowKeyOf(printMut.variables) === rowKeyOf(r)
+                  }
+                  onClick={() => printMut.mutate(r)}
                   aria-label={ar.labels.print}
                 >
                   <Printer className="size-4" aria-hidden />
@@ -350,7 +512,7 @@ export function LabelsPage() {
         </>
       )}
 
-      {/* Reprint dialog */}
+      {/* Reprint (lost/damaged sticker) dialog — shared by tops & accessories */}
       <Dialog open={!!reprintTarget} onOpenChange={(o) => !o && setReprintTarget(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -359,7 +521,9 @@ export function LabelsPage() {
           {reprintTarget && (
             <div className="space-y-3">
               <p className="text-sm text-foreground-muted">
-                {reprintTarget.fabric_name_ar} / {reprintTarget.color_name_ar}
+                {reprintTarget.kind === 'roll'
+                  ? `${reprintTarget.fabric_name_ar} / ${reprintTarget.color_name_ar}`
+                  : reprintTarget.name_ar}
                 {' · '}
                 <span className="font-mono tabular-num" dir="ltr">{reprintTarget.internal_barcode}</span>
               </p>
@@ -381,7 +545,7 @@ export function LabelsPage() {
                   disabled={reprintMut.isPending}
                   onClick={() =>
                     reprintMut.mutate({
-                      id: reprintTarget.id,
+                      row: reprintTarget,
                       reason: reprintReason || 'lost_label',
                     })
                   }

@@ -12,6 +12,8 @@ export const UpdateAccessorySchema = z.object({
   name_ar: z.string().min(1).max(255).optional(),
   selling_price_egp: z.coerce.number().min(0).nullable().optional(),
   notes_ar: z.string().max(2000).nullable().optional(),
+  // Activate / deactivate (نشط / موقوف) — status management, parity with rolls.
+  is_active: z.boolean().optional(),
 });
 export type UpdateAccessoryInput = z.infer<typeof UpdateAccessorySchema>;
 

@@ -1,28 +1,22 @@
 import { useState, useCallback, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
-import { Link, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Search, TrendingUp, Users, Wallet } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { AlertTriangle, Search, TrendingUp, Users, Wallet, Pencil, FileText, FileSpreadsheet } from 'lucide-react';
 import { ar } from '@/i18n/ar';
-import { customersApi } from '@/lib/customers-api';
-import { extractApiError } from '@/lib/api-error';
+import { customersApi, customersListExportUrl, type CustomerBalanceFilter } from '@/lib/customers-api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogClose,
-} from '@/components/ResponsiveDialog';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { KpiGrid } from '@/components/dashboard/KpiGrid';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { PageShell, SectionCard } from '@/components/Layout/PageShell';
+import { CustomerFormDialog } from '@/components/customers/CustomerFormDialog';
 import type { Customer } from '@/lib/customers-types';
 
 const PAGE_SIZE = 30;
+
+const selectClass =
+  'flex h-10 w-full sm:w-44 rounded border border-border bg-canvas px-3 py-2 text-sm focus-visible:outline-none focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer appearance-none';
 
 function balanceColor(balance: string) {
   const n = Number(balance);
@@ -39,48 +33,40 @@ function balanceLabel(balance: string) {
   return '0.00';
 }
 
-type CreateFormVals = {
-  name_ar: string;
-  phone: string;
-  phone_secondary: string;
-  address_ar: string;
-  notes_ar: string;
-};
+/** Balance-direction pill (مدين / دائن / متعادل) — mirrors the supplier status word. */
+function StatusPill({ balance }: { balance: string }) {
+  const n = Number(balance);
+  const label = n < 0 ? ar.customers.statusDebt : n > 0 ? ar.customers.statusCredit : ar.customers.statusSettled;
+  const cls = n < 0
+    ? 'bg-danger/10 text-danger'
+    : n > 0
+      ? 'bg-success/10 text-success-foreground'
+      : 'bg-surface-row-alt text-foreground-muted';
+  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{label}</span>;
+}
+
+/** Opens an authenticated export URL (token in the query) to download the file. */
+function triggerDownload(url: string): void {
+  const a = document.createElement('a');
+  a.href = url;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
 
 export function CustomersListPage() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState('');
+  const [balance, setBalance] = useState<CustomerBalanceFilter>('all');
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(searchParams.get('create') === '1');
-  const [createError, setCreateError] = useState<string | null>(null);
-  const qc = useQueryClient();
+  const [editCustomer, setEditCustomer] = useState<Customer | null>(null);
 
   const q = useQuery({
-    queryKey: ['customers', search, page],
-    queryFn: () => customersApi.list({ search: search || undefined, page, limit: PAGE_SIZE }),
-  });
-
-  const form = useForm<CreateFormVals>({
-    defaultValues: { name_ar: '', phone: '', phone_secondary: '', address_ar: '', notes_ar: '' },
-  });
-
-  const create = useMutation({
-    mutationFn: (v: CreateFormVals) =>
-      customersApi.create({
-        name_ar: v.name_ar,
-        phone: v.phone,
-        phone_secondary: v.phone_secondary || null,
-        address_ar: v.address_ar || null,
-        notes_ar: v.notes_ar || null,
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['customers'] });
-      form.reset();
-      setCreateOpen(false);
-      setSearchParams({});
-      setCreateError(null);
-    },
-    onError: (e) => setCreateError(extractApiError(e)),
+    queryKey: ['customers', search, balance, page],
+    queryFn: () => customersApi.list({ search: search || undefined, balance, page, limit: PAGE_SIZE }),
   });
 
   const openCreate = useCallback(() => {
@@ -96,6 +82,7 @@ export function CustomersListPage() {
   const rows: Customer[] = q.data?.rows ?? [];
   const total = q.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const exportDisabled = q.isLoading || total === 0;
 
   const kpis = useMemo(() => {
     let withDebt = 0;
@@ -151,12 +138,39 @@ export function CustomersListPage() {
         </span>
       ),
     },
+    {
+      key: 'status',
+      header: ar.customers.status,
+      cell: (c) => <StatusPill balance={c.current_balance_egp} />,
+    },
   ];
 
   return (
     <PageShell
       title={ar.customers.title}
-      actions={<Button onClick={openCreate}>{ar.customers.addCustomer}</Button>}
+      actions={
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={exportDisabled}
+            onClick={() => triggerDownload(customersListExportUrl({ search: search || undefined, balance, format: 'pdf' }))}
+          >
+            <FileText className="size-4" aria-hidden />
+            {ar.customers.exportPdf}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={exportDisabled}
+            onClick={() => triggerDownload(customersListExportUrl({ search: search || undefined, balance, format: 'excel' }))}
+          >
+            <FileSpreadsheet className="size-4" aria-hidden />
+            {ar.customers.exportExcel}
+          </Button>
+          <Button onClick={openCreate}>{ar.customers.addCustomer}</Button>
+        </div>
+      }
       filters={
         <>
           <div className="relative flex-1 min-w-0 sm:max-w-md">
@@ -172,6 +186,17 @@ export function CustomersListPage() {
               className="ps-9 h-10"
             />
           </div>
+          <select
+            className={selectClass}
+            value={balance}
+            onChange={(e) => { setBalance(e.target.value as CustomerBalanceFilter); setPage(1); }}
+            aria-label={ar.customers.filterBalance}
+          >
+            <option value="all">{ar.customers.filterAll}</option>
+            <option value="debt">{ar.customers.statusDebt}</option>
+            <option value="credit">{ar.customers.statusCredit}</option>
+            <option value="settled">{ar.customers.statusSettled}</option>
+          </select>
           <div className="text-sm text-foreground-muted sm:ms-auto">
             نتائج: <span className="tabular-num text-foreground" dir="ltr">{total}</span>
           </div>
@@ -218,11 +243,22 @@ export function CustomersListPage() {
           columns={columns}
           rows={rows}
           rowKey={(c) => String(c.id)}
+          onRowClick={(c) => navigate(`/customers/${c.id}`)}
           empty={ar.customers.empty}
           isLoading={q.isLoading}
           isError={q.isError}
           onRetry={() => q.refetch()}
-          resetKey={`${search}|${page}`}
+          resetKey={`${search}|${balance}|${page}`}
+          actions={(c) => (
+            <Button
+              size="sm"
+              variant="outline"
+              aria-label={ar.customers.editAction}
+              onClick={(e) => { e.stopPropagation(); setEditCustomer(c); }}
+            >
+              <Pencil className="size-4" aria-hidden />
+            </Button>
+          )}
         />
       </SectionCard>
 
@@ -250,55 +286,14 @@ export function CustomersListPage() {
         </div>
       )}
 
-      {/* Create customer dialog */}
-      <Dialog open={createOpen} onOpenChange={closeCreate}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>{ar.customers.create}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={form.handleSubmit((v) => create.mutate(v))} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-sm font-medium text-foreground">
-                  {ar.customers.nameAr}
-                  <span className="text-danger ms-1" aria-hidden>*</span>
-                </Label>
-                <Input {...form.register('name_ar', { required: true })} dir="rtl" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-sm font-medium text-foreground">
-                  {ar.customers.phone}
-                  <span className="text-danger ms-1" aria-hidden>*</span>
-                </Label>
-                <Input {...form.register('phone', { required: true })} placeholder="01012345678" dir="ltr" inputMode="tel" autoComplete="tel" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-sm font-medium text-foreground">{ar.customers.phoneSecondary}</Label>
-                <Input {...form.register('phone_secondary')} placeholder="01012345678" dir="ltr" inputMode="tel" autoComplete="tel" />
-              </div>
-              <div className="space-y-1 col-span-2">
-                <Label className="text-sm font-medium text-foreground">{ar.customers.address}</Label>
-                <Input {...form.register('address_ar')} dir="rtl" />
-              </div>
-              <div className="space-y-1 col-span-2">
-                <Label className="text-sm font-medium text-foreground">{ar.customers.notes}</Label>
-                <Input {...form.register('notes_ar')} dir="rtl" />
-              </div>
-            </div>
-            {createError && (
-              <p className="text-sm text-danger transition-opacity duration-75 ease-standard" role="alert">
-                {createError}
-              </p>
-            )}
-            <div className="flex gap-2 justify-end">
-              <DialogClose asChild>
-                <Button type="button" variant="outline">{ar.common.cancel}</Button>
-              </DialogClose>
-              <Button type="submit" disabled={create.isPending}>{ar.common.save}</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* Create + inline-edit dialogs (shared component) */}
+      <CustomerFormDialog mode="create" open={createOpen} onOpenChange={closeCreate} />
+      <CustomerFormDialog
+        mode="edit"
+        customer={editCustomer}
+        open={!!editCustomer}
+        onOpenChange={(o) => { if (!o) setEditCustomer(null); }}
+      />
     </PageShell>
   );
 }

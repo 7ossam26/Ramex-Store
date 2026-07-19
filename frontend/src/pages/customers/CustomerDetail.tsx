@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { FileText, Wallet, PlusCircle } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
 import { motion } from 'framer-motion';
 import { ChevronRight } from 'lucide-react';
 import { ar } from '@/i18n/ar';
@@ -20,6 +19,7 @@ import {
 } from '@/components/ResponsiveDialog';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { EmptyState } from '@/components/EmptyState';
+import { CustomerFormDialog } from '@/components/customers/CustomerFormDialog';
 import type { LedgerEntry } from '@/lib/customers-types';
 
 type Tab = 'ledger' | 'invoices' | 'notes';
@@ -50,22 +50,12 @@ function cairoToday(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
 }
 
-type EditFormVals = {
-  name_ar: string;
-  phone: string;
-  phone_secondary: string;
-  address_ar: string;
-  tax_no: string;
-  notes_ar: string;
-};
-
 export function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const customerId = Number(id);
   const [tab, setTab] = useState<Tab>('ledger');
   const [ledgerPage, setLedgerPage] = useState(1);
   const [editOpen, setEditOpen] = useState(false);
-  const [updateError, setUpdateError] = useState<string | null>(null);
   const qc = useQueryClient();
 
   // Opening balance + standalone receipt dialogs (both audited on the backend).
@@ -139,39 +129,7 @@ export function CustomerDetailPage() {
     enabled: !isNaN(customerId),
   });
 
-  const form = useForm<EditFormVals>();
-
-  const update = useMutation({
-    mutationFn: (v: EditFormVals) =>
-      customersApi.update(customerId, {
-        name_ar: v.name_ar,
-        phone: v.phone || undefined,
-        phone_secondary: v.phone_secondary || null,
-        address_ar: v.address_ar || null,
-        tax_no: v.tax_no || null,
-        notes_ar: v.notes_ar || null,
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['customer', customerId] });
-      qc.invalidateQueries({ queryKey: ['customers'] });
-      setEditOpen(false);
-      setUpdateError(null);
-    },
-    onError: (e) => setUpdateError(extractApiError(e)),
-  });
-
-  const openEdit = () => {
-    if (!data) return;
-    form.reset({
-      name_ar: data.name_ar,
-      phone: data.phone,
-      phone_secondary: data.phone_secondary ?? '',
-      address_ar: data.address_ar ?? '',
-      tax_no: data.tax_no ?? '',
-      notes_ar: data.notes_ar ?? '',
-    });
-    setEditOpen(true);
-  };
+  const openEdit = () => setEditOpen(true);
 
   if (isLoading) return <p className="p-6 text-center text-foreground-muted">{ar.loading}</p>;
   if (error || !data) {
@@ -393,56 +351,8 @@ export function CustomerDetailPage() {
         <aside className="lg:sticky lg:top-20 lg:self-start">{summaryCard}</aside>
       </div>
 
-      {/* Edit dialog */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>{ar.customers.edit}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={form.handleSubmit((v) => update.mutate(v))} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-sm font-medium text-foreground">
-                  {ar.customers.nameAr}
-                  <span className="text-danger ms-1" aria-hidden>*</span>
-                </Label>
-                <Input {...form.register('name_ar', { required: true })} dir="rtl" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-sm font-medium text-foreground">{ar.customers.phone}</Label>
-                <Input {...form.register('phone')} placeholder="01012345678" dir="ltr" inputMode="tel" autoComplete="tel" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-sm font-medium text-foreground">{ar.customers.phoneSecondary}</Label>
-                <Input {...form.register('phone_secondary')} placeholder="01012345678" dir="ltr" inputMode="tel" autoComplete="tel" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-sm font-medium text-foreground">{ar.customers.taxNo}</Label>
-                <Input {...form.register('tax_no')} dir="ltr" />
-              </div>
-              <div className="space-y-1 col-span-2">
-                <Label className="text-sm font-medium text-foreground">{ar.customers.address}</Label>
-                <Input {...form.register('address_ar')} dir="rtl" />
-              </div>
-              <div className="space-y-1 col-span-2">
-                <Label className="text-sm font-medium text-foreground">{ar.customers.notes}</Label>
-                <Input {...form.register('notes_ar')} dir="rtl" />
-              </div>
-            </div>
-            {updateError && (
-              <p className="text-sm text-danger transition-opacity duration-75 ease-standard" role="alert">
-                {updateError}
-              </p>
-            )}
-            <div className="flex gap-2 justify-end">
-              <DialogClose asChild>
-                <Button type="button" variant="outline">{ar.common.cancel}</Button>
-              </DialogClose>
-              <Button type="submit" disabled={update.isPending}>{ar.common.save}</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* Edit dialog (shared component) */}
+      <CustomerFormDialog mode="edit" customer={data} open={editOpen} onOpenChange={setEditOpen} />
 
       {/* Opening balance dialog */}
       <Dialog open={openingOpen} onOpenChange={setOpeningOpen}>

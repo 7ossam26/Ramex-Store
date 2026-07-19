@@ -103,7 +103,9 @@ export type StockEventType =
 
 export type StockMovement = {
   id: number;
-  roll_id: number;
+  roll_id: number | null;
+  entity_type: 'roll' | 'accessory';
+  accessory_id: number | null;
   from_warehouse: RollWarehouse | null;
   to_warehouse: RollWarehouse | null;
   event_type: StockEventType;

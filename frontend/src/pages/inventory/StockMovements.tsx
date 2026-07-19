@@ -97,15 +97,24 @@ function MovementArrow({
 
 export function StockMovementsPage() {
   const [event, setEvent] = useState<StockEventType | ''>('');
-  const [barcode, setBarcode] = useState('');
+  const [search, setSearch] = useState('');
+  const [fabricId, setFabricId] = useState('');
+  const [colorId, setColorId] = useState('');
   const [offset, setOffset] = useState(0);
 
+  const fabricsQ = useQuery({ queryKey: ['fabrics'], queryFn: inventoryApi.listFabrics });
+  const colorsQ = useQuery({ queryKey: ['colors'], queryFn: inventoryApi.listColors });
+  const fabrics = fabricsQ.data ?? [];
+  const colors = colorsQ.data ?? [];
+
   const q = useQuery({
-    queryKey: ['stock-movements', event, barcode, offset],
+    queryKey: ['stock-movements', event, search, fabricId, colorId, offset],
     queryFn: () =>
       inventoryApi.listStockMovements({
         event_type: event || undefined,
-        barcode: barcode.trim() || undefined,
+        search: search.trim() || undefined,
+        fabric_id: fabricId ? Number(fabricId) : undefined,
+        color_id: colorId ? Number(colorId) : undefined,
         limit: PAGE_SIZE,
         offset,
       }),
@@ -176,15 +185,43 @@ export function StockMovementsPage() {
       backTo="/inventory"
       actions={
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          {/* Barcode search */}
+          {/* Barcode / material search */}
           <input
             type="text"
-            value={barcode}
-            onChange={(e) => { setBarcode(e.target.value); setOffset(0); }}
-            placeholder="بحث بالباركود…"
-            dir="ltr"
-            className="h-9 w-44 rounded-md border border-border-default bg-surface-elevated px-3 text-sm font-mono text-foreground placeholder:text-foreground-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setOffset(0); }}
+            placeholder={ar.stockMovements.searchPlaceholder}
+            dir="rtl"
+            className="h-9 w-52 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground placeholder:text-foreground-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
           />
+
+          {/* Material filter */}
+          <select
+            value={fabricId}
+            onChange={(e) => { setFabricId(e.target.value); setOffset(0); }}
+            disabled={fabricsQ.isLoading}
+            dir="rtl"
+            className="h-9 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
+          >
+            <option value="">{ar.stockMovements.allMaterials}</option>
+            {fabrics.map((f) => (
+              <option key={f.id} value={String(f.id)}>{f.name_ar}</option>
+            ))}
+          </select>
+
+          {/* Color filter */}
+          <select
+            value={colorId}
+            onChange={(e) => { setColorId(e.target.value); setOffset(0); }}
+            disabled={colorsQ.isLoading}
+            dir="rtl"
+            className="h-9 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
+          >
+            <option value="">{ar.stockMovements.allColors}</option>
+            {colors.map((c) => (
+              <option key={c.id} value={String(c.id)}>{c.name_ar}</option>
+            ))}
+          </select>
 
           {/* Event type filter */}
           <select
@@ -217,7 +254,7 @@ export function StockMovementsPage() {
           isLoading={q.isLoading}
           isError={q.isError}
           onRetry={() => q.refetch()}
-          resetKey={`${event}|${barcode}|${offset}`}
+          resetKey={`${event}|${search}|${fabricId}|${colorId}|${offset}`}
         />
       </SectionCard>
 

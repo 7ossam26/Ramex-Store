@@ -111,6 +111,7 @@ export async function updateAccessory(
   if (patch.name_ar !== undefined) update.name_ar = patch.name_ar;
   if (patch.selling_price_egp !== undefined) update.selling_price_egp = patch.selling_price_egp ?? null;
   if (patch.notes_ar !== undefined) update.notes_ar = patch.notes_ar ?? null;
+  if (patch.is_active !== undefined) update.is_active = patch.is_active;
 
   await db('accessories').where({ id }).update(update);
   const after = await db('accessories').where({ id }).first() as Accessory;
@@ -120,8 +121,18 @@ export async function updateAccessory(
     action: 'update_accessory',
     entity: 'accessory',
     entityId: id,
-    before: { name_ar: before.name_ar, selling_price_egp: before.selling_price_egp, notes_ar: before.notes_ar },
-    after: { name_ar: after.name_ar, selling_price_egp: after.selling_price_egp, notes_ar: after.notes_ar },
+    before: {
+      name_ar: before.name_ar,
+      selling_price_egp: before.selling_price_egp,
+      notes_ar: before.notes_ar,
+      is_active: before.is_active,
+    },
+    after: {
+      name_ar: after.name_ar,
+      selling_price_egp: after.selling_price_egp,
+      notes_ar: after.notes_ar,
+      is_active: after.is_active,
+    },
     severity: 'medium',
   });
 

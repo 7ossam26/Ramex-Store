@@ -38,6 +38,9 @@ export type CustomerStatement = {
 export type StatementVariant = 'summary' | 'detailed';
 export type StatementExportFormat = 'pdf' | 'excel' | 'print';
 
+/** Balance-direction list filter (ledger sign convention). */
+export type CustomerBalanceFilter = 'all' | 'debt' | 'credit' | 'settled';
+
 /** Authenticated export/print URL — token in the query so `<a>`/new-tab links auth. */
 export function customerStatementExportUrl(
   id: number,
@@ -48,8 +51,21 @@ export function customerStatementExportUrl(
   return `/api/customers/${id}/statement?${query}`;
 }
 
+/** Authenticated whole-list export/print URL (respects the current search + balance filter). */
+export function customersListExportUrl(params: {
+  search?: string;
+  balance?: CustomerBalanceFilter;
+  format: StatementExportFormat;
+}): string {
+  const token = localStorage.getItem('ramex_token') ?? '';
+  const qp = new URLSearchParams({ format: params.format, token });
+  if (params.search) qp.set('search', params.search);
+  if (params.balance && params.balance !== 'all') qp.set('balance', params.balance);
+  return `/api/customers/export?${qp.toString()}`;
+}
+
 export const customersApi = {
-  list: (params?: { search?: string; sort?: string; page?: number; limit?: number }) =>
+  list: (params?: { search?: string; balance?: CustomerBalanceFilter; sort?: string; page?: number; limit?: number }) =>
     api
       .get<{ rows: Customer[]; total: number }>('/customers', { params })
       .then((r) => r.data),

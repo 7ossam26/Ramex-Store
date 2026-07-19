@@ -17,6 +17,7 @@ import type {
   ShipmentStatus,
   ShipmentWithLines,
   StockMovement,
+  CreateAdjustmentBody,
   StockSummaryRow,
   Stocktake,
   StocktakeWithLines,
@@ -118,21 +119,18 @@ export const inventoryApi = {
   completeStocktake: (id: number) =>
     api.post(`/stocktakes/${id}/complete`).then((r) => r.data),
 
-  // Adjustments
+  // Adjustments (rolls + accessories, discriminated by entity_type)
   listAdjustments: () => api.get<StockMovement[]>('/adjustments').then((r) => r.data),
-  createAdjustment: (body: {
-    roll_id: number;
-    new_warehouse?: Warehouse;
-    new_status?: RollStatus;
-    new_weight_kg?: number;
-    notes_ar: string;
-  }) => api.post<StockMovement>('/adjustments', body).then((r) => r.data),
+  createAdjustment: (body: CreateAdjustmentBody) =>
+    api.post<StockMovement>('/adjustments', body).then((r) => r.data),
 
   // Stock Movements (ledger)
   listStockMovements: (params: {
     roll_id?: number;
     event_type?: string;
-    barcode?: string;
+    search?: string;
+    fabric_id?: number;
+    color_id?: number;
     limit?: number;
     offset?: number;
   }) =>

@@ -13,6 +13,8 @@ export type SalesByFabricColorRow = {
 export async function getSalesByFabricColor(
   from: string,
   to: string,
+  fabricId?: number,
+  colorId?: number,
 ): Promise<SalesByFabricColorRow[]> {
   const rows = await db('invoice_lines as il')
     .join('invoices as i', 'il.invoice_id', 'i.id')
@@ -21,6 +23,10 @@ export async function getSalesByFabricColor(
     .join('colors as c', 'r.color_id', 'c.id')
     .where('i.status', 'completed')
     .whereBetween('i.created_at', [from, to])
+    .modify((qb) => {
+      if (fabricId) qb.where('f.id', fabricId);
+      if (colorId) qb.where('c.id', colorId);
+    })
     .groupBy('f.name_ar', 'c.name_ar')
     .orderBy(['f.name_ar', 'c.name_ar'])
     .select(

@@ -29,6 +29,14 @@ accessoriesRouter.get(
   ctl.getAccessoryLabel,
 );
 
+// Reprint label (lost/damaged) — captures a reason + audit, parity with the
+// roll reprint (POST /rolls/:id/reprint-label). Same permission as printing.
+accessoriesRouter.post(
+  '/accessories/:id/reprint-label',
+  requirePermission('accessories', 'read'),
+  ctl.reprintAccessoryLabel,
+);
+
 // Batch label PDF — POST body: { ids: number[] }
 accessoriesRouter.post(
   '/accessories/labels/batch',

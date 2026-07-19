@@ -18,6 +18,8 @@ customersRouter.post(
 
 customersRouter.get('/customers', requirePermission('customers', 'read'), ctl.listCustomers);
 customersRouter.post('/customers', requirePermission('customers', 'write'), ctl.createCustomer);
+// Static path before parameterized `/customers/:id` to avoid conflict.
+customersRouter.get('/customers/export', requirePermission('customers', 'read'), ctl.exportCustomers);
 
 customersRouter.get('/customers/:id', requirePermission('customers', 'read'), ctl.getCustomer);
 customersRouter.patch('/customers/:id', requirePermission('customers', 'write'), ctl.updateCustomer);

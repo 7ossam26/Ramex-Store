@@ -3,14 +3,15 @@ import { auditLog } from '../../middleware/audit.js';
 
 export async function auditLabelReprinted(
   req: Request,
-  rollId: number,
+  entityId: number,
   reason: string,
+  entity: 'roll' | 'accessory' = 'roll',
 ): Promise<void> {
   await auditLog(
     req,
     'label_reprinted',
-    'roll',
-    rollId,
+    entity,
+    entityId,
     null,
     { reason },
     { severity: 'low' },

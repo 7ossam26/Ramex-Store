@@ -203,9 +203,12 @@ function fmtQty(n: number): string {
   return Number(n).toLocaleString('en-US', { maximumFractionDigits: 3 });
 }
 
-/** One-line summary of a line item for the detailed variant. */
+/**
+ * One-line summary of a line item for the detailed variant. The unit is no
+ * longer inlined here — it is emitted in a dedicated "الوحدة" column.
+ */
 function lineItemText(li: StatementLineItem, currency: Currency): string {
-  return `↳ ${li.description} — ${fmtQty(li.quantity)} ${UNIT_AR[li.unit] ?? li.unit} × ${fmtAmount(
+  return `↳ ${li.description} — ${fmtQty(li.quantity)} × ${fmtAmount(
     li.unit_price,
     currency,
   )} = ${fmtAmount(li.line_total, currency)}`;
@@ -228,6 +231,7 @@ export function statementToExport(
     { label: 'التاريخ', key: 'date', width: 'auto' as const },
     { label: 'المرجع', key: 'ref', width: 'auto' as const },
     { label: 'البيان', key: 'description', width: '*' as const },
+    { label: 'الوحدة', key: 'unit', width: 'auto' as const, align: 'center' as const },
     { label: 'مدين', key: 'debit', width: 'auto' as const },
     { label: 'دائن', key: 'credit', width: 'auto' as const },
     { label: 'الرصيد', key: 'balance', width: 'auto' as const, bold: true },
@@ -240,6 +244,7 @@ export function statementToExport(
     date: '',
     ref: '',
     description: 'رصيد سابق',
+    unit: '',
     debit: '',
     credit: '',
     balance: fmtAmount(result.broughtForward, currency),
@@ -250,6 +255,7 @@ export function statementToExport(
       date: r.date,
       ref: r.ref,
       description: r.description,
+      unit: '',
       debit: fmtSide(r.debit, currency),
       credit: fmtSide(r.credit, currency),
       balance: fmtAmount(r.balance, currency),
@@ -260,6 +266,7 @@ export function statementToExport(
           date: '',
           ref: '',
           description: lineItemText(li, currency),
+          unit: UNIT_AR[li.unit] ?? li.unit,
           debit: '',
           credit: '',
           balance: '',
@@ -274,6 +281,7 @@ export function statementToExport(
     rows,
     totals: {
       description: 'الرصيد الختامي',
+      unit: '',
       debit: fmtAmount(result.totalDebit, currency),
       credit: fmtAmount(result.totalCredit, currency),
       balance: fmtAmount(result.closing, currency),

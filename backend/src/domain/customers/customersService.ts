@@ -7,8 +7,35 @@ import type {
   QuickCreateCustomerInput,
   UpdateCustomerInput,
   ListCustomersQueryInput,
+  ListCustomersExportQueryInput,
   LedgerQueryInput,
 } from './customers.schemas.js';
+
+/** Applies the shared search + balance-direction filters to a `customers` query. */
+function applyCustomerFilters(
+  qb: Knex.QueryBuilder,
+  filters: { search?: string; balance?: 'all' | 'debt' | 'credit' | 'settled' },
+): void {
+  if (filters.search) {
+    const term = `%${filters.search}%`;
+    qb.where((q) => {
+      q.whereILike('name_ar', term).orWhereILike('phone', term);
+    });
+  }
+  switch (filters.balance) {
+    case 'debt':
+      qb.where('current_balance_egp', '<', 0);
+      break;
+    case 'credit':
+      qb.where('current_balance_egp', '>', 0);
+      break;
+    case 'settled':
+      qb.where('current_balance_egp', '=', 0);
+      break;
+    default:
+      break;
+  }
+}
 
 async function nextCustomerCode(trx: Knex.Transaction): Promise<string> {
   const result = await trx.raw<{ rows: Array<{ n: number | string }> }>(
@@ -81,9 +108,12 @@ export async function update(
     if ('address_ar' in input) updates.address_ar = input.address_ar ?? null;
     if ('tax_no' in input) updates.tax_no = input.tax_no ?? null;
     if ('notes_ar' in input) updates.notes_ar = input.notes_ar ?? null;
-    updates.updated_at = trx.fn.now();
 
-    await trx('customers').where({ id }).update(updates);
+    // NB: `trx.fn.now()` returns a Knex Raw (which holds a circular reference
+    // to the client), so it must not be added to `updates` — that same object
+    // is passed to the audit log below and JSON.stringify'd. Apply updated_at
+    // to the DB write only, keeping `updates` plain-serialisable.
+    await trx('customers').where({ id }).update({ ...updates, updated_at: trx.fn.now() });
     const updated = await trx('customers').where({ id }).first();
 
     await auditFromService(trx, {
@@ -114,16 +144,11 @@ export async function findByPhone(phone: string): Promise<Customer | undefined> 
 export async function list(
   query: ListCustomersQueryInput,
 ): Promise<{ rows: Customer[]; total: number }> {
-  const { search, sort, page, limit } = query;
+  const { search, balance, sort, page, limit } = query;
   const offset = (page - 1) * limit;
 
   const base = db('customers');
-  if (search) {
-    const term = `%${search}%`;
-    base.where((q) => {
-      q.whereILike('name_ar', term).orWhereILike('phone', term);
-    });
-  }
+  applyCustomerFilters(base, { search, balance });
 
   const [countRow] = await base.clone().count('id as count');
   const rows = await base
@@ -132,6 +157,15 @@ export async function list(
     .offset(offset);
 
   return { rows: rows as Customer[], total: Number((countRow as { count: string }).count) };
+}
+
+/** All customers matching the search + balance filters, unpaginated — for export. */
+export async function listForExport(query: ListCustomersExportQueryInput): Promise<Customer[]> {
+  const { search, balance, sort } = query;
+  const base = db('customers');
+  applyCustomerFilters(base, { search, balance });
+  const rows = await base.orderBy(sort ?? 'created_at', 'desc');
+  return rows as Customer[];
 }
 
 export async function getDetail(

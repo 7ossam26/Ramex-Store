@@ -71,4 +71,16 @@ describe('v2 — POS pricing + deposit (Q&A #21-24)', () => {
     expect(ctrlSrc).toContain('REFUND_EXCEEDS_OVER_DEPOSIT');
     expect(ctrlSrc).toContain('NO_OVER_DEPOSIT');
   });
+
+  it('REQ-5 — min-deposit enforcement is fully removed (any deposit opens an invoice)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), 'utf8');
+    // The only throw site must be gone from createSale.
+    const svcSrc = read('../../src/domain/sales/invoices.service.ts');
+    expect(svcSrc).not.toContain('DEPOSIT_BELOW_MIN');
+    expect(svcSrc).not.toContain('minDepositPct');
+    // The now-unreachable error mappings must be gone from both controllers.
+    expect(read('../../src/domain/sales/sales.controller.ts')).not.toContain('DEPOSIT_BELOW_MIN');
+    expect(read('../../src/domain/sales/returns.controller.ts')).not.toContain('DEPOSIT_BELOW_MIN');
+  });
 });

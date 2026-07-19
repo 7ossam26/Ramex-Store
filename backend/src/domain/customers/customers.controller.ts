@@ -4,11 +4,14 @@ import {
   QuickCreateCustomerSchema,
   UpdateCustomerSchema,
   ListCustomersQuerySchema,
+  ListCustomersExportQuerySchema,
   LedgerQuerySchema,
   OpeningBalanceSchema,
   StandaloneReceiptSchema,
   StatementQuerySchema,
 } from './customers.schemas.js';
+import type { Customer } from './customers.types.js';
+import type { ReportPdfOptions } from '../../lib/reports/pdfExport.js';
 import * as svc from './customersService.js';
 import { recordStandaloneReceipt, setCustomerOpeningBalance } from './ledgerService.js';
 import { getCustomerStatement, getCustomerStatementExport } from './customerStatement.service.js';
@@ -45,6 +48,94 @@ function actorId(req: Request): number {
 export async function listCustomers(req: Request, res: Response): Promise<void> {
   const query = ListCustomersQuerySchema.parse(req.query);
   res.json(await svc.list(query));
+}
+
+const BALANCE_FILTER_LABEL: Record<string, string> = {
+  all: 'الكل',
+  debt: 'مدين',
+  credit: 'دائن',
+  settled: 'متعادل',
+};
+
+function fmtEgp(v: string | number): string {
+  return `${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج.م`;
+}
+
+/** Balance-direction label for a signed balance (ledger convention). */
+function balanceDirection(balance: string | number): string {
+  const n = Number(balance);
+  if (n < 0) return 'مدين';
+  if (n > 0) return 'دائن';
+  return 'متعادل';
+}
+
+function buildCustomersExport(
+  rows: Customer[],
+  filter: { search?: string; balance: string },
+  generatedAt: string,
+): ReportPdfOptions {
+  const filterBits = [`الفلتر: ${BALANCE_FILTER_LABEL[filter.balance] ?? 'الكل'}`];
+  if (filter.search) filterBits.push(`بحث: ${filter.search}`);
+  return {
+    titleAr: 'قائمة العملاء',
+    subtitleAr: `${filterBits.join(' · ')} · عدد: ${rows.length}`,
+    generatedAt,
+    sections: [
+      {
+        titleAr: 'العملاء',
+        columns: [
+          { label: 'الكود', key: 'code' },
+          { label: 'الاسم', key: 'name' },
+          { label: 'الهاتف', key: 'phone' },
+          { label: 'إجمالي المبيعات', key: 'volume' },
+          { label: 'الرصيد', key: 'balance' },
+          { label: 'الحالة', key: 'direction', align: 'center' },
+        ],
+        rows: rows.map((c) => ({
+          code: c.customer_code,
+          name: c.name_ar,
+          phone: c.phone,
+          volume: fmtEgp(c.lifetime_volume_egp),
+          balance: Number(c.current_balance_egp) === 0 ? '—' : fmtEgp(Math.abs(Number(c.current_balance_egp))),
+          direction: balanceDirection(c.current_balance_egp),
+        })),
+        emptyAr: 'لا يوجد عملاء مطابقون',
+      },
+    ],
+  };
+}
+
+export async function exportCustomers(req: Request, res: Response): Promise<void> {
+  const query = ListCustomersExportQuerySchema.parse(req.query);
+  const rows = await svc.listForExport(query);
+  const generatedAt = formatCairo(new Date());
+  const opts = buildCustomersExport(rows, { search: query.search, balance: query.balance }, generatedAt);
+
+  await auditFromService(db, {
+    actorUserId: actorId(req),
+    action: 'customers_list_exported',
+    entity: 'customer',
+    entityId: null,
+    after: { search: query.search ?? null, balance: query.balance, format: query.format, count: rows.length },
+    severity: 'low',
+  });
+
+  const fileBase = `customers-${cairoToday()}`;
+  if (query.format === 'excel') {
+    const buf = await buildReportExcel(opts);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileBase}.xlsx"`);
+    res.send(buf);
+  } else if (query.format === 'print') {
+    const html = buildPrintableHtml(opts);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } else {
+    const buf = await buildReportPdf(opts);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileBase}.pdf"`);
+    res.send(buf);
+  }
 }
 
 export async function getCustomer(req: Request, res: Response): Promise<void> {

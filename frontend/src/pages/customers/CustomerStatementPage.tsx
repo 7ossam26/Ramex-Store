@@ -213,6 +213,7 @@ function StatementDocument({ data, variant }: { data: CustomerStatement; variant
             <th className="border border-neutral-200 px-2 py-1.5 text-start font-semibold">{st.date}</th>
             <th className="border border-neutral-200 px-2 py-1.5 text-start font-semibold">{st.ref}</th>
             <th className="border border-neutral-200 px-2 py-1.5 text-start font-semibold">{st.description}</th>
+            <th className="border border-neutral-200 px-2 py-1.5 text-center font-semibold">{st.unit}</th>
             <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.debit}</th>
             <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.credit}</th>
             <th className="border border-neutral-200 px-2 py-1.5 text-end font-semibold">{st.balance}</th>
@@ -226,6 +227,7 @@ function StatementDocument({ data, variant }: { data: CustomerStatement; variant
             <td className="border border-neutral-200 px-2 py-1.5">{st.broughtForward}</td>
             <td className="border border-neutral-200 px-2 py-1.5" />
             <td className="border border-neutral-200 px-2 py-1.5" />
+            <td className="border border-neutral-200 px-2 py-1.5" />
             <td className="border border-neutral-200 px-2 py-1.5 text-end">
               <Num>{money(data.broughtForward)}</Num>
             </td>
@@ -233,7 +235,7 @@ function StatementDocument({ data, variant }: { data: CustomerStatement; variant
 
           {data.rows.length === 0 ? (
             <tr>
-              <td colSpan={6} className="border border-neutral-200 px-2 py-6 text-center italic text-neutral-400">
+              <td colSpan={7} className="border border-neutral-200 px-2 py-6 text-center italic text-neutral-400">
                 {st.noRows}
               </td>
             </tr>
@@ -248,6 +250,7 @@ function StatementDocument({ data, variant }: { data: CustomerStatement; variant
             <td className="border border-neutral-200 px-2 py-2" />
             <td className="border border-neutral-200 px-2 py-2" />
             <td className="border border-neutral-200 px-2 py-2">{st.closing}</td>
+            <td className="border border-neutral-200 px-2 py-2" />
             <td className="border border-neutral-200 px-2 py-2 text-end">
               <Num>{money(data.totalDebit)}</Num>
             </td>
@@ -271,6 +274,7 @@ function StatementRows({ row, detailed }: { row: StatementRow; detailed: boolean
         <td className="border border-neutral-200 px-2 py-1.5 whitespace-nowrap"><Num>{row.date}</Num></td>
         <td className="border border-neutral-200 px-2 py-1.5 whitespace-nowrap font-mono text-xs"><Num>{row.ref || '—'}</Num></td>
         <td className="border border-neutral-200 px-2 py-1.5">{row.description}</td>
+        <td className="border border-neutral-200 px-2 py-1.5" />
         <td className="border border-neutral-200 px-2 py-1.5 text-end">
           {row.debit ? <Num>{money(row.debit)}</Num> : ''}
         </td>
@@ -285,11 +289,13 @@ function StatementRows({ row, detailed }: { row: StatementRow; detailed: boolean
         <tr key={j} className="text-xs text-neutral-500" style={{ pageBreakInside: 'avoid' }}>
           <td className="border border-neutral-200 px-2 py-1" />
           <td className="border border-neutral-200 px-2 py-1" />
-          <td className="border border-neutral-200 px-2 py-1" colSpan={4}>
-            ↳ {li.description} — <Num>{fmtMoney(li.quantity)}</Num> {UNIT_AR[li.unit] ?? li.unit}
+          <td className="border border-neutral-200 px-2 py-1">
+            ↳ {li.description} — <Num>{fmtMoney(li.quantity)}</Num>
             {' × '}<Num>{money(li.unit_price)}</Num>
             {' = '}<Num>{money(li.line_total)}</Num>
           </td>
+          <td className="border border-neutral-200 px-2 py-1 text-center">{UNIT_AR[li.unit] ?? li.unit}</td>
+          <td className="border border-neutral-200 px-2 py-1" colSpan={3} />
         </tr>
       ))}
     </>

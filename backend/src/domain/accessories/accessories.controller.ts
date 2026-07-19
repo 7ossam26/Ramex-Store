@@ -1,7 +1,9 @@
 import type { Request, Response } from 'express';
 import { CreateAccessorySchema, UpdateAccessorySchema, SearchAccessoriesQuerySchema } from './accessories.schemas.js';
 import * as svc from './accessories.service.js';
+import type { Accessory } from './accessories.service.js';
 import { auditLog } from '../../middleware/audit.js';
+import { auditLabelReprinted } from '../../lib/barcode/audit.js';
 import bwipjs from 'bwip-js/node';
 import pdfmake from 'pdfmake';
 import { PDF_FONTS } from '../../lib/pdf/fonts.js';
@@ -72,12 +74,13 @@ function ensureFonts() {
   fontsConfigured = true;
 }
 
-export async function getAccessoryLabel(req: Request, res: Response): Promise<void> {
-  const id = Number(req.params.id);
-  if (isNaN(id)) { res.status(400).json({ error: 'invalid_id' }); return; }
-  const row = await svc.getAccessoryById(id);
-  if (!row) { res.status(404).json({ error: 'not_found' }); return; }
-
+/**
+ * Builds the 100×60 mm thermal accessory label PDF (barcode + code text).
+ * Shared by the single-label print and the lost-label reprint so both emit
+ * exactly the same sticker — the reprint reuses the print output verbatim,
+ * differing only in its audit trail.
+ */
+async function buildAccessoryLabelPdf(row: Accessory): Promise<Buffer> {
   // Generate barcode PNG. Matches the roll label: code text is rendered
   // separately below (includetext: false) so it can be styled consistently.
   const barcodePng = await bwipjs.toBuffer({
@@ -153,10 +156,50 @@ export async function getAccessoryLabel(req: Request, res: Response): Promise<vo
     ],
   };
 
-  const pdf = await pm.createPdf(docDef).getBuffer();
+  return pm.createPdf(docDef).getBuffer();
+}
+
+export async function getAccessoryLabel(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: 'invalid_id' }); return; }
+  const row = await svc.getAccessoryById(id);
+  if (!row) { res.status(404).json({ error: 'not_found' }); return; }
+
+  // Audit every label (re)print — parity with the roll `label_printed` trail.
+  await auditLog(req, 'label_printed', 'accessory', row.id, null, {
+    internal_barcode: row.internal_barcode,
+    format: 'thermal_100x60',
+  }, { severity: 'low' });
+
+  const pdf = await buildAccessoryLabelPdf(row);
 
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `inline; filename="accessory-label-${row.internal_barcode}.pdf"`);
+  res.end(pdf);
+}
+
+/**
+ * POST /api/accessories/:id/reprint-label
+ * Body: { reason?: string }
+ *
+ * Reprints a lost/damaged accessory sticker. Mirrors the roll reprint flow
+ * (rolls.controller.reprintLabel): the same reason capture, the same
+ * `label_reprinted` audit action (entity 'accessory') via the shared
+ * auditLabelReprinted helper, and the very same label output as a normal print
+ * — it just additionally records the reprint reason.
+ */
+export async function reprintAccessoryLabel(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: 'invalid_id' }); return; }
+  const row = await svc.getAccessoryById(id);
+  if (!row) { res.status(404).json({ error: 'not_found' }); return; }
+
+  const reason = (req.body as { reason?: string }).reason ?? 'lost_label';
+  const pdf = await buildAccessoryLabelPdf(row);
+  await auditLabelReprinted(req, row.id, reason, 'accessory');
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="accessory-label-reprint-${row.internal_barcode}.pdf"`);
   res.end(pdf);
 }
 

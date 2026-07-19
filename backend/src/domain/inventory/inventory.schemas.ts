@@ -89,16 +89,44 @@ export const RollStatusEnum = z.enum([
   'in_stock', 'reserved', 'sold', 'damaged', 'sample', 'returned', 'written_off',
 ]);
 
-export const CreateAdjustmentSchema = z.object({
+const RollAdjustmentSchema = z.object({
+  entity_type: z.literal('roll'),
   roll_id: z.number().int().positive(),
   new_warehouse: WarehouseEnum.optional(),
   new_status: RollStatusEnum.optional(),
   new_weight_kg: z.number().positive().optional(),
   notes_ar: z.string().min(1).max(2000),
-}).refine(
-  (v) => v.new_warehouse !== undefined || v.new_status !== undefined || v.new_weight_kg !== undefined,
-  { message: 'يجب تحديد قيمة واحدة على الأقل للتعديل' },
-);
+});
+
+const AccessoryAdjustmentSchema = z.object({
+  entity_type: z.literal('accessory'),
+  accessory_id: z.number().int().positive(),
+  // Absolute new count (stocktake correction); non-negative.
+  new_qty: z.number().int().min(0),
+  notes_ar: z.string().min(1).max(2000),
+});
+
+const AdjustmentUnion = z
+  .discriminatedUnion('entity_type', [RollAdjustmentSchema, AccessoryAdjustmentSchema])
+  .superRefine((v, ctx) => {
+    if (
+      v.entity_type === 'roll' &&
+      v.new_warehouse === undefined &&
+      v.new_status === undefined &&
+      v.new_weight_kg === undefined
+    ) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'يجب تحديد قيمة واحدة على الأقل للتعديل' });
+    }
+  });
+
+// Default `entity_type` to 'roll' when omitted so pre-existing roll callers
+// (which sent no discriminator) keep working unchanged.
+export const CreateAdjustmentSchema = z.preprocess((val) => {
+  if (val && typeof val === 'object' && !('entity_type' in (val as Record<string, unknown>))) {
+    return { ...(val as Record<string, unknown>), entity_type: 'roll' };
+  }
+  return val;
+}, AdjustmentUnion);
 export type CreateAdjustmentInput = z.infer<typeof CreateAdjustmentSchema>;
 
 // --- Stock Movements query ---
@@ -107,9 +135,12 @@ export const StockMovementsQuerySchema = z.object({
   event_type: z.enum([
     'factory_in', 'shipment_out', 'shipment_in', 'shipment_reject_back',
     'adjustment', 'damage', 'loss_writeoff', 'sample_set',
-    'return_in', 'sale_out', 'reserve', 'unreserve',
+    'return_in', 'sale_out', 'reserve', 'unreserve', 'shop_to_factory_return',
   ]).optional(),
-  barcode: z.string().max(64).optional(),
+  // Matches partial text against roll barcode OR fabric (material) name.
+  search: z.string().max(64).optional(),
+  fabric_id: z.coerce.number().int().positive().optional(),
+  color_id: z.coerce.number().int().positive().optional(),
   reference_type: z.string().max(32).optional(),
   reference_id: z.coerce.number().int().positive().optional(),
   from_date: z.string().datetime().optional(),

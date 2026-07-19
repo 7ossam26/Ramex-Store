@@ -132,7 +132,9 @@ export type StockEventType =
 
 export type StockMovement = {
   id: number;
-  roll_id: number;
+  roll_id: number | null;
+  entity_type: 'roll' | 'accessory';
+  accessory_id: number | null;
   from_warehouse: Warehouse | null;
   to_warehouse: Warehouse | null;
   event_type: StockEventType;
@@ -145,6 +147,22 @@ export type StockMovement = {
   fabric_name_ar: string;
   color_name_ar: string;
 };
+
+export type CreateAdjustmentBody =
+  | {
+      entity_type: 'roll';
+      roll_id: number;
+      new_warehouse?: Warehouse;
+      new_status?: RollStatus;
+      new_weight_kg?: number;
+      notes_ar: string;
+    }
+  | {
+      entity_type: 'accessory';
+      accessory_id: number;
+      new_qty: number;
+      notes_ar: string;
+    };
 
 export type FabricUnit = 'kg' | 'meter';
 export type FabricCategory = 'main' | 'rib' | 'accessory';

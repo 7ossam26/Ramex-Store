@@ -22,4 +22,5 @@ export type UpdateAccessoryBody = {
   name_ar?: string;
   selling_price_egp?: number | null;
   notes_ar?: string | null;
+  is_active?: boolean;
 };

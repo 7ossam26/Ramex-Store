@@ -23,18 +23,16 @@ import type { ListChequesQueryInput, ListInvoicesQueryInput, SalePreviewInput } 
 type SettingsCache = {
   taxEnabled: boolean;
   taxRate: number;
-  minDepositPct: number;
   voidTimeLimitHours: number;
 };
 
 async function readSettings(trx?: Knex.Transaction): Promise<SettingsCache> {
-  const [taxEnabled, taxRate, minDepositPct, voidTimeLimitHours] = await Promise.all([
+  const [taxEnabled, taxRate, voidTimeLimitHours] = await Promise.all([
     getSetting<boolean>(trx, 'tax_enabled', false),
     getSetting<number>(trx, 'tax_rate', 0.14),
-    getSetting<number>(trx, 'min_deposit_pct', 0.25),
     getSetting<number>(trx, 'void_time_limit_hours', 24),
   ]);
-  return { taxEnabled, taxRate, minDepositPct, voidTimeLimitHours };
+  return { taxEnabled, taxRate, voidTimeLimitHours };
 }
 
 type LockedRoll = {
@@ -364,12 +362,9 @@ export async function createSale(
     }
 
     const isFullyPaid = !isNoLinesDeposit && paidTotal >= totals.total - 0.001;
-    // Enforce minimum deposit only when a partial payment is provided (> 0).
-    // A zero-payment invoice is allowed — it opens as full-credit (balance = total).
-    if (!isNoLinesDeposit && !isFullyPaid && paidTotal > 0) {
-      const minDeposit = roundEgp(totals.total * settings.minDepositPct);
-      if (paidTotal < minDeposit) throw new Error('DEPOSIT_BELOW_MIN');
-    }
+    // Minimum-deposit enforcement removed (2026-07): any deposit amount is
+    // accepted when opening an invoice. `min_deposit_pct` remains in Settings
+    // as an advisory reference only and no longer blocks submission.
 
     // 5) Resolve default bank account for instapay/bank_transfer payments without one.
     let defaultBankId: number | null = null;

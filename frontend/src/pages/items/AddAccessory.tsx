@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { accessoriesApi } from '@/lib/accessories-api';
 import type { Accessory } from '@/lib/accessories-types';
@@ -33,6 +33,7 @@ function validate(name: string, qty: string): FormErrors {
 }
 
 export function AddAccessoryPage() {
+  const qc = useQueryClient();
   const [name, setName] = useState('');
   const [qty, setQty] = useState('');
   const [price, setPrice] = useState('');
@@ -73,6 +74,10 @@ export function AddAccessoryPage() {
       setPrice('');
       setNotes('');
       setErrors({});
+      // Refresh the shared accessories list so the new accessory appears in the
+      // Labels Management queue immediately — mirrors AddTop invalidating
+      // ['rolls-search'] after creating a توب.
+      qc.invalidateQueries({ queryKey: ['accessories-list'] });
       // ── Push to the print queue ──────────────────────────────────────────
       setQueue((prev) => [
         ...prev,

@@ -152,6 +152,8 @@ export function RollsPage() {
 
   const [viewType, setViewType] = useState<'rolls' | 'accessories'>('rolls');
   const [accSearch, setAccSearch] = useState('');
+  const [accActive, setAccActive] = useState<'all' | 'active' | 'inactive'>('all');
+  const [accDetail, setAccDetail] = useState<Accessory | null>(null);
 
   const [barcode, setBarcode] = useState('');
   const [fabricId, setFabricId] = useState('');
@@ -198,13 +200,13 @@ export function RollsPage() {
 
   const activeFilters = viewType === 'rolls'
     ? [barcode, fabricId, colorId, warehouse].filter(Boolean).length
-    : accSearch ? 1 : 0;
+    : (accSearch ? 1 : 0) + (accActive !== 'all' ? 1 : 0);
 
   const qc = useQueryClient();
 
   const accQ = useQuery({
-    queryKey: ['rolls-page-accessories'],
-    queryFn: () => accessoriesApi.list(),
+    queryKey: ['rolls-page-accessories', accActive],
+    queryFn: () => accessoriesApi.list(accActive === 'all' ? undefined : { is_active: accActive === 'active' }),
     enabled: viewType === 'accessories',
   });
 
@@ -220,6 +222,15 @@ export function RollsPage() {
   const accLabelMut = useMutation({
     mutationFn: (id: number) => accessoriesApi.labelBlob(id),
     onSuccess: (blob) => openPdfBlob(blob),
+  });
+
+  const accActiveMut = useMutation({
+    mutationFn: ({ id, is_active }: { id: number; is_active: boolean }) =>
+      accessoriesApi.update(id, { is_active }),
+    onSuccess: (updated) => {
+      setAccDetail((prev) => (prev ? { ...prev, ...updated } : null));
+      qc.invalidateQueries({ queryKey: ['rolls-page-accessories'] });
+    },
   });
 
   const accColumns: Column<Accessory>[] = [
@@ -436,16 +447,30 @@ export function RollsPage() {
           </div>
         </>
       ) : (
-        <div className="space-y-1">
-          <Label className="text-sm font-medium text-foreground">بحث</Label>
-          <Input
-            value={accSearch}
-            onChange={(e) => setAccSearch(e.target.value)}
-            placeholder="ابحث بالاسم أو الباركود"
-            className="h-11 md:h-10"
-            dir="rtl"
-          />
-        </div>
+        <>
+          <div className="space-y-1">
+            <Label className="text-sm font-medium text-foreground">بحث</Label>
+            <Input
+              value={accSearch}
+              onChange={(e) => setAccSearch(e.target.value)}
+              placeholder="ابحث بالاسم أو الباركود"
+              className="h-11 md:h-10"
+              dir="rtl"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-sm font-medium text-foreground">الحالة</Label>
+            <select
+              className={selectClass}
+              value={accActive}
+              onChange={(e) => setAccActive(e.target.value as 'all' | 'active' | 'inactive')}
+            >
+              <option value="all">الكل</option>
+              <option value="active">نشط</option>
+              <option value="inactive">موقوف</option>
+            </select>
+          </div>
+        </>
       )}
     </div>
   );
@@ -520,6 +545,7 @@ export function RollsPage() {
             columns={accColumns}
             rows={filteredAccessories}
             rowKey={(r) => String(r.id)}
+            onRowClick={(r) => setAccDetail(r)}
             empty="لا توجد اكسسوارات مسجلة بعد"
             isLoading={accQ.isLoading}
             isError={accQ.isError}
@@ -667,6 +693,75 @@ export function RollsPage() {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Accessory detail dialog */}
+      <Dialog open={!!accDetail} onOpenChange={(o) => { if (!o) setAccDetail(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>تفاصيل الإكسسوار</DialogTitle>
+          </DialogHeader>
+          {accDetail && (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <span className="text-foreground-muted">الاسم / الكود: </span>
+                  <span className="font-medium text-foreground">{accDetail.name_ar}</span>
+                </div>
+                <div>
+                  <span className="text-foreground-muted">{ar.labels.barcode}: </span>
+                  <span className="font-mono text-xs tabular-num" dir="ltr">{accDetail.internal_barcode}</span>
+                </div>
+                <div>
+                  <span className="text-foreground-muted">الكمية المتاحة: </span>
+                  <span className="tabular-num" dir="ltr">{accDetail.qty_in_stock} قطعة</span>
+                </div>
+                <div>
+                  <span className="text-foreground-muted">سعر البيع: </span>
+                  <span className="tabular-num" dir="ltr">
+                    {accDetail.selling_price_egp != null ? `${fmtMoney(accDetail.selling_price_egp)} ج.م` : '—'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-foreground-muted">الحالة: </span>
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                    accDetail.is_active ? 'bg-success/10 text-success-foreground' : 'bg-surface-row-alt text-foreground-muted'
+                  }`}>
+                    {accDetail.is_active ? 'نشط' : 'موقوف'}
+                  </span>
+                </div>
+              </div>
+              {accDetail.notes_ar && (
+                <div className="pt-1">
+                  <span className="text-foreground-muted">ملاحظات: </span>
+                  <span className="text-foreground">{accDetail.notes_ar}</span>
+                </div>
+              )}
+              <div className="pt-2 border-t border-border-subtle">
+                <Button
+                  className="w-full h-11"
+                  disabled={accLabelMut.isPending && accLabelMut.variables === accDetail.id}
+                  onClick={() => accLabelMut.mutate(accDetail.id)}
+                >
+                  {ar.labels.printLabel}
+                </Button>
+              </div>
+              {(isOwner || can('accessories', 'write')) && (
+                <div className="pt-2 border-t border-border-subtle">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    disabled={accActiveMut.isPending}
+                    onClick={() => accActiveMut.mutate({ id: accDetail.id, is_active: !accDetail.is_active })}
+                  >
+                    {accActiveMut.isPending ? ar.loading : accDetail.is_active ? 'إيقاف' : 'تفعيل'}
+                  </Button>
                 </div>
               )}
             </div>
