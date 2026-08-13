@@ -8,8 +8,11 @@ import type {
   DamageEvent,
   DamageReasonCode,
   DamageDisposition,
+  DeleteFabricResult,
   Fabric,
+  FabricArchivedFilter,
   FabricFull,
+  FabricUsage,
   FactoryRollPick,
   Lot,
   RollStatus,
@@ -28,16 +31,28 @@ import type {
 
 export const inventoryApi = {
   // Lookup tables (Phase 1 endpoints)
-  listFabrics: () => api.get<Fabric[]>('/fabrics').then((r) => r.data),
-  listFabricsFull: () => api.get<FabricFull[]>('/fabrics').then((r) => r.data),
+  // `archived` defaults to excluding archived materials server-side, so
+  // new-entry pickers never offer one. Pass 'all' for historical filters and
+  // for the management page.
+  listFabrics: (archived?: FabricArchivedFilter) =>
+    api.get<Fabric[]>('/fabrics', { params: archived ? { archived } : undefined }).then((r) => r.data),
+  listFabricsFull: (archived?: FabricArchivedFilter) =>
+    api.get<FabricFull[]>('/fabrics', { params: archived ? { archived } : undefined }).then((r) => r.data),
   listColors: () => api.get<Color[]>('/colors').then((r) => r.data),
 
-  // Fabric catalog (Owner only)
+  // Fabric catalog (fabric_rolls.manage)
   createFabric: (body: CreateFabricInput) =>
     api.post<FabricFull>('/fabrics', body).then((r) => r.data),
   updateFabric: (id: number, body: UpdateFabricInput) =>
     api.patch<FabricFull>(`/fabrics/${id}`, body).then((r) => r.data),
-  deleteFabric: (id: number) => api.delete<void>(`/fabrics/${id}`).then((r) => r.data),
+  /** What deleting this material would do — call before confirming. */
+  getFabricUsage: (id: number) =>
+    api.get<FabricUsage>(`/fabrics/${id}/usage`).then((r) => r.data),
+  /** Deletes permanently when safe, archives otherwise. `mode` says which. */
+  deleteFabric: (id: number) =>
+    api.delete<DeleteFabricResult>(`/fabrics/${id}`).then((r) => r.data),
+  restoreFabric: (id: number) =>
+    api.post<FabricFull>(`/fabrics/${id}/restore`).then((r) => r.data),
 
   // Color catalog (Owner only)
   createColor: (body: { name_ar: string }) =>

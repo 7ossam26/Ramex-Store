@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
@@ -25,9 +25,17 @@ import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { PageShell } from '@/components/Layout/PageShell';
 import { StatusPill } from '@/components/StatusPill';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { useAuth } from '@/lib/auth';
-import { isOwnerOrAbove } from '@/lib/roles';
+import { FabricDeleteDialog } from './FabricDeleteDialog';
+import { usePermissions } from '@/lib/permissions';
 import { extractApiError } from '@/lib/api-error';
+
+const fmtDate = (s: string) =>
+  new Date(s).toLocaleDateString('en-GB', {
+    timeZone: 'Africa/Cairo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 
 type FormState = {
   name_ar: string;
@@ -74,13 +82,17 @@ function fromFabric(f: FabricFull & { default_grade_id?: number | null; default_
 }
 
 export function FabricsPage() {
-  const { user } = useAuth();
   const qc = useQueryClient();
-  const isOwner = isOwnerOrAbove(user?.role);
+  // Matches the API gate on these routes (fabric_rolls.manage), which also
+  // covers factory_sender — previously the buttons were owner-only while the
+  // backend allowed more, so a factory user had no way in at all.
+  const { can } = usePermissions();
+  const canManage = can('fabric_rolls', 'manage');
 
+  // The management page is the one place archived materials must stay visible.
   const fabricsQ = useQuery({
-    queryKey: ['fabrics-full'],
-    queryFn: inventoryApi.listFabricsFull,
+    queryKey: ['fabrics-full', 'all'],
+    queryFn: () => inventoryApi.listFabricsFull('all'),
   });
 
   const gradesQ = useQuery({ queryKey: ['codes-grades'], queryFn: codesApi.listGrades });
@@ -93,6 +105,8 @@ export function FabricsPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<FabricFull | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [pendingRestore, setPendingRestore] = useState<FabricFull | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [filterUnit, setFilterUnit] = useState<'' | 'kg' | 'meter'>('');
@@ -141,17 +155,40 @@ export function FabricsPage() {
     onError: (e: unknown) => setErrorMsg(extractApiError(e)),
   });
 
+  /**
+   * Archiving renames the material (its name gains a «مؤرشف» marker) and a
+   * permanent delete removes its أتواب, so every list that shows either has to
+   * refetch — not just this page.
+   */
+  function invalidateFabricViews() {
+    for (const key of ['fabrics-full', 'fabrics', 'fabrics-list', 'rolls', 'stock-summary']) {
+      qc.invalidateQueries({ queryKey: [key] });
+    }
+  }
+
   const deleteMut = useMutation({
     mutationFn: (id: number) => inventoryApi.deleteFabric(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['fabrics-full'] });
-      qc.invalidateQueries({ queryKey: ['fabrics'] });
+    onSuccess: (result) => {
+      invalidateFabricViews();
       setPendingDelete(null);
       setDeleteError(null);
+      setNotice(result.mode === 'deleted' ? ar.fabrics.deletedResult : ar.fabrics.archivedResult);
+    },
+    // Keep the dialog open on failure — closing it left the row in place with
+    // the message scrolled out of sight, which read as "nothing happened".
+    onError: (e: unknown) => setDeleteError(extractApiError(e)),
+  });
+
+  const restoreMut = useMutation({
+    mutationFn: (id: number) => inventoryApi.restoreFabric(id),
+    onSuccess: () => {
+      invalidateFabricViews();
+      setPendingRestore(null);
+      setNotice(ar.fabrics.restoredResult);
     },
     onError: (e: unknown) => {
       setDeleteError(extractApiError(e));
-      setPendingDelete(null);
+      setPendingRestore(null);
     },
   });
 
@@ -264,9 +301,14 @@ export function FabricsPage() {
         key: 'is_active',
         header: ar.fabrics.isActive,
         cell: (f) => (
-          <StatusPill tone={f.is_active ? 'success' : 'neutral'}>
-            {f.is_active ? ar.common.yes : ar.common.no}
-          </StatusPill>
+          <div className="flex flex-col items-start gap-0.5">
+            <StatusPill tone={f.is_active ? 'success' : 'warning'}>
+              {f.is_active ? ar.common.yes : ar.fabrics.archived}
+            </StatusPill>
+            {!f.is_active && f.archived_at && (
+              <span className="text-xs text-foreground-muted" dir="ltr">{fmtDate(f.archived_at)}</span>
+            )}
+          </div>
         ),
       },
     ],
@@ -280,7 +322,7 @@ export function FabricsPage() {
       backTo="/items"
     >
       {/* Box-style add button */}
-      {isOwner && (
+      {canManage && (
         <button
           onClick={openCreate}
           className="group flex w-full items-center gap-4 rounded-xl border-2 border-dashed border-accent/40 bg-accent/5 px-5 py-4 text-right transition-all duration-150 hover:border-accent/70 hover:bg-accent/10 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -309,8 +351,8 @@ export function FabricsPage() {
               className={selectClass}
             >
               <option value="all">الكل</option>
-              <option value="active">مفعّل</option>
-              <option value="inactive">غير مفعّل</option>
+              <option value="active">{ar.fabrics.filterActive}</option>
+              <option value="inactive">{ar.fabrics.filterArchived}</option>
             </select>
           </div>
           <div className="space-y-1">
@@ -370,7 +412,14 @@ export function FabricsPage() {
         </span>
       </div>
 
-      {deleteError && (
+      {notice && (
+        <div role="status" className="p-3 rounded-md border border-success/30 bg-success-subtle text-sm text-success-foreground">
+          {notice}
+        </div>
+      )}
+
+      {/* Failures during delete render inside the dialog; this covers restore. */}
+      {deleteError && !pendingDelete && (
         <div role="alert" className="p-3 rounded-md border border-danger/30 bg-danger-subtle text-sm text-danger-foreground">
           {deleteError}
         </div>
@@ -380,28 +429,39 @@ export function FabricsPage() {
         columns={columns}
         rows={filtered}
         rowKey={(f) => String(f.id)}
-        onRowClick={isOwner ? openEdit : undefined}
+        onRowClick={canManage ? openEdit : undefined}
         empty={ar.common.none}
         isLoading={fabricsQ.isLoading}
         isError={fabricsQ.isError}
         onRetry={() => fabricsQ.refetch()}
         resetKey={`${filterStatus}|${filterUnit}|${filterCategory}`}
         actions={
-          isOwner
+          canManage
             ? (f) => (
                 <div className="flex gap-1 justify-end">
                   <Button size="sm" variant="outline" onClick={() => openEdit(f)} aria-label={ar.fabrics.edit}>
                     <Pencil className="size-4" aria-hidden />
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => { setDeleteError(null); setPendingDelete(f); }}
-                    aria-label={ar.fabrics.delete}
-                    className="text-danger hover:text-danger"
-                  >
-                    <Trash2 className="size-4" aria-hidden />
-                  </Button>
+                  {f.is_active ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { setNotice(null); setDeleteError(null); setPendingDelete(f); }}
+                      aria-label={ar.fabrics.delete}
+                      className="text-danger hover:text-danger"
+                    >
+                      <Trash2 className="size-4" aria-hidden />
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { setNotice(null); setDeleteError(null); setPendingRestore(f); }}
+                      aria-label={ar.fabrics.restore}
+                    >
+                      <RotateCcw className="size-4" aria-hidden />
+                    </Button>
+                  )}
                 </div>
               )
             : undefined
@@ -647,15 +707,24 @@ export function FabricsPage() {
         </DialogContent>
       </Dialog>
 
+      <FabricDeleteDialog
+        fabric={pendingDelete}
+        error={deleteError}
+        pending={deleteMut.isPending}
+        onConfirm={() => pendingDelete && deleteMut.mutate(pendingDelete.id)}
+        onCancel={() => { setPendingDelete(null); setDeleteError(null); }}
+      />
+
       <ConfirmDialog
-        open={!!pendingDelete}
+        open={!!pendingRestore}
+        title={ar.fabrics.restore}
         message={
-          pendingDelete
-            ? `${ar.fabrics.confirmDelete}\n${pendingDelete.name_ar}`
+          pendingRestore
+            ? `${ar.fabrics.confirmRestore}\n${pendingRestore.name_ar}`
             : ''
         }
-        onConfirm={() => pendingDelete && deleteMut.mutate(pendingDelete.id)}
-        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => pendingRestore && restoreMut.mutate(pendingRestore.id)}
+        onCancel={() => setPendingRestore(null)}
       />
     </PageShell>
   );

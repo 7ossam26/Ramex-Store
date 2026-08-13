@@ -16,6 +16,8 @@ itemsRouter.use(requireAuth, requireActiveSession);
 // Write operations require fabric_rolls.manage (factory_sender + owner by default).
 itemsRouter.get('/fabrics', requirePermission('fabric_rolls', 'read'), fabricsCtl.listFabrics);
 itemsRouter.post('/fabrics', requirePermission('fabric_rolls', 'manage'), fabricsCtl.createFabric);
+itemsRouter.get('/fabrics/:id/usage', requirePermission('fabric_rolls', 'manage'), fabricsCtl.getFabricUsage);
+itemsRouter.post('/fabrics/:id/restore', requirePermission('fabric_rolls', 'manage'), fabricsCtl.restoreFabric);
 itemsRouter.patch('/fabrics/:id', requirePermission('fabric_rolls', 'manage'), fabricsCtl.updateFabric);
 itemsRouter.delete('/fabrics/:id', requirePermission('fabric_rolls', 'manage'), fabricsCtl.deleteFabric);
 

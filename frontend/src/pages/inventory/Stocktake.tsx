@@ -81,7 +81,9 @@ function RunStocktake({ stocktake, onComplete }: { stocktake: Stocktake; onCompl
     queryFn: () => inventoryApi.getStocktake(stocktake.id),
   });
 
-  const fabricsQ = useQuery({ queryKey: ['fabrics'], queryFn: inventoryApi.listFabrics });
+  // 'all' — a جرد counts what is physically on the shelf, including أتواب of a
+  // material that has since been archived.
+  const fabricsQ = useQuery({ queryKey: ['fabrics', 'all'], queryFn: () => inventoryApi.listFabrics('all') });
   const colorsQ = useQuery({ queryKey: ['colors'], queryFn: inventoryApi.listColors });
 
   const scanM = useMutation({

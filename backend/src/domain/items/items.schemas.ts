@@ -30,6 +30,13 @@ export const UpdateFabricSchema = CreateFabricSchema.extend({
 }).partial();
 export type UpdateFabricInput = z.infer<typeof UpdateFabricSchema>;
 
+// GET /fabrics — defaults to hiding archived materials so new-entry pickers
+// never offer one. The management page passes 'all'.
+export const ListFabricsQuerySchema = z.object({
+  archived: z.enum(['true', 'false', 'all']).optional().default('false'),
+});
+export type ListFabricsQueryInput = z.infer<typeof ListFabricsQuerySchema>;
+
 export const CreateColorSchema = z.object({
   name_ar: z.string().min(1).max(64),
 });

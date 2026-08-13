@@ -1,10 +1,23 @@
 import type { Request, Response } from 'express';
-import { CreateFabricSchema, UpdateFabricSchema } from './items.schemas.js';
+import { CreateFabricSchema, UpdateFabricSchema, ListFabricsQuerySchema } from './items.schemas.js';
 import * as svc from './fabrics.service.js';
 import { auditLog } from '../../middleware/audit.js';
 
+function actorOf(req: Request): svc.FabricActor {
+  return {
+    userId: req.user!.sub,
+    ip: req.ip ?? null,
+    userAgent: req.headers['user-agent'] ?? null,
+  };
+}
+
 export async function listFabrics(req: Request, res: Response): Promise<void> {
-  res.json(await svc.listFabrics());
+  try {
+    const { archived } = ListFabricsQuerySchema.parse(req.query);
+    res.json(await svc.listFabrics(archived));
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'bad_request' });
+  }
 }
 
 export async function createFabric(req: Request, res: Response): Promise<void> {
@@ -32,26 +45,49 @@ export async function updateFabric(req: Request, res: Response): Promise<void> {
   }
 }
 
-const DELETE_ERR_MAP: Record<string, { status: number; message: string }> = {
-  FABRIC_NOT_FOUND: { status: 404, message: 'الخامة غير موجودة' },
-  FABRIC_IN_USE: {
-    status: 409,
-    message: 'لا يمكن حذف هذه الخامة لأنها مستخدمة في اتواب أو لوطات أو أسعار أو جرد. يمكنك تعطيلها بدلاً من ذلك.',
-  },
-};
+const FABRIC_NOT_FOUND_MSG = 'الخامة غير موجودة';
 
+/**
+ * What deleting this material would do — so the UI can tell the user before
+ * they confirm, instead of after.
+ */
+export async function getFabricUsage(req: Request, res: Response): Promise<void> {
+  try {
+    const id = Number(req.params.id);
+    const fabric = await svc.getFabric(id);
+    if (!fabric) { res.status(404).json({ error: 'not_found', message: FABRIC_NOT_FOUND_MSG }); return; }
+    res.json(await svc.getFabricUsage(id));
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'internal_error' });
+  }
+}
+
+/**
+ * Deletes the material permanently when nothing real is attached to it,
+ * otherwise archives it. Responds 200 with the outcome — the caller needs to
+ * know which of the two happened.
+ */
 export async function deleteFabric(req: Request, res: Response): Promise<void> {
   const id = Number(req.params.id);
   try {
-    const before = await svc.getFabric(id);
-    if (!before) { res.status(404).json({ error: 'not_found', message: DELETE_ERR_MAP.FABRIC_NOT_FOUND!.message }); return; }
-    await svc.deleteFabric(id);
-    await auditLog(req, 'delete_fabric', 'fabric', id, before, null, { severity: 'medium' });
-    res.status(204).send();
+    const result = await svc.deleteFabric(id, actorOf(req));
+    res.json(result);
   } catch (err) {
-    if (err instanceof Error && DELETE_ERR_MAP[err.message]) {
-      const { status, message } = DELETE_ERR_MAP[err.message]!;
-      res.status(status).json({ error: err.message, message });
+    if (err instanceof Error && err.message === 'FABRIC_NOT_FOUND') {
+      res.status(404).json({ error: 'not_found', message: FABRIC_NOT_FOUND_MSG });
+      return;
+    }
+    res.status(500).json({ error: err instanceof Error ? err.message : 'internal_error' });
+  }
+}
+
+export async function restoreFabric(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  try {
+    res.json(await svc.restoreFabric(id, actorOf(req)));
+  } catch (err) {
+    if (err instanceof Error && err.message === 'FABRIC_NOT_FOUND') {
+      res.status(404).json({ error: 'not_found', message: FABRIC_NOT_FOUND_MSG });
       return;
     }
     res.status(500).json({ error: err instanceof Error ? err.message : 'internal_error' });

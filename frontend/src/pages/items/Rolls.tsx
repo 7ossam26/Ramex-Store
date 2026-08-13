@@ -175,7 +175,7 @@ export function RollsPage() {
     }
   }, [detail]);
 
-  const fabricsQ = useQuery({ queryKey: ['fabrics'], queryFn: inventoryApi.listFabrics });
+  const fabricsQ = useQuery({ queryKey: ['fabrics', 'all'], queryFn: () => inventoryApi.listFabrics('all') });
   const colorsQ  = useQuery({ queryKey: ['colors'],  queryFn: inventoryApi.listColors });
 
   const fabrics = Array.isArray(fabricsQ.data) ? fabricsQ.data : [];

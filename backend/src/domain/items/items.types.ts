@@ -11,6 +11,8 @@ export type Fabric = {
   grade: string;
   notes: string | null;
   is_active: boolean;
+  /** Set when the material was archived instead of deleted; null while active. */
+  archived_at: Date | null;
   unit: FabricUnit;
   category: FabricCategory | null;
   supplier_code: string | null;

@@ -102,7 +102,7 @@ export function StockMovementsPage() {
   const [colorId, setColorId] = useState('');
   const [offset, setOffset] = useState(0);
 
-  const fabricsQ = useQuery({ queryKey: ['fabrics'], queryFn: inventoryApi.listFabrics });
+  const fabricsQ = useQuery({ queryKey: ['fabrics', 'all'], queryFn: () => inventoryApi.listFabrics('all') });
   const colorsQ = useQuery({ queryKey: ['colors'], queryFn: inventoryApi.listColors });
   const fabrics = fabricsQ.data ?? [];
   const colors = colorsQ.data ?? [];

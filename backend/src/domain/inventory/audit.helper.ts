@@ -11,6 +11,13 @@ export type ServiceAuditEntry = {
   after?: unknown;
   severity?: Severity;
   tag?: string | null;
+  /**
+   * Request origin, for top-level user actions that must be audited inside
+   * their own transaction (so the audit row rolls back with the write) but
+   * shouldn't lose the caller details that middleware/audit.ts records.
+   */
+  ip?: string | null;
+  userAgent?: string | null;
 };
 
 /**
@@ -30,8 +37,8 @@ export async function auditFromService(
     entity_id: e.entityId == null ? null : String(e.entityId),
     before_json: e.before == null ? null : JSON.stringify(e.before),
     after_json: e.after == null ? null : JSON.stringify(e.after),
-    ip: null,
-    user_agent: null,
+    ip: e.ip ?? null,
+    user_agent: e.userAgent?.slice(0, 255) ?? null,
     severity: e.severity ?? 'low',
     tag: e.tag ?? null,
   });

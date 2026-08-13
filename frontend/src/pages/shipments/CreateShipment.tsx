@@ -34,7 +34,9 @@ export function CreateShipmentPage() {
   const [colorFilter, setColorFilter] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const fabricsQ = useQuery({ queryKey: ['fabrics'], queryFn: inventoryApi.listFabrics });
+  // 'all' — أتواب of an archived material may still sit in the factory and
+  // need shipping to the shop.
+  const fabricsQ = useQuery({ queryKey: ['fabrics', 'all'], queryFn: () => inventoryApi.listFabrics('all') });
   const colorsQ  = useQuery({ queryKey: ['colors'], queryFn: inventoryApi.listColors });
 
   const factoryRollsQ = useQuery({

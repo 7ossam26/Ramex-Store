@@ -665,7 +665,13 @@ function FabricSubGroup({
 
 export function AddTopPage() {
   const qc = useQueryClient();
-  const fabricsFullQ = useQuery({ queryKey: ['fabrics-full'], queryFn: inventoryApi.listFabricsFull });
+  // Archived materials are excluded here only: this is where new أتواب are
+  // created, and you should not be able to produce more of a material that was
+  // deleted. Screens that act on stock already on the shelf still list them.
+  const fabricsFullQ = useQuery({
+    queryKey: ['fabrics-full', 'active'],
+    queryFn: () => inventoryApi.listFabricsFull('false'),
+  });
   const colorsQ = useQuery({ queryKey: ['colors'], queryFn: inventoryApi.listColors });
 
   const fabricsFull: FabricFull[] = fabricsFullQ.data ?? [];

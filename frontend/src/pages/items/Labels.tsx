@@ -63,7 +63,7 @@ export function LabelsPage() {
   const [reprintTarget, setReprintTarget] = useState<LabelRow | null>(null);
   const [reprintReason, setReprintReason] = useState('');
 
-  const fabricsQ = useQuery({ queryKey: ['fabrics-list'], queryFn: inventoryApi.listFabrics });
+  const fabricsQ = useQuery({ queryKey: ['fabrics-list', 'all'], queryFn: () => inventoryApi.listFabrics('all') });
   const colorsQ = useQuery({ queryKey: ['colors-list'], queryFn: inventoryApi.listColors });
 
   // Tops drop out only when the user has explicitly narrowed to accessories.

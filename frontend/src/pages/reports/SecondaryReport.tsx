@@ -660,9 +660,11 @@ export function SecondaryReportPage() {
   const [fabricId, setFabricId] = useState('');
   const [colorId, setColorId] = useState('');
 
+  // 'all' — reports cover past periods, so archived materials must stay
+  // filterable (their names carry the «مؤرشف» marker).
   const fabricsQ = useQuery({
-    queryKey: ['fabrics'],
-    queryFn: inventoryApi.listFabrics,
+    queryKey: ['fabrics', 'all'],
+    queryFn: () => inventoryApi.listFabrics('all'),
     enabled: Boolean(config?.needsFabricColor),
   });
   const colorsQ = useQuery({

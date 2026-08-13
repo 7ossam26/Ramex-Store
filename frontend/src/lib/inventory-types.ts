@@ -180,11 +180,48 @@ export type FabricFull = {
   grade: string;
   notes: string | null;
   is_active: boolean;
+  /** Set when the material was archived instead of deleted; null while active. */
+  archived_at: string | null;
   unit: FabricUnit;
   category: FabricCategory | null;
   supplier_code: string | null;
   created_at: string;
   updated_at: string;
+};
+
+/** Which archived materials a fabrics listing should include. */
+export type FabricArchivedFilter = 'true' | 'false' | 'all';
+
+/**
+ * Why a material cannot be erased — each is business history that would be
+ * rewritten by deleting it.
+ */
+export type FabricBlocker =
+  | 'invoice_lines'
+  | 'return_lines'
+  | 'shipment_lines'
+  | 'damage_events'
+  | 'stocktake_lines';
+
+/** What deleting a material would do, fetched before the user confirms. */
+export type FabricUsage = {
+  rolls_total: number;
+  rolls_by_status: Partial<Record<RollStatus, number>>;
+  lots: number;
+  prices: number;
+  stock_movements: number;
+  invoice_lines: number;
+  return_lines: number;
+  shipment_lines: number;
+  damage_events: number;
+  stocktake_lines: number;
+  blockers: FabricBlocker[];
+  can_hard_delete: boolean;
+};
+
+export type DeleteFabricResult = {
+  mode: 'deleted' | 'archived';
+  usage: FabricUsage;
 };
 
 export type CreateFabricInput = {
