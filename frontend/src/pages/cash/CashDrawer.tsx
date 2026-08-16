@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { TrendingUp, TrendingDown, Clock } from 'lucide-react';
 import { financeApi } from '@/lib/finance-api';
@@ -23,6 +23,7 @@ import { TableFilterBar } from '@/components/TableFilterBar';
 import { Skeleton } from '@/components/Skeleton';
 import { cn } from '@/lib/utils';
 import { extractApiError } from '@/lib/api-error';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 const PAGE_SIZE = 50;
 
@@ -50,6 +51,8 @@ export function CashDrawerPage() {
   const [page, setPage] = useState(1);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [showOpeningDlg, setShowOpeningDlg] = useState(false);
   const [showWithdrawalDlg, setShowWithdrawalDlg] = useState(false);
   const [openingError, setOpeningError] = useState<string | null>(null);
@@ -61,8 +64,17 @@ export function CashDrawerPage() {
   });
 
   const movementsQ = useQuery({
-    queryKey: ['cash-movements', page, from, to],
-    queryFn: () => financeApi.getCashMovements({ from: from || undefined, to: to || undefined, page, limit: PAGE_SIZE }),
+    queryKey: ['cash-movements', page, from, to, debouncedSearch],
+    queryFn: () => financeApi.getCashMovements({
+      from: from || undefined,
+      to: to || undefined,
+      search: debouncedSearch || undefined,
+      page,
+      limit: PAGE_SIZE,
+    }),
+    // Each debounce tick is a new cache key; without this the table would blank
+    // to a skeleton on every pause in typing.
+    placeholderData: keepPreviousData,
   });
 
   const openingForm = useForm<{ amount: string; override: boolean }>({
@@ -247,6 +259,14 @@ export function CashDrawerPage() {
 
       {/* Filter bar */}
       <TableFilterBar
+        search={{
+          value: search,
+          // Reset paging off the raw value, not the debounced one — otherwise
+          // editing the query while on page 5 requests page 5 of a 1-page result.
+          onChange: (v) => { setSearch(v); setPage(1); },
+          placeholder: ar.cash.searchPlaceholder,
+          maxLength: 64,
+        }}
         filters={
           <>
             <div className="flex flex-col gap-1">
@@ -273,13 +293,14 @@ export function CashDrawerPage() {
                 className="h-10 w-full sm:w-40"
               />
             </div>
-            {(from || to) && (
+            {(from || to || search) && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
                   setFrom('');
                   setTo('');
+                  setSearch('');
                   setPage(1);
                 }}
                 className="self-end"
@@ -301,7 +322,7 @@ export function CashDrawerPage() {
           isLoading={movementsQ.isLoading}
           isError={movementsQ.isError}
           onRetry={() => movementsQ.refetch()}
-          resetKey={`${from}-${to}`}
+          resetKey={`${from}-${to}-${debouncedSearch}`}
         />
       </SectionCard>
 

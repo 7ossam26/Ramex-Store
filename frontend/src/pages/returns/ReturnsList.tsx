@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { returnsApi } from '@/lib/returns-api';
 import type { ReturnListRow } from '@/lib/returns-types';
@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
+import { TableFilterBar } from '@/components/TableFilterBar';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { KpiGrid } from '@/components/dashboard/KpiGrid';
 import { MetricCard } from '@/components/dashboard/MetricCard';
@@ -40,17 +42,21 @@ function fmtDate(iso: string): string {
 export function ReturnsListPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const debouncedSearch = useDebouncedValue(search);
 
   const q = useQuery<{ rows: ReturnListRow[]; total: number }>({
-    queryKey: ['returns', dateFrom, dateTo, page],
+    queryKey: ['returns', dateFrom, dateTo, debouncedSearch, page],
     queryFn: () =>
       returnsApi.list({
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
+        search: debouncedSearch || undefined,
         page,
         limit: 30,
       }),
+    placeholderData: keepPreviousData,
   });
 
   const rows = q.data?.rows ?? [];
@@ -193,6 +199,19 @@ export function ReturnsListPage() {
         />
       </KpiGrid>
 
+      {/* Search sits outside MobileFilterSheet on purpose — the sheet collapses
+          its children behind a «تصفية» trigger below md, and a search box must
+          never be hidden behind a tap. */}
+      <TableFilterBar
+        search={{
+          value: search,
+          onChange: (v) => { setSearch(v); setPage(1); },
+          placeholder: ar.returns.searchPlaceholder,
+          maxLength: 64,
+        }}
+        resultCount={total}
+      />
+
       {/* Filters: inline ≥md, bottom sheet <md */}
       <MobileFilterSheet activeCount={activeFilters}>
         {filterControls}
@@ -208,7 +227,7 @@ export function ReturnsListPage() {
           isLoading={q.isLoading}
           isError={q.isError}
           onRetry={() => q.refetch()}
-          resetKey={`${dateFrom}|${dateTo}|${page}`}
+          resetKey={`${dateFrom}|${dateTo}|${debouncedSearch}|${page}`}
         />
       </SectionCard>
 

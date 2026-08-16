@@ -38,7 +38,8 @@ import { ResetPasswordDialog } from './ResetPasswordDialog';
 import { EditUserPermissionsDialog } from './EditUserPermissionsDialog';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertTriangle, KeyRound } from 'lucide-react';
+import { AlertTriangle, KeyRound, Search } from 'lucide-react';
+import { matchesTokens, tokenize } from '@/lib/arabic-search';
 import type { UserRow } from '@/lib/settings-api';
 import { RESOURCE_GROUPS } from '@/lib/permissions-config';
 
@@ -884,6 +885,51 @@ function TabsBar({ tab, onChange }: { tab: CodeTab; onChange: (v: CodeTab) => vo
   );
 }
 
+/**
+ * Search box + matcher shared by the four code tables (الدرجات، التركيبات،
+ * الموردون، العلامات التجارية). These lists are server-capped at 200 rows, so
+ * filtering on every render costs nothing and skips the memo-deps dance.
+ */
+function CodeSearchInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="relative">
+      <Search
+        className="size-4 absolute top-1/2 -translate-y-1/2 start-3 text-foreground-tertiary pointer-events-none"
+        aria-hidden
+      />
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={ar.codes.search}
+        aria-label={ar.codes.search}
+        dir="rtl"
+        className="w-full h-10 rounded-md border border-border-default bg-surface-elevated ps-9 pe-3 text-sm text-foreground placeholder:text-foreground-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
+      />
+    </div>
+  );
+}
+
+function filterCodes<T>(
+  items: T[],
+  search: string,
+  fields: (item: T) => Array<string | null | undefined>,
+): T[] {
+  const tokens = tokenize(search);
+  if (tokens.length === 0) return items;
+  return items.filter((item) => matchesTokens(tokens, fields(item)));
+}
+
+function CodesEmptyRow({ colSpan }: { colSpan: number }) {
+  return (
+    <tr>
+      <td colSpan={colSpan} className="py-6 px-3 text-center text-foreground-muted">
+        {ar.labels.noSearchResults}
+      </td>
+    </tr>
+  );
+}
+
 function CodesTableSkeleton() {
   return (
     <div className="rounded-lg border border-border-subtle overflow-hidden" aria-hidden>
@@ -907,6 +953,7 @@ function GradesTab({ notifySaved }: { notifySaved: () => void }) {
   const [form, setForm] = useState({ arabic_name: '', english_name: '' });
   const [addOpen, setAddOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   const createMut = useMutation({
     mutationFn: () =>
@@ -938,9 +985,11 @@ function GradesTab({ notifySaved }: { notifySaved: () => void }) {
   });
 
   if (isLoading) return <CodesTableSkeleton />;
+  const filtered = filterCodes(items, search, (i) => [i.arabic_name, i.english_name]);
   return (
     <div className="space-y-4">
       {err && <SaveErrorBanner message={err} onDismiss={() => setErr(null)} />}
+      <CodeSearchInput value={search} onChange={setSearch} />
       <div className="rounded-lg border border-border-subtle overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-surface-row-alt text-foreground-muted">
@@ -951,7 +1000,8 @@ function GradesTab({ notifySaved }: { notifySaved: () => void }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle bg-surface-elevated">
-            {items.map((item, i) => (
+            {filtered.length === 0 && <CodesEmptyRow colSpan={3} />}
+            {filtered.map((item, i) => (
               <tr key={item.id} className={cn('hover:bg-surface-hover transition-colors duration-150', i % 2 === 1 && 'bg-surface-row-alt/40')}>
                 <td className="py-2 px-3 text-foreground">{item.arabic_name}</td>
                 <td className="py-2 px-3 text-foreground-muted">{item.english_name ?? '—'}</td>
@@ -996,6 +1046,7 @@ function CompositionsTab({ notifySaved }: { notifySaved: () => void }) {
   const [form, setForm] = useState({ arabic_name: '', description: '' });
   const [addOpen, setAddOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   const createMut = useMutation({
     mutationFn: () =>
@@ -1029,9 +1080,11 @@ function CompositionsTab({ notifySaved }: { notifySaved: () => void }) {
   });
 
   if (isLoading) return <CodesTableSkeleton />;
+  const filtered = filterCodes(items, search, (i) => [i.arabic_name, i.description]);
   return (
     <div className="space-y-4">
       {err && <SaveErrorBanner message={err} onDismiss={() => setErr(null)} />}
+      <CodeSearchInput value={search} onChange={setSearch} />
       <div className="rounded-lg border border-border-subtle overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-surface-row-alt text-foreground-muted">
@@ -1042,7 +1095,8 @@ function CompositionsTab({ notifySaved }: { notifySaved: () => void }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle bg-surface-elevated">
-            {items.map((item, i) => (
+            {filtered.length === 0 && <CodesEmptyRow colSpan={3} />}
+            {filtered.map((item, i) => (
               <tr key={item.id} className={cn('hover:bg-surface-hover transition-colors duration-150', i % 2 === 1 && 'bg-surface-row-alt/40')}>
                 <td className="py-2 px-3 text-foreground">{item.arabic_name}</td>
                 <td className="py-2 px-3 text-foreground-muted text-xs max-w-64 truncate">{item.description ?? '—'}</td>
@@ -1087,6 +1141,7 @@ function SuppliersTab({ notifySaved }: { notifySaved: () => void }) {
   const [form, setForm] = useState({ arabic_name: '', arabic_warning_text: '' });
   const [addOpen, setAddOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   const createMut = useMutation({
     mutationFn: () =>
@@ -1118,9 +1173,11 @@ function SuppliersTab({ notifySaved }: { notifySaved: () => void }) {
   });
 
   if (isLoading) return <CodesTableSkeleton />;
+  const filtered = filterCodes(items, search, (i) => [i.arabic_name, i.arabic_warning_text]);
   return (
     <div className="space-y-4">
       {err && <SaveErrorBanner message={err} onDismiss={() => setErr(null)} />}
+      <CodeSearchInput value={search} onChange={setSearch} />
       <div className="rounded-lg border border-border-subtle overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-surface-row-alt text-foreground-muted">
@@ -1131,7 +1188,8 @@ function SuppliersTab({ notifySaved }: { notifySaved: () => void }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle bg-surface-elevated">
-            {items.map((item, i) => (
+            {filtered.length === 0 && <CodesEmptyRow colSpan={3} />}
+            {filtered.map((item, i) => (
               <tr key={item.id} className={cn('hover:bg-surface-hover transition-colors duration-150', i % 2 === 1 && 'bg-surface-row-alt/40')}>
                 <td className="py-2 px-3 text-foreground">{item.arabic_name}</td>
                 <td className="py-2 px-3 text-foreground-muted text-xs max-w-64 truncate">{item.arabic_warning_text ?? '—'}</td>
@@ -1180,6 +1238,7 @@ function BrandsTab({ notifySaved }: { notifySaved: () => void }) {
   const [form, setForm] = useState({ arabic_name: '', product_line: '', supplier_id: '' });
   const [addOpen, setAddOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   const createMut = useMutation({
     mutationFn: () =>
@@ -1215,9 +1274,17 @@ function BrandsTab({ notifySaved }: { notifySaved: () => void }) {
     suppliers.find((s) => s.id === id)?.arabic_name ?? '—';
 
   if (isLoading) return <CodesTableSkeleton />;
+  // Match the resolved supplier name, which is what the row actually shows —
+  // searching the raw supplier_id would find nothing a user can see.
+  const filtered = filterCodes(items, search, (i) => [
+    i.arabic_name,
+    i.product_line,
+    supplierName(i.supplier_id),
+  ]);
   return (
     <div className="space-y-4">
       {err && <SaveErrorBanner message={err} onDismiss={() => setErr(null)} />}
+      <CodeSearchInput value={search} onChange={setSearch} />
       <div className="rounded-lg border border-border-subtle overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-surface-row-alt text-foreground-muted">
@@ -1229,7 +1296,8 @@ function BrandsTab({ notifySaved }: { notifySaved: () => void }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle bg-surface-elevated">
-            {items.map((item, i) => (
+            {filtered.length === 0 && <CodesEmptyRow colSpan={4} />}
+            {filtered.map((item, i) => (
               <tr key={item.id} className={cn('hover:bg-surface-hover transition-colors duration-150', i % 2 === 1 && 'bg-surface-row-alt/40')}>
                 <td className="py-2 px-3 text-foreground">{item.arabic_name}</td>
                 <td className="py-2 px-3 text-foreground-muted">{item.product_line ?? '—'}</td>

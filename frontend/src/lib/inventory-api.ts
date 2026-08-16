@@ -1,5 +1,6 @@
 import { api } from './api';
 import type {
+  AdjustmentRow,
   Color,
   CreateFabricInput,
   CreateLotInput,
@@ -135,7 +136,7 @@ export const inventoryApi = {
     api.post(`/stocktakes/${id}/complete`).then((r) => r.data),
 
   // Adjustments (rolls + accessories, discriminated by entity_type)
-  listAdjustments: () => api.get<StockMovement[]>('/adjustments').then((r) => r.data),
+  listAdjustments: () => api.get<AdjustmentRow[]>('/adjustments').then((r) => r.data),
   createAdjustment: (body: CreateAdjustmentBody) =>
     api.post<StockMovement>('/adjustments', body).then((r) => r.data),
 

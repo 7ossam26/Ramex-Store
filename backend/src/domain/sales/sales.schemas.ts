@@ -107,6 +107,7 @@ export const ListInvoicesQuerySchema = z.object({
   fulfillment_destination: FulfillmentDestinationEnum.optional(),
   date_from: z.string().optional(),
   date_to: z.string().optional(),
+  search: z.string().max(64).optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
   limit: z.coerce.number().int().min(1).max(100).optional().default(30),
 });
@@ -234,6 +235,7 @@ export const ListChequesQuerySchema = z.object({
   bank_name_ar: z.string().optional(),
   due_date_from: z.string().optional(),
   due_date_to: z.string().optional(),
+  search: z.string().max(64).optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
   limit: z.coerce.number().int().min(1).max(100).optional().default(30),
 });

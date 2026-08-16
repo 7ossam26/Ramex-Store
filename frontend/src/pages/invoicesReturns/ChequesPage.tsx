@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { FileText, Search, Filter } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { salesApi } from '@/lib/sales-api';
 import type { Cheque } from '@/lib/sales-types';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -39,23 +40,28 @@ const STATUS_TONE: Record<ChequeStatus, StatusTone> = {
 export function ChequesPage() {
   const [status, setStatus] = useState<ChequeStatus | ''>('');
   const [bankFilter, setBankFilter] = useState('');
+  const [search, setSearch] = useState('');
   const [dueDateFrom, setDueDateFrom] = useState('');
   const [dueDateTo, setDueDateTo] = useState('');
   const [page, setPage] = useState(1);
   const limit = 30;
+  const debouncedSearch = useDebouncedValue(search);
+  const debouncedBank = useDebouncedValue(bankFilter);
 
   const [selectedCheque, setSelectedCheque] = useState<Cheque | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['cheques', status, bankFilter, dueDateFrom, dueDateTo, page],
+    queryKey: ['cheques', status, debouncedBank, debouncedSearch, dueDateFrom, dueDateTo, page],
     queryFn: () => salesApi.listCheques({
       status: status || undefined,
-      bank_name_ar: bankFilter || undefined,
+      bank_name_ar: debouncedBank || undefined,
+      search: debouncedSearch || undefined,
       due_date_from: dueDateFrom || undefined,
       due_date_to: dueDateTo || undefined,
       page,
       limit,
     }),
+    placeholderData: keepPreviousData,
   });
 
   const rows = data?.rows ?? [];
@@ -71,6 +77,22 @@ export function ChequesPage() {
         {total > 0 && (
           <span className="text-sm text-foreground-muted">({total})</span>
         )}
+      </div>
+
+      {/* General search — full width above the filter grid so the 4-cell layout
+          stays intact. Covers cheque no. / الساحب / invoice no. / customer; the
+          البنك box below stays a separate filter and is not duplicated here. */}
+      <div className="relative">
+        <Search className="absolute start-3 top-1/2 -translate-y-1/2 size-4 text-foreground-tertiary pointer-events-none" aria-hidden />
+        <Input
+          value={search}
+          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+          placeholder={ar.cheques.searchPlaceholder}
+          aria-label={ar.cheques.searchPlaceholder}
+          maxLength={64}
+          dir="rtl"
+          className="ps-9 h-10"
+        />
       </div>
 
       {/* Filters */}

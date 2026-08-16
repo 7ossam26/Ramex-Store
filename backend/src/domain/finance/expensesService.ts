@@ -182,6 +182,7 @@ export async function listExpenses(params: {
   status?: 'pending' | 'approved' | 'all';
   from?: string;
   to?: string;
+  search?: string;
   page: number;
   limit: number;
 }): Promise<{ rows: ExpenseRow[]; total: number }> {
@@ -197,6 +198,15 @@ export async function listExpenses(params: {
   if (params.to) base.where('e.created_at', '<=', params.to);
   if (params.status === 'pending') base.where('e.requires_approval', true).whereNull('e.approved_at');
   else if (params.status === 'approved') base.whereNotNull('e.approved_at');
+  if (params.search) {
+    // Notes + actor only. `category` holds English slugs (rent, salary, …)
+    // whose Arabic labels live in the frontend, so ILIKE-ing it would only
+    // ever match if the user typed English into an Arabic-only UI.
+    const term = `%${params.search}%`;
+    base.where((b) => {
+      b.whereILike('e.notes_ar', term).orWhereILike('u.username', term);
+    });
+  }
 
   const [countRow] = await base.clone().clearSelect().count<Array<{ count: string }>>('e.id as count');
   const rows = await base.orderBy('e.created_at', 'desc').limit(params.limit).offset(offset);

@@ -583,6 +583,7 @@ export type ListReturnsQuery = {
   original_invoice_id?: number;
   date_from?: string;
   date_to?: string;
+  search?: string;
 };
 
 async function validateReturnWindow(
@@ -1187,6 +1188,15 @@ export async function listReturns(
   if (q.original_invoice_id) base.where('r.original_invoice_id', q.original_invoice_id);
   if (q.date_from) base.where('r.processed_at', '>=', q.date_from);
   if (q.date_to) base.where('r.processed_at', '<=', q.date_to);
+  if (q.search) {
+    // Grouped so the OR stays scoped to the other filters (see listInvoices).
+    const term = `%${q.search}%`;
+    base.where((b) => {
+      b.whereILike('r.return_no', term)
+        .orWhereILike('inv.invoice_no', term)
+        .orWhereILike('c.name_ar', term);
+    });
+  }
 
   const [countRow] = await base.clone().clearSelect().count<Array<{ count: string }>>('r.id as count');
   const rows = await base.orderBy('r.processed_at', 'desc').limit(q.limit).offset(offset);

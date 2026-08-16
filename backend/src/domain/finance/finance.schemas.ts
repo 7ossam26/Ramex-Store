@@ -8,6 +8,7 @@ export const SetOpeningBalanceSchema = z.object({
 export const CashMovementsQuerySchema = z.object({
   from: z.string().optional(),
   to: z.string().optional(),
+  search: z.string().max(64).optional(),
   page: z.coerce.number().int().positive().optional().default(1),
   limit: z.coerce.number().int().positive().max(200).optional().default(50),
 });
@@ -81,6 +82,7 @@ export const ExpensesQuerySchema = z.object({
   status: z.enum(['pending', 'approved', 'all']).optional().default('all'),
   from: z.string().optional(),
   to: z.string().optional(),
+  search: z.string().max(64).optional(),
   page: z.coerce.number().int().positive().optional().default(1),
   limit: z.coerce.number().int().positive().max(200).optional().default(50),
 });

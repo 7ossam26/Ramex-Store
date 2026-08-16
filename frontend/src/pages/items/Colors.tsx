@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pencil, Plus, Trash2, Undo2 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
@@ -20,6 +20,8 @@ import { useAuth } from '@/lib/auth';
 import { isOwnerOrAbove } from '@/lib/roles';
 import { extractApiError } from '@/lib/api-error';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { TableFilterBar } from '@/components/TableFilterBar';
+import { matchesTokens, tokenize } from '@/lib/arabic-search';
 
 type FormState = { name_ar: string; english_name: string };
 const blank = (): FormState => ({ name_ar: '', english_name: '' });
@@ -41,6 +43,12 @@ export function ColorsPage() {
     queryFn: codesApi.listAllColors,
   });
   const colors = colorsQ.data ?? [];
+
+  const [search, setSearch] = useState('');
+  const filtered = useMemo(() => {
+    const tokens = tokenize(search);
+    return colors.filter((c) => matchesTokens(tokens, [c.name_ar, c.code, c.english_name]));
+  }, [colors, search]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<CodeColor | null>(null);
@@ -161,14 +169,20 @@ export function ColorsPage() {
         </div>
       )}
 
+      <TableFilterBar
+        search={{ value: search, onChange: setSearch, placeholder: ar.colors.searchPlaceholder }}
+        resultCount={filtered.length}
+      />
+
       <ResponsiveTable
         columns={columns}
-        rows={colors}
+        rows={filtered}
         rowKey={(c) => String(c.id)}
-        empty={ar.codes.noResults}
+        empty={search.trim() && colors.length > 0 ? ar.labels.noSearchResults : ar.codes.noResults}
         isLoading={colorsQ.isLoading}
         isError={colorsQ.isError}
         onRetry={() => colorsQ.refetch()}
+        resetKey={search}
         actions={
           isOwner
             ? (c) => (

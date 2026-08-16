@@ -24,6 +24,7 @@ export const returnsApi = {
     original_invoice_id?: number;
     date_from?: string;
     date_to?: string;
+    search?: string;
     page?: number;
     limit?: number;
   }) =>

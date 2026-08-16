@@ -36,6 +36,7 @@ export const salesApi = {
     fulfillment_destination?: 'shop' | 'factory_direct';
     date_from?: string;
     date_to?: string;
+    search?: string;
     page?: number;
     limit?: number;
   }) =>
@@ -117,6 +118,7 @@ export const salesApi = {
     bank_name_ar?: string;
     due_date_from?: string;
     due_date_to?: string;
+    search?: string;
     page?: number;
     limit?: number;
   }) =>

@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { extractApiError } from '@/lib/api-error';
 import { useForm } from 'react-hook-form';
-import { Inbox } from 'lucide-react';
+import { Inbox, Search } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
 import { accessoriesApi } from '@/lib/accessories-api';
@@ -16,6 +16,7 @@ import { TableSkeleton } from '@/components/TableSkeleton';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { cn } from '@/lib/utils';
+import { matchesTokens, tokenize } from '@/lib/arabic-search';
 
 type FormVals = {
   roll_id: number;
@@ -33,6 +34,25 @@ export function AdjustmentsPage() {
   const [entityType, setEntityType] = useState<'roll' | 'accessory'>('roll');
   const [createError, setCreateError] = useState<string | null>(null);
   const list = useQuery({ queryKey: ['adjustments'], queryFn: inventoryApi.listAdjustments });
+
+  // Hoisted above the loading/empty branches below: if the search box lived
+  // inside the results card, filtering to zero would unmount it and strand the
+  // user with no way to clear the query.
+  const [search, setSearch] = useState('');
+  const rows = list.data ?? [];
+  const filtered = useMemo(() => {
+    const tokens = tokenize(search);
+    return rows.filter((m) =>
+      matchesTokens(tokens, [
+        m.fabric_name_ar,
+        m.color_name_ar,
+        m.accessory_name_ar,
+        m.internal_barcode,
+        m.notes_ar,
+        m.roll_id != null ? String(m.roll_id) : null,
+      ]),
+    );
+  }, [rows, search]);
 
   const form = useForm<FormVals>();
 
@@ -221,7 +241,7 @@ export function AdjustmentsPage() {
         <TableSkeleton rows={5} columns={5} />
       ) : list.isError ? (
         <ErrorBanner onRetry={() => list.refetch()} />
-      ) : (list.data ?? []).length === 0 ? (
+      ) : rows.length === 0 ? (
         <EmptyState
           icon={Inbox}
           title={ar.codes.noResults}
@@ -229,7 +249,23 @@ export function AdjustmentsPage() {
         />
       ) : (
         <Card>
-          <CardHeader><CardTitle>{ar.adjustments.title}</CardTitle></CardHeader>
+          <CardHeader className="gap-3">
+            <CardTitle>{ar.adjustments.title}</CardTitle>
+            <div className="relative">
+              <Search
+                className="size-4 absolute top-1/2 -translate-y-1/2 start-3 text-foreground-tertiary pointer-events-none"
+                aria-hidden
+              />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={ar.adjustments.searchPlaceholder}
+                aria-label={ar.adjustments.searchPlaceholder}
+                dir="rtl"
+                className="ps-9 h-10"
+              />
+            </div>
+          </CardHeader>
           <CardContent>
             <table className="w-full text-sm">
               <thead className="text-start text-xs text-foreground-muted uppercase tracking-wide">
@@ -242,11 +278,34 @@ export function AdjustmentsPage() {
                 </tr>
               </thead>
               <tbody>
-                {(list.data ?? []).map((m) => (
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-6 text-center text-foreground-muted">
+                      {ar.labels.noSearchResults}
+                    </td>
+                  </tr>
+                ) : filtered.map((m) => (
                   <tr key={m.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
                     <td className="py-2.5 text-foreground-muted">{new Date(m.created_at).toLocaleString('ar-EG-u-nu-latn')}</td>
-                    <td className="font-mono text-foreground">
-                      {m.entity_type === 'accessory' ? `${ar.adjustments.accessoryItem} #${m.accessory_id}` : `#${m.roll_id}`}
+                    <td className="text-foreground">
+                      {/* Name first, id second — searching by خامة is meaningless
+                          if the row only shows a bare number. */}
+                      {m.entity_type === 'accessory' ? (
+                        <>
+                          <div>{m.accessory_name_ar ?? ar.adjustments.accessoryItem}</div>
+                          <div className="font-mono text-xs text-foreground-muted" dir="ltr">#{m.accessory_id}</div>
+                        </>
+                      ) : (
+                        <>
+                          <div>
+                            {m.fabric_name_ar ?? '—'}
+                            {m.color_name_ar && <span className="text-foreground-muted"> — {m.color_name_ar}</span>}
+                          </div>
+                          <div className="font-mono text-xs text-foreground-muted" dir="ltr">
+                            {m.internal_barcode ?? `#${m.roll_id}`}
+                          </div>
+                        </>
+                      )}
                     </td>
                     <td>{m.from_warehouse ? ar.warehouses[m.from_warehouse] : '—'}</td>
                     <td>{m.to_warehouse ? ar.warehouses[m.to_warehouse] : '—'}</td>

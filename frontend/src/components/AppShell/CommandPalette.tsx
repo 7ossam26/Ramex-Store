@@ -7,6 +7,7 @@ import { usePermissions } from '@/lib/permissions';
 import { allLeaves } from '@/navigation/nav.config';
 import type { NavLeaf } from '@/navigation/nav.config';
 import { cn } from '@/lib/utils';
+import { matchesTokens, tokenize } from '@/lib/arabic-search';
 
 const RECENT_KEY = 'rmx:cmdk:recent';
 const RECENT_LIMIT = 5;
@@ -18,27 +19,8 @@ type Props = {
   onOpenChange: (open: boolean) => void;
 };
 
-function normalizeAr(input: string): string {
-  return input
-    .toLocaleLowerCase('ar')
-    .replace(/[ً-ْٰـ]/g, '') // harakat + dagger alef + tatweel
-    .replace(/[إأآا]/g, 'ا')
-    .replace(/[ىي]/g, 'ي')
-    .replace(/ة/g, 'ه')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function tokenize(q: string): string[] {
-  const norm = normalizeAr(q);
-  if (!norm) return [];
-  return norm.split(/\s+/);
-}
-
 function matches(leaf: NavLeaf, tokens: string[]): boolean {
-  if (tokens.length === 0) return true;
-  const haystack = `${normalizeAr(leaf.labelAr)} ${normalizeAr(leaf.descAr ?? '')} ${leaf.id.toLowerCase()} ${leaf.route.toLowerCase()}`;
-  return tokens.every((t) => haystack.includes(t));
+  return matchesTokens(tokens, [leaf.labelAr, leaf.descAr, leaf.id, leaf.route]);
 }
 
 function readRecents(): string[] {

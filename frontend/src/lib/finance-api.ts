@@ -20,7 +20,7 @@ export const financeApi = {
   setOpeningBalance: (amount: number, override = false) =>
     api.post<{ ok: boolean }>('/cash/opening-balance', { amount, override }).then((r) => r.data),
 
-  getCashMovements: (params?: { from?: string; to?: string; page?: number; limit?: number }) =>
+  getCashMovements: (params?: { from?: string; to?: string; search?: string; page?: number; limit?: number }) =>
     api
       .get<{ rows: CashMovement[]; total: number }>('/cash/movements', { params })
       .then((r) => r.data),
@@ -83,6 +83,7 @@ export const financeApi = {
     status?: 'pending' | 'approved' | 'all';
     from?: string;
     to?: string;
+    search?: string;
     page?: number;
     limit?: number;
   }) =>

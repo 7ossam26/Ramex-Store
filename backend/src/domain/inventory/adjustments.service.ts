@@ -167,9 +167,32 @@ async function createAccessoryAdjustment(
   });
 }
 
-export async function listAdjustments(): Promise<StockMovement[]> {
-  return db('stock_movements')
-    .where({ event_type: 'adjustment' })
-    .orderBy('id', 'desc')
+/** A movement plus the names the الصنف column shows and the search box matches. */
+export type AdjustmentRow = StockMovement & {
+  internal_barcode: string | null;
+  fabric_name_ar: string | null;
+  color_name_ar: string | null;
+  accessory_name_ar: string | null;
+};
+
+export async function listAdjustments(): Promise<AdjustmentRow[]> {
+  // Every join must be a LEFT join: adjustments cover اكسسوارات as well as
+  // أتواب, and an inner join on rolls would silently drop every accessory row.
+  const rows = await db('stock_movements as sm')
+    .where('sm.event_type', 'adjustment')
+    .leftJoin('rolls as r', 'sm.roll_id', 'r.id')
+    .leftJoin('fabrics as f', 'r.fabric_id', 'f.id')
+    .leftJoin('colors as c', 'r.color_id', 'c.id')
+    .leftJoin('accessories as a', 'sm.accessory_id', 'a.id')
+    .select(
+      'sm.*',
+      'r.internal_barcode',
+      'f.name_ar as fabric_name_ar',
+      'c.name_ar as color_name_ar',
+      'a.name_ar as accessory_name_ar',
+    )
+    .orderBy('sm.id', 'desc')
     .limit(200);
+
+  return rows as AdjustmentRow[];
 }

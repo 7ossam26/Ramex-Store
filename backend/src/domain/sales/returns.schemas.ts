@@ -134,6 +134,7 @@ export const ListReturnsQuerySchema = z.object({
   original_invoice_id: z.coerce.number().int().positive().optional(),
   date_from: z.string().optional(),
   date_to: z.string().optional(),
+  search: z.string().max(64).optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
   limit: z.coerce.number().int().min(1).max(100).optional().default(30),
 });

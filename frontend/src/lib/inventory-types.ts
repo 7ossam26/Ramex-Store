@@ -148,6 +148,19 @@ export type StockMovement = {
   color_name_ar: string;
 };
 
+/**
+ * `/adjustments` rows cover both أتواب and اكسسوارات, so the joined names are
+ * nullable — an accessory adjustment has no roll, fabric or color, and vice
+ * versa. Distinct from `StockMovement`, whose enrichment is always present
+ * because `/stock-movements` inner-joins rolls.
+ */
+export type AdjustmentRow = Omit<StockMovement, 'internal_barcode' | 'fabric_name_ar' | 'color_name_ar'> & {
+  internal_barcode: string | null;
+  fabric_name_ar: string | null;
+  color_name_ar: string | null;
+  accessory_name_ar: string | null;
+};
+
 export type CreateAdjustmentBody =
   | {
       entity_type: 'roll';

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, Pencil, Trash2 } from 'lucide-react';
@@ -10,7 +10,9 @@ import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { ShipmentStatusPill } from '@/components/shipments/ShipmentStatusPill';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { TableFilterBar } from '@/components/TableFilterBar';
 import { usePermissions } from '@/lib/permissions';
+import { matchesTokens, tokenize } from '@/lib/arabic-search';
 
 const STATUSES: Array<ShipmentStatus | ''> = [
   '', 'draft', 'pending_approval', 'partial_approved', 'approved', 'rejected', 'cancelled',
@@ -25,6 +27,7 @@ type ShipmentRow = {
 
 export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentStatus } = {}) {
   const [status, setStatus] = useState<ShipmentStatus | ''>(defaultStatus ?? '');
+  const [search, setSearch] = useState('');
   const [pendingDelete, setPendingDelete] = useState<ShipmentRow | null>(null);
   const navigate = useNavigate();
   const { can, loading: permsLoading } = usePermissions();
@@ -50,6 +53,11 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
   });
 
   const rows = (q.data ?? []) as ShipmentRow[];
+
+  const filtered = useMemo(() => {
+    const tokens = tokenize(search);
+    return rows.filter((s) => matchesTokens(tokens, [s.shipment_no]));
+  }, [rows, search]);
 
   const columns: Column<ShipmentRow>[] = [
     {
@@ -93,16 +101,26 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
         </select>
       }
     >
+      <TableFilterBar
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: ar.shipments.listSearchPlaceholder,
+          dir: 'ltr',
+        }}
+        resultCount={filtered.length}
+      />
+
       <SectionCard noPadding>
       <ResponsiveTable
         columns={columns}
-        rows={rows}
+        rows={filtered}
         rowKey={(s) => String(s.id)}
-        empty={ar.shipments.empty}
+        empty={search.trim() && rows.length > 0 ? ar.labels.noSearchResults : ar.shipments.empty}
         isLoading={q.isLoading || permsLoading}
         isError={q.isError}
         onRetry={() => q.refetch()}
-        resetKey={status}
+        resetKey={`${status}|${search}`}
         actions={(s) => (
           <div className="flex gap-1 justify-end">
             <Button

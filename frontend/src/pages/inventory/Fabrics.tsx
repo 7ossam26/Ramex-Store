@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react';
+import { Pencil, Plus, RotateCcw, Search, Trash2, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
@@ -28,6 +28,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FabricDeleteDialog } from './FabricDeleteDialog';
 import { usePermissions } from '@/lib/permissions';
 import { extractApiError } from '@/lib/api-error';
+import { matchesTokens, tokenize } from '@/lib/arabic-search';
 
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString('en-GB', {
@@ -108,6 +109,7 @@ export function FabricsPage() {
   const [pendingRestore, setPendingRestore] = useState<FabricFull | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [filterUnit, setFilterUnit] = useState<'' | 'kg' | 'meter'>('');
   const [filterCategory, setFilterCategory] = useState<'' | 'main' | 'rib' | 'accessory'>('');
@@ -235,16 +237,19 @@ export function FabricsPage() {
   const fabrics = fabricsQ.data ?? [];
 
   const filtered = useMemo(() => {
+    const tokens = tokenize(search);
     return fabrics.filter((f) => {
       if (filterStatus === 'active' && !f.is_active) return false;
       if (filterStatus === 'inactive' && f.is_active) return false;
       if (filterUnit && f.unit !== filterUnit) return false;
       if (filterCategory && (f.category ?? 'main') !== filterCategory) return false;
+      if (!matchesTokens(tokens, [f.name_ar, f.code])) return false;
       return true;
     });
-  }, [fabrics, filterStatus, filterUnit, filterCategory]);
+  }, [fabrics, search, filterStatus, filterUnit, filterCategory]);
 
-  const activeFilters = (filterStatus !== 'all' ? 1 : 0) + (filterUnit ? 1 : 0) + (filterCategory ? 1 : 0);
+  const activeFilters =
+    (search.trim() ? 1 : 0) + (filterStatus !== 'all' ? 1 : 0) + (filterUnit ? 1 : 0) + (filterCategory ? 1 : 0);
 
   const selectClass =
     'flex h-11 md:h-10 w-full rounded border border-border bg-canvas px-3 py-2 text-sm focus-visible:outline-none focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 cursor-pointer appearance-none';
@@ -341,6 +346,21 @@ export function FabricsPage() {
       <div className="rounded-lg border border-border-subtle bg-surface-elevated p-3 space-y-3">
         <h2 className="text-base font-semibold text-foreground">{ar.fabrics.title}</h2>
 
+        <div className="relative">
+          <Search
+            className="size-4 absolute top-1/2 -translate-y-1/2 start-3 text-foreground-tertiary pointer-events-none"
+            aria-hidden
+          />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={ar.fabrics.searchPlaceholder}
+            aria-label={ar.fabrics.searchPlaceholder}
+            dir="rtl"
+            className="ps-9 h-11 md:h-10"
+          />
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1">
             <Label className="text-sm font-medium text-foreground">الحالة</Label>
@@ -388,7 +408,7 @@ export function FabricsPage() {
           <div className="flex gap-2 flex-wrap">
             <Button
               variant="outline"
-              onClick={() => { setFilterStatus('all'); setFilterUnit(''); setFilterCategory(''); }}
+              onClick={() => { setSearch(''); setFilterStatus('all'); setFilterUnit(''); setFilterCategory(''); }}
               className="h-11 md:h-10 gap-1.5"
             >
               <X className="size-3.5" aria-hidden />
@@ -430,11 +450,11 @@ export function FabricsPage() {
         rows={filtered}
         rowKey={(f) => String(f.id)}
         onRowClick={canManage ? openEdit : undefined}
-        empty={ar.common.none}
+        empty={activeFilters > 0 && fabrics.length > 0 ? ar.labels.noSearchResults : ar.common.none}
         isLoading={fabricsQ.isLoading}
         isError={fabricsQ.isError}
         onRetry={() => fabricsQ.refetch()}
-        resetKey={`${filterStatus}|${filterUnit}|${filterCategory}`}
+        resetKey={`${search}|${filterStatus}|${filterUnit}|${filterCategory}`}
         actions={
           canManage
             ? (f) => (

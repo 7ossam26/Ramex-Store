@@ -203,6 +203,7 @@ export type CashMovementRow = {
 export async function listMovements(params: {
   from?: string;
   to?: string;
+  search?: string;
   page: number;
   limit: number;
 }): Promise<{ rows: CashMovementRow[]; total: number }> {
@@ -213,6 +214,14 @@ export async function listMovements(params: {
 
   if (params.from) base.where('cm.created_at', '>=', params.from);
   if (params.to) base.where('cm.created_at', '<=', params.to);
+  if (params.search) {
+    // Notes + actor only — `event_type` holds English slugs whose Arabic
+    // labels live in the frontend, so searching it would need English input.
+    const term = `%${params.search}%`;
+    base.where((b) => {
+      b.whereILike('cm.notes_ar', term).orWhereILike('u.username', term);
+    });
+  }
 
   const [countRow] = await base.clone().clearSelect().count<Array<{ count: string }>>('cm.id as count');
   const rows = await base.orderBy('cm.created_at', 'desc').limit(params.limit).offset(offset);

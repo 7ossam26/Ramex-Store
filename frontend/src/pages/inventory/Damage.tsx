@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { extractApiError } from '@/lib/api-error';
 import { useForm, useWatch } from 'react-hook-form';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { isOwnerOrAbove } from '@/lib/roles';
 import { ar } from '@/i18n/ar';
@@ -17,6 +17,7 @@ import { StatusPill } from '@/components/StatusPill';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { matchesTokens, tokenize } from '@/lib/arabic-search';
 
 const REASONS: DamageReasonCode[] = [
   'damage_in_transit', 'damage_in_shop', 'damage_quality_defect',
@@ -38,6 +39,24 @@ export function DamagePage() {
   const { user } = useAuth();
   const [createError, setCreateError] = useState<string | null>(null);
   const list = useQuery({ queryKey: ['damage-events'], queryFn: () => inventoryApi.listDamageEvents() });
+
+  // Hoisted above the loading/empty branches so filtering to zero results can
+  // never unmount the search box the user needs to clear.
+  const [search, setSearch] = useState('');
+  const rows = list.data ?? [];
+  const filtered = useMemo(() => {
+    const tokens = tokenize(search);
+    // Match the *translated* reason/disposition, not the enum key — nobody
+    // types `damage_in_shop` into an Arabic-only UI.
+    return rows.filter((e) =>
+      matchesTokens(tokens, [
+        ar.damage.reasons[e.reason_code],
+        ar.damage.dispositions[e.disposition],
+        e.notes_ar,
+        String(e.roll_id),
+      ]),
+    );
+  }, [rows, search]);
 
   const create = useMutation({
     mutationFn: (v: FormVals) =>
@@ -115,7 +134,7 @@ export function DamagePage() {
         <TableSkeleton rows={5} columns={6} />
       ) : list.isError ? (
         <ErrorBanner onRetry={() => list.refetch()} />
-      ) : (list.data ?? []).length === 0 ? (
+      ) : rows.length === 0 ? (
         <EmptyState
           icon={AlertTriangle}
           title={ar.codes.noResults}
@@ -123,7 +142,23 @@ export function DamagePage() {
         />
       ) : (
         <Card>
-          <CardHeader><CardTitle>{ar.damage.title}</CardTitle></CardHeader>
+          <CardHeader className="gap-3">
+            <CardTitle>{ar.damage.title}</CardTitle>
+            <div className="relative">
+              <Search
+                className="size-4 absolute top-1/2 -translate-y-1/2 start-3 text-foreground-tertiary pointer-events-none"
+                aria-hidden
+              />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={ar.damage.searchPlaceholder}
+                aria-label={ar.damage.searchPlaceholder}
+                dir="rtl"
+                className="ps-9 h-10"
+              />
+            </div>
+          </CardHeader>
           <CardContent>
             <table className="w-full text-sm">
               <thead className="text-start text-xs text-foreground-muted uppercase tracking-wide">
@@ -137,7 +172,14 @@ export function DamagePage() {
                 </tr>
               </thead>
               <tbody>
-                {(list.data ?? []).map((e) => (
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-6 text-center text-foreground-muted">
+                      {ar.labels.noSearchResults}
+                    </td>
+                  </tr>
+                )}
+                {filtered.map((e) => (
                   <tr key={e.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
                     <td className="py-2.5 text-foreground-muted">{new Date(e.created_at).toLocaleString('ar-EG-u-nu-latn')}</td>
                     <td className="font-mono text-foreground">#{e.roll_id}</td>

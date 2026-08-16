@@ -827,6 +827,16 @@ export async function listInvoices(
   }
   if (q.date_from) base.where('i.created_at', '>=', q.date_from);
   if (q.date_to) base.where('i.created_at', '<=', q.date_to);
+  if (q.search) {
+    // Grouped so the OR cannot escape the AND-chain above — an ungrouped
+    // orWhere would leak non-cancelled invoices into a search run from the
+    // «ملغية» tab. Note ILIKE does no Arabic folding, unlike the client-side
+    // search on lists that filter in the browser.
+    const term = `%${q.search}%`;
+    base.where((b) => {
+      b.whereILike('i.invoice_no', term).orWhereILike('c.name_ar', term);
+    });
+  }
 
   const [countRow] = await base.clone().clearSelect().count<Array<{ count: string }>>('i.id as count');
   const rows = await base.orderBy('i.created_at', 'desc').limit(q.limit).offset(offset);
@@ -854,6 +864,17 @@ export async function listCheques(
   if (q.bank_name_ar) base.whereILike('ch.bank_name_ar', `%${q.bank_name_ar}%`);
   if (q.due_date_from) base.where('ch.due_date', '>=', q.due_date_from);
   if (q.due_date_to) base.where('ch.due_date', '<=', q.due_date_to);
+  if (q.search) {
+    // Deliberately excludes bank_name_ar — that has its own filter box above,
+    // and covering it here would make the two inputs redundant.
+    const term = `%${q.search}%`;
+    base.where((b) => {
+      b.whereILike('ch.cheque_number', term)
+        .orWhereILike('ch.issuer_name_ar', term)
+        .orWhereILike('inv.invoice_no', term)
+        .orWhereILike('c.name_ar', term);
+    });
+  }
 
   const [countRow] = await base.clone().clearSelect().count<Array<{ count: string }>>('ch.id as count');
   const rows = await base.orderBy('ch.due_date', 'asc').limit(q.limit).offset(offset);

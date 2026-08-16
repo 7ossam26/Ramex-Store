@@ -116,6 +116,7 @@ export const ar = {
   },
   fabrics: {
     title: 'الخامات',
+    searchPlaceholder: 'بحث بالاسم أو الكود',
     addFabric: 'إضافة خامة',
     edit: 'تعديل',
     delete: 'حذف',
@@ -179,6 +180,7 @@ export const ar = {
   },
   colors: {
     title: 'الألوان',
+    searchPlaceholder: 'بحث بالاسم أو الكود',
     addColor: 'إضافة لون',
     edit: 'تعديل',
     delete: 'حذف',
@@ -207,6 +209,7 @@ export const ar = {
     pending: 'طلبيات في انتظار المراجعة',
     all: 'كل الطلبيات',
     title: 'الطلبيات',
+    listSearchPlaceholder: 'بحث برقم الطلبية',
     new: 'طلبية جديدة',
     rollFabric: 'الخامة',
     rollColor: 'اللون',
@@ -276,6 +279,7 @@ export const ar = {
   },
   damage: {
     title: 'أحداث التلف والفقد',
+    searchPlaceholder: 'بحث في السبب أو الملاحظات',
     rollId: 'رقم التوب',
     reasonCode: 'سبب الحدث',
     disposition: 'التصرف',
@@ -304,6 +308,7 @@ export const ar = {
   },
   adjustments: {
     title: 'تسويات المخزون',
+    searchPlaceholder: 'بحث بالخامة أو اللون أو الملاحظات',
     rollId: 'رقم التوب',
     newWarehouse: 'مخزن جديد',
     newStatus: 'حالة جديدة',
@@ -623,6 +628,7 @@ export const ar = {
   },
   invoices: {
     title: 'الفواتير',
+    searchPlaceholder: 'بحث برقم الفاتورة أو اسم العميل',
     no: 'رقم الفاتورة',
     date: 'التاريخ',
     customer: 'العميل',
@@ -711,6 +717,8 @@ export const ar = {
     drawer: 'الخزنة الكاش',
     banks: 'البنوك',
     expenses: 'المصروفات',
+    searchPlaceholder: 'بحث في الملاحظات أو المستخدم',
+    expensesSearchPlaceholder: 'بحث في الملاحظات أو المستخدم',
     reconcile: 'التسوية اليومية',
     balance: 'الرصيد الحالي',
     openingBalance: 'الرصيد الافتتاحي',
@@ -787,6 +795,7 @@ export const ar = {
   },
   returns: {
     title: 'المرتجعات',
+    searchPlaceholder: 'بحث برقم المرتجع أو الفاتورة أو العميل',
     returnNo: 'رقم الإرجاع',
     originalInvoice: 'الفاتورة الأصلية',
     date: 'التاريخ',
@@ -842,6 +851,7 @@ export const ar = {
     status: 'الحالة',
     search: 'بحث',
     results: 'النتائج',
+    noSearchResults: 'لا توجد نتائج مطابقة للبحث',
     print: 'طباعة ملصق',
     printLabel: 'طباعة الملصق',
     printBatch: 'طباعة المختار',
@@ -1511,6 +1521,7 @@ export const ar = {
   },
   cheques: {
     title: 'الشيكات',
+    searchPlaceholder: 'بحث برقم الشيك أو الساحب أو العميل',
     chequeNo: 'رقم الشيك',
     bank: 'البنك',
     branch: 'الفرع',

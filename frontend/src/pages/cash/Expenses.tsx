@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { Plus, Check, X } from 'lucide-react';
 import { financeApi } from '@/lib/finance-api';
@@ -21,6 +21,8 @@ import {
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { FilterChip } from '@/components/FilterChip';
+import { TableFilterBar } from '@/components/TableFilterBar';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { StatusPill, type StatusTone } from '@/components/StatusPill';
 
 const PAGE_SIZE = 50;
@@ -69,6 +71,8 @@ export function ExpensesPage() {
 
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [showCreate, setShowCreate] = useState(false);
   const [rejectTarget, setRejectTarget] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -76,8 +80,14 @@ export function ExpensesPage() {
   const [rejectError, setRejectError] = useState<string | null>(null);
 
   const expensesQ = useQuery({
-    queryKey: ['expenses', page, statusFilter],
-    queryFn: () => financeApi.listExpenses({ status: statusFilter, page, limit: PAGE_SIZE }),
+    queryKey: ['expenses', page, statusFilter, debouncedSearch],
+    queryFn: () => financeApi.listExpenses({
+      status: statusFilter,
+      search: debouncedSearch || undefined,
+      page,
+      limit: PAGE_SIZE,
+    }),
+    placeholderData: keepPreviousData,
   });
 
   const banksQ = useQuery({
@@ -233,6 +243,16 @@ export function ExpensesPage() {
         ))}
       </div>
 
+      <TableFilterBar
+        search={{
+          value: search,
+          onChange: (v) => { setSearch(v); setPage(1); },
+          placeholder: ar.cash.expensesSearchPlaceholder,
+          maxLength: 64,
+        }}
+        resultCount={expensesQ.data?.total}
+      />
+
       <SectionCard noPadding>
       <ResponsiveTable
         columns={columns}
@@ -242,7 +262,7 @@ export function ExpensesPage() {
         isLoading={expensesQ.isLoading}
         isError={expensesQ.isError}
         onRetry={() => expensesQ.refetch()}
-        resetKey={statusFilter}
+        resetKey={`${statusFilter}|${debouncedSearch}`}
         rowClassName={(e) =>
           e.requires_approval && e.approved_at === null ? 'bg-warning-subtle/30' : ''
         }

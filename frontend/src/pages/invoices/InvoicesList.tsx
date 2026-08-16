@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { FileDown, PackageCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { salesApi } from '@/lib/sales-api';
 import type {
@@ -18,6 +18,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { MobileFilterSheet } from '@/components/MobileFilterSheet';
+import { TableFilterBar } from '@/components/TableFilterBar';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { KpiGrid } from '@/components/dashboard/KpiGrid';
 import { MetricCard } from '@/components/dashboard/MetricCard';
@@ -87,7 +89,9 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [destination, setDestination] = useState<FulfillmentDestination | 'all'>('all');
+  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const debouncedSearch = useDebouncedValue(search);
 
   const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -120,16 +124,18 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
   }
 
   const q = useQuery({
-    queryKey: ['invoices', status, destination, dateFrom, dateTo, page],
+    queryKey: ['invoices', status, destination, dateFrom, dateTo, debouncedSearch, page],
     queryFn: () =>
       salesApi.list({
         status: status || undefined,
         fulfillment_destination: destination === 'all' ? undefined : destination,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
+        search: debouncedSearch || undefined,
         page,
         limit: PAGE_SIZE,
       }),
+    placeholderData: keepPreviousData,
   });
 
   const rows: InvoiceListRow[] = q.data?.rows ?? [];
@@ -321,6 +327,18 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
         />
       </KpiGrid>
 
+      {/* Deliberately outside MobileFilterSheet — that sheet hides its children
+          behind a «تصفية» trigger below md, and search must stay visible. */}
+      <TableFilterBar
+        search={{
+          value: search,
+          onChange: (v) => { setSearch(v); setPage(1); },
+          placeholder: ar.invoices.searchPlaceholder,
+          maxLength: 64,
+        }}
+        resultCount={total}
+      />
+
       <MobileFilterSheet activeCount={activeFilters}>{filterControls}</MobileFilterSheet>
 
       <SectionCard noPadding>
@@ -333,7 +351,7 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
           isLoading={q.isLoading}
           isError={q.isError}
           onRetry={() => q.refetch()}
-          resetKey={`${status ?? ''}|${destination}|${dateFrom}|${dateTo}|${page}`}
+          resetKey={`${status ?? ''}|${destination}|${dateFrom}|${dateTo}|${debouncedSearch}|${page}`}
         />
       </SectionCard>
 

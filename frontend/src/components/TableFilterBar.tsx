@@ -11,6 +11,8 @@ type Props = {
     placeholder?: string;
     /** Set `ltr` for barcode/phone/code searches. Default rtl. */
     dir?: 'rtl' | 'ltr';
+    /** Cap for server-side searches — the API rejects terms over 64 chars. */
+    maxLength?: number;
   };
   /** Filter controls — selects, date inputs, custom widgets. Each becomes a flex item. */
   filters?: ReactNode;
@@ -39,6 +41,8 @@ export function TableFilterBar({ search, filters, resultCount, trailing, classNa
             value={search.value}
             onChange={(e) => search.onChange(e.target.value)}
             placeholder={search.placeholder}
+            aria-label={search.placeholder}
+            maxLength={search.maxLength}
             dir={search.dir ?? 'rtl'}
             className="ps-9 h-10"
           />
