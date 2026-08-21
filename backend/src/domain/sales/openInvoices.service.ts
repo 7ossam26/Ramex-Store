@@ -69,27 +69,33 @@ async function lockInvoiceWithLineRolls(
 }
 
 /**
- * Add final payment(s) to an open invoice. Payments must equal or exceed the
- * remaining balance. Once balance hits zero, status flips to
- * `closed_pending_pickup` and reserved rolls become `sold`.
+ * Add final payment(s) to an open invoice. Payments must cover the remaining
+ * balance, less any `discountEgp` waived at settlement time. Once balance hits
+ * zero, status flips to `closed_pending_pickup` and reserved rolls become
+ * `sold`.
  */
 export async function addFinalPayment(
   invoiceId: number,
   actorUserId: number,
   payments: FinalPayment[],
   shiftId: number | null = null,
+  discountEgp = 0,
 ): Promise<{ invoice: Invoice }> {
-  if (payments.length === 0) throw new Error('NO_PAYMENT_PROVIDED');
-
   return db.transaction(async (trx) => {
     const { invoice, rollIds } = await lockInvoiceWithLineRolls(trx, invoiceId);
     if (invoice.status !== 'open') throw new Error('INVOICE_NOT_OPEN');
 
     const balance = roundEgp(Number(invoice.balance_egp));
+    const discount = roundEgp(Number(discountEgp) || 0);
+    if (discount < 0) throw new Error('INVALID_DISCOUNT');
+    if (discount > balance + EPS) throw new Error('DISCOUNT_EXCEEDS_BALANCE');
+    // What the customer still has to hand over after the waived amount.
+    const required = roundEgp(balance - discount);
+
     const paidNow = roundEgp(payments.reduce((s, p) => s + Number(p.amount), 0));
-    if (paidNow <= 0) throw new Error('NO_PAYMENT_PROVIDED');
-    if (paidNow + EPS < balance) throw new Error('FINAL_PAYMENT_BELOW_BALANCE');
-    if (paidNow > balance + EPS) throw new Error('OVERPAYMENT_NOT_ALLOWED');
+    if (paidNow <= 0 && discount <= 0) throw new Error('NO_PAYMENT_PROVIDED');
+    if (paidNow + EPS < required) throw new Error('FINAL_PAYMENT_BELOW_BALANCE');
+    if (paidNow > required + EPS) throw new Error('OVERPAYMENT_NOT_ALLOWED');
 
     let defaultBankId: number | null = null;
     const needsBank = payments.some(
@@ -159,12 +165,31 @@ export async function addFinalPayment(
         actor_user_id: actorUserId,
       });
     }
+    // A waived amount lowers what the customer owes without any money moving,
+    // so it lands on the ledger as an adjustment (sale posts -total, payments
+    // post +amount, so a discount posts +discount).
+    if (discount > 0) {
+      customerBalance = roundEgp(customerBalance + discount);
+      await trx('customer_ledger_entries').insert({
+        customer_id: invoice.customer_id,
+        entry_type: 'adjustment',
+        reference_type: 'invoice',
+        reference_id: invoiceId,
+        amount_egp: discount,
+        balance_after_egp: customerBalance,
+        notes_ar: `خصم عند الدفعة النهائية لفاتورة ${invoice.invoice_no}`,
+        actor_user_id: actorUserId,
+      });
+    }
+
     await trx('customers')
       .where({ id: invoice.customer_id })
       .update({ current_balance_egp: customerBalance, updated_at: trx.fn.now() });
 
+    const newTotal = roundEgp(Number(invoice.total_egp) - discount);
+    const newFinalDiscount = roundEgp(Number(invoice.final_discount_egp) + discount);
     const newPaid = roundEgp(Number(invoice.paid_egp) + paidNow);
-    const newBalance = roundEgp(Number(invoice.total_egp) - newPaid);
+    const newBalance = roundEgp(newTotal - newPaid);
     const closed = newBalance <= EPS;
 
     if (closed) {
@@ -189,6 +214,8 @@ export async function addFinalPayment(
     const newStatus: InvoiceStatus = closed ? 'closed_pending_pickup' : 'open';
 
     await trx('invoices').where({ id: invoiceId }).update({
+      total_egp: newTotal,
+      final_discount_egp: newFinalDiscount,
       paid_egp: newPaid,
       balance_egp: newBalance,
       status: newStatus,
@@ -206,8 +233,20 @@ export async function addFinalPayment(
       action: 'invoice_final_payment',
       entity: 'invoice',
       entityId: invoiceId,
-      before: { paid_egp: Number(invoice.paid_egp), status: invoice.status },
-      after: { paid_egp: newPaid, status: newStatus, payments_added: payments.length },
+      before: {
+        paid_egp: Number(invoice.paid_egp),
+        total_egp: Number(invoice.total_egp),
+        final_discount_egp: Number(invoice.final_discount_egp),
+        status: invoice.status,
+      },
+      after: {
+        paid_egp: newPaid,
+        total_egp: newTotal,
+        final_discount_egp: newFinalDiscount,
+        discount_applied_egp: discount,
+        status: newStatus,
+        payments_added: payments.length,
+      },
       severity: 'medium',
     });
 

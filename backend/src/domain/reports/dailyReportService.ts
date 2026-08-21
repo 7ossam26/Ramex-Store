@@ -108,7 +108,7 @@ export async function getDailyReport(targetDate: string): Promise<DailyReport> {
     .select(
       db.raw('COUNT(*) as invoice_count'),
       db.raw('COALESCE(SUM(subtotal_egp), 0) as gross_subtotal_egp'),
-      db.raw('COALESCE(SUM(cart_discount_egp), 0) as total_cart_discount_egp'),
+      db.raw('COALESCE(SUM(cart_discount_egp + final_discount_egp), 0) as total_cart_discount_egp'),
       db.raw('COALESCE(SUM(tax_egp), 0) as total_tax_egp'),
       db.raw('COALESCE(SUM(total_egp), 0) as total_net_egp'),
     )
@@ -165,7 +165,7 @@ export async function getDailyReport(targetDate: string): Promise<DailyReport> {
     .where('i.status', 'completed')
     .whereBetween('i.created_at', [startIso, endIso])
     .where((qb) => {
-      qb.where(db.raw('i.cart_discount_egp'), '>', 0).orWhere(
+      qb.where(db.raw('i.cart_discount_egp + i.final_discount_egp'), '>', 0).orWhere(
         db.raw('COALESCE(ld.line_discounts_egp, 0)'),
         '>',
         0,
@@ -173,10 +173,10 @@ export async function getDailyReport(targetDate: string): Promise<DailyReport> {
     })
     .select(
       'i.invoice_no',
-      'i.cart_discount_egp',
+      db.raw('i.cart_discount_egp + i.final_discount_egp as cart_discount_egp'),
       db.raw('COALESCE(ld.line_discounts_egp, 0) as line_discounts_egp'),
       db.raw(
-        'i.cart_discount_egp + COALESCE(ld.line_discounts_egp, 0) as total_discount_egp',
+        'i.cart_discount_egp + i.final_discount_egp + COALESCE(ld.line_discounts_egp, 0) as total_discount_egp',
       ),
     );
 

@@ -45,6 +45,7 @@ export type Invoice = {
   fulfillment_destination: FulfillmentDestination;
   subtotal_egp: string;
   cart_discount_egp: string;
+  final_discount_egp: string;
   tax_egp: string;
   rounding_egp: string;
   total_egp: string;
@@ -88,6 +89,8 @@ export type FinalPaymentBody = {
     reference?: string | null;
     chequeDetails?: ChequeDetails | null;
   }>;
+  /** Amount waived off the remaining balance at settlement time. */
+  discountEgp?: number;
 };
 
 export type CancelOpenInvoiceBody = {

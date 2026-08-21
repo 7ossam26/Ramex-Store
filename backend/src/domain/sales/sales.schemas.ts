@@ -146,7 +146,10 @@ export const FinalPaymentSchema = z.object({
           }
         }),
     )
-    .min(1),
+    // May be empty when `discountEgp` covers the whole remaining balance; the
+    // service rejects the case where neither a payment nor a discount is given.
+    .min(0),
+  discountEgp: nonNegativeAmount.optional(),
 });
 export type FinalPaymentInput = z.infer<typeof FinalPaymentSchema>;
 

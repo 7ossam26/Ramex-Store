@@ -278,6 +278,9 @@ export function InvoiceDetailPage() {
             {Number(inv.cart_discount_egp) > 0 && (
               <Row label={ar.pos.discount} value={`- ${fmtMoney(inv.cart_discount_egp)}`} />
             )}
+            {Number(inv.final_discount_egp) > 0 && (
+              <Row label={ar.invoices.finalDiscount} value={`- ${fmtMoney(inv.final_discount_egp)}`} />
+            )}
             {Number(inv.tax_egp) > 0 && (
               <Row label={ar.pos.tax} value={fmtMoney(inv.tax_egp)} />
             )}
@@ -490,8 +493,21 @@ function FinalPaymentDialog({
   const [method, setMethod] = useState<PaymentMethod | 'both'>('cash');
   const [cashAmount, setCashAmount] = useState(String(balance.toFixed(2)));
   const [instaAmount, setInstaAmount] = useState('');
+  const [discount, setDiscount] = useState('');
   const [bankAccountId, setBankAccountId] = useState<number | ''>('');
   const [error, setError] = useState<string | null>(null);
+
+  const discountValue = parseAmount(discount);
+  // What the customer still has to pay once the waived amount is applied.
+  const required = Math.round((balance - discountValue) * 100) / 100;
+
+  function onDiscountChange(next: string) {
+    setDiscount(next);
+    const rest = Math.round((balance - parseAmount(next)) * 100) / 100;
+    // Keep the single-method amount in step with the discount — the common
+    // "waive the remainder" flow should be one keystroke.
+    if (method !== 'both' && rest >= 0) setCashAmount(rest.toFixed(2));
+  }
 
   const banks = useQuery<BankAccount[]>({
     queryKey: ['bank-accounts'],
@@ -512,32 +528,45 @@ function FinalPaymentDialog({
 
   function submit() {
     setError(null);
-    const payments: FinalPaymentBody['payments'] = [];
-    if (method === 'cash') {
-      payments.push({ method: 'cash', amount: parseAmount(cashAmount) });
-    } else if (method === 'instapay') {
-      payments.push({
-        method: 'instapay',
-        amount: parseAmount(cashAmount),
-        bankAccountId: bankAccountId === '' ? null : Number(bankAccountId),
-      });
-    } else {
-      const cashV = parseAmount(cashAmount);
-      const instaV = parseAmount(instaAmount);
-      if (cashV > 0) payments.push({ method: 'cash', amount: cashV });
-      if (instaV > 0) {
-        payments.push({
-          method: 'instapay',
-          amount: instaV,
-          bankAccountId: bankAccountId === '' ? null : Number(bankAccountId),
-        });
-      }
-    }
-    if (payments.length === 0) {
-      setError(ar.common.error);
+    if (discountValue < 0 || discountValue > balance + 0.001) {
+      setError(ar.invoices.discountExceedsBalance);
       return;
     }
-    mut.mutate({ payments });
+    const payments: FinalPaymentBody['payments'] = [];
+    // A discount covering the whole balance settles the invoice with no money
+    // tendered, so no payment rows are sent at all.
+    if (required > 0) {
+      if (method === 'cash') {
+        payments.push({ method: 'cash', amount: parseAmount(cashAmount) });
+      } else if (method === 'instapay') {
+        payments.push({
+          method: 'instapay',
+          amount: parseAmount(cashAmount),
+          bankAccountId: bankAccountId === '' ? null : Number(bankAccountId),
+        });
+      } else {
+        const cashV = parseAmount(cashAmount);
+        const instaV = parseAmount(instaAmount);
+        if (cashV > 0) payments.push({ method: 'cash', amount: cashV });
+        if (instaV > 0) {
+          payments.push({
+            method: 'instapay',
+            amount: instaV,
+            bankAccountId: bankAccountId === '' ? null : Number(bankAccountId),
+          });
+        }
+      }
+      if (payments.length === 0) {
+        setError(ar.common.error);
+        return;
+      }
+      const tendered = payments.reduce((s, p) => s + p.amount, 0);
+      if (Math.abs(tendered - required) > 0.001) {
+        setError(`${ar.invoices.amountMismatch}: ${required.toFixed(2)}`);
+        return;
+      }
+    }
+    mut.mutate({ payments, discountEgp: discountValue });
   }
 
   return (
@@ -550,6 +579,12 @@ function FinalPaymentDialog({
           <div className="text-sm">
             {ar.pos.balance}: <span className="font-medium" dir="ltr">{balance.toFixed(2)}</span>
           </div>
+          {discountValue > 0 && required >= 0 && (
+            <div className="text-sm">
+              {ar.invoices.requiredAfterDiscount}:{' '}
+              <span className="font-medium" dir="ltr">{required.toFixed(2)}</span>
+            </div>
+          )}
           <div className="space-y-1">
             <Label>{ar.pos.paymentMethod}</Label>
             <select
@@ -564,9 +599,15 @@ function FinalPaymentDialog({
           </div>
           {method === 'both' ? (
             <>
-              <div className="space-y-1">
-                <Label>{ar.pos.cashAmount}</Label>
-                <Input value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} dir="ltr" inputMode="decimal" />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>{ar.pos.cashAmount}</Label>
+                  <Input value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} dir="ltr" inputMode="decimal" />
+                </div>
+                <div className="space-y-1">
+                  <Label>{ar.invoices.finalDiscount}</Label>
+                  <Input value={discount} onChange={(e) => onDiscountChange(e.target.value)} dir="ltr" inputMode="decimal" placeholder="0.00" />
+                </div>
               </div>
               <div className="space-y-1">
                 <Label>{ar.pos.instapayAmount}</Label>
@@ -574,9 +615,15 @@ function FinalPaymentDialog({
               </div>
             </>
           ) : (
-            <div className="space-y-1">
-              <Label>{method === 'cash' ? ar.pos.cashAmount : ar.pos.instapayAmount}</Label>
-              <Input value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} dir="ltr" inputMode="decimal" />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>{method === 'cash' ? ar.pos.cashAmount : ar.pos.instapayAmount}</Label>
+                <Input value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} dir="ltr" inputMode="decimal" />
+              </div>
+              <div className="space-y-1">
+                <Label>{ar.invoices.finalDiscount}</Label>
+                <Input value={discount} onChange={(e) => onDiscountChange(e.target.value)} dir="ltr" inputMode="decimal" placeholder="0.00" />
+              </div>
             </div>
           )}
           {method !== 'cash' && (

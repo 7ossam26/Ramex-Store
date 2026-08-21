@@ -40,6 +40,8 @@ const ERR_MAP: Record<string, { status: number; message: string }> = {
   INVOICE_NOT_PENDING_PICKUP: { status: 409, message: 'الفاتورة ليست بانتظار الاستلام' },
   INVOICE_NOT_CANCELLABLE: { status: 409, message: 'لا يمكن إلغاء هذه الفاتورة في حالتها الحالية' },
   FINAL_PAYMENT_BELOW_BALANCE: { status: 400, message: 'الدفعة النهائية أقل من الباقي المطلوب' },
+  DISCOUNT_EXCEEDS_BALANCE: { status: 400, message: 'الخصم أكبر من الباقي المطلوب' },
+  INVALID_DISCOUNT: { status: 400, message: 'قيمة خصم غير صالحة' },
   PARTIAL_REFUND_INVALID: { status: 400, message: 'مبلغ الاسترجاع الجزئي غير صحيح' },
   PARTIAL_REFUND_EXCEEDS_PAID: { status: 400, message: 'مبلغ الاسترجاع أكبر من المدفوع' },
   REFUND_METHOD_REQUIRED: { status: 400, message: 'طريقة الاسترجاع مطلوبة' },
@@ -124,7 +126,13 @@ export async function addFinalPayment(req: Request, res: Response): Promise<void
   const id = Number(req.params.id);
   const data = FinalPaymentSchema.parse(req.body);
   try {
-    const result = await openSvc.addFinalPayment(id, actorId(req), data.payments, req.shiftId ?? null);
+    const result = await openSvc.addFinalPayment(
+      id,
+      actorId(req),
+      data.payments,
+      req.shiftId ?? null,
+      data.discountEgp ?? 0,
+    );
     res.json(result);
   } catch (e) {
     if (handleDomainError(e, res)) return;

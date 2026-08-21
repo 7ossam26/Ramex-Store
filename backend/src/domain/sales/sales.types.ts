@@ -27,6 +27,7 @@ export type Invoice = {
   fulfillment_destination: FulfillmentDestination;
   subtotal_egp: string;
   cart_discount_egp: string;
+  final_discount_egp: string;
   tax_egp: string;
   rounding_egp: string;
   total_egp: string;
