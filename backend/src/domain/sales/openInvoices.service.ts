@@ -5,6 +5,12 @@ import { notify } from '../notifications/notificationsService.js';
 import { backCalculateDiscount, roundEgp } from './discountCalculator.js';
 import { settlePayment } from '../finance/paymentSettlementService.js';
 import { getSetting } from '../settings/settings.service.js';
+import {
+  lockAccessories,
+  restoreAccessoryStock,
+  splitInvoiceLines,
+  type InvoiceAccessoryLine,
+} from './accessoryStock.js';
 import type {
   AddLinesInput,
   ChequeDetails,
@@ -53,19 +59,52 @@ async function appendStatusHistory(
   });
 }
 
-async function lockInvoiceWithLineRolls(
+type LockedInvoice = {
+  invoice: Invoice & { delivered_at: string | null };
+  /** roll_id of every roll line. Never contains NULL — see the filter below. */
+  rollIds: number[];
+  /** One entry per accessory line, in line order. */
+  accessoryLines: InvoiceAccessoryLine[];
+};
+
+/**
+ * Locks the invoice header plus every stock row it touches, and splits the
+ * lines by `item_type`.
+ *
+ * The split is the whole point: since migration 082 an accessory line carries
+ * `roll_id = NULL`, and migration 093's `chk_stock_movements_entity_type`
+ * rejects a stock_movements row with `entity_type='roll'` and a NULL `roll_id`.
+ * Feeding a NULL into a roll loop is therefore a guaranteed 23514, which the
+ * global error handler flattens into «القيمة المُدخلة غير مسموح بها».
+ *
+ * Lock order is fixed at rolls → accessories (both ascending by id) to match
+ * createSale, so the two transactions cannot deadlock against each other.
+ */
+async function lockInvoiceWithLines(
   trx: Knex.Transaction,
   invoiceId: number,
-): Promise<{ invoice: Invoice & { delivered_at: string | null }; rollIds: number[] }> {
+): Promise<LockedInvoice> {
   const invoice = await trx('invoices').where({ id: invoiceId }).forUpdate().first();
   if (!invoice) throw new Error('INVOICE_NOT_FOUND');
-  const lines = await trx('invoice_lines').where({ invoice_id: invoiceId }).select('roll_id');
-  const rollIds = lines.map((l: { roll_id: number }) => l.roll_id);
+
+  const lines = await trx('invoice_lines')
+    .where({ invoice_id: invoiceId })
+    .orderBy('id', 'asc')
+    .select('id', 'item_type', 'roll_id', 'accessory_id', 'qty_pieces');
+
+  const { rollIds, accessoryLines } = splitInvoiceLines(lines);
+
   if (rollIds.length > 0) {
     // Row-lock each roll referenced by this invoice.
-    await trx('rolls').whereIn('id', rollIds).forUpdate().select('id');
+    await trx('rolls').whereIn('id', rollIds).orderBy('id', 'asc').forUpdate().select('id');
   }
-  return { invoice: invoice as Invoice & { delivered_at: string | null }, rollIds };
+  await lockAccessories(trx, accessoryLines);
+
+  return {
+    invoice: invoice as Invoice & { delivered_at: string | null },
+    rollIds,
+    accessoryLines,
+  };
 }
 
 /**
@@ -82,7 +121,7 @@ export async function addFinalPayment(
   discountEgp = 0,
 ): Promise<{ invoice: Invoice }> {
   return db.transaction(async (trx) => {
-    const { invoice, rollIds } = await lockInvoiceWithLineRolls(trx, invoiceId);
+    const { invoice, rollIds } = await lockInvoiceWithLines(trx, invoiceId);
     if (invoice.status !== 'open') throw new Error('INVOICE_NOT_OPEN');
 
     const balance = roundEgp(Number(invoice.balance_egp));
@@ -194,6 +233,10 @@ export async function addFinalPayment(
 
     if (closed) {
       // Flip rolls from reserved → sold and emit sale_out movements.
+      //
+      // Accessories are deliberately untouched: their qty_in_stock was already
+      // decremented at sale time, and closing the invoice is when the goods
+      // actually leave — there is nothing to reverse.
       for (const rollId of rollIds) {
         await trx('rolls').where({ id: rollId }).update({
           status: 'sold',
@@ -263,7 +306,7 @@ export async function markDelivered(
   actorUserId: number,
 ): Promise<{ invoice: Invoice }> {
   return db.transaction(async (trx) => {
-    const { invoice } = await lockInvoiceWithLineRolls(trx, invoiceId);
+    const { invoice } = await lockInvoiceWithLines(trx, invoiceId);
     if (invoice.status !== 'closed_pending_pickup') {
       throw new Error('INVOICE_NOT_PENDING_PICKUP');
     }
@@ -329,10 +372,19 @@ export async function cancelOpenInvoice(
   },
 ): Promise<{ invoice: Invoice }> {
   return db.transaction(async (trx) => {
-    const { invoice, rollIds } = await lockInvoiceWithLineRolls(trx, invoiceId);
+    const { invoice, rollIds, accessoryLines } = await lockInvoiceWithLines(trx, invoiceId);
     if (invoice.status !== 'open' && invoice.status !== 'closed_pending_pickup') {
       throw new Error('INVOICE_NOT_CANCELLABLE');
     }
+
+    // Lock the customer BEFORE any stock row. createSale locks customers → rolls
+    // → accessories; taking them in the opposite order here would open a
+    // deadlock window between a concurrent sale and cancel for the same customer.
+    const customer = await trx('customers')
+      .where({ id: invoice.customer_id })
+      .forUpdate()
+      .first();
+    if (!customer) throw new Error('CUSTOMER_NOT_FOUND');
 
     const paid = roundEgp(Number(invoice.paid_egp));
     let refundAmount = 0;
@@ -388,11 +440,17 @@ export async function cancelOpenInvoice(
       });
     }
 
-    const customer = await trx('customers')
-      .where({ id: invoice.customer_id })
-      .forUpdate()
-      .first();
-    if (!customer) throw new Error('CUSTOMER_NOT_FOUND');
+    // Accessory pieces go back on the shelf. This sits outside the
+    // depositHandling branching on purpose: full_refund / partial_refund /
+    // keep_as_credit differ only in what happens to the customer's money, and
+    // say nothing about where the goods are. In all three the sale is off and
+    // the pieces never left the shop.
+    await restoreAccessoryStock(trx, accessoryLines, actorUserId, {
+      action: 'cancel_restore_accessory',
+      invoiceId,
+      severity: 'medium',
+      extra: { deposit_handling: opts.depositHandling, notes_ar: opts.notesAr },
+    });
 
     let customerBalance = Number(customer.current_balance_egp);
     let lifetime = Number(customer.lifetime_volume_egp);
@@ -900,7 +958,7 @@ export async function depositRefund(
   if (refundAmount <= 0) throw new Error('REFUND_AMOUNT_INVALID');
 
   return db.transaction(async (trx) => {
-    const { invoice, rollIds } = await lockInvoiceWithLineRolls(trx, invoiceId);
+    const { invoice, rollIds } = await lockInvoiceWithLines(trx, invoiceId);
     if (invoice.status !== 'open') throw new Error('INVOICE_NOT_OPEN');
 
     const total = roundEgp(Number(invoice.total_egp));
@@ -991,6 +1049,10 @@ export async function depositRefund(
 
     // If this refund settles the balance to zero, the invoice is done — flip
     // any reserved rolls to sold and stamp deposit_refunded.
+    //
+    // Accessories are intentionally not restored here: a deposit refund settles
+    // the balance and finalises the invoice, so the goods are being handed over,
+    // not returned. Only cancelOpenInvoice / voidInvoice put pieces back.
     if (fullyRefunded && rollIds.length > 0) {
       for (const rollId of rollIds) {
         const r = await trx('rolls').where({ id: rollId }).first();

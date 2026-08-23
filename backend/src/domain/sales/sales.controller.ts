@@ -21,6 +21,8 @@ const ERR_MAP: Record<string, { status: number; message: string }> = {
   CUSTOMER_NOT_FOUND: { status: 404, message: 'العميل غير موجود' },
   INVOICE_NOT_FOUND: { status: 404, message: 'الفاتورة غير موجودة' },
   ROLL_NOT_FOUND: { status: 404, message: 'التوب غير موجود' },
+  ACCESSORY_NOT_FOUND: { status: 404, message: 'الاكسسوار غير موجود' },
+  ACCESSORY_QTY_INSUFFICIENT: { status: 409, message: 'الكمية المتاحة من الاكسسوار غير كافية' },
   ROLL_NOT_AVAILABLE: { status: 409, message: 'هذا التوب غير متاح للبيع' },
   ROLL_NOT_VISIBLE_AT_POS: { status: 409, message: 'التوب مخفي عن نقطة البيع' },
   ROLL_NOT_AT_SHOP: { status: 409, message: 'التوب ليس داخل مخزن المحل' },

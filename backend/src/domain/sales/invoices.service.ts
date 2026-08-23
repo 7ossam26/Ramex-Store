@@ -6,6 +6,12 @@ import { getSetting } from '../settings/settings.service.js';
 import { nextInvoiceNo } from './invoiceNumber.service.js';
 import { backCalculateDiscount, roundEgp } from './discountCalculator.js';
 import { settlePayment } from '../finance/paymentSettlementService.js';
+import {
+  getReturnedLineIds,
+  lockAccessories,
+  restoreAccessoryStock,
+  splitInvoiceLines,
+} from './accessoryStock.js';
 import type {
   AccessorySaleLine,
   Cheque,
@@ -664,15 +670,40 @@ export async function voidInvoice(
       return { requires_approval: true };
     }
 
-    // Roll back rolls.
-    const lines = await trx('invoice_lines').where({ invoice_id: invoiceId });
-    for (const line of lines) {
-      await trx('rolls').where({ id: line.roll_id }).update({
+    // Roll back stock. The lines must be split by item_type first: accessory
+    // lines carry roll_id = NULL (migration 082) and
+    // chk_stock_movements_entity_type (migration 093) rejects a movement with
+    // entity_type='roll' and a NULL roll_id.
+    const lines = await trx('invoice_lines')
+      .where({ invoice_id: invoiceId })
+      .orderBy('id', 'asc')
+      .select('id', 'item_type', 'roll_id', 'accessory_id', 'qty_pieces');
+    const { rollIds, accessoryLines } = splitInvoiceLines(lines);
+
+    // A completed invoice may already carry a partial return — processReturn
+    // only blocks re-returning the *same* line. Those lines already had their
+    // stock settled (back_to_stock credited it; `damaged` deliberately did not),
+    // so restoring them again here would double-count.
+    const returnedLineIds = await getReturnedLineIds(
+      trx,
+      lines.map((l) => Number(l.id)),
+    );
+    const returnedRollIds = new Set(
+      lines
+        .filter((l) => returnedLineIds.has(Number(l.id)) && l.roll_id != null)
+        .map((l) => Number(l.roll_id)),
+    );
+
+    await lockAccessories(trx, accessoryLines);
+
+    for (const rollId of rollIds) {
+      if (returnedRollIds.has(rollId)) continue;
+      await trx('rolls').where({ id: rollId }).update({
         status: 'in_stock',
         updated_at: trx.fn.now(),
       });
       await trx('stock_movements').insert({
-        roll_id: line.roll_id,
+        roll_id: rollId,
         from_warehouse: null,
         to_warehouse: null,
         event_type: 'return_in',
@@ -682,6 +713,18 @@ export async function voidInvoice(
         notes_ar: `إلغاء فاتورة: ${reasonAr}`,
       });
     }
+
+    await restoreAccessoryStock(
+      trx,
+      accessoryLines.filter((l) => !returnedLineIds.has(l.lineId)),
+      actorUserId,
+      {
+        action: 'void_restore_accessory',
+        invoiceId,
+        severity: 'high',
+        extra: { reason_ar: reasonAr },
+      },
+    );
 
     // Reverse payments — record refund rows; settle against cash drawer / bank.
     const paid = Number(invoice.paid_egp);
