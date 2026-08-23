@@ -1,33 +1,32 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { extractApiError } from '@/lib/api-error';
-import { useForm } from 'react-hook-form';
-import { Inbox, Search } from 'lucide-react';
+import { AlertTriangle, Inbox, Search } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
 import { accessoriesApi } from '@/lib/accessories-api';
+import { salesApi } from '@/lib/sales-api';
 import type { RollStatus, Warehouse } from '@/lib/inventory-types';
+import type { RollLookup } from '@/lib/sales-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageShell } from '@/components/Layout/PageShell';
+import { ScannerInput } from '@/components/ScannerInput';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { cn } from '@/lib/utils';
 import { matchesTokens, tokenize } from '@/lib/arabic-search';
 
-type FormVals = {
-  roll_id: number;
-  new_warehouse?: Warehouse | '';
-  new_status?: RollStatus | '';
-  new_weight_kg?: number;
-  notes_ar: string;
-};
-
 const selectClass =
   'w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75';
+
+/** Statuses the form offers. `sold` is reachable only through an actual sale. */
+const STATUS_CHOICES: RollStatus[] = [
+  'in_stock', 'reserved', 'damaged', 'sample', 'returned', 'written_off',
+];
 
 export function AdjustmentsPage() {
   const qc = useQueryClient();
@@ -54,7 +53,47 @@ export function AdjustmentsPage() {
     );
   }, [rows, search]);
 
-  const form = useForm<FormVals>();
+  // Roll adjustment — the توب is resolved by scanning its printed barcode.
+  // Everything below stays disabled until a real توب is on screen, so a تسوية
+  // can no longer be aimed at a number the user only *thinks* identifies it.
+  const [rollBarcode, setRollBarcode] = useState<string | null>(null);
+  const [newQty, setNewQty] = useState('');
+  const [newStatus, setNewStatus] = useState<RollStatus | ''>('');
+  const [newWarehouse, setNewWarehouse] = useState<Warehouse | ''>('');
+  const [rollNotes, setRollNotes] = useState('');
+  const [ackHide, setAckHide] = useState(false);
+
+  const rollQ = useQuery<RollLookup>({
+    queryKey: ['adjustment-roll', rollBarcode],
+    queryFn: () => salesApi.rollByBarcode(rollBarcode!),
+    enabled: rollBarcode !== null,
+    retry: false,
+    gcTime: 0,
+  });
+  const roll = rollQ.data;
+  const isMeter = roll?.fabric_unit === 'meter';
+
+  const resetRollForm = () => {
+    setRollBarcode(null);
+    setNewQty(''); setNewStatus(''); setNewWarehouse(''); setRollNotes('');
+    setAckHide(false);
+  };
+
+  // A تسوية that changes حالة away from «متاح», or moves the توب to another
+  // مخزن, takes it out of المخزون and شاشة البيع — both filter on
+  // status='in_stock'. That is the whole "the roll disappeared" report, so it
+  // has to be stated before the write, not discovered afterwards.
+  const hidesByStatus = newStatus !== '' && newStatus !== 'in_stock';
+  const hidesByWarehouse =
+    newWarehouse !== '' && roll != null && newWarehouse !== roll.warehouse;
+  const willHide = hidesByStatus || hidesByWarehouse;
+
+  const rollInvalid =
+    roll == null ||
+    rollNotes.trim() === '' ||
+    (willHide && !ackHide) ||
+    (newQty !== '' && (!Number.isFinite(Number(newQty)) || Number(newQty) <= 0)) ||
+    (newQty === '' && newStatus === '' && newWarehouse === '');
 
   // Accessory adjustment — controlled state (parity flow for accessory stock).
   const accListQ = useQuery({
@@ -67,23 +106,34 @@ export function AdjustmentsPage() {
   const [accNotes, setAccNotes] = useState<string>('');
   const selectedAcc = (accListQ.data ?? []).find((a) => a.id === accId);
 
+  // A تسوية changes quantity, status and warehouse — every screen that reads
+  // أتواب is stale afterwards. Missing these is what made a corrected weight
+  // keep showing its old value elsewhere (`rolls-for-stock` even caches for 30s).
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['adjustments'] });
     qc.invalidateQueries({ queryKey: ['accessories-all'] });
     qc.invalidateQueries({ queryKey: ['rolls-page-accessories'] });
+    qc.invalidateQueries({ queryKey: ['rolls-search'] });
+    qc.invalidateQueries({ queryKey: ['rolls-for-stock'] });
+    qc.invalidateQueries({ queryKey: ['stock-summary'] });
+    qc.invalidateQueries({ queryKey: ['roll-label'] });
+    qc.invalidateQueries({ queryKey: ['stock-movements'] });
   };
 
   const create = useMutation({
-    mutationFn: (v: FormVals) =>
-      inventoryApi.createAdjustment({
+    mutationFn: () => {
+      const qty = newQty === '' ? undefined : Number(newQty);
+      return inventoryApi.createAdjustment({
         entity_type: 'roll',
-        roll_id: Number(v.roll_id),
-        new_warehouse: (v.new_warehouse || undefined) as Warehouse | undefined,
-        new_status: (v.new_status || undefined) as RollStatus | undefined,
-        new_weight_kg: v.new_weight_kg ? Number(v.new_weight_kg) : undefined,
-        notes_ar: v.notes_ar,
-      }),
-    onSuccess: () => { invalidate(); setCreateError(null); form.reset(); },
+        roll_id: roll!.id,
+        new_warehouse: newWarehouse || undefined,
+        new_status: newStatus || undefined,
+        // Quantity goes to the column the material actually uses.
+        ...(isMeter ? { new_length_m: qty } : { new_weight_kg: qty }),
+        notes_ar: rollNotes,
+      });
+    },
+    onSuccess: () => { invalidate(); setCreateError(null); resetRollForm(); },
     onError: (e) => setCreateError(extractApiError(e)),
   });
 
@@ -109,6 +159,9 @@ export function AdjustmentsPage() {
   const switchEntity = (t: 'roll' | 'accessory') => {
     setEntityType(t);
     setCreateError(null);
+    // Drop the half-filled توب so switching back never shows a scanned roll
+    // paired with values the user typed for a different entity.
+    if (t === 'accessory') resetRollForm();
   };
 
   return (
@@ -137,41 +190,140 @@ export function AdjustmentsPage() {
 
           {entityType === 'roll' ? (
             <form
-              onSubmit={form.handleSubmit((v) => create.mutate(v))}
-              className="grid grid-cols-2 md:grid-cols-3 gap-3"
+              onSubmit={(e) => { e.preventDefault(); if (!rollInvalid) create.mutate(); }}
+              className="space-y-4"
             >
+              {/* Step 1 — identify the توب by its printed barcode. */}
               <div className="space-y-1">
-                <Label className="text-sm font-medium text-foreground">{ar.adjustments.rollId}</Label>
-                <Input type="number" inputMode="decimal" {...form.register('roll_id', { valueAsNumber: true, required: true })} />
+                <Label className="text-sm font-medium text-foreground">{ar.adjustments.scanRoll}</Label>
+                {roll ? (
+                  <div className="flex items-start justify-between gap-3 p-3 rounded-md border border-border-default bg-surface-hover">
+                    <div className="space-y-0.5 text-sm">
+                      <div className="font-medium text-foreground">
+                        {roll.fabric_name_ar} — {roll.color_name_ar}
+                      </div>
+                      <div className="font-mono text-xs text-foreground-muted" dir="ltr">
+                        {roll.internal_barcode}
+                        {roll.roll_sr_no ? ` · ${roll.roll_sr_no}` : ''}
+                      </div>
+                      <div className="text-foreground-muted">
+                        {isMeter ? ar.adjustments.currentLength : ar.adjustments.currentWeight}:{' '}
+                        <span className="tabular-num text-foreground" dir="ltr">
+                          {isMeter ? (roll.length_m ?? '—') : (roll.weight_kg ?? '—')}
+                        </span>
+                        {' · '}
+                        {ar.labels.status}: <span className="text-foreground">{ar.rollStatuses[roll.status as RollStatus] ?? roll.status}</span>
+                        {' · '}
+                        {ar.warehouses[roll.warehouse as Warehouse] ?? roll.warehouse}
+                      </div>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={resetRollForm}>
+                      {ar.adjustments.changeRoll}
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <ScannerInput
+                      onScan={(code) => { setRollBarcode(code); setCreateError(null); }}
+                      placeholder={ar.adjustments.scanRollHint}
+                      autoFocus={false}
+                    />
+                    {rollQ.isLoading && (
+                      <p className="text-sm text-foreground-muted">{ar.adjustments.lookingUpRoll}</p>
+                    )}
+                    {rollQ.isError && (
+                      <p className="text-sm text-danger" role="alert">{ar.adjustments.rollNotFound}</p>
+                    )}
+                  </>
+                )}
               </div>
-              <div className="space-y-1">
-                <Label className="text-sm font-medium text-foreground">{ar.adjustments.newWarehouse}</Label>
-                <select {...form.register('new_warehouse')} className={selectClass}>
-                  <option value="">—</option>
-                  <option value="shop">{ar.warehouses.shop}</option>
-                  <option value="factory">{ar.warehouses.factory}</option>
-                  <option value="damaged_shop">{ar.warehouses.damaged_shop}</option>
-                </select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-sm font-medium text-foreground">{ar.adjustments.newStatus}</Label>
-                <select {...form.register('new_status')} className={selectClass}>
-                  <option value="">—</option>
-                  {(['in_stock', 'reserved', 'damaged', 'sample', 'returned', 'written_off'] as RollStatus[]).map((s) => (
-                    <option key={s} value={s}>{ar.rollStatuses[s]}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-sm font-medium text-foreground">{ar.adjustments.newWeight}</Label>
-                <Input type="number" inputMode="decimal" step="0.001" {...form.register('new_weight_kg', { valueAsNumber: true })} />
-              </div>
-              <div className="space-y-1 col-span-2">
-                <Label className="text-sm font-medium text-foreground">{ar.adjustments.notes}</Label>
-                <Input {...form.register('notes_ar', { required: true, minLength: 1 })} />
-              </div>
-              <div className="col-span-full flex items-center gap-3 flex-wrap">
-                <Button type="submit" disabled={create.isPending}>{ar.adjustments.create}</Button>
+
+              {/* Step 2 — the actual تسوية, only once a توب is on screen. */}
+              {roll && (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-sm font-medium text-foreground">
+                        {isMeter ? ar.adjustments.newLength : ar.adjustments.newWeight}
+                      </Label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.001"
+                        min={0}
+                        dir="ltr"
+                        value={newQty}
+                        onChange={(e) => setNewQty(e.target.value)}
+                        placeholder={ar.adjustments.keepSame}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-sm font-medium text-foreground">{ar.adjustments.newStatus}</Label>
+                      <select
+                        className={selectClass}
+                        value={newStatus}
+                        onChange={(e) => { setNewStatus(e.target.value as RollStatus | ''); setAckHide(false); }}
+                      >
+                        <option value="">—</option>
+                        {STATUS_CHOICES.map((s) => (
+                          <option key={s} value={s}>{ar.rollStatuses[s]}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-sm font-medium text-foreground">{ar.adjustments.newWarehouse}</Label>
+                      <select
+                        className={selectClass}
+                        value={newWarehouse}
+                        onChange={(e) => { setNewWarehouse(e.target.value as Warehouse | ''); setAckHide(false); }}
+                      >
+                        <option value="">—</option>
+                        <option value="shop">{ar.warehouses.shop}</option>
+                        <option value="factory">{ar.warehouses.factory}</option>
+                        <option value="damaged_shop">{ar.warehouses.damaged_shop}</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1 col-span-2">
+                      <Label className="text-sm font-medium text-foreground">{ar.adjustments.notes}</Label>
+                      <Input value={rollNotes} onChange={(e) => setRollNotes(e.target.value)} />
+                    </div>
+                  </div>
+
+                  {willHide && (
+                    <div className="p-3 rounded-md border border-warning/30 bg-warning-subtle space-y-2">
+                      <div className="flex items-center gap-2 font-medium text-warning-foreground">
+                        <AlertTriangle className="size-4 shrink-0" aria-hidden />
+                        {ar.adjustments.hideWarningTitle}
+                      </div>
+                      <p className="text-sm text-warning-foreground">
+                        {hidesByStatus
+                          ? ar.adjustments.hideWarningStatus.replace(
+                              '{status}',
+                              ar.rollStatuses[newStatus as RollStatus],
+                            )
+                          : ar.adjustments.hideWarningWarehouse.replace(
+                              '{warehouse}',
+                              ar.warehouses[newWarehouse as Warehouse],
+                            )}
+                      </p>
+                      <label className="flex items-center gap-2 text-sm text-warning-foreground cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={ackHide}
+                          onChange={(e) => setAckHide(e.target.checked)}
+                          className="size-4"
+                        />
+                        {ar.adjustments.hideWarningAck}
+                      </label>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div className="flex items-center gap-3 flex-wrap">
+                <Button type="submit" disabled={create.isPending || rollInvalid}>
+                  {ar.adjustments.create}
+                </Button>
                 {createError && (
                   <span className="text-sm text-danger transition-opacity duration-75 ease-standard" role="alert">
                     {createError}

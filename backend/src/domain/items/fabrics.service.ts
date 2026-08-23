@@ -96,16 +96,25 @@ export async function updateFabric(id: number, data: UpdateFabricInput): Promise
 }
 
 /**
- * Tables holding real business history for a material's أتواب. Any hit here
- * means the material cannot be erased — deleting it would rewrite past
- * invoices, shipments, loss records or stocktakes.
+ * What stops a material from being erased.
  *
- * Deliberately excluded: `stock_movements`. Every توب gets an automatic
- * `factory_in` movement the moment it is created (tops.service.ts), so
- * treating it as history would mean no material with أتواب is ever deletable
- * — which is the bug being fixed. It is swept along with its roll instead.
+ * `rolls_total` comes first because a توب is not a database row that happens
+ * to reference this material — it is a physical roll on a shelf with a printed
+ * barcode label on it. Erasing a material must never make stock the shop is
+ * still holding disappear, so the existence of even one توب forces the archive
+ * path. Permanent delete is therefore reserved for a material with no أتواب at
+ * all: the mistyped-entry case, which is the one it is actually needed for.
+ *
+ * The rest are tables holding business history reached through a توب —
+ * deleting them would rewrite past invoices, shipments, loss records or
+ * stocktakes. They stay listed separately so the dialog can tell the user
+ * precisely which kind of history is holding the material.
+ *
+ * `stock_movements` needs no entry: it hangs off a توب, so `rolls_total`
+ * already covers every case that could reach it.
  */
 export type FabricBlocker =
+  | 'rolls_total'
   | 'invoice_lines'
   | 'return_lines'
   | 'shipment_lines'
@@ -211,7 +220,15 @@ export async function getFabricUsage(
     stocktake_lines: stocktakeLines,
   };
 
-  const blockers = (Object.keys(counts) as FabricBlocker[]).filter((k) => counts[k] > 0);
+  // `rolls_total` leads the list so the dialog names the most likely reason
+  // first: for a material still holding stock, "it has أتواب" is the answer,
+  // not whichever history table happens to also match.
+  const blockers = ([
+    ['rolls_total', rolls_total],
+    ...(Object.entries(counts) as Array<[FabricBlocker, number]>),
+  ] as Array<[FabricBlocker, number]>)
+    .filter(([, n]) => n > 0)
+    .map(([k]) => k);
 
   return {
     rolls_total,
@@ -251,12 +268,10 @@ export async function deleteFabric(id: number, actor: FabricActor): Promise<Dele
     const usage = await getFabricUsage(id, trx);
 
     if (usage.can_hard_delete) {
-      const rollIds = trx('rolls').select('id').where({ fabric_id: id });
-
-      // Dependency order: the rolls' own movement trail, then the rolls, then
-      // the lots they pointed at, then prices, then the material itself.
-      await trx('stock_movements').whereIn('roll_id', rollIds).delete();
-      await trx('rolls').where({ fabric_id: id }).delete();
+      // `rolls_total` is a blocker, so reaching here means the material has no
+      // أتواب — and therefore no stock movements, which only exist per توب.
+      // Nothing sweeps away physical stock or its ledger: the `RESTRICT` foreign
+      // keys on `rolls` stay intact and would refuse the delete if that changed.
       await trx('lots').where({ fabric_id: id }).delete();
       await trx('fabric_color_prices').where({ fabric_id: id }).delete();
       await trx('fabrics').where({ id }).delete();

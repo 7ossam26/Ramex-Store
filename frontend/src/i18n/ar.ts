@@ -124,13 +124,14 @@ export const ar = {
     deleteTitle: 'حذف الخامة',
     checkingUsage: 'جارٍ فحص ارتباطات الخامة…',
     willDeleteTitle: 'سيتم الحذف نهائياً',
-    willDeleteBody: 'لا توجد بيانات فعلية مرتبطة بهذه الخامة. سيتم حذفها نهائياً مع:',
+    willDeleteBody: 'لا توجد أتواب ولا بيانات فعلية مرتبطة بهذه الخامة. سيتم حذفها نهائياً مع:',
     willDeleteNothing: 'لا توجد بيانات مرتبطة بهذه الخامة على الإطلاق.',
     willArchiveTitle: 'سيتم الأرشفة بدلاً من الحذف',
     willArchiveBody:
-      'هذه الخامة لها سجل فعلي لا يمكن مسحه بدون تغيير بيانات قديمة. سيتم أرشفتها: تختفي من قوائم الإضافة، ويظهر اسمها في كل الشاشات والتقارير والفواتير متبوعاً بكلمة «مؤرشف»، ويمكن استرجاعها في أي وقت.',
+      'هذه الخامة لها أتواب أو سجل فعلي لا يمكن مسحه بدون تغيير بيانات قديمة. سيتم أرشفتها: تختفي من قوائم الإضافة، ويظهر اسمها في كل الشاشات والتقارير والفواتير متبوعاً بكلمة «مؤرشف»، ويمكن استرجاعها في أي وقت. لن يُحذف أي توب ولن تتأثر كميات المخزون.',
     archiveReasonsLabel: 'الارتباطات التي تمنع الحذف النهائي:',
     sweepLabel: 'سيتم حذف:',
+    blockerRollsTotal: 'أتواب مسجّلة في المخزون',
     blockerInvoiceLines: 'سطور فواتير بيع',
     blockerReturnLines: 'سطور مرتجعات',
     blockerShipmentLines: 'سطور طلبيات شحن',
@@ -315,6 +316,27 @@ export const ar = {
     newWeight: 'وزن جديد',
     notes: 'سبب التسوية',
     create: 'تسجيل التسوية',
+    // Roll identification — the توب is chosen by scanning its printed label,
+    // never by typing a number. «رقم التوب» means three different values across
+    // the app (رقم قاعدة البيانات، رقم المصنع، الرقم المطبوع)، so a typed number
+    // used to land the تسوية on a completely different توب.
+    scanRoll: 'امسح باركود التوب',
+    scanRollHint: 'امسح الباركود المطبوع على التوب أو اكتبه يدوياً ثم اضغط Enter',
+    rollNotFound: 'لا يوجد توب بهذا الباركود.',
+    lookingUpRoll: 'جارٍ البحث عن التوب…',
+    changeRoll: 'تغيير التوب',
+    currentWeight: 'الوزن الحالي',
+    currentLength: 'الطول الحالي',
+    newLength: 'طول جديد',
+    keepSame: 'اتركه فارغاً لعدم التغيير',
+    // Shown when the chosen حالة/مخزن would take the توب out of المخزون
+    // وشاشة البيع — the exact confusion behind "the roll disappeared".
+    hideWarningTitle: 'تنبيه: هذا التعديل سيُخرج التوب من المخزون',
+    hideWarningStatus:
+      'تغيير الحالة إلى «{status}» سيُخفي التوب من شاشة المخزون ومن شاشة البيع. التوب لن يُحذف — يظل موجوداً ويمكن العثور عليه في صفحة الأتواب وطباعة الباركود، ويمكن إرجاعه إلى «متاح» بتسوية أخرى.',
+    hideWarningWarehouse:
+      'نقل التوب إلى مخزن «{warehouse}» سيُخفيه من قائمة المخزن الحالي. التوب لن يُحذف.',
+    hideWarningAck: 'فهمت، تابع التعديل',
     // Entity toggle (rolls vs accessories)
     entityType: 'نوع الصنف',
     entityRoll: 'توب',

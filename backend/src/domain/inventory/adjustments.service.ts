@@ -22,7 +22,10 @@ async function createRollAdjustment(
   input: RollAdjustment,
 ): Promise<StockMovement> {
   return db.transaction(async (trx) => {
-    const roll = await trx('rolls').where({ id: input.roll_id }).first();
+    // Locked for the same reason the accessory branch below locks: two
+    // تسويات on one توب would otherwise read the same starting quantity and
+    // the second would silently overwrite the first.
+    const roll = await trx('rolls').where({ id: input.roll_id }).forUpdate().first();
     if (!roll) throw new Error('ROLL_NOT_FOUND');
 
     const fromWarehouse = roll.warehouse;
@@ -50,6 +53,7 @@ async function createRollAdjustment(
     if (input.new_warehouse !== undefined) patch.warehouse = input.new_warehouse;
     if (input.new_status !== undefined) patch.status = input.new_status;
     if (input.new_weight_kg !== undefined) patch.weight_kg = input.new_weight_kg;
+    if (input.new_length_m !== undefined) patch.length_m = input.new_length_m;
 
     await trx('rolls').where({ id: roll.id }).update(patch);
 
@@ -77,11 +81,13 @@ async function createRollAdjustment(
         warehouse: roll.warehouse,
         status: roll.status,
         weight_kg: roll.weight_kg,
+        length_m: roll.length_m,
       },
       after: {
         warehouse: patch.warehouse ?? roll.warehouse,
         status: patch.status ?? roll.status,
         weight_kg: patch.weight_kg ?? roll.weight_kg,
+        length_m: patch.length_m ?? roll.length_m,
         notes_ar: input.notes_ar,
       },
       severity: 'medium',
@@ -95,11 +101,17 @@ async function createRollAdjustment(
       bodyAr: `تم تعديل بيانات توب #${roll.id}`,
       payload: {
         roll_id: roll.id,
-        from: { warehouse: roll.warehouse, status: roll.status, weight_kg: roll.weight_kg },
+        from: {
+          warehouse: roll.warehouse,
+          status: roll.status,
+          weight_kg: roll.weight_kg,
+          length_m: roll.length_m,
+        },
         to: {
           warehouse: patch.warehouse ?? roll.warehouse,
           status: patch.status ?? roll.status,
           weight_kg: patch.weight_kg ?? roll.weight_kg,
+          length_m: patch.length_m ?? roll.length_m,
         },
         notes_ar: input.notes_ar,
       },

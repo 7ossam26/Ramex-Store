@@ -12,6 +12,7 @@ import {
 } from '@/components/ResponsiveDialog';
 
 const BLOCKER_LABELS: Record<FabricBlocker, string> = {
+  rolls_total: ar.fabrics.blockerRollsTotal,
   invoice_lines: ar.fabrics.blockerInvoiceLines,
   return_lines: ar.fabrics.blockerReturnLines,
   shipment_lines: ar.fabrics.blockerShipmentLines,
@@ -19,13 +20,17 @@ const BLOCKER_LABELS: Record<FabricBlocker, string> = {
   stocktake_lines: ar.fabrics.blockerStocktakeLines,
 };
 
-/** The rows that get erased along with the material on a permanent delete. */
+/**
+ * The rows that get erased along with the material on a permanent delete.
+ *
+ * أتواب and their حركات مخزون are deliberately absent: a material holding even
+ * one توب is blocked from permanent delete, so this list can only ever be
+ * reached when there are none to sweep.
+ */
 function sweptItems(u: FabricUsage): string[] {
   const parts: Array<[number, string]> = [
-    [u.rolls_total, ar.fabrics.sweepRolls],
     [u.lots, ar.fabrics.sweepLots],
     [u.prices, ar.fabrics.sweepPrices],
-    [u.stock_movements, ar.fabrics.sweepMovements],
   ];
   return parts.filter(([n]) => n > 0).map(([n, label]) => `${n} ${label}`);
 }

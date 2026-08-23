@@ -73,28 +73,55 @@ describe('fabric delete — outcomes', () => {
     expect(await db('fabrics').where({ id: fabric.id }).first()).toBeUndefined();
   });
 
-  it.skipIf(!RUN_DB)('a material whose أتواب were never sold or shipped is deleted, sweeping rolls and their movements', async () => {
+  it.skipIf(!RUN_DB)('a material holding أتواب is archived — physical stock is never swept away', async () => {
     const headers = await auth();
     const fabric = await createFabric(headers, 'خامة-حذف-باتواب');
     const roll = await addTop(headers, fabric.id);
 
-    // The wizard creates the توب plus its automatic factory_in movement —
-    // neither counts as business history.
+    // The wizard creates the توب plus its automatic factory_in movement.
     expect(await db('stock_movements').where({ roll_id: roll.id }).first()).toBeDefined();
 
     const usage = await request(app).get(`/api/fabrics/${fabric.id}/usage`).set(headers);
     expect(usage.body.rolls_total).toBe(1);
-    expect(usage.body.stock_movements).toBeGreaterThan(0);
-    expect(usage.body.can_hard_delete).toBe(true);
+    expect(usage.body.can_hard_delete).toBe(false);
+    expect(usage.body.blockers).toContain('rolls_total');
 
     const del = await request(app).delete(`/api/fabrics/${fabric.id}`).set(headers);
     expect(del.status).toBe(200);
-    expect(del.body.mode).toBe('deleted');
+    expect(del.body.mode).toBe('archived');
 
-    expect(await db('fabrics').where({ id: fabric.id }).first()).toBeUndefined();
-    expect(await db('rolls').where({ id: roll.id }).first()).toBeUndefined();
-    expect(await db('stock_movements').where({ roll_id: roll.id }).first()).toBeUndefined();
-    expect(await db('lots').where({ fabric_id: fabric.id }).first()).toBeUndefined();
+    // The توب is a physical roll with a printed label on it. It and its
+    // movement trail both survive; only the material is hidden.
+    expect(await db('rolls').where({ id: roll.id }).first()).toBeDefined();
+    expect(await db('stock_movements').where({ roll_id: roll.id }).first()).toBeDefined();
+
+    const after = await db('fabrics').where({ id: fabric.id }).first();
+    expect(after.is_active).toBe(false);
+    expect(after.name_ar.endsWith(ARCHIVED_SUFFIX)).toBe(true);
+  });
+
+  it.skipIf(!RUN_DB)('adjusting a توب keeps it in stock and findable', async () => {
+    const headers = await auth();
+    const fabric = await createFabric(headers, 'خامة-تسوية-وزن');
+    const roll = await addTop(headers, fabric.id);
+
+    // Exactly the client's flow: a sample was cut, so the weight drops.
+    const adj = await request(app).post('/api/adjustments').set(headers).send({
+      entity_type: 'roll',
+      roll_id: roll.id,
+      new_weight_kg: 21.5,
+      notes_ar: 'قص عينة',
+    });
+    expect(adj.status).toBe(201);
+
+    const after = await db('rolls').where({ id: roll.id }).first();
+    expect(after).toBeDefined();
+    expect(Number(after.weight_kg)).toBe(21.5);
+    expect(after.status).toBe('in_stock');
+
+    // Still returned by the الأتواب search, so a new barcode can be printed.
+    const found = await request(app).get('/api/rolls/search').set(headers);
+    expect(found.body.some((r: { id: number }) => r.id === roll.id)).toBe(true);
   });
 
   it.skipIf(!RUN_DB)('a material carrying business history is archived, not erased, and its name is marked', async () => {

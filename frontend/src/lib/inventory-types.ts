@@ -168,6 +168,8 @@ export type CreateAdjustmentBody =
       new_warehouse?: Warehouse;
       new_status?: RollStatus;
       new_weight_kg?: number;
+      /** Metre-unit materials hold their quantity here, not in `new_weight_kg`. */
+      new_length_m?: number;
       notes_ar: string;
     }
   | {
@@ -210,6 +212,7 @@ export type FabricArchivedFilter = 'true' | 'false' | 'all';
  * rewritten by deleting it.
  */
 export type FabricBlocker =
+  | 'rolls_total'
   | 'invoice_lines'
   | 'return_lines'
   | 'shipment_lines'

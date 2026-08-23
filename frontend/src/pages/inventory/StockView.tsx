@@ -159,13 +159,18 @@ function RollDetailsPanel({ row }: { row: StockSummaryRow }) {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [returnError, setReturnError] = useState<string | null>(null);
 
+  // Fetched without a status filter. Filtering server-side made a توب whose
+  // حالة changed (عينة، تالف، مشطوب) vanish from here with nothing to show it
+  // still existed — the "the roll was removed from the system" report. The list
+  // still *shows* only المتاح by default; the rest are one click away.
+  const [showAllStatuses, setShowAllStatuses] = useState(false);
+
   const { data, isLoading, isError } = useQuery<RollLookup[]>({
     queryKey: ['rolls-for-stock', row.fabric_id, row.color_id],
     queryFn: () =>
       salesApi.searchRolls({
         fabric_id: row.fabric_id,
         color_id: row.color_id,
-        status: 'in_stock',
       }),
     staleTime: 30_000,
   });
@@ -173,8 +178,22 @@ function RollDetailsPanel({ row }: { row: StockSummaryRow }) {
   // Clear selection whenever the roll list refreshes
   useEffect(() => { setSelected(new Set()); }, [data]);
 
-  const rolls = data ?? [];
-  const shopRolls = useMemo(() => rolls.filter((r) => r.warehouse === 'shop'), [rolls]);
+  const allRolls = data ?? [];
+  const otherStatusCount = useMemo(
+    () => allRolls.filter((r) => r.status !== 'in_stock').length,
+    [allRolls],
+  );
+  const rolls = useMemo(
+    () => (showAllStatuses ? allRolls : allRolls.filter((r) => r.status === 'in_stock')),
+    [allRolls, showAllStatuses],
+  );
+  // Only a توب that is both in المعرض and متاح can be returned to the factory
+  // (rolls.service.ts guards on exactly that), so the bulk selection must not
+  // pick up the newly-visible non-متاح rows.
+  const shopRolls = useMemo(
+    () => rolls.filter((r) => r.warehouse === 'shop' && r.status === 'in_stock'),
+    [rolls],
+  );
   const allShopSelected = shopRolls.length > 0 && shopRolls.every((r) => selected.has(r.id));
   const someSelected = selected.size > 0;
 
@@ -216,8 +235,28 @@ function RollDetailsPanel({ row }: { row: StockSummaryRow }) {
   if (isError) {
     return <div className="text-xs text-danger-foreground py-2">تعذر تحميل تفاصيل الاتواب.</div>;
   }
+  // Offered whenever أتواب exist outside «متاح» — including when that is *all*
+  // of them, which is exactly the case that used to render a bare "no rolls"
+  // and look like the stock had been deleted.
+  const statusToggle = otherStatusCount > 0 && (
+    <button
+      type="button"
+      onClick={() => setShowAllStatuses((v) => !v)}
+      className="text-xs text-foreground-muted hover:text-foreground underline underline-offset-2 transition-colors cursor-pointer"
+    >
+      {showAllStatuses
+        ? 'إخفاء الأتواب غير المتاحة'
+        : `عرض ${otherStatusCount} توب غير متاح (عيّنة / تالف / محجوز…)`}
+    </button>
+  );
+
   if (rolls.length === 0) {
-    return <div className="text-xs text-foreground-muted py-2">لا توجد اتواب متاحة لهذه الخامة.</div>;
+    return (
+      <div className="py-2 space-y-1">
+        <div className="text-xs text-foreground-muted">لا توجد اتواب متاحة لهذه الخامة.</div>
+        {statusToggle}
+      </div>
+    );
   }
 
   return (
@@ -252,6 +291,8 @@ function RollDetailsPanel({ row }: { row: StockSummaryRow }) {
         </div>
       )}
 
+      {statusToggle && <div className="pb-1.5">{statusToggle}</div>}
+
       <div className="overflow-x-auto rounded-md border border-border-subtle bg-surface">
         <table className="w-full text-xs" style={{ textAlign: 'center' }}>
           <thead>
@@ -278,7 +319,7 @@ function RollDetailsPanel({ row }: { row: StockSummaryRow }) {
           </thead>
           <tbody>
             {rolls.map((r) => {
-              const isShop = r.warehouse === 'shop';
+              const isShop = r.warehouse === 'shop' && r.status === 'in_stock';
               const isChecked = selected.has(r.id);
               return (
                 <tr
@@ -316,7 +357,7 @@ function RollDetailsPanel({ row }: { row: StockSummaryRow }) {
                     {WAREHOUSE_OPTIONS.find((w) => w.value === r.warehouse)?.label ?? r.warehouse}
                   </td>
                   <td className="px-3 py-2">
-                    <StatusPill tone="success">
+                    <StatusPill tone={r.status === 'in_stock' ? 'success' : 'neutral'}>
                       {ROLL_STATUS_LABEL[r.status] ?? r.status}
                     </StatusPill>
                   </td>

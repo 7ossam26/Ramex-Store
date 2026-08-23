@@ -95,6 +95,10 @@ const RollAdjustmentSchema = z.object({
   new_warehouse: WarehouseEnum.optional(),
   new_status: RollStatusEnum.optional(),
   new_weight_kg: z.number().positive().optional(),
+  // Materials sold by the metre carry their quantity in `length_m`, not
+  // `weight_kg` (migration 047). Without this, a تسوية on a metre توب wrote a
+  // column nothing reads and left the real quantity untouched.
+  new_length_m: z.number().positive().optional(),
   notes_ar: z.string().min(1).max(2000),
 });
 
@@ -113,7 +117,8 @@ const AdjustmentUnion = z
       v.entity_type === 'roll' &&
       v.new_warehouse === undefined &&
       v.new_status === undefined &&
-      v.new_weight_kg === undefined
+      v.new_weight_kg === undefined &&
+      v.new_length_m === undefined
     ) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'يجب تحديد قيمة واحدة على الأقل للتعديل' });
     }
