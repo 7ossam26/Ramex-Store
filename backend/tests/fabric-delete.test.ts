@@ -124,6 +124,52 @@ describe('fabric delete — outcomes', () => {
     expect(found.body.some((r: { id: number }) => r.id === roll.id)).toBe(true);
   });
 
+  it.skipIf(!RUN_DB)('a توب sent to عيّنة and brought back becomes sellable again', async () => {
+    const headers = await auth();
+    const fabric = await createFabric(headers, 'خامة-عينة-ورجوع');
+    const roll = await addTop(headers, fabric.id);
+
+    const toSample = await request(app).post('/api/adjustments').set(headers).send({
+      entity_type: 'roll', roll_id: roll.id, new_status: 'sample', notes_ar: 'عينة للعميل',
+    });
+    expect(toSample.status).toBe(201);
+
+    // Out of «متاح» ⇒ out of شاشة البيع, and the توب still exists.
+    const hidden = await db('rolls').where({ id: roll.id }).first();
+    expect(hidden).toBeDefined();
+    expect(hidden.status).toBe('sample');
+    expect(hidden.is_visible_at_pos).toBe(false);
+
+    const back = await request(app).post('/api/adjustments').set(headers).send({
+      entity_type: 'roll', roll_id: roll.id, new_status: 'in_stock', notes_ar: 'رجوع للمخزون',
+    });
+    expect(back.status).toBe(201);
+
+    // Back to «متاح» must also restore POS visibility, or the توب reads متاح
+    // while staying invisible in شاشة البيع.
+    const restored = await db('rolls').where({ id: roll.id }).first();
+    expect(restored.status).toBe('in_stock');
+    expect(restored.is_visible_at_pos).toBe(true);
+  });
+
+  it.skipIf(!RUN_DB)('a weight-only تسوية leaves a deliberate POS hide alone', async () => {
+    const headers = await auth();
+    const fabric = await createFabric(headers, 'خامة-اخفاء-متعمد');
+    const roll = await addTop(headers, fabric.id);
+
+    // The user hides an otherwise-متاح توب from شاشة البيع on purpose.
+    await request(app).post(`/api/rolls/${roll.id}/toggle-pos-visibility`).set(headers);
+    expect((await db('rolls').where({ id: roll.id }).first()).is_visible_at_pos).toBe(false);
+
+    await request(app).post('/api/adjustments').set(headers).send({
+      entity_type: 'roll', roll_id: roll.id, new_weight_kg: 20, notes_ar: 'تصحيح وزن',
+    });
+
+    const after = await db('rolls').where({ id: roll.id }).first();
+    expect(Number(after.weight_kg)).toBe(20);
+    expect(after.is_visible_at_pos).toBe(false);
+  });
+
   it.skipIf(!RUN_DB)('a material carrying business history is archived, not erased, and its name is marked', async () => {
     const headers = await auth();
     const fabric = await createFabric(headers, 'خامة-حذف-بسجل');

@@ -55,6 +55,22 @@ async function createRollAdjustment(
     if (input.new_weight_kg !== undefined) patch.weight_kg = input.new_weight_kg;
     if (input.new_length_m !== undefined) patch.length_m = input.new_length_m;
 
+    // Keep POS visibility coherent with the status, but only on an actual
+    // transition in or out of «متاح».
+    //
+    // «تحويل إلى عيّنة» sets status AND is_visible_at_pos=false together, while
+    // a تسوية used to set status alone — so bringing a توب back to «متاح» left
+    // is_visible_at_pos stuck at false and it stayed invisible in شاشة البيع
+    // despite reading متاح. Coming back into a sellable state, that false is
+    // residue rather than intent: POS already excludes any non-متاح توب, so the
+    // flag carried no meaning while the توب was out.
+    //
+    // Guarding on a transition matters: a تسوية that only corrects the weight
+    // must not clobber a POS hide the user set deliberately with the toggle.
+    if (input.new_status !== undefined && input.new_status !== roll.status) {
+      patch.is_visible_at_pos = input.new_status === 'in_stock';
+    }
+
     await trx('rolls').where({ id: roll.id }).update(patch);
 
     const toWarehouse = input.new_warehouse ?? fromWarehouse;
