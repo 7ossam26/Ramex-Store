@@ -37,6 +37,9 @@ export type ReturnLineRow = {
   fabric_unit: 'kg' | 'meter' | null;
   sold_quantity: string | null;
   sold_unit: 'kg' | 'meter' | null;
+  /** Actual quantity this particular return covers — roll lines only. */
+  returned_quantity: string | null;
+  returned_unit: 'kg' | 'meter' | null;
   accessory_name_ar: string | null;
   internal_barcode: string;
 };
@@ -60,6 +63,8 @@ export type ReturnLineInput = {
   rollId?: number | null;
   accessoryId?: number | null;
   refundAmountEgp: number;
+  /** Roll/fabric lines only — omit to return everything still returnable on the line. */
+  returnQuantity?: number | null;
   disposition: RollDisposition;
   notesAr?: string | null;
 };

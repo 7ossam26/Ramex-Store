@@ -20,6 +20,8 @@ const STATUS_AR: Record<string, string> = {
   completed: 'مكتمل',
   cancelled: 'ملغي',
   deposit_refunded: 'مُسترد',
+  returned: 'مرتجعة',
+  partially_returned: 'مرتجعة جزئياً',
 };
 
 const CAIRO_TZ = 'Africa/Cairo';

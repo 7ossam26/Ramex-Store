@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { salesApi } from '@/lib/sales-api';
+import { inventoryApi } from '@/lib/inventory-api';
 import type {
   FulfillmentDestination,
   InvoiceListRow,
@@ -29,17 +30,18 @@ import { StatusPill } from '@/components/StatusPill';
 
 const PAGE_SIZE = 30;
 
-type TabKey = 'all' | 'open' | 'pending_pickup' | 'completed' | 'cancelled';
+type TabKey = 'all' | 'open' | 'pending_pickup' | 'completed' | 'returned' | 'cancelled';
 
 const TAB_TO_STATUS: Record<TabKey, InvoiceStatus | undefined> = {
   all: undefined,
   open: 'open',
   pending_pickup: 'closed_pending_pickup',
   completed: 'completed',
+  returned: 'returned',
   cancelled: 'cancelled',
 };
 
-const TAB_ORDER: TabKey[] = ['all', 'open', 'pending_pickup', 'completed', 'cancelled'];
+const TAB_ORDER: TabKey[] = ['all', 'open', 'pending_pickup', 'completed', 'returned', 'cancelled'];
 
 function fmtMoney(s: string | number): string {
   return Number(s).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -89,9 +91,20 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [destination, setDestination] = useState<FulfillmentDestination | 'all'>('all');
+  const [fabricId, setFabricId] = useState('');
+  const [colorId, setColorId] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(search);
+
+  const fabricsQ = useQuery({
+    queryKey: ['fabrics', 'all'],
+    queryFn: () => inventoryApi.listFabrics('all'),
+  });
+  const colorsQ = useQuery({
+    queryKey: ['colors'],
+    queryFn: inventoryApi.listColors,
+  });
 
   const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -124,11 +137,13 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
   }
 
   const q = useQuery({
-    queryKey: ['invoices', status, destination, dateFrom, dateTo, debouncedSearch, page],
+    queryKey: ['invoices', status, destination, fabricId, colorId, dateFrom, dateTo, debouncedSearch, page],
     queryFn: () =>
       salesApi.list({
         status: status || undefined,
         fulfillment_destination: destination === 'all' ? undefined : destination,
+        fabric_id: fabricId ? Number(fabricId) : undefined,
+        color_id: colorId ? Number(colorId) : undefined,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
         search: debouncedSearch || undefined,
@@ -142,14 +157,17 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
   const total = q.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const activeFilters =
-    (dateFrom ? 1 : 0) + (dateTo ? 1 : 0) + (destination !== 'all' ? 1 : 0);
+    (dateFrom ? 1 : 0) + (dateTo ? 1 : 0) + (destination !== 'all' ? 1 : 0) + (fabricId ? 1 : 0) + (colorId ? 1 : 0);
 
   const kpis = useMemo(() => {
     let revenue = 0;
     let totalPaid = 0;
     let totalBalance = 0;
     for (const r of rows) {
-      revenue += Number(r.total_egp);
+      // Net a returned/partially-returned invoice's contribution to revenue
+      // by what's already been refunded, so the KPI doesn't overstate sales
+      // for invoices this page's own status filter can surface.
+      revenue += Number(r.total_egp) - Number(r.returned_amount_egp ?? 0);
       totalPaid += Number(r.paid_egp);
       totalBalance += Number(r.balance_egp);
     }
@@ -202,6 +220,39 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
           >
             {ar.invoices.fulfillmentFactoryDirect}
           </FilterChip>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label className="text-sm font-medium text-foreground">{ar.invoices.filterFabric}</Label>
+          <select
+            value={fabricId}
+            onChange={(e) => { setFabricId(e.target.value); setPage(1); }}
+            disabled={fabricsQ.isLoading}
+            dir="rtl"
+            className="h-11 md:h-10 w-full rounded-md border border-border-default bg-surface px-3 text-sm text-foreground appearance-none cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <option value="">{ar.invoices.allFabrics}</option>
+            {(fabricsQ.data ?? []).map((f) => (
+              <option key={f.id} value={String(f.id)}>{f.name_ar}</option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-sm font-medium text-foreground">{ar.invoices.filterColor}</Label>
+          <select
+            value={colorId}
+            onChange={(e) => { setColorId(e.target.value); setPage(1); }}
+            disabled={colorsQ.isLoading}
+            dir="rtl"
+            className="h-11 md:h-10 w-full rounded-md border border-border-default bg-surface px-3 text-sm text-foreground appearance-none cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <option value="">{ar.invoices.allColors}</option>
+            {(colorsQ.data ?? []).map((c) => (
+              <option key={c.id} value={String(c.id)}>{c.name_ar}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -351,7 +402,7 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
           isLoading={q.isLoading}
           isError={q.isError}
           onRetry={() => q.refetch()}
-          resetKey={`${status ?? ''}|${destination}|${dateFrom}|${dateTo}|${debouncedSearch}|${page}`}
+          resetKey={`${status ?? ''}|${destination}|${fabricId}|${colorId}|${dateFrom}|${dateTo}|${debouncedSearch}|${page}`}
         />
       </SectionCard>
 
@@ -403,6 +454,8 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
                 <option value="completed">مكتمل</option>
                 <option value="open">مفتوح</option>
                 <option value="closed_pending_pickup">بانتظار الاستلام</option>
+                <option value="partially_returned">مرتجعة جزئياً</option>
+                <option value="returned">مرتجعة</option>
                 <option value="cancelled">ملغي</option>
               </select>
             </div>

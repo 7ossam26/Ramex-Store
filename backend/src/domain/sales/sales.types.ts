@@ -3,7 +3,31 @@ export type InvoiceStatus =
   | 'closed_pending_pickup'
   | 'completed'
   | 'cancelled'
-  | 'deposit_refunded';
+  | 'deposit_refunded'
+  | 'returned'
+  | 'partially_returned';
+
+/**
+ * Statuses in which an invoice represents a realised sale (a completed-or-
+ * later state). Reports sum against this set instead of the single value
+ * `'completed'` so returning some/all lines does not remove the invoice from
+ * gross-sales totals — the offsetting refund is reported separately from
+ * `returns`, exactly as it was before returns touched invoice status at all.
+ */
+export const SALE_REALIZED_STATUSES = ['completed', 'partially_returned', 'returned'] as const;
+
+/** Statuses from which a return/refund may still be processed. */
+export const RETURNABLE_INVOICE_STATUSES = ['completed', 'partially_returned'] as const;
+
+/**
+ * Statuses a return attempt is allowed to reach the per-line "already
+ * returned" check from. Includes `returned` (unlike RETURNABLE_INVOICE_STATUSES)
+ * so that re-attempting a return on an already-fully-returned invoice fails
+ * with the precise, existing RETURN_LINE_ALREADY_RETURNED error («تم إرجاع
+ * هذا السطر مسبقاً») instead of a generic invoice-status rejection.
+ */
+export const RETURN_ATTEMPTABLE_STATUSES = ['completed', 'partially_returned', 'returned'] as const;
+
 export type PaymentMethod = 'cash' | 'instapay' | 'bank_transfer' | 'cheque';
 
 export type ChequeDetails = {
@@ -39,6 +63,8 @@ export type Invoice = {
   pickup_at: string | null;
   cancelled_at: string | null;
   cancelled_reason_ar: string | null;
+  returned_amount_egp: string;
+  returned_at: string | null;
 };
 
 export type InvoiceLine = {
@@ -90,6 +116,12 @@ export type InvoiceLineWithDetail = InvoiceLine & {
   reference_price_per_unit: string | null;
   accessory_name_ar: string | null;
   internal_barcode: string;
+  /** How much of this line has already been returned — roll lines only (null for accessory lines, which stay whole-line). */
+  returned_quantity: number | null;
+  /** What's still returnable on this line right now — roll lines only. */
+  remaining_returnable_quantity: number | null;
+  /** Whether ANY return already exists against this line (roll or accessory). */
+  is_returned: boolean;
 };
 
 export type InvoiceDetail = Invoice & {

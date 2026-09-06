@@ -1,4 +1,5 @@
 import { db } from '../../../db/connection.js';
+import { SALE_REALIZED_STATUSES } from '../../sales/sales.types.js';
 import type { ReportPdfOptions } from '../../../lib/reports/pdfExport.js';
 
 export type SalesByFabricColorRow = {
@@ -21,7 +22,7 @@ export async function getSalesByFabricColor(
     .join('rolls as r', 'il.roll_id', 'r.id')
     .join('fabrics as f', 'r.fabric_id', 'f.id')
     .join('colors as c', 'r.color_id', 'c.id')
-    .where('i.status', 'completed')
+    .whereIn('i.status', SALE_REALIZED_STATUSES as unknown as string[])
     .whereBetween('i.created_at', [from, to])
     .modify((qb) => {
       if (fabricId) qb.where('f.id', fabricId);

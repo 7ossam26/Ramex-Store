@@ -10,6 +10,12 @@ export const ReturnLineSchema = z.object({
   rollId: z.coerce.number().int().positive().nullable().optional(),
   accessoryId: z.coerce.number().int().positive().nullable().optional(),
   refundAmountEgp: positiveAmount,
+  /**
+   * Roll/fabric lines only — quantity to return now (in the line's original
+   * unit). Omitted means "return everything still returnable on this line"
+   * — the pre-existing full-return behaviour. Ignored for accessory lines.
+   */
+  returnQuantity: z.coerce.number().positive().nullable().optional(),
   disposition: z.enum(['back_to_stock', 'damaged']),
   notesAr: z.string().max(2000).nullable().optional(),
 }).superRefine((v, ctx) => {

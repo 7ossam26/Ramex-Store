@@ -2,7 +2,6 @@ import pdfmake from 'pdfmake';
 import { PDF_FONTS } from './fonts.js';
 import { getSetting } from '../../domain/settings/settings.service.js';
 import type { ReturnDetail } from '../../domain/sales/returnsService.js';
-import { formatInvoiceRollQuantityAr } from '../../domain/sales/lineQuantity.js';
 
 let fontsConfigured = false;
 function ensureFontsConfigured() {
@@ -78,13 +77,13 @@ export async function buildReturnSlipPdf(ret: ReturnDetail): Promise<Buffer> {
       { text: fmtEgp(l.refund_amount_egp), alignment: 'right' as const },
       { text: labelDisposition(l.roll_disposition), alignment: 'right' as const },
       {
-        text: isAccessory ? `${l.qty_pieces} قطعة` : formatInvoiceRollQuantityAr({
-          sold_quantity: l.sold_quantity,
-          sold_unit: l.sold_unit,
-          fabric_unit: l.fabric_unit ?? 'kg',
-          length_m: l.length_m,
-          weight_kg: l.weight_kg,
-        }),
+        // Print the quantity THIS return actually covers — for a partial
+        // return that is less than the invoice line's full sold quantity.
+        // getReturnDetail falls back returned_quantity to the full sale
+        // quantity for legacy (pre-partial-return) rows.
+        text: isAccessory
+          ? `${l.qty_pieces} قطعة`
+          : `${Number(l.returned_quantity).toFixed(3)} ${l.returned_unit === 'meter' ? 'متر' : 'كجم'}`,
         alignment: 'right' as const,
       },
       { text: isAccessory ? ar(l.internal_barcode) : (ar(l.roll_sr_no) || ar(l.internal_barcode)), alignment: 'right' as const },

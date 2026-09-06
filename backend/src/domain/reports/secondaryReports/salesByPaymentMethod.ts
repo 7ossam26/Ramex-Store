@@ -23,7 +23,7 @@ export async function getSalesByPaymentMethod(
 ): Promise<SalesByPaymentMethodResult> {
   const rows = await db('payments as p')
     .join('invoices as i', 'p.invoice_id', 'i.id')
-    .whereIn('i.status', ['open', 'closed_pending_pickup', 'completed'])
+    .whereIn('i.status', ['open', 'closed_pending_pickup', 'completed', 'partially_returned', 'returned'])
     .where('p.payment_kind', '!=', 'refund')
     .whereBetween('p.created_at', [from, to])
     .groupBy('p.method', 'p.payment_kind')

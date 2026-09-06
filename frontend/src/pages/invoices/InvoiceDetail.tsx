@@ -8,6 +8,8 @@ import { salesApi } from '@/lib/sales-api';
 import { returnsApi } from '@/lib/returns-api';
 import { useAuth } from '@/lib/auth';
 import { isOwnerOrAbove } from '@/lib/roles';
+import { deriveFinalPayment } from '@/lib/final-payment';
+import { proportionalRefund as calcProportionalRefund } from '@/lib/return-quantity';
 import type {
   AddOpenInvoiceLinesBody,
   BankAccount,
@@ -149,12 +151,14 @@ export function InvoiceDetailPage() {
   }
   const inv = data;
 
-  const canVoid = inv.status === 'completed';
+  const canVoid = inv.status === 'completed' || inv.status === 'partially_returned';
   const canAddFinal =
     inv.status === 'open' && Number(inv.total_egp) > Number(inv.paid_egp);
   const canDeliver = inv.status === 'closed_pending_pickup';
   const canCancelOpen = inv.status === 'open' || inv.status === 'closed_pending_pickup';
-  const canReturn = inv.status === 'completed';
+  // A fully returned invoice offers no further return action — the UI must
+  // not allow an invalid second cancellation attempt (§1 requirement).
+  const canReturn = inv.status === 'completed' || inv.status === 'partially_returned';
   // v2 Phase 5: refund the over-deposit only on still-open invoices that have
   // more paid than they're worth. Once `deposit_refunded`, further refunds /
   // line edits are blocked.
@@ -313,6 +317,16 @@ export function InvoiceDetailPage() {
             <Row label={ar.pos.total} value={fmtMoney(inv.total_egp)} bold />
             <Row label={ar.pos.paid} value={fmtMoney(inv.paid_egp)} />
             <Row label={ar.pos.balance} value={fmtMoney(inv.balance_egp)} />
+            {Number(inv.returned_amount_egp ?? 0) > 0 && (
+              <>
+                <Row label={ar.invoices.returnedAmount} value={`- ${fmtMoney(inv.returned_amount_egp ?? 0)}`} />
+                <Row
+                  label={ar.invoices.netAfterReturns}
+                  value={fmtMoney(Number(inv.total_egp) - Number(inv.returned_amount_egp ?? 0))}
+                  bold
+                />
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -514,23 +528,19 @@ function FinalPaymentDialog({
   onSuccess: () => void;
 }) {
   const [method, setMethod] = useState<PaymentMethod | 'both'>('cash');
+  // The cashier enters what the customer actually paid; the discount is
+  // derived automatically as the difference against the invoice balance
+  // (requirement #3) rather than being a second, independently-typed field.
   const [cashAmount, setCashAmount] = useState(String(balance.toFixed(2)));
   const [instaAmount, setInstaAmount] = useState('');
-  const [discount, setDiscount] = useState('');
   const [bankAccountId, setBankAccountId] = useState<number | ''>('');
   const [error, setError] = useState<string | null>(null);
 
-  const discountValue = parseAmount(discount);
-  // What the customer still has to pay once the waived amount is applied.
-  const required = Math.round((balance - discountValue) * 100) / 100;
-
-  function onDiscountChange(next: string) {
-    setDiscount(next);
-    const rest = Math.round((balance - parseAmount(next)) * 100) / 100;
-    // Keep the single-method amount in step with the discount — the common
-    // "waive the remainder" flow should be one keystroke.
-    if (method !== 'both' && rest >= 0) setCashAmount(rest.toFixed(2));
-  }
+  const tendered =
+    method === 'both'
+      ? parseAmount(cashAmount) + parseAmount(instaAmount)
+      : parseAmount(cashAmount);
+  const derived = deriveFinalPayment({ balance, tendered });
 
   const banks = useQuery<BankAccount[]>({
     queryKey: ['bank-accounts'],
@@ -551,14 +561,18 @@ function FinalPaymentDialog({
 
   function submit() {
     setError(null);
-    if (discountValue < 0 || discountValue > balance + 0.001) {
-      setError(ar.invoices.discountExceedsBalance);
+    if (derived.error === 'NEGATIVE_AMOUNT') {
+      setError(ar.invoices.negativeAmountNotAllowed);
+      return;
+    }
+    if (derived.error === 'OVERPAYMENT') {
+      setError(ar.invoices.overpaymentNotAllowed);
       return;
     }
     const payments: FinalPaymentBody['payments'] = [];
     // A discount covering the whole balance settles the invoice with no money
     // tendered, so no payment rows are sent at all.
-    if (required > 0) {
+    if (tendered > 0) {
       if (method === 'cash') {
         payments.push({ method: 'cash', amount: parseAmount(cashAmount) });
       } else if (method === 'instapay') {
@@ -583,13 +597,8 @@ function FinalPaymentDialog({
         setError(ar.common.error);
         return;
       }
-      const tendered = payments.reduce((s, p) => s + p.amount, 0);
-      if (Math.abs(tendered - required) > 0.001) {
-        setError(`${ar.invoices.amountMismatch}: ${required.toFixed(2)}`);
-        return;
-      }
     }
-    mut.mutate({ payments, discountEgp: discountValue });
+    mut.mutate({ payments, discountEgp: derived.discount });
   }
 
   return (
@@ -602,12 +611,6 @@ function FinalPaymentDialog({
           <div className="text-sm">
             {ar.pos.balance}: <span className="font-medium" dir="ltr">{balance.toFixed(2)}</span>
           </div>
-          {discountValue > 0 && required >= 0 && (
-            <div className="text-sm">
-              {ar.invoices.requiredAfterDiscount}:{' '}
-              <span className="font-medium" dir="ltr">{required.toFixed(2)}</span>
-            </div>
-          )}
           <div className="space-y-1">
             <Label>{ar.pos.paymentMethod}</Label>
             <select
@@ -621,34 +624,26 @@ function FinalPaymentDialog({
             </select>
           </div>
           {method === 'both' ? (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label>{ar.pos.cashAmount}</Label>
-                  <Input value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} dir="ltr" inputMode="decimal" />
-                </div>
-                <div className="space-y-1">
-                  <Label>{ar.invoices.finalDiscount}</Label>
-                  <Input value={discount} onChange={(e) => onDiscountChange(e.target.value)} dir="ltr" inputMode="decimal" placeholder="0.00" />
-                </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>{ar.pos.cashAmount}</Label>
+                <Input value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} dir="ltr" inputMode="decimal" />
               </div>
               <div className="space-y-1">
                 <Label>{ar.pos.instapayAmount}</Label>
                 <Input value={instaAmount} onChange={(e) => setInstaAmount(e.target.value)} dir="ltr" inputMode="decimal" />
               </div>
-            </>
+            </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>{method === 'cash' ? ar.pos.cashAmount : ar.pos.instapayAmount}</Label>
-                <Input value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} dir="ltr" inputMode="decimal" />
-              </div>
-              <div className="space-y-1">
-                <Label>{ar.invoices.finalDiscount}</Label>
-                <Input value={discount} onChange={(e) => onDiscountChange(e.target.value)} dir="ltr" inputMode="decimal" placeholder="0.00" />
-              </div>
+            <div className="space-y-1">
+              <Label>{ar.invoices.amountPaidActual}</Label>
+              <Input value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} dir="ltr" inputMode="decimal" autoFocus />
             </div>
           )}
+          <div className="space-y-1">
+            <Label>{ar.invoices.derivedDiscount}</Label>
+            <Input value={derived.discount.toFixed(2)} readOnly disabled dir="ltr" className="tabular-num bg-surface-row-alt" />
+          </div>
           {method !== 'cash' && (
             <div className="space-y-1">
               <Label>{ar.pos.bankAccount}</Label>
@@ -669,7 +664,7 @@ function FinalPaymentDialog({
             <DialogClose asChild>
               <Button variant="outline">{ar.common.cancel}</Button>
             </DialogClose>
-            <Button onClick={submit} disabled={mut.isPending}>
+            <Button onClick={submit} disabled={mut.isPending || derived.error != null}>
               {ar.common.save}
             </Button>
           </div>
@@ -1248,8 +1243,21 @@ function Row({ label, value, bold = false }: { label: string; value: string; bol
 type LineState = {
   checked: boolean;
   refundAmount: string;
+  /** Roll/fabric lines only — quantity to return now, in the line's original unit. */
+  returnQuantity: string;
   disposition: RollDisposition;
 };
+
+/** What's still returnable on a roll line, falling back to the full sold quantity for older fixtures/rows that predate return-state tracking. */
+function lineRemainingQuantity(l: InvoiceLineDetail): number {
+  if (l.remaining_returnable_quantity != null) return l.remaining_returnable_quantity;
+  return invoiceLineQuantity(l).quantity;
+}
+
+function lineIsFullyReturned(l: InvoiceLineDetail): boolean {
+  if (l.is_returned != null) return l.is_returned;
+  return false;
+}
 
 function ReturnModal({
   open,
@@ -1268,9 +1276,21 @@ function ReturnModal({
   const [lineStates, setLineStates] = useState<Record<number, LineState>>(() => {
     const init: Record<number, LineState> = {};
     for (const l of invoice.lines) {
+      if (l.item_type === 'accessory') {
+        init[l.id] = {
+          checked: false,
+          refundAmount: Number(l.line_total_egp).toFixed(2),
+          returnQuantity: '',
+          disposition: 'back_to_stock',
+        };
+        continue;
+      }
+      const soldQty = invoiceLineQuantity(l).quantity;
+      const remaining = lineRemainingQuantity(l);
       init[l.id] = {
         checked: false,
-        refundAmount: Number(l.line_total_egp).toFixed(2),
+        refundAmount: calcProportionalRefund(Number(l.line_total_egp), soldQty, remaining).toFixed(2),
+        returnQuantity: remaining.toFixed(3),
         disposition: 'back_to_stock',
       };
     }
@@ -1297,6 +1317,7 @@ function ReturnModal({
           rollId: l.item_type === 'roll' ? l.roll_id : null,
           accessoryId: l.item_type === 'accessory' ? l.accessory_id : null,
           refundAmountEgp: parseAmount(lineStates[l.id]!.refundAmount),
+          returnQuantity: l.item_type === 'roll' ? parseAmount(lineStates[l.id]!.returnQuantity) : null,
           disposition: lineStates[l.id]!.disposition,
         }));
       if (selectedLines.length === 0) throw new Error('NO_LINES');
@@ -1355,13 +1376,15 @@ function ReturnModal({
           {/* Line selection */}
           <div>
             <p className="text-sm font-medium mb-2">{ar.returns.returnLines}</p>
-            <div className="border border-border-subtle rounded-md overflow-hidden">
+            <div className="border border-border-subtle rounded-md overflow-hidden overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="text-start text-xs text-foreground-muted bg-surface-hover/50 uppercase tracking-wide">
                   <tr>
                     <th className="px-2 py-2 font-medium">✓</th>
                     <th className="px-2 py-2 font-medium">الصنف</th>
-                    <th className="px-2 py-2 font-medium">الكمية</th>
+                    <th className="px-2 py-2 font-medium">الكمية الأصلية</th>
+                    <th className="px-2 py-2 font-medium">{ar.returns.remainingReturnable}</th>
+                    <th className="px-2 py-2 font-medium">{ar.returns.returnQuantity}</th>
                     <th className="px-2 py-2 font-medium">{ar.returns.refundAmount}</th>
                     <th className="px-2 py-2 font-medium">{ar.returns.disposition}</th>
                   </tr>
@@ -1370,30 +1393,71 @@ function ReturnModal({
                   {invoice.lines.map((l: InvoiceLineDetail) => {
                     const s = lineStates[l.id]!;
                     const isAccessory = l.item_type === 'accessory';
+                    const fullyReturned = lineIsFullyReturned(l);
+                    const soldQty = invoiceLineQuantity(l).quantity;
+                    const remaining = isAccessory ? soldQty : lineRemainingQuantity(l);
+                    const rowDisabled = fullyReturned;
+
+                    function onQuantityChange(next: string) {
+                      const qty = parseAmount(next);
+                      const clamped = qty > remaining ? remaining : qty < 0 ? 0 : qty;
+                      const refund = calcProportionalRefund(Number(l.line_total_egp), soldQty, clamped);
+                      updateLine(l.id, { returnQuantity: next, refundAmount: refund.toFixed(2) });
+                    }
+
                     return (
-                      <tr key={l.id} className="border-t border-border-subtle hover:bg-surface-hover transition-colors duration-150">
+                      <tr
+                        key={l.id}
+                        className={`border-t border-border-subtle transition-colors duration-150 ${rowDisabled ? 'opacity-50' : 'hover:bg-surface-hover'}`}
+                      >
                         <td className="px-2 py-2">
                           <input
                             type="checkbox"
                             checked={s.checked}
+                            disabled={rowDisabled}
                             onChange={(e) => updateLine(l.id, { checked: e.target.checked })}
-                            className="accent-accent cursor-pointer"
+                            className="accent-accent cursor-pointer disabled:cursor-not-allowed"
                           />
                         </td>
                         <td className="px-2 py-2 text-foreground">
                           {isAccessory
                             ? (l.accessory_name_ar ?? l.internal_barcode)
                             : `${l.fabric_name_ar} / ${l.color_name_ar}`}
+                          {fullyReturned && (
+                            <span className="ms-2 inline-block rounded bg-surface-row-alt px-1.5 py-0.5 text-[10px] text-foreground-muted">
+                              {ar.returns.fullyReturnedBadge}
+                            </span>
+                          )}
                         </td>
                         <td className="px-2 py-2 tabular-num" dir="ltr">
                           {invoiceLineQuantityLabel(l)}
+                        </td>
+                        <td className="px-2 py-2 tabular-num" dir="ltr">
+                          {isAccessory ? '—' : `${remaining.toFixed(3)} ${l.fabric_unit === 'meter' ? 'متر' : 'كجم'}`}
+                        </td>
+                        <td className="px-2 py-2">
+                          {isAccessory ? (
+                            <span className="text-foreground-muted">—</span>
+                          ) : (
+                            <input
+                              type="number" inputMode="decimal"
+                              className="h-8 w-24 border border-border-default rounded-md px-2 text-sm bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75 disabled:opacity-50"
+                              value={s.returnQuantity}
+                              disabled={!s.checked || rowDisabled}
+                              onChange={(e) => onQuantityChange(e.target.value)}
+                              dir="ltr"
+                              min="0"
+                              max={remaining}
+                              step="0.001"
+                            />
+                          )}
                         </td>
                         <td className="px-2 py-2">
                           <input
                             type="number" inputMode="numeric"
                             className="h-8 w-24 border border-border-default rounded-md px-2 text-sm bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75 disabled:opacity-50"
                             value={s.refundAmount}
-                            disabled={!s.checked}
+                            disabled={!s.checked || rowDisabled}
                             onChange={(e) => updateLine(l.id, { refundAmount: e.target.value })}
                             dir="ltr"
                             min="0"
@@ -1404,7 +1468,7 @@ function ReturnModal({
                           <select
                             className="h-8 border border-border-default rounded-md px-2 text-sm bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75 disabled:opacity-50"
                             value={s.disposition}
-                            disabled={!s.checked}
+                            disabled={!s.checked || rowDisabled}
                             onChange={(e) => updateLine(l.id, { disposition: e.target.value as RollDisposition })}
                           >
                             <option value="back_to_stock">{ar.returns.dispositions.back_to_stock}</option>

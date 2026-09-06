@@ -36,6 +36,8 @@ export const salesApi = {
     fulfillment_destination?: 'shop' | 'factory_direct';
     date_from?: string;
     date_to?: string;
+    fabric_id?: number;
+    color_id?: number;
     search?: string;
     page?: number;
     limit?: number;

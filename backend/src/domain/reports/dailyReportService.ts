@@ -1,5 +1,6 @@
 import { db } from '../../db/connection.js';
 import { cairoDayWindow, formatCairo } from '../../lib/datetime/cairo.js';
+import { SALE_REALIZED_STATUSES } from '../sales/sales.types.js';
 
 export type DailySalesSummary = {
   invoice_count: number;
@@ -103,7 +104,7 @@ export async function getDailyReport(targetDate: string): Promise<DailyReport> {
 
   // ─── 1. Sales summary ───────────────────────────────────────────────────────
   const completedInvoices = await db('invoices')
-    .where('status', 'completed')
+    .whereIn('status', SALE_REALIZED_STATUSES as unknown as string[])
     .whereBetween('created_at', [startIso, endIso])
     .select(
       db.raw('COUNT(*) as invoice_count'),
@@ -135,7 +136,7 @@ export async function getDailyReport(targetDate: string): Promise<DailyReport> {
   // Line discounts sum (from invoice_lines)
   const linePriceAgg = await db('invoice_lines as il')
     .join('invoices as i', 'il.invoice_id', 'i.id')
-    .where('i.status', 'completed')
+    .whereIn('i.status', SALE_REALIZED_STATUSES as unknown as string[])
     .whereBetween('i.created_at', [startIso, endIso])
     .select(db.raw('COALESCE(SUM(il.line_discount_egp), 0) as total_line_discount'))
     .first() as Record<string, string>;
@@ -162,7 +163,7 @@ export async function getDailyReport(targetDate: string): Promise<DailyReport> {
       'i.id',
       'ld.invoice_id',
     )
-    .where('i.status', 'completed')
+    .whereIn('i.status', SALE_REALIZED_STATUSES as unknown as string[])
     .whereBetween('i.created_at', [startIso, endIso])
     .where((qb) => {
       qb.where(db.raw('i.cart_discount_egp + i.final_discount_egp'), '>', 0).orWhere(
@@ -298,7 +299,7 @@ export async function getDailyReport(targetDate: string): Promise<DailyReport> {
     .join('rolls as r', 'il.roll_id', 'r.id')
     .join('fabrics as f', 'r.fabric_id', 'f.id')
     .join('colors as c', 'r.color_id', 'c.id')
-    .where('i.status', 'completed')
+    .whereIn('i.status', SALE_REALIZED_STATUSES as unknown as string[])
     .whereBetween('i.created_at', [startIso, endIso])
     .select(
       'f.name_ar as fabric_name_ar',
@@ -319,7 +320,7 @@ export async function getDailyReport(targetDate: string): Promise<DailyReport> {
 
   // ─── 7. Open invoices summary ────────────────────────────────────────────────
   const openedToday = await db('invoices')
-    .whereIn('status', ['open', 'closed_pending_pickup', 'completed'])
+    .whereIn('status', ['open', 'closed_pending_pickup', 'completed', 'partially_returned', 'returned'])
     .whereBetween('created_at', [startIso, endIso])
     .select(
       db.raw('COUNT(*) as opened_today_count'),
@@ -328,7 +329,7 @@ export async function getDailyReport(targetDate: string): Promise<DailyReport> {
     .first() as Record<string, string>;
 
   const closedToday = await db('invoices')
-    .whereIn('status', ['completed', 'closed_pending_pickup'])
+    .whereIn('status', ['completed', 'closed_pending_pickup', 'partially_returned', 'returned'])
     .whereBetween('closed_at', [startIso, endIso])
     .select(
       db.raw('COUNT(*) as closed_today_count'),

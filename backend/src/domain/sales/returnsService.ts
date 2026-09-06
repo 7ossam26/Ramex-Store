@@ -7,6 +7,10 @@ import { nextReturnNo } from './returnNumber.service.js';
 import { settlePayment } from '../finance/paymentSettlementService.js';
 import { createSale } from './invoices.service.js';
 import { resolveInvoiceRollQuantity } from './lineQuantity.js';
+import { applyInvoiceReturnState } from './invoiceReturnState.js';
+import { loadRollLineReturnStates } from './returnLineState.js';
+import { assertReturnQuantity, proportionalRefund, remainingRefundable, roundQty } from './returnQuantity.js';
+import { RETURNABLE_INVOICE_STATUSES, RETURN_ATTEMPTABLE_STATUSES } from './sales.types.js';
 import type { CreateSaleInput, ChequeDetails } from './sales.types.js';
 
 // ─── Phase 6 — Return on Scan ──────────────────────────────────────────────
@@ -91,7 +95,7 @@ export async function getAccessorySaleMeta(accessoryId: number): Promise<ReturnS
   const row = await db('invoice_lines as il')
     .where('il.accessory_id', accessoryId)
     .where('il.item_type', 'accessory')
-    .where('inv.status', 'completed')
+    .whereIn('inv.status', RETURNABLE_INVOICE_STATUSES as unknown as string[])
     .whereNotExists(function () {
       this.select('*')
         .from('return_lines as rl')
@@ -162,8 +166,12 @@ export async function createReturnFromRollScan(
       .join('invoices as inv', 'il.invoice_id', 'inv.id')
       .select(
         'il.id',
+        'il.item_type',
+        'il.roll_id',
         'il.invoice_id',
         'il.line_total_egp',
+        'il.sold_quantity',
+        'il.sold_unit',
         'inv.invoice_no',
         'inv.customer_id',
       )
@@ -172,7 +180,20 @@ export async function createReturnFromRollScan(
 
     if (!invoiceLine) throw new Error('INVOICE_LINE_NOT_FOUND');
 
-    const refundEgp = roundEgp(Number(invoiceLine.line_total_egp));
+    // Defense in depth: roll.status === 'sold' already implies no return has
+    // ever been recorded against this line (a partial return flips the roll
+    // to in_stock), but resolve the remaining quantity explicitly so the
+    // refund and the stamped returned_quantity are always correct rather
+    // than assuming "sold ⇒ full line total".
+    const returnStates = await loadRollLineReturnStates(trx, [invoiceLine]);
+    const state = returnStates.get(Number(invoiceLine.id));
+    const remaining = state?.remaining ?? 0;
+    assertReturnQuantity(remaining, remaining);
+    const soldUnit = state?.soldUnit ?? 'kg';
+    const refundEgp = remainingRefundable(
+      roundEgp(Number(invoiceLine.line_total_egp)),
+      state?.alreadyReturnedRefundEgp ?? 0,
+    );
     const year = new Date().getFullYear();
     const return_no = await nextReturnNo(trx, year);
 
@@ -198,15 +219,20 @@ export async function createReturnFromRollScan(
       original_invoice_line_id: invoiceLine.id,
       roll_id: input.rollId,
       refund_amount_egp: refundEgp,
+      returned_quantity: remaining,
+      returned_unit: soldUnit,
       roll_disposition: 'back_to_stock',
       notes_ar: null,
     });
 
-    // Flip roll back to in_stock — warehouse stays unchanged.
-    await trx('rolls').where({ id: input.rollId }).update({
-      status: 'in_stock',
-      updated_at: trx.fn.now(),
-    });
+    // Flip roll back to in_stock, sized to the actual returned quantity —
+    // warehouse stays unchanged. A full return (the only case this scan flow
+    // supports) restores the roll to its original sold_quantity, so this is
+    // a no-op change for the common case.
+    const rollUpdate: Record<string, unknown> = { status: 'in_stock', updated_at: trx.fn.now() };
+    if (soldUnit === 'meter') rollUpdate.length_m = remaining;
+    else rollUpdate.weight_kg = remaining;
+    await trx('rolls').where({ id: input.rollId }).update(rollUpdate);
 
     await trx('stock_movements').insert({
       roll_id: input.rollId,
@@ -260,23 +286,43 @@ export async function createReturnFromRollScan(
       .first();
 
     const newLifetime = roundEgp(Number(customer.lifetime_volume_egp) - refundEgp);
-    const newBalance = roundEgp(Number(customer.current_balance_egp));
 
+    // Two-entry posting so the customer statement nets to zero: reverse the
+    // sale's book effect (+refund), then pay the refund out (−refund). A
+    // single `-refund` entry (the prior behaviour) left current_balance_egp
+    // untouched while claiming a balance change, so the statement showed the
+    // customer owing the refunded amount after every scan-return.
+    let runningBalance = roundEgp(Number(customer.current_balance_egp));
+    runningBalance = roundEgp(runningBalance + refundEgp);
+    await trx('customer_ledger_entries').insert({
+      customer_id: invoiceLine.customer_id,
+      entry_type: 'adjustment',
+      reference_type: 'return',
+      reference_id: ret.id,
+      amount_egp: refundEgp,
+      balance_after_egp: runningBalance,
+      notes_ar: `عكس بيع — مرتجع بالمسح ${return_no}`,
+      actor_user_id: input.actorUserId,
+    });
+    runningBalance = roundEgp(runningBalance - refundEgp);
     await trx('customer_ledger_entries').insert({
       customer_id: invoiceLine.customer_id,
       entry_type: 'refund',
       reference_type: 'return',
       reference_id: ret.id,
       amount_egp: -refundEgp,
-      balance_after_egp: newBalance,
-      notes_ar: `مرتجع مسح ${return_no}`,
+      balance_after_egp: runningBalance,
+      notes_ar: `استرجاع مسح: ${return_no}`,
       actor_user_id: input.actorUserId,
     });
 
     await trx('customers').where({ id: invoiceLine.customer_id }).update({
+      current_balance_egp: runningBalance,
       lifetime_volume_egp: newLifetime,
       updated_at: trx.fn.now(),
     });
+
+    await applyInvoiceReturnState(trx, invoiceLine.invoice_id as number, input.actorUserId);
 
     await auditFromService(trx, {
       actorUserId: input.actorUserId,
@@ -289,6 +335,8 @@ export async function createReturnFromRollScan(
         returnInvoiceId: ret.id,
         rollId: input.rollId,
         refundEgp,
+        returnedQuantity: remaining,
+        returnedUnit: soldUnit,
         method: input.refundMethod,
       },
       severity: 'medium',
@@ -343,7 +391,7 @@ export async function createAccessoryReturnFromScan(
     const invoiceLine = await trx('invoice_lines as il')
       .where('il.accessory_id', input.accessoryId)
       .where('il.item_type', 'accessory')
-      .where('inv.status', 'completed')
+      .whereIn('inv.status', RETURNABLE_INVOICE_STATUSES as unknown as string[])
       .whereNotExists(function () {
         this.select('*')
           .from('return_lines as rl')
@@ -444,23 +492,40 @@ export async function createAccessoryReturnFromScan(
       .first();
 
     const newLifetime = roundEgp(Number(customer.lifetime_volume_egp) - refundEgp);
-    const newBalance = roundEgp(Number(customer.current_balance_egp));
 
+    // Two-entry posting so the customer statement nets to zero — see
+    // createReturnFromRollScan for the rationale.
+    let runningBalance = roundEgp(Number(customer.current_balance_egp));
+    runningBalance = roundEgp(runningBalance + refundEgp);
+    await trx('customer_ledger_entries').insert({
+      customer_id: invoiceLine.customer_id,
+      entry_type: 'adjustment',
+      reference_type: 'return',
+      reference_id: ret.id,
+      amount_egp: refundEgp,
+      balance_after_egp: runningBalance,
+      notes_ar: `عكس بيع — مرتجع بالمسح ${return_no}`,
+      actor_user_id: input.actorUserId,
+    });
+    runningBalance = roundEgp(runningBalance - refundEgp);
     await trx('customer_ledger_entries').insert({
       customer_id: invoiceLine.customer_id,
       entry_type: 'refund',
       reference_type: 'return',
       reference_id: ret.id,
       amount_egp: -refundEgp,
-      balance_after_egp: newBalance,
-      notes_ar: `مرتجع مسح ${return_no}`,
+      balance_after_egp: runningBalance,
+      notes_ar: `استرجاع مسح: ${return_no}`,
       actor_user_id: input.actorUserId,
     });
 
     await trx('customers').where({ id: invoiceLine.customer_id }).update({
+      current_balance_egp: runningBalance,
       lifetime_volume_egp: newLifetime,
       updated_at: trx.fn.now(),
     });
+
+    await applyInvoiceReturnState(trx, invoiceLine.invoice_id as number, input.actorUserId);
 
     await auditFromService(trx, {
       actorUserId: input.actorUserId,
@@ -508,6 +573,13 @@ export type ReturnLineInput = {
   rollId?: number | null;
   accessoryId?: number | null;
   refundAmountEgp: number;
+  /**
+   * Roll/fabric lines only — quantity to return now, in the line's original
+   * unit. Omitted (or ≥ what remains) means "return everything still
+   * returnable on this line", preserving today's full-return behaviour.
+   * Accessory lines ignore this — they stay whole-line.
+   */
+  returnQuantity?: number | null;
   disposition: 'back_to_stock' | 'damaged';
   notesAr?: string | null;
 };
@@ -568,6 +640,8 @@ export type ReturnLineRow = {
   fabric_unit: 'kg' | 'meter' | null;
   sold_quantity: string | null;
   sold_unit: 'kg' | 'meter' | null;
+  returned_quantity: string | null;
+  returned_unit: 'kg' | 'meter' | null;
   accessory_name_ar: string | null;
   internal_barcode: string;
 };
@@ -600,7 +674,9 @@ async function validateReturnWindow(
   const returnWindowDays = await getSetting<number>(trx, 'return_window_days', 14);
   const invoice = await trx('invoices').where({ id: originalInvoiceId }).first();
   if (!invoice) throw new Error('INVOICE_NOT_FOUND');
-  if (invoice.status !== 'completed') throw new Error('INVOICE_NOT_COMPLETED');
+  if (!(RETURN_ATTEMPTABLE_STATUSES as readonly string[]).includes(invoice.status as string)) {
+    throw new Error('INVOICE_NOT_COMPLETED');
+  }
 
   const completedAt = invoice.closed_at ?? invoice.created_at;
   const nowMs = Date.now();
@@ -635,17 +711,23 @@ export async function processReturn(input: ProcessReturnInput): Promise<ReturnRo
       throw new Error('RETURN_LINE_NOT_ON_INVOICE');
     }
 
-    // Reject re-returning a line that already has a return recorded against it.
-    const alreadyReturned = await trx('return_lines')
-      .whereIn('original_invoice_line_id', invoiceLineIds)
-      .first();
-    if (alreadyReturned) throw new Error('RETURN_LINE_ALREADY_RETURNED');
+    // Accessory lines stay whole-line: any existing return against one is a
+    // hard reject, unchanged from before partial-quantity support.
+    const accessoryLineIds = invoiceLines
+      .filter((il) => il.item_type === 'accessory')
+      .map((il) => Number(il.id));
+    if (accessoryLineIds.length > 0) {
+      const alreadyReturnedAccessory = await trx('return_lines')
+        .whereIn('original_invoice_line_id', accessoryLineIds)
+        .first();
+      if (alreadyReturnedAccessory) throw new Error('RETURN_LINE_ALREADY_RETURNED');
+    }
+
+    // Roll/fabric lines: resolve how much of each line remains returnable.
+    const rollReturnStates = await loadRollLineReturnStates(trx, invoiceLines);
 
     const rollIds = input.lines.filter((l) => l.rollId != null).map((l) => l.rollId as number);
     const rolls = rollIds.length > 0 ? await trx('rolls').whereIn('id', rollIds).forUpdate() : [];
-    for (const roll of rolls) {
-      if (roll.status !== 'sold') throw new Error('ROLL_NOT_SOLD');
-    }
     const rollMap = new Map(rolls.map((r) => [Number(r.id), r]));
 
     const accessoryIds = input.lines.filter((l) => l.accessoryId != null).map((l) => l.accessoryId as number);
@@ -654,7 +736,10 @@ export async function processReturn(input: ProcessReturnInput): Promise<ReturnRo
       : [];
     const accessoryMap = new Map(accessories.map((a) => [Number(a.id), a]));
 
-    // Validate roll/accessory IDs match the original invoice line.
+    // Validate roll/accessory IDs match the original invoice line, and — for
+    // roll lines — resolve the effective (possibly partial) return quantity
+    // and cap the refund to what's actually still refundable.
+    const effective = new Map<number, { requestedQty: number; refundAmountEgp: number; soldUnit: 'kg' | 'meter' }>();
     for (const line of input.lines) {
       const invLine = invoiceLines.find((il) => Number(il.id) === line.originalLineId);
       if (!invLine) throw new Error('RETURN_LINE_NOT_ON_INVOICE');
@@ -667,10 +752,47 @@ export async function processReturn(input: ProcessReturnInput): Promise<ReturnRo
         if (line.rollId == null || Number(invLine.roll_id) !== line.rollId) {
           throw new Error('RETURN_LINE_ROLL_MISMATCH');
         }
+        const roll = rollMap.get(line.rollId);
+        if (!roll) throw new Error('ROLL_NOT_FOUND');
+        const state = rollReturnStates.get(line.originalLineId)!;
+
+        // First return on this line requires the roll to still be `sold`; a
+        // follow-up partial return requires it to already be back in the
+        // shop (in_stock/damaged) from the prior partial return — a `sold`
+        // or `reserved` roll at this point means it was re-sold in between.
+        if (state.alreadyReturnedQuantity === 0) {
+          if (roll.status !== 'sold') throw new Error('ROLL_NOT_SOLD');
+        } else if (roll.status !== 'in_stock' && roll.status !== 'damaged') {
+          throw new Error('ROLL_NOT_SOLD');
+        }
+
+        const requestedQty = roundQty(
+          line.returnQuantity != null ? Number(line.returnQuantity) : state.remaining,
+        );
+        assertReturnQuantity(requestedQty, state.remaining);
+
+        const lineTotalEgp = Number(invLine.line_total_egp);
+        const isFullReturn = requestedQty >= state.remaining - 0.0005;
+        const maxRefund = isFullReturn
+          ? remainingRefundable(lineTotalEgp, state.alreadyReturnedRefundEgp)
+          : Math.min(
+              proportionalRefund(lineTotalEgp, state.soldQuantity, requestedQty),
+              remainingRefundable(lineTotalEgp, state.alreadyReturnedRefundEgp),
+            );
+        const refundAmountEgp = roundEgp(Math.min(line.refundAmountEgp, maxRefund));
+
+        effective.set(line.originalLineId, { requestedQty, refundAmountEgp, soldUnit: state.soldUnit });
       }
     }
 
-    const totalRefund = roundEgp(input.lines.reduce((s, l) => s + l.refundAmountEgp, 0));
+    const totalRefund = roundEgp(
+      input.lines.reduce((s, l) => {
+        const invLine = invoiceLines.find((il) => Number(il.id) === l.originalLineId)!;
+        const amount =
+          invLine.item_type === 'accessory' ? roundEgp(l.refundAmountEgp) : effective.get(l.originalLineId)!.refundAmountEgp;
+        return s + amount;
+      }, 0),
+    );
     const year = new Date().getFullYear();
     const return_no = await nextReturnNo(trx, year);
 
@@ -693,19 +815,19 @@ export async function processReturn(input: ProcessReturnInput): Promise<ReturnRo
       const invLine = invoiceLines.find((il) => Number(il.id) === line.originalLineId)!;
       const isAccessory = invLine.item_type === 'accessory';
 
-      await trx('return_lines').insert({
-        return_id: ret.id,
-        original_invoice_line_id: line.originalLineId,
-        item_type: invLine.item_type,
-        roll_id: isAccessory ? null : line.rollId,
-        accessory_id: isAccessory ? line.accessoryId : null,
-        qty_pieces: isAccessory ? invLine.qty_pieces : null,
-        refund_amount_egp: roundEgp(line.refundAmountEgp),
-        roll_disposition: line.disposition,
-        notes_ar: line.notesAr ?? null,
-      });
-
       if (isAccessory) {
+        await trx('return_lines').insert({
+          return_id: ret.id,
+          original_invoice_line_id: line.originalLineId,
+          item_type: invLine.item_type,
+          roll_id: null,
+          accessory_id: line.accessoryId,
+          qty_pieces: invLine.qty_pieces,
+          refund_amount_egp: roundEgp(line.refundAmountEgp),
+          roll_disposition: line.disposition,
+          notes_ar: line.notesAr ?? null,
+        });
+
         const accessory = accessoryMap.get(line.accessoryId!)!;
         const qtyPieces = Number(invLine.qty_pieces);
         if (line.disposition === 'back_to_stock') {
@@ -733,12 +855,30 @@ export async function processReturn(input: ProcessReturnInput): Promise<ReturnRo
       }
 
       const roll = rollMap.get(line.rollId!)!;
+      const eff = effective.get(line.originalLineId)!;
+      const state = rollReturnStates.get(line.originalLineId)!;
+      const cumulativeQty = roundQty(state.alreadyReturnedQuantity + eff.requestedQty);
+      const qtyLabelAr = `${eff.requestedQty} ${eff.soldUnit === 'meter' ? 'متر' : 'كجم'}`;
+
+      await trx('return_lines').insert({
+        return_id: ret.id,
+        original_invoice_line_id: line.originalLineId,
+        item_type: invLine.item_type,
+        roll_id: line.rollId,
+        accessory_id: null,
+        qty_pieces: null,
+        refund_amount_egp: eff.refundAmountEgp,
+        returned_quantity: eff.requestedQty,
+        returned_unit: eff.soldUnit,
+        roll_disposition: line.disposition,
+        notes_ar: line.notesAr ?? null,
+      });
 
       if (line.disposition === 'back_to_stock') {
-        await trx('rolls').where({ id: line.rollId }).update({
-          status: 'in_stock',
-          updated_at: trx.fn.now(),
-        });
+        const rollUpdate: Record<string, unknown> = { status: 'in_stock', updated_at: trx.fn.now() };
+        if (eff.soldUnit === 'meter') rollUpdate.length_m = cumulativeQty;
+        else rollUpdate.weight_kg = cumulativeQty;
+        await trx('rolls').where({ id: line.rollId }).update(rollUpdate);
         await trx('stock_movements').insert({
           roll_id: line.rollId,
           from_warehouse: null,
@@ -747,15 +887,18 @@ export async function processReturn(input: ProcessReturnInput): Promise<ReturnRo
           reference_type: 'return',
           reference_id: ret.id,
           actor_user_id: input.actorUserId,
-          notes_ar: `مرتجع: ${return_no}`,
+          notes_ar: `مرتجع (${qtyLabelAr}): ${return_no}`,
         });
       } else {
         // damaged: flip to damaged status and move to damaged_shop warehouse.
-        await trx('rolls').where({ id: line.rollId }).update({
+        const rollUpdate: Record<string, unknown> = {
           status: 'damaged',
           warehouse: 'damaged_shop',
           updated_at: trx.fn.now(),
-        });
+        };
+        if (eff.soldUnit === 'meter') rollUpdate.length_m = cumulativeQty;
+        else rollUpdate.weight_kg = cumulativeQty;
+        await trx('rolls').where({ id: line.rollId }).update(rollUpdate);
         await trx('stock_movements').insert({
           roll_id: line.rollId,
           from_warehouse: null,
@@ -764,7 +907,7 @@ export async function processReturn(input: ProcessReturnInput): Promise<ReturnRo
           reference_type: 'return',
           reference_id: ret.id,
           actor_user_id: input.actorUserId,
-          notes_ar: `مرتجع تالف: ${return_no}`,
+          notes_ar: `مرتجع تالف (${qtyLabelAr}): ${return_no}`,
         });
         await trx('stock_movements').insert({
           roll_id: line.rollId,
@@ -816,29 +959,51 @@ export async function processReturn(input: ProcessReturnInput): Promise<ReturnRo
       });
     }
 
-    // Customer ledger: update balance + decrement lifetime_volume.
+    // Customer ledger. Reverse the sale's book effect first (+totalRefund —
+    // the sale had posted -total), then, for an actual money-out refund,
+    // pay it out (-totalRefund) so the two entries net to zero: the customer
+    // simply gets their cash back for goods they no longer have, which
+    // changes nothing about what they owe. `customer_credit` skips the
+    // second entry — the money stays with the shop as store credit, so the
+    // reversal alone is the whole effect (matches the pre-existing, already
+    // correct customer_credit behaviour).
     const customer = await trx('customers').where({ id: invoice.customer_id }).forUpdate().first();
-    const newBalance = input.refundMethod === 'customer_credit'
-      ? roundEgp(Number(customer.current_balance_egp) + totalRefund)
-      : Number(customer.current_balance_egp);
-    const newLifetime = roundEgp(Number(customer.lifetime_volume_egp) - totalRefund);
-
+    let runningBalance = roundEgp(Number(customer.current_balance_egp) + totalRefund);
     await trx('customer_ledger_entries').insert({
       customer_id: invoice.customer_id,
-      entry_type: 'refund',
+      entry_type: input.refundMethod === 'customer_credit' ? 'refund' : 'adjustment',
       reference_type: 'return',
       reference_id: ret.id,
-      amount_egp: input.refundMethod === 'customer_credit' ? totalRefund : -totalRefund,
-      balance_after_egp: newBalance,
-      notes_ar: `مرتجع ${return_no} — ${input.refundMethod === 'customer_credit' ? 'رصيد دائن' : 'استرجاع نقدي'}`,
+      amount_egp: totalRefund,
+      balance_after_egp: runningBalance,
+      notes_ar:
+        input.refundMethod === 'customer_credit'
+          ? `مرتجع ${return_no} — رصيد دائن`
+          : `عكس بيع — مرتجع ${return_no}`,
       actor_user_id: input.actorUserId,
     });
+    if (input.refundMethod !== 'customer_credit') {
+      runningBalance = roundEgp(runningBalance - totalRefund);
+      await trx('customer_ledger_entries').insert({
+        customer_id: invoice.customer_id,
+        entry_type: 'refund',
+        reference_type: 'return',
+        reference_id: ret.id,
+        amount_egp: -totalRefund,
+        balance_after_egp: runningBalance,
+        notes_ar: `مرتجع ${return_no} — استرجاع نقدي`,
+        actor_user_id: input.actorUserId,
+      });
+    }
+    const newLifetime = roundEgp(Number(customer.lifetime_volume_egp) - totalRefund);
 
     await trx('customers').where({ id: invoice.customer_id }).update({
-      current_balance_egp: newBalance,
+      current_balance_egp: runningBalance,
       lifetime_volume_egp: newLifetime,
       updated_at: trx.fn.now(),
     });
+
+    const returnState = await applyInvoiceReturnState(trx, input.originalInvoiceId, input.actorUserId);
 
     await auditFromService(trx, {
       actorUserId: input.actorUserId,
@@ -852,6 +1017,7 @@ export async function processReturn(input: ProcessReturnInput): Promise<ReturnRo
         refund_method: input.refundMethod,
         line_count: input.lines.length,
         owner_window_override: input.ownerWindowOverride ?? false,
+        invoice_status: returnState.status,
       },
       severity: 'medium',
     });
@@ -895,17 +1061,23 @@ export async function processExchange(input: ProcessExchangeInput): Promise<{
       .whereIn('id', invoiceLineIds);
     if (invoiceLines.length !== input.lines.length) throw new Error('RETURN_LINE_NOT_ON_INVOICE');
 
-    // Reject re-returning a line that already has a return recorded against it.
-    const alreadyReturned = await trx('return_lines')
-      .whereIn('original_invoice_line_id', invoiceLineIds)
-      .first();
-    if (alreadyReturned) throw new Error('RETURN_LINE_ALREADY_RETURNED');
+    // Accessory lines stay whole-line: any existing return against one is a
+    // hard reject, unchanged from before partial-quantity support.
+    const accessoryLineIds = invoiceLines
+      .filter((il) => il.item_type === 'accessory')
+      .map((il) => Number(il.id));
+    if (accessoryLineIds.length > 0) {
+      const alreadyReturnedAccessory = await trx('return_lines')
+        .whereIn('original_invoice_line_id', accessoryLineIds)
+        .first();
+      if (alreadyReturnedAccessory) throw new Error('RETURN_LINE_ALREADY_RETURNED');
+    }
+
+    // Roll/fabric lines: resolve how much of each line remains returnable.
+    const rollReturnStates = await loadRollLineReturnStates(trx, invoiceLines);
 
     const rollIds = input.lines.filter((l) => l.rollId != null).map((l) => l.rollId as number);
     const rolls = rollIds.length > 0 ? await trx('rolls').whereIn('id', rollIds).forUpdate() : [];
-    for (const roll of rolls) {
-      if (roll.status !== 'sold') throw new Error('ROLL_NOT_SOLD');
-    }
     const rollMap = new Map(rolls.map((r) => [Number(r.id), r]));
 
     const accessoryIds = input.lines.filter((l) => l.accessoryId != null).map((l) => l.accessoryId as number);
@@ -914,6 +1086,7 @@ export async function processExchange(input: ProcessExchangeInput): Promise<{
       : [];
     const accessoryMap = new Map(accessories.map((a) => [Number(a.id), a]));
 
+    const effective = new Map<number, { requestedQty: number; refundAmountEgp: number; soldUnit: 'kg' | 'meter' }>();
     for (const line of input.lines) {
       const invLine = invoiceLines.find((il) => Number(il.id) === line.originalLineId);
       if (!invLine) throw new Error('RETURN_LINE_NOT_ON_INVOICE');
@@ -926,10 +1099,43 @@ export async function processExchange(input: ProcessExchangeInput): Promise<{
         if (line.rollId == null || Number(invLine.roll_id) !== line.rollId) {
           throw new Error('RETURN_LINE_ROLL_MISMATCH');
         }
+        const roll = rollMap.get(line.rollId);
+        if (!roll) throw new Error('ROLL_NOT_FOUND');
+        const state = rollReturnStates.get(line.originalLineId)!;
+
+        if (state.alreadyReturnedQuantity === 0) {
+          if (roll.status !== 'sold') throw new Error('ROLL_NOT_SOLD');
+        } else if (roll.status !== 'in_stock' && roll.status !== 'damaged') {
+          throw new Error('ROLL_NOT_SOLD');
+        }
+
+        const requestedQty = roundQty(
+          line.returnQuantity != null ? Number(line.returnQuantity) : state.remaining,
+        );
+        assertReturnQuantity(requestedQty, state.remaining);
+
+        const lineTotalEgp = Number(invLine.line_total_egp);
+        const isFullReturn = requestedQty >= state.remaining - 0.0005;
+        const maxRefund = isFullReturn
+          ? remainingRefundable(lineTotalEgp, state.alreadyReturnedRefundEgp)
+          : Math.min(
+              proportionalRefund(lineTotalEgp, state.soldQuantity, requestedQty),
+              remainingRefundable(lineTotalEgp, state.alreadyReturnedRefundEgp),
+            );
+        const refundAmountEgp = roundEgp(Math.min(line.refundAmountEgp, maxRefund));
+
+        effective.set(line.originalLineId, { requestedQty, refundAmountEgp, soldUnit: state.soldUnit });
       }
     }
 
-    const totalRefund = roundEgp(input.lines.reduce((s, l) => s + l.refundAmountEgp, 0));
+    const totalRefund = roundEgp(
+      input.lines.reduce((s, l) => {
+        const invLine = invoiceLines.find((il) => Number(il.id) === l.originalLineId)!;
+        const amount =
+          invLine.item_type === 'accessory' ? roundEgp(l.refundAmountEgp) : effective.get(l.originalLineId)!.refundAmountEgp;
+        return s + amount;
+      }, 0),
+    );
     const year = new Date().getFullYear();
     const return_no = await nextReturnNo(trx, year);
 
@@ -951,19 +1157,19 @@ export async function processExchange(input: ProcessExchangeInput): Promise<{
       const invLine = invoiceLines.find((il) => Number(il.id) === line.originalLineId)!;
       const isAccessory = invLine.item_type === 'accessory';
 
-      await trx('return_lines').insert({
-        return_id: ret.id,
-        original_invoice_line_id: line.originalLineId,
-        item_type: invLine.item_type,
-        roll_id: isAccessory ? null : line.rollId,
-        accessory_id: isAccessory ? line.accessoryId : null,
-        qty_pieces: isAccessory ? invLine.qty_pieces : null,
-        refund_amount_egp: roundEgp(line.refundAmountEgp),
-        roll_disposition: line.disposition,
-        notes_ar: line.notesAr ?? null,
-      });
-
       if (isAccessory) {
+        await trx('return_lines').insert({
+          return_id: ret.id,
+          original_invoice_line_id: line.originalLineId,
+          item_type: invLine.item_type,
+          roll_id: null,
+          accessory_id: line.accessoryId,
+          qty_pieces: invLine.qty_pieces,
+          refund_amount_egp: roundEgp(line.refundAmountEgp),
+          roll_disposition: line.disposition,
+          notes_ar: line.notesAr ?? null,
+        });
+
         const accessory = accessoryMap.get(line.accessoryId!)!;
         const qtyPieces = Number(invLine.qty_pieces);
         if (line.disposition === 'back_to_stock') {
@@ -991,11 +1197,30 @@ export async function processExchange(input: ProcessExchangeInput): Promise<{
       }
 
       const roll = rollMap.get(line.rollId!)!;
+      const eff = effective.get(line.originalLineId)!;
+      const state = rollReturnStates.get(line.originalLineId)!;
+      const cumulativeQty = roundQty(state.alreadyReturnedQuantity + eff.requestedQty);
+      const qtyLabelAr = `${eff.requestedQty} ${eff.soldUnit === 'meter' ? 'متر' : 'كجم'}`;
+
+      await trx('return_lines').insert({
+        return_id: ret.id,
+        original_invoice_line_id: line.originalLineId,
+        item_type: invLine.item_type,
+        roll_id: line.rollId,
+        accessory_id: null,
+        qty_pieces: null,
+        refund_amount_egp: eff.refundAmountEgp,
+        returned_quantity: eff.requestedQty,
+        returned_unit: eff.soldUnit,
+        roll_disposition: line.disposition,
+        notes_ar: line.notesAr ?? null,
+      });
+
       if (line.disposition === 'back_to_stock') {
-        await trx('rolls').where({ id: line.rollId }).update({
-          status: 'in_stock',
-          updated_at: trx.fn.now(),
-        });
+        const rollUpdate: Record<string, unknown> = { status: 'in_stock', updated_at: trx.fn.now() };
+        if (eff.soldUnit === 'meter') rollUpdate.length_m = cumulativeQty;
+        else rollUpdate.weight_kg = cumulativeQty;
+        await trx('rolls').where({ id: line.rollId }).update(rollUpdate);
         await trx('stock_movements').insert({
           roll_id: line.rollId,
           from_warehouse: null,
@@ -1004,14 +1229,17 @@ export async function processExchange(input: ProcessExchangeInput): Promise<{
           reference_type: 'return',
           reference_id: ret.id,
           actor_user_id: input.actorUserId,
-          notes_ar: `استبدال مرتجع: ${return_no}`,
+          notes_ar: `استبدال مرتجع (${qtyLabelAr}): ${return_no}`,
         });
       } else {
-        await trx('rolls').where({ id: line.rollId }).update({
+        const rollUpdate: Record<string, unknown> = {
           status: 'damaged',
           warehouse: 'damaged_shop',
           updated_at: trx.fn.now(),
-        });
+        };
+        if (eff.soldUnit === 'meter') rollUpdate.length_m = cumulativeQty;
+        else rollUpdate.weight_kg = cumulativeQty;
+        await trx('rolls').where({ id: line.rollId }).update(rollUpdate);
         await trx('stock_movements').insert({
           roll_id: line.rollId,
           from_warehouse: null,
@@ -1020,7 +1248,7 @@ export async function processExchange(input: ProcessExchangeInput): Promise<{
           reference_type: 'return',
           reference_id: ret.id,
           actor_user_id: input.actorUserId,
-          notes_ar: `استبدال مرتجع تالف: ${return_no}`,
+          notes_ar: `استبدال مرتجع تالف (${qtyLabelAr}): ${return_no}`,
         });
         await trx('stock_movements').insert({
           roll_id: line.rollId,
@@ -1071,27 +1299,43 @@ export async function processExchange(input: ProcessExchangeInput): Promise<{
       });
     }
 
+    // Customer ledger — see processReturn for the net-zero rationale.
     const customer = await trx('customers').where({ id: invoice.customer_id }).forUpdate().first();
-    const newBalance = input.refundMethod === 'customer_credit'
-      ? roundEgp(Number(customer.current_balance_egp) + totalRefund)
-      : Number(customer.current_balance_egp);
-    const newLifetime = roundEgp(Number(customer.lifetime_volume_egp) - totalRefund);
-
+    let runningBalance = roundEgp(Number(customer.current_balance_egp) + totalRefund);
     await trx('customer_ledger_entries').insert({
       customer_id: invoice.customer_id,
-      entry_type: 'refund',
+      entry_type: input.refundMethod === 'customer_credit' ? 'refund' : 'adjustment',
       reference_type: 'return',
       reference_id: ret.id,
-      amount_egp: input.refundMethod === 'customer_credit' ? totalRefund : -totalRefund,
-      balance_after_egp: newBalance,
-      notes_ar: `استبدال ${return_no}`,
+      amount_egp: totalRefund,
+      balance_after_egp: runningBalance,
+      notes_ar:
+        input.refundMethod === 'customer_credit'
+          ? `استبدال ${return_no} — رصيد دائن`
+          : `عكس بيع — استبدال ${return_no}`,
       actor_user_id: input.actorUserId,
     });
+    if (input.refundMethod !== 'customer_credit') {
+      runningBalance = roundEgp(runningBalance - totalRefund);
+      await trx('customer_ledger_entries').insert({
+        customer_id: invoice.customer_id,
+        entry_type: 'refund',
+        reference_type: 'return',
+        reference_id: ret.id,
+        amount_egp: -totalRefund,
+        balance_after_egp: runningBalance,
+        notes_ar: `استبدال ${return_no} — استرجاع نقدي`,
+        actor_user_id: input.actorUserId,
+      });
+    }
+    const newLifetime = roundEgp(Number(customer.lifetime_volume_egp) - totalRefund);
     await trx('customers').where({ id: invoice.customer_id }).update({
-      current_balance_egp: newBalance,
+      current_balance_egp: runningBalance,
       lifetime_volume_egp: newLifetime,
       updated_at: trx.fn.now(),
     });
+
+    const returnState = await applyInvoiceReturnState(trx, input.originalInvoiceId, input.actorUserId);
 
     await auditFromService(trx, {
       actorUserId: input.actorUserId,
@@ -1104,6 +1348,7 @@ export async function processExchange(input: ProcessExchangeInput): Promise<{
         original_invoice_id: input.originalInvoiceId,
         total_refund_egp: totalRefund,
         refund_method: input.refundMethod,
+        invoice_status: returnState.status,
       },
       severity: 'medium',
     });
@@ -1192,10 +1437,17 @@ export async function getReturnDetail(id: number): Promise<ReturnDetail | undefi
       length_m: line.length_m,
       weight_kg: line.weight_kg,
     });
+    // Legacy return_lines rows (pre-partial-return) carry no
+    // returned_quantity/returned_unit — they always covered the whole line,
+    // so fall back to the resolved full sale quantity.
+    const returnedQuantity = line.returned_quantity != null ? Number(line.returned_quantity) : saleQuantity.quantity;
+    const returnedUnit = line.returned_unit ?? saleQuantity.unit;
     return {
       ...line,
       sold_quantity: saleQuantity.quantity.toFixed(3),
       sold_unit: saleQuantity.unit,
+      returned_quantity: returnedQuantity.toFixed(3),
+      returned_unit: returnedUnit,
     };
   });
 

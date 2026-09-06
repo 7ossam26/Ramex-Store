@@ -17,6 +17,8 @@ const ERR_MAP: Record<string, { status: number; message: string }> = {
   RETURN_LINE_ROLL_MISMATCH: { status: 400, message: 'التوب لا يطابق سطر الفاتورة' },
   RETURN_LINE_ACCESSORY_MISMATCH: { status: 400, message: 'الاكسسوار لا يطابق سطر الفاتورة' },
   RETURN_LINE_ALREADY_RETURNED: { status: 409, message: 'تم إرجاع هذا السطر مسبقًا' },
+  RETURN_QUANTITY_INVALID: { status: 400, message: 'كمية الإرجاع غير صالحة' },
+  RETURN_QUANTITY_EXCEEDS_REMAINING: { status: 409, message: 'كمية الإرجاع أكبر من الكمية المتبقية القابلة للإرجاع' },
   ACCESSORY_NOT_FOUND: { status: 404, message: 'الاكسسوار غير موجود' },
   ACCESSORY_NOT_RETURNABLE: { status: 404, message: 'لا توجد عملية بيع قابلة للإرجاع لهذا الاكسسوار' },
   ROLL_NOT_SOLD: { status: 409, message: 'التوب ليس في حالة مباع — لا يمكن إرجاعه' },

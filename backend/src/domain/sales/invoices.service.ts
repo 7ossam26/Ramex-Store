@@ -17,6 +17,8 @@ import {
   restoreAccessoryStock,
   splitInvoiceLines,
 } from './accessoryStock.js';
+import { loadRollLineReturnStates } from './returnLineState.js';
+import { SALE_REALIZED_STATUSES } from './sales.types.js';
 import type {
   AccessorySaleLine,
   Cheque,
@@ -635,7 +637,11 @@ export async function voidInvoice(
     const settings = await readSettings(trx);
     const invoice = await trx('invoices').where({ id: invoiceId }).forUpdate().first();
     if (!invoice) throw new Error('INVOICE_NOT_FOUND');
-    if (invoice.status !== 'completed' && invoice.status !== 'closed_pending_pickup') {
+    if (
+      invoice.status !== 'completed' &&
+      invoice.status !== 'closed_pending_pickup' &&
+      invoice.status !== 'partially_returned'
+    ) {
       throw new Error('INVOICE_NOT_VOIDABLE');
     }
 
@@ -681,31 +687,44 @@ export async function voidInvoice(
     const lines = await trx('invoice_lines')
       .where({ invoice_id: invoiceId })
       .orderBy('id', 'asc')
-      .select('id', 'item_type', 'roll_id', 'accessory_id', 'qty_pieces');
+      .select('id', 'item_type', 'roll_id', 'accessory_id', 'qty_pieces', 'sold_quantity', 'sold_unit');
     const { rollIds, accessoryLines } = splitInvoiceLines(lines);
 
-    // A completed invoice may already carry a partial return — processReturn
-    // only blocks re-returning the *same* line. Those lines already had their
-    // stock settled (back_to_stock credited it; `damaged` deliberately did not),
-    // so restoring them again here would double-count.
-    const returnedLineIds = await getReturnedLineIds(
+    // A completed/partially-returned invoice may already carry return(s)
+    // against some lines — processReturn only blocks re-returning a line once
+    // it's *fully* returned. A fully-returned line already had its stock
+    // settled (back_to_stock credited it; `damaged` deliberately did not), so
+    // restoring it again here would double-count. A *partially* returned line
+    // is topped up to its full original quantity instead of being skipped —
+    // voiding the whole invoice means all of it comes back — unless any of
+    // its partial returns were disposed as `damaged` (written off stock must
+    // not be resurrected as sellable).
+    const returnedAccessoryLineIds = await getReturnedLineIds(
       trx,
-      lines.map((l) => Number(l.id)),
+      accessoryLines.map((l) => l.lineId),
     );
-    const returnedRollIds = new Set(
-      lines
-        .filter((l) => returnedLineIds.has(Number(l.id)) && l.roll_id != null)
-        .map((l) => Number(l.roll_id)),
-    );
+    const rollReturnStates = await loadRollLineReturnStates(trx, lines);
 
     await lockAccessories(trx, accessoryLines);
 
     for (const rollId of rollIds) {
-      if (returnedRollIds.has(rollId)) continue;
-      await trx('rolls').where({ id: rollId }).update({
-        status: 'in_stock',
-        updated_at: trx.fn.now(),
-      });
+      const line = lines.find((l) => l.item_type !== 'accessory' && Number(l.roll_id) === rollId);
+      const state = line ? rollReturnStates.get(Number(line.id)) : undefined;
+
+      if (state) {
+        const fullyReturned = state.alreadyReturnedQuantity === Number.POSITIVE_INFINITY || state.remaining <= 0;
+        if (fullyReturned) continue;
+        if (state.alreadyReturnedQuantity > 0 && state.hasDamagedDisposition) continue;
+      }
+
+      const rollUpdate: Record<string, unknown> = { status: 'in_stock', updated_at: trx.fn.now() };
+      if (state && state.alreadyReturnedQuantity > 0) {
+        // Partially returned already (back_to_stock only, per the guard
+        // above) — top the roll back up to its full sold quantity.
+        if (state.soldUnit === 'meter') rollUpdate.length_m = state.soldQuantity;
+        else rollUpdate.weight_kg = state.soldQuantity;
+      }
+      await trx('rolls').where({ id: rollId }).update(rollUpdate);
       await trx('stock_movements').insert({
         roll_id: rollId,
         from_warehouse: null,
@@ -720,7 +739,7 @@ export async function voidInvoice(
 
     await restoreAccessoryStock(
       trx,
-      accessoryLines.filter((l) => !returnedLineIds.has(l.lineId)),
+      accessoryLines.filter((l) => !returnedAccessoryLineIds.has(l.lineId)),
       actorUserId,
       {
         action: 'void_restore_accessory',
@@ -731,10 +750,25 @@ export async function voidInvoice(
     );
 
     // Reverse payments — record refund rows; settle against cash drawer / bank.
+    //
+    // If this invoice was already partially returned before being voided, a
+    // slice of `paid` was already handed back in cash by that return (and its
+    // own refund row already exists) — reversing the full original payments
+    // again here would refund that slice twice. Scale each reversed payment
+    // down proportionally so the total cash reversed equals what's actually
+    // still owed back to the customer (`paid - returned_amount_egp`). This is
+    // a no-op for the overwhelmingly common case of voiding a plain completed
+    // invoice, where returned_amount_egp is 0.
     const paid = Number(invoice.paid_egp);
+    const alreadyRefunded = Number(invoice.returned_amount_egp);
+    const toReverse = Math.max(0, roundEgp(paid - alreadyRefunded));
     const payments = await trx('payments').where({ invoice_id: invoiceId, payment_kind: 'final' }).orWhere({ invoice_id: invoiceId, payment_kind: 'deposit' });
+    const paymentsTotal = roundEgp(payments.reduce((s, p) => s + Number(p.amount_egp), 0));
     for (const p of payments) {
-      const refundAmount = Number(p.amount_egp);
+      const originalAmount = Number(p.amount_egp);
+      const refundAmount =
+        paymentsTotal > 0 ? roundEgp((originalAmount / paymentsTotal) * toReverse) : 0;
+      if (refundAmount <= 0) continue;
       await trx('payments').insert({
         invoice_id: invoiceId,
         method: p.method,
@@ -756,10 +790,16 @@ export async function voidInvoice(
       });
     }
 
-    // Reverse customer ledger.
+    // Reverse customer ledger. The balance reversal (`total - paid`) is
+    // unaffected by any prior partial return — a return's own posting nets to
+    // zero on balance (see processReturn) — but lifetime_volume was already
+    // decremented by `alreadyRefunded` there, so only the remaining slice is
+    // backed out here to avoid double-counting it.
     const customer = await trx('customers').where({ id: invoice.customer_id }).forUpdate().first();
     const newBalance = roundEgp(Number(customer.current_balance_egp) + Number(invoice.total_egp) - paid);
-    const newLifetime = roundEgp(Number(customer.lifetime_volume_egp) - Number(invoice.total_egp));
+    const newLifetime = roundEgp(
+      Number(customer.lifetime_volume_egp) - (Number(invoice.total_egp) - alreadyRefunded),
+    );
     await trx('customer_ledger_entries').insert({
       customer_id: invoice.customer_id,
       entry_type: 'refund',
@@ -852,8 +892,32 @@ export async function getInvoiceDetail(id: number): Promise<InvoiceDetail | unde
     )
     .orderBy('il.id', 'asc')) as InvoiceLineWithDetail[];
 
+  // Return state per line — lets the frontend show remaining returnable
+  // quantity and disable a fully-returned line in the return dialog.
+  const rollReturnStates = await loadRollLineReturnStates(db, rawLines);
+  const accessoryLineIds = rawLines
+    .filter((l) => l.item_type === 'accessory')
+    .map((l) => Number(l.id));
+  const returnedAccessoryLineIds =
+    accessoryLineIds.length > 0
+      ? new Set(
+          (
+            await db('return_lines')
+              .whereIn('original_invoice_line_id', accessoryLineIds)
+              .select('original_invoice_line_id')
+          ).map((r) => Number(r.original_invoice_line_id)),
+        )
+      : new Set<number>();
+
   const lines = rawLines.map((line) => {
-    if (line.item_type === 'accessory') return line;
+    if (line.item_type === 'accessory') {
+      return {
+        ...line,
+        returned_quantity: null,
+        remaining_returnable_quantity: null,
+        is_returned: returnedAccessoryLineIds.has(Number(line.id)),
+      };
+    }
 
     const saleQuantity = resolveInvoiceRollQuantity({
       sold_quantity: line.sold_quantity,
@@ -862,10 +926,21 @@ export async function getInvoiceDetail(id: number): Promise<InvoiceDetail | unde
       length_m: line.length_m,
       weight_kg: line.weight_kg,
     });
+    const state = rollReturnStates.get(Number(line.id));
+    const returnedQuantity =
+      state == null
+        ? 0
+        : state.alreadyReturnedQuantity === Number.POSITIVE_INFINITY
+          ? saleQuantity.quantity
+          : state.alreadyReturnedQuantity;
+    const remaining = state?.remaining ?? saleQuantity.quantity;
     return {
       ...line,
       sold_quantity: saleQuantity.quantity.toFixed(3),
       sold_unit: saleQuantity.unit,
+      returned_quantity: returnedQuantity,
+      remaining_returnable_quantity: remaining,
+      is_returned: remaining <= 0,
     };
   });
 
@@ -891,6 +966,26 @@ export async function listInvoices(
   }
   if (q.date_from) base.where('i.created_at', '>=', q.date_from);
   if (q.date_to) base.where('i.created_at', '<=', q.date_to);
+  // Fabric/colour filters: match invoices that have at least one roll line
+  // for the given fabric AND/OR colour (both conditions on the SAME line
+  // when both are given — "this fabric in this colour was sold on this
+  // invoice"). whereExists (not a join) so an invoice with several lines
+  // never produces duplicate rows — a join here would corrupt both the
+  // returned page and the count below.
+  if (q.fabric_id || q.color_id) {
+    const fabricId = q.fabric_id;
+    const colorId = q.color_id;
+    base.whereExists(function () {
+      this.select('*')
+        .from('invoice_lines as il')
+        .join('rolls as r', 'il.roll_id', 'r.id')
+        .whereRaw('il.invoice_id = i.id')
+        .modify((qb) => {
+          if (fabricId) qb.andWhere('r.fabric_id', fabricId);
+          if (colorId) qb.andWhere('r.color_id', colorId);
+        });
+    });
+  }
   if (q.search) {
     // Grouped so the OR cannot escape the AND-chain above — an ungrouped
     // orWhere would leak non-cancelled invoices into a search run from the

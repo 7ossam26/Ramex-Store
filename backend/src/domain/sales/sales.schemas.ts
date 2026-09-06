@@ -101,12 +101,22 @@ export type VoidInvoiceInput = z.infer<typeof VoidInvoiceSchema>;
 
 export const ListInvoicesQuerySchema = z.object({
   status: z
-    .enum(['open', 'closed_pending_pickup', 'completed', 'cancelled', 'deposit_refunded'])
+    .enum([
+      'open',
+      'closed_pending_pickup',
+      'completed',
+      'cancelled',
+      'deposit_refunded',
+      'returned',
+      'partially_returned',
+    ])
     .optional(),
   customer_id: z.coerce.number().int().positive().optional(),
   fulfillment_destination: FulfillmentDestinationEnum.optional(),
   date_from: z.string().optional(),
   date_to: z.string().optional(),
+  fabric_id: z.coerce.number().int().positive().optional(),
+  color_id: z.coerce.number().int().positive().optional(),
   search: z.string().max(64).optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
   limit: z.coerce.number().int().min(1).max(100).optional().default(30),

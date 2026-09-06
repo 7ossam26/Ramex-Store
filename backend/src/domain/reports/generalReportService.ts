@@ -2,6 +2,7 @@ import { db } from '../../db/connection.js';
 import { cairoDayWindow, formatCairo } from '../../lib/datetime/cairo.js';
 import { toZonedTime } from 'date-fns-tz';
 import type { ReportPdfOptions } from '../../lib/reports/pdfExport.js';
+import { SALE_REALIZED_STATUSES } from '../sales/sales.types.js';
 
 const CAIRO_TZ = 'Africa/Cairo';
 
@@ -49,7 +50,7 @@ export async function getGeneralReport(fromDate: string, toDate: string): Promis
 
   // ── 1. Summary ────────────────────────────────────────────────────────────────
   const salesAgg = await db('invoices')
-    .where('status', 'completed')
+    .whereIn('status', SALE_REALIZED_STATUSES as unknown as string[])
     .whereBetween('created_at', [startIso, endIso])
     .select(
       db.raw('COUNT(*) as invoice_count'),
@@ -67,7 +68,7 @@ export async function getGeneralReport(fromDate: string, toDate: string): Promis
 
   // ── 3. Hourly sales (group by Cairo hour in JS) ────────────────────────────────
   const invoiceRows = await db('invoices')
-    .where('status', 'completed')
+    .whereIn('status', SALE_REALIZED_STATUSES as unknown as string[])
     .whereBetween('created_at', [startIso, endIso])
     .select('created_at', 'total_egp');
 
@@ -88,7 +89,7 @@ export async function getGeneralReport(fromDate: string, toDate: string): Promis
     .join('invoices as i', 'il.invoice_id', 'i.id')
     .join('rolls as r', 'il.roll_id', 'r.id')
     .join('fabrics as f', 'r.fabric_id', 'f.id')
-    .where('i.status', 'completed')
+    .whereIn('i.status', SALE_REALIZED_STATUSES as unknown as string[])
     .whereBetween('i.created_at', [startIso, endIso])
     .groupBy('f.id', 'f.name_ar')
     .orderBy('total_egp', 'desc')

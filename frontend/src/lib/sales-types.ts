@@ -3,7 +3,9 @@ export type InvoiceStatus =
   | 'closed_pending_pickup'
   | 'completed'
   | 'cancelled'
-  | 'deposit_refunded';
+  | 'deposit_refunded'
+  | 'returned'
+  | 'partially_returned';
 export type PaymentMethod = 'cash' | 'instapay' | 'bank_transfer' | 'cheque';
 export type PaymentKind = 'deposit' | 'final' | 'refund';
 
@@ -57,6 +59,9 @@ export type Invoice = {
   pickup_at: string | null;
   cancelled_at: string | null;
   cancelled_reason_ar: string | null;
+  /** Optional — older fixtures/tests predating return-state tracking omit these. */
+  returned_amount_egp?: string;
+  returned_at?: string | null;
 };
 
 export type InvoiceListRow = Invoice & { customer_name_ar: string };
@@ -139,6 +144,10 @@ export type InvoiceLineDetail = {
   reference_price_per_unit: string | null;
   accessory_name_ar: string | null;
   internal_barcode: string;
+  /** Optional — older fixtures/tests predating partial-return support omit these. */
+  returned_quantity?: number | null;
+  remaining_returnable_quantity?: number | null;
+  is_returned?: boolean;
 };
 
 export type Payment = {

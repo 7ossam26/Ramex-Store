@@ -1,6 +1,7 @@
 import { db } from '../../db/connection.js';
 import { formatCairo } from '../../lib/datetime/cairo.js';
 import type { DailyReport } from '../reports/dailyReportService.js';
+import { SALE_REALIZED_STATUSES } from '../sales/sales.types.js';
 
 function fmtEgp(n: number | string | null | undefined): string {
   const v = Number(n ?? 0);
@@ -19,7 +20,7 @@ export async function shiftReportService(shiftId: number): Promise<DailyReport> 
 
   // ─── 1. Sales summary ───────────────────────────────────────────────────────
   const completedInvoices = await db('invoices')
-    .where('status', 'completed')
+    .whereIn('status', SALE_REALIZED_STATUSES as unknown as string[])
     .where('shift_id', shiftId)
     .select(
       db.raw('COUNT(*) as invoice_count'),
@@ -70,7 +71,7 @@ export async function shiftReportService(shiftId: number): Promise<DailyReport> 
       'i.id',
       'ld.invoice_id',
     )
-    .where('i.status', 'completed')
+    .whereIn('i.status', SALE_REALIZED_STATUSES as unknown as string[])
     .where('i.shift_id', shiftId)
     .where((qb) => {
       qb.where(db.raw('i.cart_discount_egp + i.final_discount_egp'), '>', 0).orWhere(
@@ -192,7 +193,7 @@ export async function shiftReportService(shiftId: number): Promise<DailyReport> 
     .join('rolls as r', 'il.roll_id', 'r.id')
     .join('fabrics as f', 'r.fabric_id', 'f.id')
     .join('colors as c', 'r.color_id', 'c.id')
-    .where('i.status', 'completed')
+    .whereIn('i.status', SALE_REALIZED_STATUSES as unknown as string[])
     .where('i.shift_id', shiftId)
     .select(
       'f.name_ar as fabric_name_ar',
@@ -213,7 +214,7 @@ export async function shiftReportService(shiftId: number): Promise<DailyReport> 
 
   // ─── 7. Open invoices summary ────────────────────────────────────────────────
   const openedInShift = await db('invoices')
-    .whereIn('status', ['open', 'closed_pending_pickup', 'completed'])
+    .whereIn('status', ['open', 'closed_pending_pickup', 'completed', 'partially_returned', 'returned'])
     .where('shift_id', shiftId)
     .select(
       db.raw('COUNT(*) as opened_today_count'),
@@ -222,7 +223,7 @@ export async function shiftReportService(shiftId: number): Promise<DailyReport> 
     .first() as Record<string, string>;
 
   const closedInShift = await db('invoices')
-    .whereIn('status', ['completed', 'closed_pending_pickup'])
+    .whereIn('status', ['completed', 'closed_pending_pickup', 'partially_returned', 'returned'])
     .where('shift_id', shiftId)
     .whereBetween('closed_at', [startIso, endIso])
     .select(
