@@ -355,20 +355,45 @@ export async function createSale(
           };
         })();
 
-    // 4) Validate payment(s).
+    // 4) Validate payment(s) and optional payment-time discount.
     const paidTotal = roundEgp(input.payments.reduce((s, p) => s + Number(p.amount), 0));
+    const discountEgp = roundEgp(Number(input.discountEgp) || 0);
+    if (discountEgp < 0) throw new Error('INVALID_DISCOUNT');
 
     if (isNoLinesDeposit) {
       // For no-lines deposits the deposit acts as the placeholder total. The
       // running total_egp will be replaced with sum(lines) once lines are
       // added via addLinesToOpenInvoice. A zero deposit is allowed — the
       // invoice opens as an empty shell (total/balance = 0) awaiting lines.
+      // There's no stable total to discount against yet, and this shell flow
+      // is unrelated to the POS payment dialog (cart is always non-empty
+      // there), so a discount is simply rejected.
+      if (discountEgp > 0) throw new Error('INVALID_DISCOUNT');
       if (paidTotal > 0) {
         totals.total = paidTotal;
         totals.subtotal = paidTotal;
       }
+    } else if (discountEgp > 0) {
+      // Payment-time discount — same shape as addFinalPayment's balance/
+      // discount check, with totals.total standing in for balance (no
+      // invoice/balance exists yet at creation time).
+      if (discountEgp > totals.total + 0.001) throw new Error('DISCOUNT_EXCEEDS_TOTAL');
+      const required = roundEgp(totals.total - discountEgp);
+      if (paidTotal + 0.001 < required) throw new Error('DISCOUNT_PAYMENT_BELOW_REQUIRED');
+      if (paidTotal > required + 0.001) throw new Error('OVERPAYMENT_NOT_ALLOWED');
     } else {
       if (paidTotal > totals.total) throw new Error('OVERPAYMENT_NOT_ALLOWED');
+    }
+
+    // Snapshot the pre-discount total for the customer-ledger "sale" entry
+    // and lifetime-volume bump below (step 12) — mirrors addFinalPayment,
+    // where those two numbers are fixed at the invoice's original creation
+    // and never shrink retroactively when a discount is waived later at
+    // settlement time. Keeping the same convention here means the same
+    // discount concept behaves identically regardless of when it's applied.
+    const grossTotal = totals.total;
+    if (discountEgp > 0) {
+      totals.total = roundEgp(totals.total - discountEgp); // stored total_egp becomes net, like addFinalPayment's `newTotal`
     }
 
     const isFullyPaid = !isNoLinesDeposit && paidTotal >= totals.total - 0.001;
@@ -406,6 +431,7 @@ export async function createSale(
       fulfillment_destination: destination,
       subtotal_egp: totals.subtotal,
       cart_discount_egp: totals.cartDiscount,
+      final_discount_egp: discountEgp,
       tax_egp: totals.tax,
       rounding_egp: totals.rounding,
       total_egp: totals.total,
@@ -583,15 +609,36 @@ export async function createSale(
       customer.current_balance_egp = newBalance.toString();
     }
 
+    // 11b) Payment-time discount — post as a balance-neutral ledger
+    // adjustment, same as addFinalPayment does for a discount waived at
+    // settlement (openInvoices.service.ts).
+    if (discountEgp > 0) {
+      const newBalanceForDiscount = roundEgp(Number(customer.current_balance_egp) + discountEgp);
+      await trx('customer_ledger_entries').insert({
+        customer_id: input.customerId,
+        entry_type: 'adjustment',
+        reference_type: 'invoice',
+        reference_id: invoice.id,
+        amount_egp: discountEgp,
+        balance_after_egp: newBalanceForDiscount,
+        notes_ar: `خصم عند إتمام فاتورة ${invoice_no}`,
+        actor_user_id: cashierUserId,
+      });
+      await trx('customers')
+        .where({ id: input.customerId })
+        .update({ current_balance_egp: newBalanceForDiscount, updated_at: trx.fn.now() });
+      customer.current_balance_egp = newBalanceForDiscount.toString();
+    }
+
     // 12) Lifetime volume bump (sale entry — not changing balance, only volume).
-    const newLifetime = roundEgp(Number(customer.lifetime_volume_egp) + totals.total);
-    const newBalanceForSale = roundEgp(Number(customer.current_balance_egp) - totals.total);
+    const newLifetime = roundEgp(Number(customer.lifetime_volume_egp) + grossTotal);
+    const newBalanceForSale = roundEgp(Number(customer.current_balance_egp) - grossTotal);
     await trx('customer_ledger_entries').insert({
       customer_id: input.customerId,
       entry_type: 'sale',
       reference_type: 'invoice',
       reference_id: invoice.id,
-      amount_egp: -totals.total,
+      amount_egp: -grossTotal,
       balance_after_egp: newBalanceForSale,
       actor_user_id: cashierUserId,
     });
@@ -615,6 +662,7 @@ export async function createSale(
         fulfillment_destination: destination,
         total_egp: totals.total,
         paid_egp: paidTotal,
+        final_discount_egp: discountEgp,
         line_count: totals.lines.length,
         customer_id: input.customerId,
       },

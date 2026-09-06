@@ -557,6 +557,7 @@ export const ar = {
     chequeNotesAr: 'ملاحظات الشيك',
     chequeDetails: 'بيانات الشيك',
     saveAsOpen: 'حفظ كفاتورة مفتوحة',
+    applyDiscount: 'تفعيل خصم عند الدفع',
     submit: 'إتمام البيع',
     completed: 'تمت العملية',
     invoiceNo: 'رقم الفاتورة',

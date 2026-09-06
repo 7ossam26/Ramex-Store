@@ -162,6 +162,7 @@ export type CreateSaleInput = {
     reference?: string | null;
     chequeDetails?: ChequeDetails | null;
   }>;
+  discountEgp?: number;
   notesAr?: string | null;
 };
 

@@ -82,6 +82,7 @@ export const CreateSaleSchema = z.object({
   lines: z.array(SaleLineSchema),
   cartTargetFinal: nonNegativeAmount.nullable().optional(),
   payments: z.array(SalePaymentSchema).min(0),
+  discountEgp: nonNegativeAmount.optional(),
   notesAr: z.string().max(2000).nullable().optional(),
 });
 export type CreateSaleInput = z.infer<typeof CreateSaleSchema>;

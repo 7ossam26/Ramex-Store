@@ -43,6 +43,8 @@ const ERR_MAP: Record<string, { status: number; message: string }> = {
   INVOICE_NOT_CANCELLABLE: { status: 409, message: 'لا يمكن إلغاء هذه الفاتورة في حالتها الحالية' },
   FINAL_PAYMENT_BELOW_BALANCE: { status: 400, message: 'الدفعة النهائية أقل من الباقي المطلوب' },
   DISCOUNT_EXCEEDS_BALANCE: { status: 400, message: 'الخصم أكبر من الباقي المطلوب' },
+  DISCOUNT_EXCEEDS_TOTAL: { status: 400, message: 'الخصم أكبر من إجمالي الفاتورة' },
+  DISCOUNT_PAYMENT_BELOW_REQUIRED: { status: 400, message: 'مجموع الدفعات أقل من المطلوب بعد الخصم' },
   INVALID_DISCOUNT: { status: 400, message: 'قيمة خصم غير صالحة' },
   PARTIAL_REFUND_INVALID: { status: 400, message: 'مبلغ الاسترجاع الجزئي غير صحيح' },
   PARTIAL_REFUND_EXCEEDS_PAID: { status: 400, message: 'مبلغ الاسترجاع أكبر من المدفوع' },

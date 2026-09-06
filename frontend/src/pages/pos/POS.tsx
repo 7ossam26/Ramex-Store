@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { extractApiError } from '@/lib/api-error';
+import { deriveFinalPayment } from '@/lib/final-payment';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   X,
@@ -26,6 +27,7 @@ import {
   ArrowLeftRight,
   DollarSign,
   UserPlus,
+  Percent,
 } from 'lucide-react';
 import { Toast } from '@/components/Toast';
 import { Tooltip } from '@/components/Tooltip';
@@ -231,7 +233,20 @@ export function POSPage() {
   const [reference, setReference] = useState('');
   const [chequeState, setChequeState] = useState<ChequeFormState>(emptyCheque());
   const [saveAsOpen, setSaveAsOpen] = useState(false);
+  const [applyDiscount, setApplyDiscount] = useState(false);
   const [notesAr, setNotesAr] = useState('');
+
+  // "Save as open" (partial payment, settled later) and "apply discount"
+  // (partial payment, waived now) are mutually exclusive — a sale is either
+  // fully paid, saved as an open deposit, or fully settled via payment+discount.
+  function setSaveAsOpenExclusive(v: boolean) {
+    setSaveAsOpen(v);
+    if (v) setApplyDiscount(false);
+  }
+  function setApplyDiscountExclusive(v: boolean) {
+    setApplyDiscount(v);
+    if (v) setSaveAsOpen(false);
+  }
 
   const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
   const [cartSheetOpen, setCartSheetOpen] = useState(false);
@@ -564,6 +579,7 @@ export function POSPage() {
       : paymentMode === 'instapay' || paymentMode === 'bank_transfer'
         ? instaNum
         : cashNum + instaNum; // split
+  const discountDerived = deriveFinalPayment({ balance: total, tendered: paymentSum });
 
 
   const submit = useMutation({
@@ -625,6 +641,7 @@ export function POSPage() {
         ),
         cartTargetFinal: useCartDiscount ? targetFinalNum : null,
         payments,
+        discountEgp: applyDiscount ? discountDerived.discount : undefined,
         notesAr: notesAr || null,
       });
     },
@@ -657,6 +674,13 @@ export function POSPage() {
       return effectivePerUnit(l) <= 0;
     })) return ar.pos.finalPriceRequired;
     if (saveAsOpen && paymentSum <= 0) return null; // zero payment allowed when saving as open
+    if (applyDiscount) {
+      // Any tendered amount from 0 up to total is valid — the shortfall is
+      // auto-derived as the discount, not typed in separately.
+      if (discountDerived.error === 'NEGATIVE_AMOUNT') return ar.pos.payment;
+      if (discountDerived.error === 'OVERPAYMENT') return ar.pos.sumMustEqualTotal;
+      return null;
+    }
     if (paymentSum <= 0) return ar.pos.payment;
     if (saveAsOpen) return null;
     if (paymentSum < total - 0.01) return ar.pos.sumMustEqualTotal; // allow overpayment
@@ -676,6 +700,7 @@ export function POSPage() {
     setReference('');
     setChequeState(emptyCheque());
     setSaveAsOpen(false);
+    setApplyDiscount(false);
     setNotesAr('');
     setSubmitError(null);
     setPaymentSheetOpen(false);
@@ -774,7 +799,7 @@ export function POSPage() {
         setTargetFinalRaw={setTargetFinalRaw}
         subtotalForPlaceholder={subtotal}
         saveAsOpen={saveAsOpen}
-        setSaveAsOpen={setSaveAsOpen}
+        setSaveAsOpen={setSaveAsOpenExclusive}
         cartCount={cart.length}
         onOpenCart={() => setCartSheetOpen(true)}
         onOpenExpense={() => setExpenseDialogOpen(true)}
@@ -905,7 +930,9 @@ export function POSPage() {
               chequeState={chequeState}
               setChequeState={setChequeState}
               saveAsOpen={saveAsOpen}
-              setSaveAsOpen={setSaveAsOpen}
+              setSaveAsOpen={setSaveAsOpenExclusive}
+              applyDiscount={applyDiscount}
+              setApplyDiscount={setApplyDiscountExclusive}
               notesAr={notesAr}
               setNotesAr={setNotesAr}
               preview={preview}
@@ -1951,6 +1978,8 @@ function PaymentForm({
   setChequeState,
   saveAsOpen,
   setSaveAsOpen,
+  applyDiscount,
+  setApplyDiscount,
   notesAr,
   setNotesAr,
   preview,
@@ -1984,6 +2013,8 @@ function PaymentForm({
   setChequeState: (s: ChequeFormState) => void;
   saveAsOpen: boolean;
   setSaveAsOpen: (b: boolean) => void;
+  applyDiscount: boolean;
+  setApplyDiscount: (b: boolean) => void;
   notesAr: string;
   setNotesAr: (s: string) => void;
   preview: SalePreview | null | undefined;
@@ -2188,6 +2219,18 @@ function PaymentForm({
         {ar.pos.saveAsOpen}
       </label>
 
+      {/* Apply discount toggle — pay less than total, difference waived automatically */}
+      <label className="flex items-center gap-2 text-sm cursor-pointer min-h-11 text-foreground">
+        <input
+          type="checkbox"
+          checked={applyDiscount}
+          onChange={(e) => setApplyDiscount(e.target.checked)}
+          className="size-5 cursor-pointer accent-accent"
+        />
+        <Percent className="size-4 text-foreground-muted" />
+        {ar.pos.applyDiscount}
+      </label>
+
       {/* Notes */}
       <div className="space-y-1">
         <Label>{ar.pos.notes}</Label>
@@ -2205,7 +2248,15 @@ function PaymentForm({
           {preview.rounding_egp !== 0 && <Row label={ar.pos.rounding} value={fmtMoney(preview.rounding_egp)} />}
           <Row label={ar.pos.total} value={fmtMoney(preview.total_egp)} size="lg" />
           <Row label={ar.pos.paid} value={fmtMoney(paymentSum)} />
-          {paymentSum > total + 0.01 ? (
+          {applyDiscount && (() => {
+            const d = deriveFinalPayment({ balance: total, tendered: paymentSum });
+            return d.discount > 0 ? (
+              <Row label={ar.pos.discount} value={`- ${fmtMoney(d.discount)}`} tone="success" />
+            ) : null;
+          })()}
+          {applyDiscount ? (
+            <Row label={ar.pos.balance} value={fmtMoney(0)} />
+          ) : paymentSum > total + 0.01 ? (
             <Row label={ar.pos.change} value={fmtMoney(paymentSum - total)} tone="warning" />
           ) : (
             <Row label={ar.pos.balance} value={fmtMoney(Math.max(0, total - paymentSum))} />

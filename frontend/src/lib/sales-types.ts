@@ -215,6 +215,7 @@ export type CreateSaleBody = {
   lines: SaleLineInput[];
   cartTargetFinal?: number | null;
   payments: SalePaymentInput[];
+  discountEgp?: number;
   notesAr?: string | null;
 };
 
