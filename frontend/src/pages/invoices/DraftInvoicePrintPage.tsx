@@ -3,6 +3,7 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { salesApi } from '@/lib/sales-api';
 import type { InvoiceDetail, InvoiceLineDetail } from '@/lib/sales-types';
+import { invoiceLineQuantity } from '@/lib/invoice-line-quantity';
 import {
   DraftInvoiceDocument,
   demoDraftInvoice,
@@ -13,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/Skeleton';
 import { ErrorBanner } from '@/components/ErrorBanner';
 
-function mapLineToDraft(l: InvoiceLineDetail): DraftInvoiceLine {
+export function mapLineToDraft(l: InvoiceLineDetail): DraftInvoiceLine {
   if (l.item_type === 'accessory') {
     const qty = Number(l.qty_pieces ?? 0);
     const perUnit =
@@ -33,8 +34,8 @@ function mapLineToDraft(l: InvoiceLineDetail): DraftInvoiceLine {
     };
   }
 
-  const unit = l.fabric_unit === 'meter' ? 'm' : 'kg';
-  const qty = unit === 'kg' ? Number(l.weight_kg) : Number(l.length_m ?? l.weight_kg);
+  const saleQuantity = invoiceLineQuantity(l);
+  const qty = saleQuantity.quantity;
   const perUnit =
     l.final_price_per_unit != null
       ? Number(l.final_price_per_unit)
@@ -45,20 +46,16 @@ function mapLineToDraft(l: InvoiceLineDetail): DraftInvoiceLine {
     description: `${l.fabric_name_ar} / ${l.color_name_ar}`,
     bolts: 1,
     quantity: qty,
-    quantityUnit: unit,
+    quantityUnit: saleQuantity.unit === 'meter' ? 'متر' : 'كجم',
     unitPrice: perUnit,
     discountPct: 0,
     amount: Number(l.line_total_egp),
   };
 }
 
-function mapInvoiceToDraft(inv: InvoiceDetail): DraftInvoiceDocumentProps {
+export function mapInvoiceToDraft(inv: InvoiceDetail): DraftInvoiceDocumentProps {
   const totalQty = inv.lines.reduce(
-    (sum, l) =>
-      sum +
-      (l.fabric_unit === 'meter'
-        ? Number(l.length_m ?? l.weight_kg)
-        : Number(l.weight_kg)),
+    (sum, l) => sum + (l.item_type === 'roll' ? invoiceLineQuantity(l).quantity : 0),
     0,
   );
   return {

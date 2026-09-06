@@ -5,6 +5,7 @@ import { notify } from '../notifications/notificationsService.js';
 import { backCalculateDiscount, roundEgp } from './discountCalculator.js';
 import { settlePayment } from '../finance/paymentSettlementService.js';
 import { getSetting } from '../settings/settings.service.js';
+import { resolveRollSaleQuantity } from './lineQuantity.js';
 import {
   lockAccessories,
   restoreAccessoryStock,
@@ -652,7 +653,7 @@ export async function listOpenInvoices(): Promise<
 }
 
 type RollPricingInfo = {
-  weight_kg: string;
+  weight_kg: string | null;
   length_m: string | null;
   fabric_unit: 'kg' | 'meter';
   selling_price_egp: string | null;
@@ -661,14 +662,6 @@ type RollPricingInfo = {
   status: string;
   is_visible_at_pos: boolean;
 };
-
-function rollQuantity(info: RollPricingInfo): number {
-  if (info.fabric_unit === 'meter') {
-    if (info.length_m == null) throw new Error('ROLL_LENGTH_MISSING');
-    return Number(info.length_m);
-  }
-  return Number(info.weight_kg);
-}
 
 type SettingsForLines = { taxEnabled: boolean; taxRate: number };
 
@@ -737,7 +730,7 @@ export async function addLinesToOpenInvoice(
         selling_price_egp: row.selling_price_egp == null ? null : String(row.selling_price_egp),
         reference_price_per_unit:
           row.reference_price_per_unit == null ? null : String(row.reference_price_per_unit),
-        weight_kg: String(row.weight_kg),
+        weight_kg: row.weight_kg == null ? null : String(row.weight_kg),
         length_m: row.length_m == null ? null : String(row.length_m),
         warehouse: String(row.warehouse),
         status: String(row.status),
@@ -761,7 +754,8 @@ export async function addLinesToOpenInvoice(
     // Compute per-line totals using the same rules as createSale.
     const lines = input.lines.map((l) => {
       const info = locked.get(l.rollId)!;
-      const qty = rollQuantity(info);
+      const saleQuantity = resolveRollSaleQuantity(info);
+      const qty = saleQuantity.quantity;
       let perUnit: number;
       let absolutePrice: number;
       if (l.finalPricePerUnit != null) {
@@ -783,6 +777,8 @@ export async function addLinesToOpenInvoice(
         rollId: l.rollId,
         selling_price_egp: roundEgp(absolutePrice),
         final_price_per_unit: roundEgp(perUnit),
+        sold_quantity: qty,
+        sold_unit: saleQuantity.unit,
         line_discount_egp: lineDiscount,
         line_total_egp: lineTotal,
       };
@@ -816,6 +812,8 @@ export async function addLinesToOpenInvoice(
         roll_id: l.rollId,
         selling_price_egp: l.selling_price_egp,
         final_price_per_unit: l.final_price_per_unit,
+        sold_quantity: l.sold_quantity,
+        sold_unit: l.sold_unit,
         line_discount_egp: l.line_discount_egp,
         line_total_egp: l.line_total_egp,
       })),

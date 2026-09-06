@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
-import { rollQtyLabel } from '@/lib/fabric-unit';
+import { invoiceLineQuantityLabel } from '@/lib/invoice-line-quantity';
 import { returnsApi } from '@/lib/returns-api';
 import type { ReturnDetail } from '@/lib/returns-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -112,7 +112,7 @@ export function ReturnDetailPage() {
                           {l.item_type === 'accessory' ? l.internal_barcode : (l.roll_sr_no ?? l.internal_barcode)}
                         </td>
                         <td className="px-3 py-2.5 tabular-num" dir="ltr">
-                          {l.item_type === 'accessory' ? `${l.qty_pieces} قطعة` : rollQtyLabel(l.weight_kg, l.length_m)}
+                          {invoiceLineQuantityLabel(l)}
                         </td>
                         <td className="px-3 py-2.5">
                           <StatusPill tone={l.roll_disposition === 'back_to_stock' ? 'success' : 'danger'}>

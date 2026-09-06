@@ -34,6 +34,9 @@ export type ReturnLineRow = {
   roll_sr_no: string | null;
   weight_kg: string | null;
   length_m: string | null;
+  fabric_unit: 'kg' | 'meter' | null;
+  sold_quantity: string | null;
+  sold_unit: 'kg' | 'meter' | null;
   accessory_name_ar: string | null;
   internal_barcode: string;
 };

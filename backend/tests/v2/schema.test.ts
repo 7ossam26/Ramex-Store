@@ -200,6 +200,29 @@ describe.skipIf(!RUN_DB)('v2 schema verification', () => {
     });
   });
 
+  describe('invoice line sale quantity snapshots', () => {
+    it('stores a nullable numeric quantity and its nullable unit together', async () => {
+      const quantity = await getColumn('invoice_lines', 'sold_quantity');
+      const unit = await getColumn('invoice_lines', 'sold_unit');
+
+      expect(quantity).not.toBeNull();
+      expect(quantity!.data_type).toBe('numeric');
+      expect(quantity!.is_nullable).toBe('YES');
+      expect(unit).not.toBeNull();
+      expect(unit!.character_maximum_length).toBe(8);
+      expect(unit!.is_nullable).toBe('YES');
+    });
+
+    it('accepts only positive roll quantities in kg or meters', async () => {
+      const def = await getCheckClause('chk_invoice_lines_sold_quantity');
+      expect(def).toBeTruthy();
+      expect(def).toContain("'roll'");
+      expect(def).toContain("'kg'");
+      expect(def).toContain("'meter'");
+      expect(def).toMatch(/sold_quantity >.*0/);
+    });
+  });
+
   // ─── payments ────────────────────────────────────────────────────────────
   describe('payments', () => {
     it('Q&A #29 — method CHECK accepts cash/instapay/bank_transfer/cheque', async () => {
@@ -237,6 +260,8 @@ describe.skipIf(!RUN_DB)('v2 schema verification', () => {
         invoice_id: sample.invoice_id,
         method: 'cash',
         amount_egp: -50,
+        payment_kind: 'refund',
+        actor_user_id: sample.actor_user_id,
         created_at: new Date(),
       }).returning('id');
       const id = Array.isArray(inserted) ? (inserted[0] as { id: number }).id : (inserted as { id: number }).id;

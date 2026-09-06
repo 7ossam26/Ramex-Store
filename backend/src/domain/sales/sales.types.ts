@@ -48,6 +48,8 @@ export type InvoiceLine = {
   roll_id: number | null;
   accessory_id: number | null;
   qty_pieces: number | null;
+  sold_quantity: string | null;
+  sold_unit: 'kg' | 'meter' | null;
   selling_price_egp: string;
   line_discount_egp: string;
   line_total_egp: string;

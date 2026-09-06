@@ -6,6 +6,7 @@ import { roundEgp } from './discountCalculator.js';
 import { nextReturnNo } from './returnNumber.service.js';
 import { settlePayment } from '../finance/paymentSettlementService.js';
 import { createSale } from './invoices.service.js';
+import { resolveInvoiceRollQuantity } from './lineQuantity.js';
 import type { CreateSaleInput, ChequeDetails } from './sales.types.js';
 
 // ─── Phase 6 — Return on Scan ──────────────────────────────────────────────
@@ -563,6 +564,10 @@ export type ReturnLineRow = {
   color_code: string | null;
   roll_sr_no: string | null;
   weight_kg: string | null;
+  length_m: string | null;
+  fabric_unit: 'kg' | 'meter' | null;
+  sold_quantity: string | null;
+  sold_unit: 'kg' | 'meter' | null;
   accessory_name_ar: string | null;
   internal_barcode: string;
 };
@@ -1154,8 +1159,9 @@ export async function getReturnDetail(id: number): Promise<ReturnDetail | undefi
     .first();
   if (!ret) return undefined;
 
-  const lines = await db('return_lines as rl')
+  const rawLines = await db('return_lines as rl')
     .where('rl.return_id', id)
+    .leftJoin('invoice_lines as il', 'rl.original_invoice_line_id', 'il.id')
     .leftJoin('rolls as ro', 'rl.roll_id', 'ro.id')
     .leftJoin('fabrics as f', 'ro.fabric_id', 'f.id')
     .leftJoin('colors as col', 'ro.color_id', 'col.id')
@@ -1167,10 +1173,31 @@ export async function getReturnDetail(id: number): Promise<ReturnDetail | undefi
       'col.code as color_code',
       'ro.roll_sr_no',
       'ro.weight_kg',
+      'ro.length_m',
+      'f.unit as fabric_unit',
+      'il.sold_quantity',
+      'il.sold_unit',
       'a.name_ar as accessory_name_ar',
       db.raw('COALESCE(ro.internal_barcode, a.internal_barcode) as internal_barcode'),
     )
     .orderBy('rl.id', 'asc');
+
+  const lines = (rawLines as ReturnLineRow[]).map((line) => {
+    if (line.item_type === 'accessory') return line;
+
+    const saleQuantity = resolveInvoiceRollQuantity({
+      sold_quantity: line.sold_quantity,
+      sold_unit: line.sold_unit,
+      fabric_unit: line.fabric_unit ?? 'kg',
+      length_m: line.length_m,
+      weight_kg: line.weight_kg,
+    });
+    return {
+      ...line,
+      sold_quantity: saleQuantity.quantity.toFixed(3),
+      sold_unit: saleQuantity.unit,
+    };
+  });
 
   return { ...ret, lines } as ReturnDetail;
 }

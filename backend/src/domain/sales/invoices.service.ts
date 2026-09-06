@@ -7,6 +7,11 @@ import { nextInvoiceNo } from './invoiceNumber.service.js';
 import { backCalculateDiscount, roundEgp } from './discountCalculator.js';
 import { settlePayment } from '../finance/paymentSettlementService.js';
 import {
+  resolveInvoiceRollQuantity,
+  resolveRollSaleQuantity,
+  type RollSaleUnit,
+} from './lineQuantity.js';
+import {
   getReturnedLineIds,
   lockAccessories,
   restoreAccessoryStock,
@@ -45,7 +50,7 @@ type LockedRoll = {
   id: number;
   selling_price_egp: string | null;
   reference_price_per_unit: string | null;
-  weight_kg: string;
+  weight_kg: string | null;
   length_m: string | null;
   fabric_unit: 'kg' | 'meter';
   status: string;
@@ -97,6 +102,8 @@ type ComputedTotals = {
     rollId: number;
     selling_price_egp: number;
     final_price_per_unit: number;
+    sold_quantity: number;
+    sold_unit: RollSaleUnit;
     line_discount_egp: number;
     line_total_egp: number;
   }>;
@@ -109,19 +116,11 @@ type ComputedTotals = {
 };
 
 type RollPricingInfo = {
-  weight_kg: string;
+  weight_kg: string | null;
   length_m: string | null;
   fabric_unit: 'kg' | 'meter';
   selling_price_egp: string | null;
 };
-
-function rollQuantity(info: RollPricingInfo): number {
-  if (info.fabric_unit === 'meter') {
-    if (info.length_m == null) throw new Error('ROLL_LENGTH_MISSING');
-    return Number(info.length_m);
-  }
-  return Number(info.weight_kg);
-}
 
 function computeTotals(
   inputLines: RollSaleLine[],
@@ -133,7 +132,8 @@ function computeTotals(
   const lines = inputLines.map((l) => {
     const info = rollInfo.get(l.rollId);
     if (!info) throw new Error('ROLL_NOT_FOUND');
-    const qty = rollQuantity(info);
+    const saleQuantity = resolveRollSaleQuantity(info);
+    const qty = saleQuantity.quantity;
 
     // Resolve the per-unit price. Cashier may submit either:
     //   - finalPricePerUnit (preferred — v2 Phase 5 UX)
@@ -167,6 +167,8 @@ function computeTotals(
       rollId: l.rollId,
       selling_price_egp: roundEgp(absolutePrice),
       final_price_per_unit: roundEgp(perUnit),
+      sold_quantity: qty,
+      sold_unit: saleQuantity.unit,
       line_discount_egp: lineDiscount,
       line_total_egp: lineTotal,
     };
@@ -217,7 +219,7 @@ export async function previewSale(input: SalePreviewInput): Promise<SalePreview>
     rolls.map((r) => [
       r.id as number,
       {
-        weight_kg: String(r.weight_kg),
+        weight_kg: r.weight_kg == null ? null : String(r.weight_kg),
         length_m: r.length_m == null ? null : String(r.length_m),
         fabric_unit: r.fabric_unit as 'kg' | 'meter',
         selling_price_egp: r.selling_price_egp == null ? null : String(r.selling_price_egp),
@@ -422,6 +424,8 @@ export async function createSale(
           roll_id: l.rollId,
           selling_price_egp: l.selling_price_egp,
           final_price_per_unit: l.final_price_per_unit,
+          sold_quantity: l.sold_quantity,
+          sold_unit: l.sold_unit,
           line_discount_egp: l.line_discount_egp,
           line_total_egp: l.line_total_egp,
         })),
@@ -827,7 +831,7 @@ export async function getInvoiceDetail(id: number): Promise<InvoiceDetail | unde
     .first();
   if (!invoice) return undefined;
 
-  const lines = (await db('invoice_lines as il')
+  const rawLines = (await db('invoice_lines as il')
     .where('il.invoice_id', id)
     .leftJoin('rolls as r', 'il.roll_id', 'r.id')
     .leftJoin('fabrics as f', 'r.fabric_id', 'f.id')
@@ -847,6 +851,23 @@ export async function getInvoiceDetail(id: number): Promise<InvoiceDetail | unde
       db.raw('COALESCE(r.internal_barcode, a.internal_barcode) as internal_barcode'),
     )
     .orderBy('il.id', 'asc')) as InvoiceLineWithDetail[];
+
+  const lines = rawLines.map((line) => {
+    if (line.item_type === 'accessory') return line;
+
+    const saleQuantity = resolveInvoiceRollQuantity({
+      sold_quantity: line.sold_quantity,
+      sold_unit: line.sold_unit,
+      fabric_unit: line.fabric_unit ?? 'kg',
+      length_m: line.length_m,
+      weight_kg: line.weight_kg,
+    });
+    return {
+      ...line,
+      sold_quantity: saleQuantity.quantity.toFixed(3),
+      sold_unit: saleQuantity.unit,
+    };
+  });
 
   const payments = (await db('payments')
     .where({ invoice_id: id })

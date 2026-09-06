@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
-import { rollQtyLabel } from '@/lib/fabric-unit';
+import { invoiceLineQuantity, invoiceLineQuantityLabel } from '@/lib/invoice-line-quantity';
 import { extractApiError } from '@/lib/api-error';
 import { salesApi } from '@/lib/sales-api';
 import { returnsApi } from '@/lib/returns-api';
@@ -58,6 +58,20 @@ function parseAmount(s: string): number {
   if (!s) return 0;
   const v = Number(s);
   return Number.isFinite(v) ? v : 0;
+}
+
+function invoiceLineUnitPrice(line: InvoiceLineDetail): number {
+  if (line.final_price_per_unit != null) {
+    return Number(line.final_price_per_unit);
+  }
+
+  // Only legacy rows created before final_price_per_unit was introduced need
+  // reconstruction. Current roll and accessory rows always use the stored
+  // per-unit value above.
+  const quantity = invoiceLineQuantity(line).quantity;
+
+  const grossLineAmount = Number(line.line_total_egp) + Number(line.line_discount_egp);
+  return quantity > 0 ? grossLineAmount / quantity : 0;
 }
 
 export function InvoiceDetailPage() {
@@ -117,7 +131,7 @@ export function InvoiceDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="max-w-6xl mx-auto space-y-4" aria-hidden>
+      <div className="mx-auto w-full max-w-[1440px] space-y-4" aria-hidden>
         <Skeleton className="h-7 w-48" />
         <Skeleton className="h-4 w-64" />
         <Skeleton className="h-40 w-full rounded-lg" />
@@ -151,13 +165,14 @@ export function InvoiceDetailPage() {
   const canAddLines = inv.status === 'open';
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4">
+    <div className="mx-auto w-full max-w-[1440px] space-y-3 md:space-y-4">
       <PageHeader
         title={inv.invoice_no}
         description={`${fmtDate(inv.created_at)} · ${ar.invoices.cashier}: ${inv.cashier_username}`}
         backTo="/invoices"
+        className="gap-3 pb-1 lg:items-center"
         actions={
-          <div className="flex items-center gap-2 flex-wrap [&_button]:print:hidden [&_a]:print:hidden">
+          <div className="flex max-w-full flex-wrap items-center justify-start gap-2 sm:justify-end [&_button]:print:hidden [&_a]:print:hidden">
             <InvoiceStatusPill status={inv.status} />
             <Button
               variant="outline"
@@ -218,48 +233,56 @@ export function InvoiceDetailPage() {
 
       {/* Customer */}
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">{ar.invoices.customer}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Link to={`/customers/${inv.customer_id}`} className="text-accent hover:text-accent-hover hover:underline underline-offset-2 font-medium">
-            {inv.customer_name_ar}
-          </Link>
-          <p className="text-sm text-foreground-muted">{inv.customer_phone} · {inv.customer_code}</p>
-          {inv.customer_address_ar && <p className="text-sm text-foreground">{inv.customer_address_ar}</p>}
+        <CardContent className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:gap-6">
+          <CardTitle className="shrink-0 text-base sm:min-w-24">{ar.invoices.customer}</CardTitle>
+          <div className="grid min-w-0 flex-1 gap-1 text-sm sm:grid-cols-[minmax(180px,0.8fr)_minmax(180px,0.8fr)_minmax(0,1fr)] sm:items-center sm:gap-x-6">
+            <Link to={`/customers/${inv.customer_id}`} className="truncate font-medium text-accent underline-offset-2 hover:text-accent-hover hover:underline">
+              {inv.customer_name_ar}
+            </Link>
+            <p className="whitespace-nowrap text-foreground-muted" dir="ltr">{inv.customer_phone} · {inv.customer_code}</p>
+            {inv.customer_address_ar && <p className="truncate text-foreground">{inv.customer_address_ar}</p>}
+          </div>
         </CardContent>
       </Card>
 
       {/* Lines */}
-      <Card>
-        <CardHeader className="pb-2">
+      <Card className="overflow-hidden">
+        <CardHeader className="p-4 pb-3">
           <CardTitle className="text-base">{ar.invoices.detailLines}</CardTitle>
         </CardHeader>
-        <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-sm min-w-[640px]">
-            <thead className="text-start text-xs text-foreground-muted uppercase tracking-wide border-b border-border-subtle">
+        <CardContent className="overflow-x-auto p-0">
+          <table className="w-full min-w-[720px] table-fixed text-sm">
+            <colgroup>
+              <col className="w-[30%]" />
+              <col className="w-[18%]" />
+              <col className="w-[14%]" />
+              <col className="w-[12%]" />
+              <col className="w-[12%]" />
+              <col className="w-[14%]" />
+            </colgroup>
+            <thead className="border-b border-border-subtle bg-surface-hover/40 text-start text-xs uppercase tracking-wide text-foreground-muted">
               <tr>
-                <th className="px-3 py-2">الصنف</th>
-                <th className="px-3 py-2">الكود</th>
-                <th className="px-3 py-2">الكمية</th>
-                <th className="px-3 py-2">السعر</th>
-                <th className="px-3 py-2">الخصم</th>
-                <th className="px-3 py-2">الإجمالي</th>
+                <th className="h-10 px-4 text-start font-medium">الصنف</th>
+                <th className="h-10 px-4 text-start font-medium">الكود</th>
+                <th className="h-10 px-4 text-start font-medium">الكمية</th>
+                <th className="h-10 px-4 text-start font-medium">السعر</th>
+                <th className="h-10 px-4 text-start font-medium">الخصم</th>
+                <th className="h-10 px-4 text-start font-medium">الإجمالي</th>
               </tr>
             </thead>
             <tbody>
               {inv.lines.map((l) => (
-                <tr key={l.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
-                  <td className="px-3 py-2.5 text-foreground">
+                <tr key={l.id} className="h-11 border-b border-border-subtle transition-colors duration-150 last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover">
+                  <td className="truncate px-4 py-2 text-start text-foreground">
                     {l.item_type === 'accessory'
                       ? (l.accessory_name_ar ?? l.internal_barcode)
                       : `${l.fabric_name_ar} / ${l.color_name_ar}`}
                   </td>
-                  <td className="rmx-print-code px-3 py-2.5 font-mono text-xs tabular-num" dir="ltr">{l.item_type === 'accessory' ? l.internal_barcode : (l.roll_sr_no ?? l.internal_barcode)}</td>
-                  <td className="px-3 py-2.5 tabular-num" dir="ltr">{l.item_type === 'accessory' ? `${l.qty_pieces} قطعة` : rollQtyLabel(l.weight_kg, l.length_m)}</td>
-                  <td className="px-3 py-2.5 tabular-num" dir="ltr">{fmtMoney(l.selling_price_egp)}</td>
-                  <td className="px-3 py-2.5 tabular-num" dir="ltr">{fmtMoney(l.line_discount_egp)}</td>
-                  <td className="px-3 py-2.5 font-medium tabular-num" dir="ltr">{fmtMoney(l.line_total_egp)}</td>
+                  <td className="rmx-print-code truncate px-4 py-2 text-start font-mono text-xs tabular-num"><span dir="ltr">{l.item_type === 'accessory' ? l.internal_barcode : (l.roll_sr_no ?? l.internal_barcode)}</span></td>
+                  <td className="whitespace-nowrap px-4 py-2 text-start tabular-num"><span dir="ltr">{invoiceLineQuantityLabel(l)}</span></td>
+                  <td className="whitespace-nowrap px-4 py-2 text-start tabular-num"><span dir="ltr">{fmtMoney(invoiceLineUnitPrice(l))}</span></td>
+                  <td className="whitespace-nowrap px-4 py-2 text-start tabular-num"><span dir="ltr">{fmtMoney(l.line_discount_egp)}</span></td>
+                  <td className="whitespace-nowrap px-4 py-2 text-start font-medium tabular-num"><span dir="ltr">{fmtMoney(l.line_total_egp)}</span></td>
                 </tr>
               ))}
             </tbody>
@@ -268,12 +291,12 @@ export function InvoiceDetailPage() {
       </Card>
 
       {/* Totals + Payments */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
+      <div className="grid grid-cols-1 items-stretch gap-3 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] xl:gap-4">
+        <Card className="flex h-full flex-col">
+          <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base">المبالغ</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1 text-sm">
+          <CardContent className="flex-1 space-y-1.5 px-4 pb-4 pt-0 text-sm">
             <Row label={ar.pos.subtotal} value={fmtMoney(inv.subtotal_egp)} />
             {Number(inv.cart_discount_egp) > 0 && (
               <Row label={ar.pos.discount} value={`- ${fmtMoney(inv.cart_discount_egp)}`} />
@@ -293,30 +316,30 @@ export function InvoiceDetailPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
+        <Card className="flex h-full min-w-0 flex-col">
+          <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base">{ar.invoices.detailPayments}</CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="flex-1 overflow-x-auto px-4 pb-4 pt-0">
             {inv.payments.length === 0 ? (
-              <p className="p-4 text-center text-muted-foreground text-sm">{ar.common.none}</p>
+              <p className="flex min-h-24 items-center justify-center text-center text-sm text-muted-foreground">{ar.common.none}</p>
             ) : (
-              <table className="w-full text-sm">
-                <thead className="text-start text-xs text-foreground-muted uppercase tracking-wide border-b border-border-subtle">
+              <table className="w-full min-w-[440px] table-fixed text-sm">
+                <thead className="border-b border-border-subtle text-start text-xs uppercase tracking-wide text-foreground-muted">
                   <tr>
-                    <th className="px-3 py-2">التاريخ</th>
-                    <th className="px-3 py-2">طريقة</th>
-                    <th className="px-3 py-2">نوع</th>
-                    <th className="px-3 py-2">المبلغ</th>
+                    <th className="h-9 w-[36%] px-2 text-start font-medium">التاريخ</th>
+                    <th className="h-9 w-[22%] px-2 text-start font-medium">طريقة</th>
+                    <th className="h-9 w-[20%] px-2 text-start font-medium">نوع</th>
+                    <th className="h-9 w-[22%] px-2 text-start font-medium">المبلغ</th>
                   </tr>
                 </thead>
                 <tbody>
                   {inv.payments.map((p) => (
-                    <tr key={p.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
-                      <td className="px-3 py-2" dir="ltr">{fmtDate(p.created_at)}</td>
-                      <td className="px-3 py-2">{p.method === 'cash' ? ar.pos.cash : ar.pos.instapay}</td>
-                      <td className="px-3 py-2 text-xs">{p.payment_kind}</td>
-                      <td className="px-3 py-2 font-medium" dir="ltr">{fmtMoney(p.amount_egp)}</td>
+                    <tr key={p.id} className="h-10 border-b border-border-subtle transition-colors duration-150 last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover">
+                      <td className="whitespace-nowrap px-2 text-start"><span dir="ltr">{fmtDate(p.created_at)}</span></td>
+                      <td className="px-2 text-start">{p.method === 'cash' ? ar.pos.cash : ar.pos.instapay}</td>
+                      <td className="px-2 text-start text-xs">{p.payment_kind}</td>
+                      <td className="whitespace-nowrap px-2 text-start font-medium"><span dir="ltr">{fmtMoney(p.amount_egp)}</span></td>
                     </tr>
                   ))}
                 </tbody>
@@ -328,7 +351,7 @@ export function InvoiceDetailPage() {
 
       {inv.notes_ar && (
         <Card>
-          <CardContent className="p-3 text-sm">
+          <CardContent className="p-4 text-sm">
             <span className="font-medium">{ar.pos.notes}: </span>{inv.notes_ar}
           </CardContent>
         </Card>
@@ -336,7 +359,7 @@ export function InvoiceDetailPage() {
 
       {/* Status history */}
       <Card>
-        <CardHeader className="pb-2">
+        <CardHeader className="p-4 pb-2">
           <CardTitle className="text-base">{ar.invoices.statusHistory}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -1363,7 +1386,7 @@ function ReturnModal({
                             : `${l.fabric_name_ar} / ${l.color_name_ar}`}
                         </td>
                         <td className="px-2 py-2 tabular-num" dir="ltr">
-                          {isAccessory ? `${l.qty_pieces} قطعة` : rollQtyLabel(l.weight_kg, l.length_m)}
+                          {invoiceLineQuantityLabel(l)}
                         </td>
                         <td className="px-2 py-2">
                           <input
