@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import JsBarcode from 'jsbarcode';
 import { inventoryApi } from '@/lib/inventory-api';
 import { salesApi } from '@/lib/sales-api';
@@ -36,12 +37,13 @@ import {
   Printer,
   Search,
   Store,
+  Truck,
   Warehouse as WarehouseIcon,
 } from 'lucide-react';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 
 type WarehouseChoice = 'all' | Warehouse;
-type StatusFilter = 'all' | 'in_stock' | 'low' | 'out';
+type StatusFilter = 'all' | 'in_stock' | 'low' | 'out' | 'in_transit';
 type SortKey = 'name' | 'count_desc' | 'count_asc' | 'weight_desc' | 'price_desc';
 
 const WAREHOUSE_OPTIONS: ReadonlyArray<{ value: WarehouseChoice; label: string }> = [
@@ -52,6 +54,8 @@ const WAREHOUSE_OPTIONS: ReadonlyArray<{ value: WarehouseChoice; label: string }
 ];
 
 function rowStatus(row: StockSummaryRow): { tone: StatusTone; label: string } {
+  // Nothing available but أتواب on the way: not «نفد», and still not sellable.
+  if (row.count_in_stock === 0 && row.count_in_transit > 0) return { tone: 'info', label: 'جاري الشحن' };
   if (row.count_in_stock === 0) return { tone: 'danger', label: 'نفد' };
   if (row.count_in_stock <= row.min_quantity_rolls) return { tone: 'warning', label: 'منخفض' };
   return { tone: 'success', label: 'متوفر' };
@@ -69,7 +73,7 @@ const ROLL_STATUS_LABEL: Record<string, string> = {
   sample: 'عينة',
   returned: 'مُعاد',
   written_off: 'مشطوب',
-  in_transit: 'قيد الشحن',
+  in_transit: 'جاري الشحن',
 };
 
 function BarcodeModal({
@@ -179,14 +183,18 @@ function RollDetailsPanel({ row }: { row: StockSummaryRow }) {
   useEffect(() => { setSelected(new Set()); }, [data]);
 
   const allRolls = data ?? [];
+  // «جاري الشحن» is shown by default (for tracking) right after المتاح; the
+  // other non-available statuses stay one click away.
+  const isDefaultVisible = (status: string) => status === 'in_stock' || status === 'in_transit';
   const otherStatusCount = useMemo(
-    () => allRolls.filter((r) => r.status !== 'in_stock').length,
+    () => allRolls.filter((r) => !isDefaultVisible(r.status)).length,
     [allRolls],
   );
-  const rolls = useMemo(
-    () => (showAllStatuses ? allRolls : allRolls.filter((r) => r.status === 'in_stock')),
-    [allRolls, showAllStatuses],
-  );
+  const rolls = useMemo(() => {
+    const visible = showAllStatuses ? allRolls : allRolls.filter((r) => isDefaultVisible(r.status));
+    const rank = (status: string) => (status === 'in_stock' ? 0 : status === 'in_transit' ? 1 : 2);
+    return [...visible].sort((a, b) => rank(a.status) - rank(b.status));
+  }, [allRolls, showAllStatuses]);
   // Only a توب that is both in المعرض and متاح can be returned to the factory
   // (rolls.service.ts guards on exactly that), so the bulk selection must not
   // pick up the newly-visible non-متاح rows.
@@ -357,9 +365,18 @@ function RollDetailsPanel({ row }: { row: StockSummaryRow }) {
                     {WAREHOUSE_OPTIONS.find((w) => w.value === r.warehouse)?.label ?? r.warehouse}
                   </td>
                   <td className="px-3 py-2">
-                    <StatusPill tone={r.status === 'in_stock' ? 'success' : 'neutral'}>
+                    <StatusPill tone={r.status === 'in_stock' ? 'success' : r.status === 'in_transit' ? 'info' : 'neutral'}>
                       {ROLL_STATUS_LABEL[r.status] ?? r.status}
                     </StatusPill>
+                    {r.status === 'in_transit' && r.in_transit_shipment_id && (
+                      <Link
+                        to={`/shipments/${r.in_transit_shipment_id}/view`}
+                        className="block mt-0.5 text-[11px] text-info-foreground underline underline-offset-2 font-mono"
+                        dir="ltr"
+                      >
+                        {r.in_transit_shipment_no}
+                      </Link>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-end">
                     <button
@@ -427,13 +444,16 @@ export function StockViewPage() {
   const kpis = useMemo(() => {
     let itemsInStock = 0;
     let lowStock = 0;
+    let rollsInTransit = 0;
     for (const r of rows) {
       if (r.count_in_stock > 0) itemsInStock += 1;
       if (r.count_in_stock > 0 && r.count_in_stock <= r.min_quantity_rolls) lowStock += 1;
+      rollsInTransit += r.count_in_transit;
     }
     return {
       itemsInStock,
       lowStock,
+      rollsInTransit,
     };
   }, [rows]);
 
@@ -446,13 +466,14 @@ export function StockViewPage() {
   }, [rows]);
 
   const statusCounts = useMemo(() => {
-    let inStock = 0, low = 0, out = 0;
+    let inStock = 0, low = 0, out = 0, inTransit = 0;
     for (const r of rows) {
       if (r.count_in_stock === 0) out++;
       else if (r.count_in_stock <= r.min_quantity_rolls) low++;
       else inStock++;
+      if (r.count_in_transit > 0) inTransit++;
     }
-    return { inStock, low, out };
+    return { inStock, low, out, inTransit };
   }, [rows]);
 
   const accQ = useQuery<Accessory[]>({
@@ -498,6 +519,7 @@ export function StockViewPage() {
       if (statusFilter === 'in_stock' && r.count_in_stock === 0) return false;
       if (statusFilter === 'low' && (r.count_in_stock === 0 || r.count_in_stock > r.min_quantity_rolls)) return false;
       if (statusFilter === 'out' && r.count_in_stock > 0) return false;
+      if (statusFilter === 'in_transit' && r.count_in_transit === 0) return false;
       if (q) {
         const haystack = `${r.fabric_name_ar} ${r.fabric_code} ${r.color_name_ar} ${r.color_code}`.toLowerCase();
         if (!haystack.includes(q)) return false;
@@ -585,6 +607,15 @@ export function StockViewPage() {
           <span className="text-[11px] text-foreground-muted tabular-num">
             {fmtWeight(row.weight_kg_in_stock)} kg
           </span>
+          {row.count_in_transit > 0 && (
+            <StatusPill tone="info" className="mt-1">
+              <span dir="rtl" className="inline-flex items-center gap-1" data-testid="in-transit-pill">
+                <Truck className="size-3 shrink-0" aria-hidden />
+                <bdi dir="ltr" className="tabular-num font-semibold">+{row.count_in_transit}</bdi>{' '}
+                جاري الشحن
+              </span>
+            </StatusPill>
+          )}
         </div>
       ),
     },
@@ -696,7 +727,7 @@ export function StockViewPage() {
       description="إدارة مستويات المخزون، الأسعار وتفاصيل المنتجات"
       backTo="/inventory"
     >
-      <KpiGrid className="lg:grid-cols-2">
+      <KpiGrid className="lg:grid-cols-3">
         <MetricCard
           label="إجمالي الأصناف"
           value={kpis.itemsInStock}
@@ -724,6 +755,19 @@ export function StockViewPage() {
             ) : (
               <span className="text-foreground-muted">لا توجد نواقص</span>
             )
+          }
+        />
+        <MetricCard
+          label="جاري الشحن"
+          value={kpis.rollsInTransit}
+          format="int"
+          tone="info"
+          emDashOnZero={false}
+          meta={
+            <span className="inline-flex items-center gap-1 text-foreground-muted">
+              <Truck className="size-3.5" />
+              توب في الطريق — غير متاح للبيع
+            </span>
           }
         />
       </KpiGrid>
@@ -784,6 +828,15 @@ export function StockViewPage() {
             >
               نفد
             </FilterChip>
+            {viewMode === 'rolls' && (
+              <FilterChip
+                active={statusFilter === 'in_transit'}
+                onClick={() => setStatusFilter(statusFilter === 'in_transit' ? 'all' : 'in_transit')}
+                count={statusCounts.inTransit}
+              >
+                جاري الشحن
+              </FilterChip>
+            )}
           </div>
 
           {/* Row 2: sort + warehouse + search */}

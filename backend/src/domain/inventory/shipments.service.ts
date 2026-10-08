@@ -427,6 +427,16 @@ export async function reviewLines(
       throw new Error(input.line_ids.length === 1 && input.action !== 'reset' ? 'LINE_ALREADY_REVIEWED' : 'NOTHING_TO_REVIEW');
     }
 
+    // Only a توب still «جاري الشحن» in the factory can be received or sent
+    // back — anything else would write a stock movement for stock that never
+    // left, or count it into the shop twice.
+    if (input.action !== 'reset') {
+      const notInTransit = targets.filter((l) => l.roll_status !== 'in_transit' || l.warehouse !== 'factory');
+      if (notInTransit.length > 0) {
+        throw Object.assign(new Error('ROLL_NOT_IN_TRANSIT'), { barcodes: notInTransit.map((l) => l.internal_barcode) });
+      }
+    }
+
     const newStatus = input.action === 'accept' ? 'accepted' : input.action === 'reject' ? 'rejected' : 'pending';
     const reason = input.action === 'reject' ? (input.reject_reason_ar?.trim() || null) : null;
     const targetIds = targets.map((l) => l.id);

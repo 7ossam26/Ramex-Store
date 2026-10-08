@@ -89,6 +89,12 @@ export type RollWithDetails = Roll & {
   lot_no: string | null;
 };
 
+/** The طلبية a توب «جاري الشحن» is on; null for any other status. */
+export type RollTransitRef = {
+  in_transit_shipment_id: number | null;
+  in_transit_shipment_no: string | null;
+};
+
 export type DamageContext = {
   pending: boolean;
   reason_code: string;

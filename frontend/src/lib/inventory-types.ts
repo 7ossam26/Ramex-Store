@@ -9,7 +9,10 @@ export type StockSummaryRow = {
   count_reserved: number;
   count_sold: number;
   count_total: number;
+  // «جاري الشحن» — on a طلبية, not yet accepted. Never part of the available counts.
+  count_in_transit: number;
   weight_kg_in_stock: number;
+  weight_kg_in_transit: number;
   avg_reference_price_per_unit: number;
   last_reference_price_per_unit: number;
   selling_price_egp: number;
@@ -20,7 +23,7 @@ export type Warehouse = 'shop' | 'factory' | 'damaged_shop';
 export type RollStatus =
   | 'in_stock' | 'reserved' | 'sold' | 'damaged'
   | 'sample' | 'returned' | 'written_off'
-  // «قيد الشحن» — in a طلبية; set by the shipment flow only, never editable.
+  // «جاري الشحن» — in a طلبية; set by the shipment flow only, never editable.
   | 'in_transit';
 
 export type ShipmentStatus =

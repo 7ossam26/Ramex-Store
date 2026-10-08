@@ -16,6 +16,8 @@ const STATUS_COLOR: Record<string, string> = {
   sample: CHART_PALETTE.neutral,
   returned: CHART_PALETTE.primary,
   written_off: CHART_PALETTE.axis,
+  // «جاري الشحن» — info blue, distinct from sold (tertiary).
+  in_transit: '#7FA7CF',
 };
 
 type Aggregated = {

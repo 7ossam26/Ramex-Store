@@ -37,7 +37,7 @@ const STATUS_LABELS: Record<string, string> = {
   sample: 'عينة',
   returned: 'مُرجَع',
   written_off: 'مُشطَب',
-  in_transit: 'قيد الشحن',
+  in_transit: 'جاري الشحن',
 };
 
 export async function getStockByWarehouse(): Promise<StockByWarehouseResult> {

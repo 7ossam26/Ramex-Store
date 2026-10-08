@@ -14,7 +14,11 @@ export type StockSummaryRow = {
   count_reserved: number;
   count_sold: number;
   count_total: number;
+  // «جاري الشحن» — on a طلبية, not yet accepted by the shop. Never part of
+  // the available counts above.
+  count_in_transit: number;
   weight_kg_in_stock: number;
+  weight_kg_in_transit: number;
   avg_reference_price_per_unit: number;
   last_reference_price_per_unit: number;
   selling_price_egp: number;
@@ -27,6 +31,10 @@ export async function getStockSummary(warehouse?: WarehouseFilter): Promise<Stoc
   const wh: WarehouseFilter | null =
     warehouse && ALLOWED_WAREHOUSES.includes(warehouse) ? warehouse : null;
   const whBoundClause = wh ? `AND r.warehouse = '${wh}'` : '';
+  // A توب «جاري الشحن» keeps warehouse='factory' until the shop accepts it,
+  // but it is always factory → shop: outgoing for المصنع, incoming for المعرض.
+  // It never belongs to مخزن التالف.
+  const transitClause = wh === 'damaged_shop' ? 'AND FALSE' : '';
 
   const rows = await db('rolls as r')
     .join('fabrics as f', 'f.id', 'r.fabric_id')
@@ -43,7 +51,9 @@ export async function getStockSummary(warehouse?: WarehouseFilter): Promise<Stoc
       db.raw(`COUNT(*) FILTER (WHERE r.status = 'reserved') AS count_reserved`),
       db.raw(`COUNT(*) FILTER (WHERE r.status = 'sold') AS count_sold`),
       db.raw(`COUNT(*) AS count_total`),
+      db.raw(`COUNT(*) FILTER (WHERE r.status = 'in_transit' ${transitClause}) AS count_in_transit`),
       db.raw(`COALESCE(SUM(r.weight_kg) FILTER (WHERE r.status = 'in_stock' ${whBoundClause}), 0) AS weight_kg_in_stock`),
+      db.raw(`COALESCE(SUM(r.weight_kg) FILTER (WHERE r.status = 'in_transit' ${transitClause}), 0) AS weight_kg_in_transit`),
       db.raw(`COALESCE(AVG(r.reference_price_per_unit) FILTER (WHERE r.status = 'in_stock' ${whBoundClause}), 0) AS avg_reference_price_per_unit`),
       db.raw(`COALESCE(AVG(r.selling_price_egp) FILTER (WHERE r.status = 'in_stock' ${whBoundClause}), 0) AS selling_price_egp`),
       db.raw(`(
@@ -69,7 +79,9 @@ export async function getStockSummary(warehouse?: WarehouseFilter): Promise<Stoc
     count_reserved: Number(r.count_reserved),
     count_sold: Number(r.count_sold),
     count_total: Number(r.count_total),
+    count_in_transit: Number(r.count_in_transit),
     weight_kg_in_stock: Number(r.weight_kg_in_stock),
+    weight_kg_in_transit: Number(r.weight_kg_in_transit),
     avg_reference_price_per_unit: Number(r.avg_reference_price_per_unit),
     last_reference_price_per_unit: Number(r.last_reference_price_per_unit ?? 0),
     selling_price_egp: Number(r.selling_price_egp),
@@ -90,6 +102,7 @@ export function stockSummaryToExport(
 ): ReportPdfOptions {
   const totalInStock = rows.reduce((s, r) => s + r.count_in_stock, 0);
   const totalReserved = rows.reduce((s, r) => s + r.count_reserved, 0);
+  const totalInTransit = rows.reduce((s, r) => s + r.count_in_transit, 0);
   const totalWeight = rows.reduce((s, r) => s + r.weight_kg_in_stock, 0);
 
   return {
@@ -106,6 +119,7 @@ export function stockSummaryToExport(
           { label: 'كود اللون', key: 'color_code', width: 12 },
           { label: 'في المخزون (توب)', key: 'count_in_stock', width: 16 },
           { label: 'محجوز (توب)', key: 'count_reserved', width: 14 },
+          { label: 'جاري الشحن (توب)', key: 'count_in_transit', width: 16 },
           { label: 'الوزن المتاح (كجم)', key: 'weight_kg_in_stock', width: 18 },
           { label: 'متوسط السعر المرجعي', key: 'avg_reference_price_per_unit', width: 20 },
           { label: 'آخر سعر مرجعي', key: 'last_reference_price_per_unit', width: 18 },
@@ -119,6 +133,7 @@ export function stockSummaryToExport(
           color_code: r.color_code,
           count_in_stock: String(r.count_in_stock),
           count_reserved: String(r.count_reserved),
+          count_in_transit: String(r.count_in_transit),
           weight_kg_in_stock: r.weight_kg_in_stock.toFixed(3),
           avg_reference_price_per_unit: r.avg_reference_price_per_unit.toFixed(2),
           last_reference_price_per_unit: r.last_reference_price_per_unit.toFixed(2),
@@ -129,6 +144,7 @@ export function stockSummaryToExport(
           fabric_name_ar: 'الإجمالي',
           count_in_stock: String(totalInStock),
           count_reserved: String(totalReserved),
+          count_in_transit: String(totalInTransit),
           weight_kg_in_stock: totalWeight.toFixed(3),
         },
         emptyAr: 'لا توجد أصناف في هذا المخزون',

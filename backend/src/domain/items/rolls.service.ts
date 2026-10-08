@@ -1,7 +1,7 @@
 import { db } from '../../db/connection.js';
 import { auditFromService } from '../inventory/audit.helper.js';
 import { assertRollNotInTransit } from './rollLock.js';
-import type { DamageContext, Roll, RollWithDetails, RollWithLabelDetails } from './items.types.js';
+import type { DamageContext, Roll, RollTransitRef, RollWithDetails, RollWithLabelDetails } from './items.types.js';
 import type { UpdateRollInput } from './items.schemas.js';
 
 export class RollValidationError extends Error {
@@ -110,8 +110,23 @@ export async function listRolls(filters: {
   status?: string;
   warehouse?: string;
   is_visible_at_pos?: boolean;
-}): Promise<RollWithDetails[]> {
-  const q = rollDetailQuery().orderBy('r.id', 'desc');
+}): Promise<Array<RollWithDetails & RollTransitRef>> {
+  // A توب «جاري الشحن» stays linked to its طلبية: its pending line on a
+  // draft / pending_approval shipment (at most one — addRoll guards it).
+  const transitLine = db('shipment_lines as sl')
+    .join('shipments as s', 's.id', 'sl.shipment_id')
+    .where('sl.status', 'pending')
+    .whereIn('s.status', ['draft', 'pending_approval'])
+    .distinctOn('sl.roll_id')
+    .select('sl.roll_id', 's.id as shipment_id', 's.shipment_no')
+    .orderBy([{ column: 'sl.roll_id' }, { column: 'sl.id', order: 'desc' }])
+    .as('tl');
+  const q = rollDetailQuery()
+    .leftJoin(transitLine, function () {
+      this.on('tl.roll_id', '=', 'r.id').andOn(db.raw("r.status = 'in_transit'"));
+    })
+    .select('tl.shipment_id as in_transit_shipment_id', 'tl.shipment_no as in_transit_shipment_no')
+    .orderBy('r.id', 'desc');
   if (filters.fabric_id !== undefined) q.where('r.fabric_id', filters.fabric_id);
   if (filters.color_id !== undefined) q.where('r.color_id', filters.color_id);
   if (filters.lot_id !== undefined) q.where('r.lot_id', filters.lot_id);

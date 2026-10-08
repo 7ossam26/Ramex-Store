@@ -293,4 +293,7 @@ export type RollLookup = {
   supplier_arabic_name?: string | null;
   supplier_arabic_warning_text?: string | null;
   damage_context?: DamageContext | null;
+  // GET /rolls only: the طلبية a توب «جاري الشحن» is on.
+  in_transit_shipment_id?: number | null;
+  in_transit_shipment_no?: string | null;
 };
