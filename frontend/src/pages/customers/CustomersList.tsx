@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { AlertTriangle, Search, TrendingUp, Users, Wallet, Pencil, FileText, FileSpreadsheet } from 'lucide-react';
+import { AlertTriangle, Search, Users, Wallet, Pencil, FileText, FileSpreadsheet } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { customersApi, customersListExportUrl, type CustomerBalanceFilter } from '@/lib/customers-api';
 import { Button } from '@/components/ui/button';
@@ -89,14 +89,12 @@ export function CustomersListPage() {
   const kpis = useMemo(() => {
     let withDebt = 0;
     let withCredit = 0;
-    let totalVolume = 0;
     for (const c of rows) {
       const bal = Number(c.current_balance_egp);
       if (bal < 0) withDebt += 1;
       else if (bal > 0) withCredit += 1;
-      totalVolume += Number(c.lifetime_volume_egp);
     }
-    return { withDebt, withCredit, totalVolume };
+    return { withDebt, withCredit };
   }, [rows]);
 
   const columns: Column<Customer>[] = [
@@ -238,13 +236,6 @@ export function CustomersListPage() {
               tone={kpis.withCredit > 0 ? 'success' : 'default'}
               emDashOnZero={false}
               meta={<span className="inline-flex items-center gap-1"><Wallet className="size-3.5" />رصيد دائن</span>}
-            />
-            <MetricCard
-              label="إجمالي المبيعات"
-              value={q.isLoading ? null : kpis.totalVolume}
-              format="money"
-              tone="info"
-              meta={<span className="inline-flex items-center gap-1"><TrendingUp className="size-3.5" />حجم المبيعات</span>}
             />
           </KpiGrid>
         </div>

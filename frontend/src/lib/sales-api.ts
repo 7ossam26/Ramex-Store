@@ -43,7 +43,10 @@ export const salesApi = {
     limit?: number;
   }) =>
     api
-      .get<{ rows: InvoiceListRow[]; total: number }>('/invoices', { params })
+      .get<{ rows: InvoiceListRow[]; total: number; collected_count: number; remaining_count: number }>(
+        '/invoices',
+        { params },
+      )
       .then((r) => r.data),
 
   get: (id: number) => api.get<InvoiceDetail>(`/invoices/${id}`).then((r) => r.data),

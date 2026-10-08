@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { FileDown, PackageCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
@@ -156,25 +156,11 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
 
   const rows: InvoiceListRow[] = q.data?.rows ?? [];
   const total = q.data?.total ?? 0;
+  const collectedCount = q.data?.collected_count ?? 0;
+  const remainingCount = q.data?.remaining_count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const activeFilters =
     (dateFrom ? 1 : 0) + (dateTo ? 1 : 0) + (destination !== 'all' ? 1 : 0) + (fabricId ? 1 : 0) + (colorId ? 1 : 0);
-
-  const kpis = useMemo(() => {
-    let revenue = 0;
-    let totalPaid = 0;
-    let totalBalance = 0;
-    for (const r of rows) {
-      // Net a returned/partially-returned invoice's contribution to revenue
-      // by what's already been refunded, so the KPI doesn't overstate sales
-      // for invoices this page's own status filter can surface.
-      revenue += Number(r.total_egp) - Number(r.returned_amount_egp ?? 0);
-      totalPaid += Number(r.paid_egp);
-      totalBalance += Number(r.balance_egp);
-    }
-    return { revenue, totalPaid, totalBalance };
-  }, [rows]);
-
 
   const filterControls = (
     <div className="rounded-lg border border-border-subtle bg-surface-elevated p-3 space-y-3">
@@ -357,25 +343,20 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
           meta="عدد الفواتير"
         />
         <MetricCard
-          label="إجمالي الإيرادات"
-          value={q.isLoading ? null : kpis.revenue}
-          format="money"
-          tone="success"
-          meta="إجمالي الفواتير الظاهرة"
-        />
-        <MetricCard
           label="المحصّل"
-          value={q.isLoading ? null : kpis.totalPaid}
-          format="money"
+          value={q.isLoading ? null : collectedCount}
+          format="int"
           tone="info"
-          meta="إجمالي المدفوع"
+          emDashOnZero={false}
+          meta="فواتير مدفوعة بالكامل"
         />
         <MetricCard
           label="المتبقي"
-          value={q.isLoading ? null : kpis.totalBalance}
-          format="money"
-          tone={kpis.totalBalance > 0 ? 'warning' : 'default'}
-          meta="رصيد غير محصّل"
+          value={q.isLoading ? null : remainingCount}
+          format="int"
+          tone={remainingCount > 0 ? 'warning' : 'default'}
+          emDashOnZero={false}
+          meta="فواتير عليها رصيد"
         />
       </KpiGrid>
 

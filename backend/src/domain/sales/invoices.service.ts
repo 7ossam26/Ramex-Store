@@ -1001,7 +1001,12 @@ export async function getInvoiceDetail(id: number): Promise<InvoiceDetail | unde
 
 export async function listInvoices(
   q: ListInvoicesQueryInput,
-): Promise<{ rows: Array<Invoice & { customer_name_ar: string }>; total: number }> {
+): Promise<{
+  rows: Array<Invoice & { customer_name_ar: string }>;
+  total: number;
+  collected_count: number;
+  remaining_count: number;
+}> {
   const offset = (q.page - 1) * q.limit;
   const base = db('invoices as i')
     .leftJoin('customers as c', 'i.customer_id', 'c.id')
@@ -1045,11 +1050,30 @@ export async function listInvoices(
     });
   }
 
-  const [countRow] = await base.clone().clearSelect().count<Array<{ count: string }>>('i.id as count');
+  // Single aggregate over the same filtered set backs all three invoice-list
+  // KPI cards: total count, plus how many of those invoices are fully
+  // collected vs. still carry a balance. Cancelled/refunded invoices keep
+  // whatever balance they had at cancellation, so they're excluded from
+  // both buckets — they're neither "collected" nor "owed".
+  const [countRow] = await base
+    .clone()
+    .clearSelect()
+    .select(
+      db.raw('count(*) as total'),
+      db.raw(
+        `count(*) filter (where i.balance_egp <= 0 and i.status not in ('cancelled', 'deposit_refunded')) as collected_count`,
+      ),
+      db.raw(
+        `count(*) filter (where i.balance_egp > 0 and i.status not in ('cancelled', 'deposit_refunded')) as remaining_count`,
+      ),
+    );
   const rows = await base.orderBy('i.created_at', 'desc').limit(q.limit).offset(offset);
+  const counts = countRow as { total: string; collected_count: string; remaining_count: string };
   return {
     rows: rows as Array<Invoice & { customer_name_ar: string }>,
-    total: Number((countRow as { count: string }).count),
+    total: Number(counts.total),
+    collected_count: Number(counts.collected_count),
+    remaining_count: Number(counts.remaining_count),
   };
 }
 

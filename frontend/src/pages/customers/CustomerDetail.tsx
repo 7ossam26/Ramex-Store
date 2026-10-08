@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FileText, Wallet, PlusCircle } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { ar } from '@/i18n/ar';
 import { customersApi } from '@/lib/customers-api';
+import { salesApi } from '@/lib/sales-api';
 import { extractApiError } from '@/lib/api-error';
 import { Button } from '@/components/ui/button';
 import { BackLink } from '@/components/BackLink';
@@ -20,11 +21,15 @@ import {
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { EmptyState } from '@/components/EmptyState';
 import { CustomerFormDialog } from '@/components/customers/CustomerFormDialog';
+import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
+import { InvoiceStatusPill } from '@/components/invoices/InvoiceStatusPill';
 import type { LedgerEntry } from '@/lib/customers-types';
+import type { InvoiceListRow } from '@/lib/sales-types';
 
 type Tab = 'ledger' | 'invoices' | 'notes';
 
 const LEDGER_PAGE_SIZE = 30;
+const INVOICES_PAGE_SIZE = 30;
 const TABS: { key: Tab; label: string }[] = [
   { key: 'ledger', label: ar.customers.ledger },
   { key: 'invoices', label: ar.customers.openInvoices },
@@ -45,6 +50,16 @@ function fmtMoney(v: string | number) {
   });
 }
 
+function fmtDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-GB', {
+    timeZone: 'Africa/Cairo',
+    day: '2-digit', month: '2-digit', year: 'numeric',
+  }) + ' ' + d.toLocaleTimeString('en-GB', {
+    timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+}
+
 /** Cairo-local "today" as `YYYY-MM-DD` (default as-of date for opening balance). */
 function cairoToday(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
@@ -52,9 +67,11 @@ function cairoToday(): string {
 
 export function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const customerId = Number(id);
   const [tab, setTab] = useState<Tab>('ledger');
   const [ledgerPage, setLedgerPage] = useState(1);
+  const [invoicesPage, setInvoicesPage] = useState(1);
   const [editOpen, setEditOpen] = useState(false);
   const qc = useQueryClient();
 
@@ -128,6 +145,56 @@ export function CustomerDetailPage() {
     queryFn: () => customersApi.get(customerId, { page: ledgerPage, limit: LEDGER_PAGE_SIZE }),
     enabled: !isNaN(customerId),
   });
+
+  const invoicesQ = useQuery({
+    queryKey: ['invoices', 'customer', customerId, invoicesPage],
+    queryFn: () => salesApi.list({ customer_id: customerId, page: invoicesPage, limit: INVOICES_PAGE_SIZE }),
+    enabled: tab === 'invoices' && !isNaN(customerId),
+  });
+  const invoiceRows: InvoiceListRow[] = invoicesQ.data?.rows ?? [];
+  const invoicesTotal = invoicesQ.data?.total ?? 0;
+  const invoicesTotalPages = Math.max(1, Math.ceil(invoicesTotal / INVOICES_PAGE_SIZE));
+
+  const invoiceColumns: Column<InvoiceListRow>[] = [
+    {
+      key: 'no',
+      header: ar.invoices.no,
+      cell: (r) => <span className="font-mono text-xs tabular-num">{r.invoice_no}</span>,
+      primary: true,
+      align: 'center',
+    },
+    {
+      key: 'date',
+      header: ar.invoices.date,
+      cell: (r) => <span className="text-foreground-muted whitespace-nowrap" dir="ltr">{fmtDate(r.created_at)}</span>,
+      secondary: true,
+      align: 'center',
+    },
+    {
+      key: 'total',
+      header: ar.invoices.total,
+      cell: (r) => <span className="font-medium tabular-num" dir="ltr">{fmtMoney(r.total_egp)}</span>,
+      align: 'center',
+    },
+    {
+      key: 'paid',
+      header: ar.invoices.paid,
+      cell: (r) => <span className="tabular-num" dir="ltr">{fmtMoney(r.paid_egp)}</span>,
+      align: 'center',
+    },
+    {
+      key: 'balance',
+      header: ar.invoices.balance,
+      cell: (r) => <span className="tabular-num" dir="ltr">{fmtMoney(r.balance_egp)}</span>,
+      align: 'center',
+    },
+    {
+      key: 'status',
+      header: ar.invoices.status,
+      cell: (r) => <InvoiceStatusPill status={r.status} />,
+      align: 'center',
+    },
+  ];
 
   const openEdit = () => setEditOpen(true);
 
@@ -324,8 +391,47 @@ export function CustomerDetailPage() {
           )}
 
           {tab === 'invoices' && (
-            <div className="rounded-lg border border-border-subtle bg-surface-elevated shadow-sm">
-              <EmptyState title={ar.customers.noOpenInvoices} bordered={false} />
+            <div className="rounded-lg border border-border-subtle bg-surface-elevated shadow-sm overflow-hidden">
+              {invoiceRows.length === 0 && !invoicesQ.isLoading && !invoicesQ.isError ? (
+                <EmptyState title={ar.customers.noOpenInvoices} bordered={false} />
+              ) : (
+                <>
+                  <ResponsiveTable
+                    columns={invoiceColumns}
+                    rows={invoiceRows}
+                    rowKey={(r) => String(r.id)}
+                    onRowClick={(r) => navigate(`/invoices/${r.id}`)}
+                    empty={ar.customers.noOpenInvoices}
+                    isLoading={invoicesQ.isLoading}
+                    isError={invoicesQ.isError}
+                    onRetry={() => invoicesQ.refetch()}
+                    resetKey={String(invoicesPage)}
+                  />
+                  {invoicesTotalPages > 1 && (
+                    <div className="flex items-center justify-center gap-2 p-3 border-t border-border-subtle">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={invoicesPage <= 1}
+                        onClick={() => setInvoicesPage((p) => p - 1)}
+                      >
+                        السابق
+                      </Button>
+                      <span className="text-sm text-foreground-muted">
+                        صفحة <span className="tabular-num text-foreground" dir="ltr">{invoicesPage}</span> من <span className="tabular-num text-foreground" dir="ltr">{invoicesTotalPages}</span>
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={invoicesPage >= invoicesTotalPages}
+                        onClick={() => setInvoicesPage((p) => p + 1)}
+                      >
+                        التالي
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
 

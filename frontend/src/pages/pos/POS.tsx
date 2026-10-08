@@ -342,13 +342,22 @@ export function POSPage() {
     [cart],
   );
 
+  // Every roll line must have a cashier-entered price before we ask the
+  // backend for a preview total — otherwise an unpriced line silently falls
+  // back to the roll's legacy `selling_price_egp` there, and the invoice
+  // total shown to the cashier would include an amount they never typed.
+  const allRollsPriced = useMemo(
+    () => cart.filter((l): l is RollCartLine => l.type === 'roll').every((l) => effectivePerUnit(l) > 0),
+    [cart],
+  );
+
   const { data: preview } = useQuery<SalePreview | null>({
     queryKey: ['sale-preview', previewLines, useCartDiscount ? targetFinalNum : null],
     queryFn: () =>
       cart.length === 0
         ? Promise.resolve(null)
         : salesApi.preview(previewLines, useCartDiscount ? targetFinalNum : null),
-    enabled: cart.length > 0,
+    enabled: previewLines.length > 0 && allRollsPriced,
   });
 
 
