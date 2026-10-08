@@ -40,7 +40,11 @@ inventoryRouter.get('/damage-events/:id', requirePermission('inventory', 'read')
 inventoryRouter.post('/stocktakes', requirePermission('inventory', 'write'), stocktakeCtl.start);
 inventoryRouter.post('/stocktakes/:id/scan', requirePermission('inventory', 'write'), stocktakeCtl.scan);
 inventoryRouter.post('/stocktakes/:id/aggregate', requirePermission('inventory', 'write'), stocktakeCtl.aggregate);
+inventoryRouter.patch('/stocktakes/:id/lines/:lineId', requirePermission('inventory', 'write'), stocktakeCtl.updateLine);
+inventoryRouter.delete('/stocktakes/:id/lines/:lineId/scan', requirePermission('inventory', 'write'), stocktakeCtl.unscan);
 inventoryRouter.post('/stocktakes/:id/complete', requirePermission('inventory', 'write'), stocktakeCtl.complete);
+inventoryRouter.post('/stocktakes/:id/cancel', requirePermission('inventory', 'write'), stocktakeCtl.cancel);
+inventoryRouter.post('/stocktakes/:id/resolve', requirePermission('inventory', 'write'), stocktakeCtl.resolve);
 inventoryRouter.get('/stocktakes', requirePermission('inventory', 'read'), stocktakeCtl.list);
 inventoryRouter.get('/stocktakes/:id', requirePermission('inventory', 'read'), stocktakeCtl.get);
 

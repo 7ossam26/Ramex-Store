@@ -84,6 +84,23 @@ export const RecordAggregateSchema = z.object({
 });
 export type RecordAggregateInput = z.infer<typeof RecordAggregateSchema>;
 
+// Measured quantity of a scanned توب; null clears a previously entered value.
+export const UpdateStocktakeLineSchema = z.object({
+  actual_weight_kg: z.number().min(0).nullable().optional(),
+  actual_length_m: z.number().min(0).nullable().optional(),
+});
+export type UpdateStocktakeLineInput = z.infer<typeof UpdateStocktakeLineSchema>;
+
+export const ResolveStocktakeSchema = z.object({
+  items: z.array(z.object({
+    line_id: z.number().int().positive(),
+    action: z.enum(['transfer', 'write_off', 'adjust_quantity', 'restore_to_stock', 'keep_as_is']),
+    target_warehouse: WarehouseEnum.optional(),
+    notes_ar: z.string().trim().max(2000).optional(),
+  })).min(1).max(500),
+});
+export type ResolveStocktakeInput = z.infer<typeof ResolveStocktakeSchema>;
+
 // --- Adjustments ---
 export const RollStatusEnum = z.enum([
   'in_stock', 'reserved', 'sold', 'damaged', 'sample', 'returned', 'written_off',

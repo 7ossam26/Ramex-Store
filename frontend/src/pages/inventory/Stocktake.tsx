@@ -1,318 +1,182 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
+import axios from 'axios';
+import { ClipboardList } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
-import type { Stocktake, StocktakeMode, Warehouse } from '@/lib/inventory-types';
+import { extractApiError } from '@/lib/api-error';
+import type { StocktakeListRow, StocktakeMode, Warehouse } from '@/lib/inventory-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ScannerInput } from '@/components/ScannerInput';
 import { PageShell } from '@/components/Layout/PageShell';
 import { StatusPill } from '@/components/StatusPill';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { EmptyState } from '@/components/EmptyState';
 import { TableSkeleton } from '@/components/TableSkeleton';
-import { ClipboardList } from 'lucide-react';
+
+const selectClass =
+  'w-full h-11 sm:h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75';
+
+export function StocktakeStatusPill({ s }: { s: Pick<StocktakeListRow, 'status' | 'unresolved_count'> }) {
+  if (s.status === 'open') return <StatusPill tone="info">{ar.stocktake.statusOpen}</StatusPill>;
+  if (s.status === 'cancelled') return <StatusPill tone="neutral">{ar.stocktake.statusCancelled}</StatusPill>;
+  if (s.unresolved_count > 0) {
+    return <StatusPill tone="warning">{ar.stocktake.statusPending(s.unresolved_count)}</StatusPill>;
+  }
+  return <StatusPill tone="success">{ar.stocktake.statusCompleted}</StatusPill>;
+}
+
+/** The count that stops a new one from starting in this warehouse, if any. */
+function blockerFor(rows: StocktakeListRow[], warehouse: Warehouse): StocktakeListRow | undefined {
+  return rows.find(
+    (r) => r.warehouse === warehouse && (r.status === 'open' || r.unresolved_count > 0),
+  );
+}
 
 export function StocktakePage() {
-  const [active, setActive] = useState<Stocktake | null>(null);
-
+  const listQ = useQuery({ queryKey: ['stocktakes'], queryFn: inventoryApi.listStocktakes });
   return (
     <PageShell title={ar.stocktake.title} description={ar.hubs.inventoryStocktakeDesc} backTo="/inventory">
-      {!active ? <StartCard onStarted={setActive} /> : <RunStocktake stocktake={active} onComplete={() => setActive(null)} />}
-      <PastStocktakes />
+      <StartCard rows={listQ.data ?? []} loading={listQ.isLoading} />
+      <PastStocktakes q={listQ} />
     </PageShell>
   );
 }
 
-function StartCard({ onStarted }: { onStarted: (s: Stocktake) => void }) {
+function StartCard({ rows, loading }: { rows: StocktakeListRow[]; loading: boolean }) {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
   const [mode, setMode] = useState<StocktakeMode>('roll_level');
   const [warehouse, setWarehouse] = useState<Warehouse>('shop');
 
   const m = useMutation({
     mutationFn: () => inventoryApi.startStocktake({ mode, warehouse }),
-    onSuccess: onStarted,
+    onSuccess: (s) => {
+      qc.invalidateQueries({ queryKey: ['stocktakes'] });
+      navigate(`/inventory/stocktake/${s.id}`);
+    },
+    onError: () => qc.invalidateQueries({ queryKey: ['stocktakes'] }),
   });
+
+  const blocker = blockerFor(rows, warehouse);
+  // The server also refuses, and names the blocking count.
+  const serverBlockerId =
+    axios.isAxiosError(m.error) ? (m.error.response?.data as { stocktake_id?: number })?.stocktake_id : undefined;
+  const blockingId = blocker?.id ?? serverBlockerId;
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>{ar.stocktake.start}</CardTitle>
       </CardHeader>
-      <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-        <div className="space-y-1">
-          <Label>{ar.stocktake.mode}</Label>
-          <select
-            value={mode}
-            onChange={(e) => setMode(e.target.value as StocktakeMode)}
-            className="w-full h-11 sm:h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+          <div className="space-y-1">
+            <Label>{ar.stocktake.mode}</Label>
+            <select value={mode} onChange={(e) => setMode(e.target.value as StocktakeMode)} className={selectClass}>
+              <option value="roll_level">{ar.stocktake.rollLevel}</option>
+              <option value="aggregate">{ar.stocktake.aggregate}</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label>{ar.stocktake.warehouse}</Label>
+            <select
+              value={warehouse}
+              onChange={(e) => { setWarehouse(e.target.value as Warehouse); m.reset(); }}
+              className={selectClass}
+            >
+              <option value="shop">{ar.warehouses.shop}</option>
+              <option value="factory">{ar.warehouses.factory}</option>
+              <option value="damaged_shop">{ar.warehouses.damaged_shop}</option>
+            </select>
+          </div>
+          <Button
+            onClick={() => m.mutate()}
+            disabled={m.isPending || loading || !!blocker}
+            className="w-full sm:w-auto h-11 sm:h-10"
           >
-            <option value="roll_level">{ar.stocktake.rollLevel}</option>
-            <option value="aggregate">{ar.stocktake.aggregate}</option>
-          </select>
+            {ar.stocktake.start}
+          </Button>
         </div>
-        <div className="space-y-1">
-          <Label>{ar.stocktake.warehouse}</Label>
-          <select
-            value={warehouse}
-            onChange={(e) => setWarehouse(e.target.value as Warehouse)}
-            className="w-full h-11 sm:h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
-          >
-            <option value="shop">{ar.warehouses.shop}</option>
-            <option value="factory">{ar.warehouses.factory}</option>
-            <option value="damaged_shop">{ar.warehouses.damaged_shop}</option>
-          </select>
-        </div>
-        <Button onClick={() => m.mutate()} disabled={m.isPending} className="w-full sm:w-auto h-11 sm:h-10">
-          {ar.stocktake.start}
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
 
-function RunStocktake({ stocktake, onComplete }: { stocktake: Stocktake; onComplete: () => void }) {
-  const qc = useQueryClient();
-  const [scanFlash, setScanFlash] = useState<string | null>(null);
-
-  const detailsQ = useQuery({
-    queryKey: ['stocktake', stocktake.id],
-    queryFn: () => inventoryApi.getStocktake(stocktake.id),
-  });
-
-  // 'all' — a جرد counts what is physically on the shelf, including أتواب of a
-  // material that has since been archived.
-  const fabricsQ = useQuery({ queryKey: ['fabrics', 'all'], queryFn: () => inventoryApi.listFabrics('all') });
-  const colorsQ = useQuery({ queryKey: ['colors'], queryFn: inventoryApi.listColors });
-
-  const scanM = useMutation({
-    mutationFn: (barcode: string) => inventoryApi.scanStocktake(stocktake.id, barcode),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['stocktake', stocktake.id] }),
-  });
-
-  const aggM = useMutation({
-    mutationFn: (body: { fabric_id: number; color_id: number; actual_count: number; actual_weight_kg?: number }) =>
-      inventoryApi.recordStocktakeAggregate(stocktake.id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['stocktake', stocktake.id] }),
-  });
-
-  const completeM = useMutation({
-    mutationFn: () => inventoryApi.completeStocktake(stocktake.id),
-    onSuccess: () => onComplete(),
-  });
-
-
-  if (detailsQ.isLoading) {
-    return <TableSkeleton rows={6} columns={4} />;
-  }
-  if (detailsQ.isError) {
-    return (
-      <ErrorBanner
-        title="تعذر تحميل تفاصيل الجرد"
-        onRetry={() => detailsQ.refetch()}
-      />
-    );
-  }
-  const data = detailsQ.data;
-  if (!data) {
-    return (
-      <EmptyState
-        title="لا توجد تفاصيل لهذا الجرد"
-        icon={ClipboardList}
-      />
-    );
-  }
-
-  function handleScan(barcode: string) {
-    scanM.mutate(barcode, {
-      onSuccess: () => { setScanFlash(barcode); setTimeout(() => setScanFlash(null), 800); },
-    });
-  }
-
-  return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between">
-        <CardTitle>{stocktake.stocktake_no} — {ar.warehouses[stocktake.warehouse]}</CardTitle>
-        <Button onClick={() => completeM.mutate()} disabled={completeM.isPending}>
-          {ar.stocktake.complete}
-        </Button>
-      </CardHeader>
-      <CardContent>
-        {stocktake.mode === 'roll_level' ? (
-          <>
-            <div className="mb-3 space-y-1">
-              <Label>{ar.stocktake.scanPrompt}</Label>
-              <div className="flex gap-2 items-center">
-                <div className="flex-1">
-                  <ScannerInput
-                    onScan={handleScan}
-                    placeholder={ar.labels.scanHint}
-                    disabled={scanM.isPending}
-                  />
-                </div>
-                {scanFlash && <span className="text-xs text-success-foreground font-mono tabular-num" dir="ltr">✓ {scanFlash}</span>}
-              </div>
-            </div>
-            <table className="w-full text-sm" style={{ textAlign: 'center' }}>
-              <thead className="text-xs text-foreground-muted uppercase tracking-wide">
-                <tr className="border-b border-border-subtle">
-                  <th className="py-2.5 font-medium">{ar.stockMovements.rollBarcode}</th>
-                  <th className="font-medium">{ar.stocktake.expected}</th>
-                  <th className="font-medium">{ar.stocktake.actual}</th>
-                  <th className="font-medium">{ar.stocktake.variance}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.lines.map((l) => (
-                  <tr key={l.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
-                    <td className="py-2.5 font-mono text-foreground">#{l.roll_id}</td>
-                    <td className="tabular-num">{l.expected_count ?? '—'}</td>
-                    <td className={`tabular-num ${l.actual_count == null ? 'text-warning-foreground' : 'text-foreground'}`}>
-                      {l.actual_count ?? '—'}
-                    </td>
-                    <td className="tabular-num">{l.variance ?? '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        ) : (
-          <AggregateGrid
-            lines={data.lines}
-            fabrics={fabricsQ.data ?? []}
-            colors={colorsQ.data ?? []}
-            onSave={(line) => aggM.mutate(line)}
-          />
+        {(blocker || m.isError) && (
+          <div className="flex flex-wrap items-center gap-3 rounded-md border border-warning/40 bg-warning-subtle px-3 py-2 text-sm text-warning-foreground">
+            <span className="flex-1 min-w-[200px]">
+              {blocker
+                ? blocker.status === 'open' ? ar.stocktake.blockedOpen : ar.stocktake.blockedPending
+                : extractApiError(m.error)}
+            </span>
+            {blockingId != null && (
+              <Button size="sm" variant="outline" onClick={() => navigate(`/inventory/stocktake/${blockingId}`)}>
+                {ar.stocktake.resume}
+              </Button>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>
   );
 }
 
-function AggregateGrid({
-  lines, fabrics, colors, onSave,
-}: {
-  lines: import('@/lib/inventory-types').StocktakeLine[];
-  fabrics: { id: number; name_ar: string }[];
-  colors: { id: number; name_ar: string; code: string }[];
-  onSave: (l: { fabric_id: number; color_id: number; actual_count: number; actual_weight_kg?: number }) => void;
-}) {
-  const [draft, setDraft] = useState<Record<number, { count?: string; weight?: string }>>({});
-  return (
-    <table className="w-full text-sm" style={{ textAlign: 'center' }}>
-      <thead className="text-xs text-foreground-muted uppercase tracking-wide">
-        <tr className="border-b border-border-subtle">
-          <th className="py-2.5 font-medium">{ar.shipments.rollFabric}</th>
-          <th className="font-medium">{ar.shipments.rollColor}</th>
-          <th className="font-medium">{ar.stocktake.expected}</th>
-          <th className="font-medium">{ar.stocktake.actual}</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {lines.map((l) => {
-          const fab = fabrics.find((f) => f.id === l.fabric_id);
-          const col = colors.find((c) => c.id === l.color_id);
-          const d = draft[l.id] ?? {};
-          return (
-            <tr key={l.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
-              <td className="py-2">{fab?.name_ar ?? l.fabric_id}</td>
-              <td>{col ? `${col.name_ar} (${col.code})` : l.color_id}</td>
-              <td>{l.expected_count ?? '—'} / {l.expected_weight_kg ?? '—'}</td>
-              <td className="flex gap-1">
-                <Input
-                  type="number" inputMode="numeric"
-                  step="1"
-                  className="w-20"
-                  defaultValue={l.actual_count ?? ''}
-                  onChange={(e) => setDraft((s) => ({ ...s, [l.id]: { ...s[l.id], count: e.target.value } }))}
-                />
-                <Input
-                  type="number" inputMode="decimal"
-                  step="0.001"
-                  className="w-24"
-                  defaultValue={l.actual_weight_kg ?? ''}
-                  onChange={(e) => setDraft((s) => ({ ...s, [l.id]: { ...s[l.id], weight: e.target.value } }))}
-                />
-              </td>
-              <td>
-                <Button
-                  size="sm"
-                  onClick={() =>
-                    onSave({
-                      fabric_id: l.fabric_id!,
-                      color_id: l.color_id!,
-                      actual_count: Number(d.count ?? l.actual_count ?? 0),
-                      actual_weight_kg: d.weight ? Number(d.weight) : undefined,
-                    })
-                  }
-                >
-                  {ar.common.save}
-                </Button>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  );
-}
-
-function PastStocktakes() {
-  const q = useQuery({ queryKey: ['stocktakes'], queryFn: inventoryApi.listStocktakes });
+function PastStocktakes({ q }: { q: UseQueryResult<StocktakeListRow[]> }) {
+  const navigate = useNavigate();
   return (
     <Card>
       <CardHeader><CardTitle>{ar.stocktake.title}</CardTitle></CardHeader>
       <CardContent>
         {q.isLoading ? (
-          <TableSkeleton rows={5} columns={5} />
+          <TableSkeleton rows={5} columns={6} />
         ) : q.isError ? (
-          <ErrorBanner
-            title="تعذر تحميل سجل الجرد"
-            onRetry={() => q.refetch()}
-          />
+          <ErrorBanner title="تعذر تحميل سجل الجرد" onRetry={() => q.refetch()} />
         ) : (q.data ?? []).length === 0 ? (
-          <EmptyState
-            title="لا توجد عمليات جرد سابقة"
-            icon={ClipboardList}
-            bordered={false}
-          />
+          <EmptyState title="لا توجد عمليات جرد سابقة" icon={ClipboardList} bordered={false} />
         ) : (
-        <table className="w-full text-sm" style={{ textAlign: 'center' }}>
-          <thead className="text-xs text-foreground-muted uppercase tracking-wide">
-            <tr className="border-b border-border-subtle">
-              <th className="py-2.5 font-medium">رقم الجرد</th>
-              <th className="font-medium">{ar.stocktake.warehouse}</th>
-              <th className="font-medium">{ar.stocktake.mode}</th>
-              <th className="font-medium">الحالة</th>
-              <th className="font-medium">بدأ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(q.data ?? []).map((s) => (
-              <tr key={s.id} className="border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150">
-                <td className="py-2.5 font-mono text-foreground">{s.stocktake_no}</td>
-                <td>{ar.warehouses[s.warehouse]}</td>
-                <td>{s.mode === 'roll_level' ? ar.stocktake.rollLevel : ar.stocktake.aggregate}</td>
-                <td>
-                  <StatusPill
-                    tone={
-                      s.status === 'open'
-                        ? 'info'
-                        : s.status === 'completed'
-                          ? 'success'
-                          : 'neutral'
-                    }
-                  >
-                    {s.status === 'open' ? 'مفتوح' : s.status === 'completed' ? 'منتهي' : 'ملغى'}
-                  </StatusPill>
-                </td>
-                <td className="text-foreground-muted">{new Date(s.started_at).toLocaleString('ar-EG-u-nu-latn')}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm" style={{ textAlign: 'center' }}>
+              <thead className="text-xs text-foreground-muted uppercase tracking-wide">
+                <tr className="border-b border-border-subtle">
+                  <th className="py-2.5 font-medium">{ar.stocktake.stocktakeNo}</th>
+                  <th className="font-medium">{ar.stocktake.warehouse}</th>
+                  <th className="font-medium">{ar.stocktake.mode}</th>
+                  <th className="font-medium">{ar.stocktake.state}</th>
+                  <th className="font-medium">{ar.stocktake.summaryScanned}</th>
+                  <th className="font-medium">{ar.stocktake.started}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {(q.data ?? []).map((s) => {
+                  const needsAction = s.status === 'open' || s.unresolved_count > 0;
+                  return (
+                    <tr
+                      key={s.id}
+                      onClick={() => navigate(`/inventory/stocktake/${s.id}`)}
+                      className="cursor-pointer border-b border-border-subtle last:border-0 even:bg-surface-row-alt/60 hover:bg-surface-hover transition-colors duration-150"
+                    >
+                      <td className="py-2.5 font-mono text-foreground" dir="ltr">{s.stocktake_no}</td>
+                      <td>{ar.warehouses[s.warehouse]}</td>
+                      <td>{s.mode === 'roll_level' ? ar.stocktake.rollLevel : ar.stocktake.aggregate}</td>
+                      <td><StocktakeStatusPill s={s} /></td>
+                      <td className="tabular-num">
+                        {s.scanned_lines} / {s.total_lines}
+                        {s.unexpected_lines > 0 && (
+                          <span className="text-warning-foreground"> (+{s.unexpected_lines})</span>
+                        )}
+                      </td>
+                      <td className="text-foreground-muted">{new Date(s.started_at).toLocaleString('ar-EG-u-nu-latn')}</td>
+                      <td className="py-1.5">
+                        <Button size="sm" variant={needsAction ? 'default' : 'outline'}>
+                          {needsAction ? ar.stocktake.resume : ar.stocktake.open}
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </CardContent>
     </Card>

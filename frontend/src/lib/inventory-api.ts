@@ -23,7 +23,10 @@ import type {
   StockMovement,
   CreateAdjustmentBody,
   StockSummaryRow,
+  ResolveStocktakeItem,
   Stocktake,
+  StocktakeLineDetail,
+  StocktakeListRow,
   StocktakeWithLines,
   StocktakeMode,
   UpdateFabricInput,
@@ -121,13 +124,26 @@ export const inventoryApi = {
     api.post(`/damage-events/${id}/approve`, { approve }).then((r) => r.data),
 
   // Stocktakes
-  listStocktakes: () => api.get<Stocktake[]>('/stocktakes').then((r) => r.data),
+  listStocktakes: () => api.get<StocktakeListRow[]>('/stocktakes').then((r) => r.data),
   getStocktake: (id: number) =>
     api.get<StocktakeWithLines>(`/stocktakes/${id}`).then((r) => r.data),
   startStocktake: (body: { mode: StocktakeMode; warehouse: Warehouse; notes_ar?: string }) =>
     api.post<Stocktake>('/stocktakes', body).then((r) => r.data),
   scanStocktake: (id: number, barcode: string) =>
-    api.post(`/stocktakes/${id}/scan`, { barcode }).then((r) => r.data),
+    api
+      .post<{ line: StocktakeLineDetail; alreadyScanned: boolean }>(`/stocktakes/${id}/scan`, { barcode })
+      .then((r) => r.data),
+  updateStocktakeLine: (
+    id: number,
+    lineId: number,
+    body: { actual_weight_kg?: number | null; actual_length_m?: number | null },
+  ) => api.patch<StocktakeLineDetail>(`/stocktakes/${id}/lines/${lineId}`, body).then((r) => r.data),
+  unscanStocktakeLine: (id: number, lineId: number) =>
+    api.delete(`/stocktakes/${id}/lines/${lineId}/scan`).then(() => undefined),
+  cancelStocktake: (id: number) =>
+    api.post<Stocktake>(`/stocktakes/${id}/cancel`).then((r) => r.data),
+  resolveStocktake: (id: number, items: ResolveStocktakeItem[]) =>
+    api.post<StocktakeWithLines>(`/stocktakes/${id}/resolve`, { items }).then((r) => r.data),
   recordStocktakeAggregate: (
     id: number,
     body: { fabric_id: number; color_id: number; actual_count: number; actual_weight_kg?: number },

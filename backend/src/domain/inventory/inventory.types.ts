@@ -94,7 +94,29 @@ export type StocktakeLine = {
   actual_weight_kg: string | null;
   variance: string | null;
   notes_ar: string | null;
+  line_kind: StocktakeLineKind;
+  scanned_at: Date | null;
+  system_warehouse: RollWarehouse | null;
+  system_status: string | null;
+  expected_length_m: string | null;
+  actual_length_m: string | null;
+  resolution: StocktakeResolution | null;
+  resolution_target_warehouse: RollWarehouse | null;
+  resolution_notes_ar: string | null;
+  resolved_by_user_id: number | null;
+  resolved_at: Date | null;
 };
+
+export type StocktakeLineKind = 'expected' | 'unexpected';
+
+/** Actions a user can pick for an issue line once the count is completed. */
+export type StocktakeResolutionAction =
+  | 'transfer' | 'write_off' | 'adjust_quantity' | 'restore_to_stock' | 'keep_as_is';
+
+/** Stored resolution: a user action, or the automatic one set at completion. */
+export type StocktakeResolution = StocktakeResolutionAction | 'changed_during_count';
+
+export type StocktakeIssue = 'missing' | 'unexpected' | 'quantity_diff';
 
 export type StockEventType =
   | 'factory_in' | 'shipment_out' | 'shipment_in' | 'shipment_reject_back'

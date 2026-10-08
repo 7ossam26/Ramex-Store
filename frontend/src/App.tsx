@@ -17,6 +17,7 @@ import { FabricsPage } from './pages/inventory/Fabrics';
 import { StockViewPage } from './pages/inventory/StockView';
 import { StockMovementsPage } from './pages/inventory/StockMovements';
 import { StocktakePage } from './pages/inventory/Stocktake';
+import { StocktakeDetailPage } from './pages/inventory/StocktakeDetail';
 import { AdjustmentsPage } from './pages/inventory/Adjustments';
 import { DamagePage } from './pages/inventory/Damage';
 import { InventoryHubPage } from './pages/inventory/InventoryHub';
@@ -174,6 +175,7 @@ export function App() {
                 <Route path="/inventory/stock" element={<PermGate resource="inventory"><StockViewPage /></PermGate>} />
                 <Route path="/inventory/stock-movements" element={<PermGate resource="inventory"><StockMovementsPage /></PermGate>} />
                 <Route path="/inventory/stocktake" element={<PermGate resource="inventory"><StocktakePage /></PermGate>} />
+                <Route path="/inventory/stocktake/:id" element={<PermGate resource="inventory"><StocktakeDetailPage /></PermGate>} />
                 <Route path="/inventory/adjustments" element={<PermGate resource="inventory"><AdjustmentsPage /></PermGate>} />
                 <Route path="/inventory/damage" element={<PermGate resource="inventory"><DamagePage /></PermGate>} />
 

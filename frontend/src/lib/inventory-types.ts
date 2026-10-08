@@ -120,9 +120,57 @@ export type StocktakeLine = {
   actual_weight_kg: string | null;
   variance: string | null;
   notes_ar: string | null;
+  line_kind: 'expected' | 'unexpected';
+  scanned_at: string | null;
+  system_warehouse: Warehouse | null;
+  system_status: RollStatus | null;
+  expected_length_m: string | null;
+  actual_length_m: string | null;
+  resolution: StocktakeResolution | null;
+  resolution_target_warehouse: Warehouse | null;
+  resolution_notes_ar: string | null;
+  resolved_by_user_id: number | null;
+  resolved_at: string | null;
 };
 
-export type StocktakeWithLines = Stocktake & { lines: StocktakeLine[] };
+export type StocktakeResolutionAction =
+  | 'transfer' | 'write_off' | 'adjust_quantity' | 'restore_to_stock' | 'keep_as_is';
+export type StocktakeResolution = StocktakeResolutionAction | 'changed_during_count';
+export type StocktakeIssue = 'missing' | 'unexpected' | 'quantity_diff';
+
+/** A line joined with its توب / خامة / لون and the server-computed issue. */
+export type StocktakeLineDetail = StocktakeLine & {
+  internal_barcode: string | null;
+  external_barcode: string | null;
+  roll_sr_no: string | null;
+  top_number: number | null;
+  fabric_name_ar: string | null;
+  fabric_unit: 'kg' | 'meter' | null;
+  color_name_ar: string | null;
+  color_code: string | null;
+  current_status: RollStatus | null;
+  current_warehouse: Warehouse | null;
+  resolved_by_name_ar: string | null;
+  issue: StocktakeIssue | null;
+  qty_diff: number | null;
+  allowed_actions: StocktakeResolutionAction[];
+};
+
+export type StocktakeWithLines = Stocktake & { lines: StocktakeLineDetail[] };
+
+export type StocktakeListRow = Stocktake & {
+  total_lines: number;
+  scanned_lines: number;
+  unexpected_lines: number;
+  unresolved_count: number;
+};
+
+export type ResolveStocktakeItem = {
+  line_id: number;
+  action: StocktakeResolutionAction;
+  target_warehouse?: Warehouse;
+  notes_ar?: string;
+};
 
 export type StockEventType =
   | 'factory_in' | 'shipment_out' | 'shipment_in' | 'shipment_reject_back'
