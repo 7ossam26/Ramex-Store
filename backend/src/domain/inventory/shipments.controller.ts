@@ -3,6 +3,7 @@ import { ZodError } from 'zod';
 import {
   AcceptShipmentSchema,
   AddShipmentRollSchema,
+  BulkReviewShipmentLinesSchema,
   CreateShipmentDraftSchema,
   ListFactoryRollsQuerySchema,
   ListShipmentsQuerySchema,
@@ -19,6 +20,8 @@ const ERR_MAP: Record<string, { status: number; message: string }> = {
   SHIPMENT_EMPTY: { status: 422, message: 'الطلبية فارغة' },
   REVIEW_INCOMPLETE: { status: 409, message: 'هناك سطور لم تتم مراجعتها بعد' },
   LINE_ALREADY_REVIEWED: { status: 409, message: 'تمت مراجعة هذا السطر بالفعل' },
+  NOTHING_TO_REVIEW: { status: 409, message: 'لا توجد سطور قابلة لهذا الإجراء' },
+  ROLL_MISSING_LENGTH: { status: 422, message: 'هذا التوب (متر) بدون طول محدد — يرجى تحديث الطول قبل إضافته للطلبية' },
   ROLL_NOT_FOUND: { status: 404, message: 'هذا التوب غير موجود' },
   ROLL_NOT_IN_FACTORY: { status: 409, message: 'هذا التوب ليس في مخزن المصنع' },
   ROLL_NOT_AVAILABLE: { status: 409, message: 'هذا التوب غير متاح' },
@@ -111,6 +114,17 @@ export async function reviewLine(req: Request, res: Response): Promise<void> {
     const data = ReviewShipmentLineSchema.parse(req.body);
     const updated = await svc.reviewLine(id, lineId, actorId(req), data.action, data.reject_reason_ar);
     res.json(updated);
+  } catch (e) {
+    if (handleDomainError(e, res)) return;
+    throw e;
+  }
+}
+
+export async function reviewLines(req: Request, res: Response): Promise<void> {
+  const id = Number(req.params.id);
+  try {
+    const data = BulkReviewShipmentLinesSchema.parse(req.body);
+    res.json(await svc.reviewLines(id, actorId(req), data));
   } catch (e) {
     if (handleDomainError(e, res)) return;
     throw e;

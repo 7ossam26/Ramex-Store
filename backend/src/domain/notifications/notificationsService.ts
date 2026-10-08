@@ -100,19 +100,19 @@ export async function resolve(
   if (!n) throw new Error('NOTIFICATION_NOT_FOUND');
   if (n.resolved_at) throw new Error('NOTIFICATION_ALREADY_RESOLVED');
 
+  // Run the blocked action first: if it is refused (e.g. the توب is now «قيد
+  // الشحن»), the notification must stay open rather than read as approved.
+  if (resolution === 'approved' && n.is_blocking && n.blocked_action_payload_jsonb) {
+    await dispatch(n.blocked_action_payload_jsonb as Record<string, unknown>, ownerUserId);
+  }
+
   await db('notifications').where({ id: notificationId }).update({
     resolved_at: db.fn.now(),
     resolved_by_user_id: ownerUserId,
     resolution,
     read_at: db.fn.now(),
   });
-  const updated = await db('notifications').where({ id: notificationId }).first() as NotificationRow;
-
-  if (resolution === 'approved' && n.is_blocking && n.blocked_action_payload_jsonb) {
-    await dispatch(n.blocked_action_payload_jsonb as Record<string, unknown>, ownerUserId);
-  }
-
-  return updated;
+  return db('notifications').where({ id: notificationId }).first() as Promise<NotificationRow>;
 }
 
 export async function listForUser(

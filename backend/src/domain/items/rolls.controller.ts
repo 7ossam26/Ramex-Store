@@ -6,9 +6,17 @@ import {
 import * as svc from './rolls.service.js';
 import { RollValidationError } from './rolls.service.js';
 import { auditLog } from '../../middleware/audit.js';
+import { ROLL_IN_TRANSIT_MESSAGE } from './rollLock.js';
 import { buildSingleLabelPdf, buildBatchLabelPdf } from '../../lib/barcode/labelPdf.js';
 import { renderRollLabelThermal, renderRollLabelsThermal, renderRollLabelA4 } from '../../lib/barcode/fabricLabelService.js';
 import { auditLabelReprinted } from '../../lib/barcode/audit.js';
+
+// The service enforces the lock too; this answers with a clean 409 instead of a 500.
+function rejectInTransit(roll: { status: string }, res: Response): boolean {
+  if (roll.status !== 'in_transit') return false;
+  res.status(409).json({ error: 'ROLL_IN_TRANSIT', message: ROLL_IN_TRANSIT_MESSAGE });
+  return true;
+}
 
 export async function listRolls(req: Request, res: Response): Promise<void> {
   const filters = ListRollsQuerySchema.parse(req.query);
@@ -20,6 +28,7 @@ export async function updateRoll(req: Request, res: Response): Promise<void> {
   const data = UpdateRollSchema.parse(req.body);
   const before = await svc.getRoll(id);
   if (!before) { res.status(404).json({ error: 'not_found' }); return; }
+  if (rejectInTransit(before, res)) return;
   const after = await svc.updateRoll(id, data);
   await auditLog(req, 'update_roll', 'roll', id, before, after, { severity: 'medium' });
   res.json(after);
@@ -35,6 +44,7 @@ export async function togglePosVisibility(req: Request, res: Response): Promise<
   const id = Number(req.params.id);
   const before = await svc.getRoll(id);
   if (!before) { res.status(404).json({ error: 'not_found' }); return; }
+  if (rejectInTransit(before, res)) return;
   const after = await svc.togglePosVisibility(id);
   await auditLog(
     req,

@@ -599,6 +599,9 @@ export function RollsPage() {
                 <div>
                   <span className="text-foreground-muted">{ar.labels.status}: </span>
                   <RollStatusPill status={detail.status} />
+                  {detail.status === 'in_transit' && (
+                    <p className="mt-1 text-xs text-foreground-muted">{ar.rollInTransitLocked}</p>
+                  )}
                 </div>
                 <div>
                   <span className="text-foreground-muted">السعر: </span>

@@ -1,5 +1,6 @@
 import { db } from '../../db/connection.js';
 import { auditFromService } from '../inventory/audit.helper.js';
+import { assertRollNotInTransit } from './rollLock.js';
 import type { DamageContext, Roll, RollWithDetails, RollWithLabelDetails } from './items.types.js';
 import type { UpdateRollInput } from './items.schemas.js';
 
@@ -142,6 +143,7 @@ export async function updateRoll(
 ): Promise<Roll | undefined> {
   const existing = await db('rolls').where({ id }).first();
   if (!existing) return undefined;
+  assertRollNotInTransit(existing);
 
   const patch = { ...data } as Record<string, unknown>;
   if (existing.status === 'sold') {
@@ -156,6 +158,7 @@ export async function updateRoll(
 export async function togglePosVisibility(id: number): Promise<Roll | undefined> {
   const existing = await db('rolls').where({ id }).first();
   if (!existing) return undefined;
+  assertRollNotInTransit(existing);
   await db('rolls').where({ id }).update({ is_visible_at_pos: !existing.is_visible_at_pos, updated_at: db.fn.now() });
   return db('rolls').where({ id }).first() as Promise<Roll>;
 }

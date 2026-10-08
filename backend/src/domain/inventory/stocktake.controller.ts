@@ -7,6 +7,7 @@ import {
   UpdateStocktakeLineSchema,
 } from './inventory.schemas.js';
 import * as svc from './stocktake.service.js';
+import { ROLL_IN_TRANSIT_MESSAGE } from '../items/rollLock.js';
 
 const ERR_MAP: Record<string, { status: number; message: string }> = {
   STOCKTAKE_NOT_FOUND: { status: 404, message: 'الجرد غير موجود' },
@@ -21,6 +22,7 @@ const ERR_MAP: Record<string, { status: number; message: string }> = {
   AGGREGATE_REQUIRES_AGGREGATE_MODE: { status: 409, message: 'الإدخال التجميعي يتطلب وضع التجميع' },
   RESOLUTION_REQUIRES_ROLL_LEVEL: { status: 409, message: 'معالجة الفروقات متاحة لجرد التوب الفردي فقط' },
   ROLL_NOT_FOUND: { status: 404, message: 'التوب غير موجود' },
+  ROLL_IN_TRANSIT: { status: 409, message: ROLL_IN_TRANSIT_MESSAGE },
   LINE_NOT_FOUND: { status: 404, message: 'السطر غير موجود في هذا الجرد' },
   LINE_NOT_SCANNED: { status: 409, message: 'لم يتم مسح هذا التوب بعد' },
   LINE_ALREADY_RESOLVED: { status: 409, message: 'تم تحديد إجراء لهذا التوب من قبل' },

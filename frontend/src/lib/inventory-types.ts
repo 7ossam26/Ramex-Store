@@ -19,7 +19,9 @@ export type StockSummaryRow = {
 export type Warehouse = 'shop' | 'factory' | 'damaged_shop';
 export type RollStatus =
   | 'in_stock' | 'reserved' | 'sold' | 'damaged'
-  | 'sample' | 'returned' | 'written_off';
+  | 'sample' | 'returned' | 'written_off'
+  // «قيد الشحن» — in a طلبية; set by the shipment flow only, never editable.
+  | 'in_transit';
 
 export type ShipmentStatus =
   | 'draft' | 'pending_approval' | 'partial_approved'

@@ -191,7 +191,9 @@ export function SplitTopPage() {
               </div>
 
               {roll.status !== 'in_stock' && (
-                <p className="text-sm text-danger-foreground font-medium">{ar.splitTop.notInStock}</p>
+                <p className="text-sm text-danger-foreground font-medium">
+                  {roll.status === 'in_transit' ? ar.rollInTransitLocked : ar.splitTop.notInStock}
+                </p>
               )}
             </div>
           </SectionCard>

@@ -5,6 +5,7 @@ import type { CreateTopBatchInput } from './tops.schemas.js';
 import { auditFromService } from '../inventory/audit.helper.js';
 import { generateFabricCode } from './fabrics.service.js';
 import { generateColorCode } from './colors.service.js';
+import { ROLL_IN_TRANSIT_MESSAGE } from './rollLock.js';
 
 export class TopSplitError extends Error {
   constructor(public readonly code: string, message: string) {
@@ -188,6 +189,9 @@ export async function splitTop(
     const fabric = await trx('fabrics').where({ id: parent.fabric_id }).first() as Fabric;
     if (!fabric) throw new TopSplitError('ROLL_NOT_FOUND', 'بيانات الخامة غير موجودة');
 
+    if (parent.status === 'in_transit') {
+      throw new TopSplitError('ROLL_IN_TRANSIT', ROLL_IN_TRANSIT_MESSAGE);
+    }
     if (parent.status !== 'in_stock') {
       throw new TopSplitError('ROLL_NOT_SPLITTABLE', 'لا يمكن تقسيم توب غير موجود في المخزن');
     }

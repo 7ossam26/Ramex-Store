@@ -2,6 +2,7 @@ import type { Knex } from 'knex';
 import { db } from '../../db/connection.js';
 import { auditFromService } from './audit.helper.js';
 import { notify } from '../notifications/notificationsService.js';
+import { assertRollNotInTransit } from '../items/rollLock.js';
 import type { CreateAdjustmentInput } from './inventory.schemas.js';
 import type { StockMovement } from './inventory.types.js';
 
@@ -28,6 +29,7 @@ async function createRollAdjustment(
     // the second would silently overwrite the first.
     const roll = await trx('rolls').where({ id: input.roll_id }).forUpdate().first();
     if (!roll) throw new Error('ROLL_NOT_FOUND');
+    assertRollNotInTransit(roll);
 
     const fromWarehouse = roll.warehouse;
 
@@ -132,6 +134,8 @@ export async function applyRollPatch(
   change: RollChange,
   opts: RollChangeOptions,
 ): Promise<{ movement: StockMovement; after: Omit<LockedRoll, 'id'> }> {
+  // Every تسوية and جرد resolution funnels through here.
+  assertRollNotInTransit(roll);
   const patch: Record<string, unknown> = { updated_at: trx.fn.now() };
   if (change.warehouse !== undefined) patch.warehouse = change.warehouse;
   if (change.status !== undefined) patch.status = change.status;

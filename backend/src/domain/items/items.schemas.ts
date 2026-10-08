@@ -89,7 +89,8 @@ export const ListRollsQuerySchema = z.object({
   fabric_id: z.coerce.number().int().positive().optional(),
   color_id: z.coerce.number().int().positive().optional(),
   lot_id: z.coerce.number().int().positive().optional(),
-  status: RollStatusEnum.optional(),
+  // Filter only — in_transit is set by the shipment flow, never written directly.
+  status: z.enum([...RollStatusEnum.options, 'in_transit']).optional(),
   warehouse: RollWarehouseEnum.optional(),
   is_visible_at_pos: z.coerce.boolean().optional(),
 });

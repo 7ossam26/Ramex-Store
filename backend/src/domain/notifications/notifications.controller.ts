@@ -1,6 +1,7 @@
 import type { RequestHandler } from 'express';
 import * as svc from './notificationsService.js';
 import { listNotificationsSchema, resolveNotificationSchema } from './notifications.schemas.js';
+import { ROLL_IN_TRANSIT_MESSAGE } from '../items/rollLock.js';
 
 export const listNotifications: RequestHandler = async (req, res) => {
   const query = listNotificationsSchema.parse(req.query);
@@ -46,6 +47,14 @@ export const resolveNotification: RequestHandler = async (req, res) => {
   const body = resolveNotificationSchema.parse(req.body);
   const ownerUserId = req.user!.sub;
 
-  const notification = await svc.resolve(notifId, body.resolution, ownerUserId);
-  res.json(notification);
+  try {
+    const notification = await svc.resolve(notifId, body.resolution, ownerUserId);
+    res.json(notification);
+  } catch (e) {
+    if (e instanceof Error && e.message === 'ROLL_IN_TRANSIT') {
+      res.status(409).json({ error: 'ROLL_IN_TRANSIT', message: ROLL_IN_TRANSIT_MESSAGE });
+      return;
+    }
+    throw e;
+  }
 };

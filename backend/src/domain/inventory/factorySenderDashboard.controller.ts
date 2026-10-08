@@ -6,8 +6,11 @@ export async function getFactorySenderDashboard(req: Request, res: Response): Pr
 
   const [factoryStock, availableRolls, weekShipments, pendingShipments, rejectedLines] =
     await Promise.all([
+      // أتواب «قيد الشحن» keep warehouse=factory until the shop accepts them,
+      // so they still count here exactly as they did before the status existed.
       db('rolls')
-        .where({ warehouse: 'factory', status: 'in_stock' })
+        .where({ warehouse: 'factory' })
+        .whereIn('status', ['in_stock', 'in_transit'])
         .select(
           db.raw('COUNT(*) as roll_count'),
           db.raw('COALESCE(SUM(CAST(weight_kg AS numeric)), 0) as total_kg'),
@@ -21,7 +24,7 @@ export async function getFactorySenderDashboard(req: Request, res: Response): Pr
           'id',
           db('shipment_lines as sl')
             .join('shipments as s', 'sl.shipment_id', 's.id')
-            .whereIn('s.status', ['draft', 'pending_approval', 'partial_approved'])
+            .whereIn('s.status', ['draft', 'pending_approval'])
             .select('sl.roll_id'),
         )
         .count('id as count')
@@ -35,7 +38,7 @@ export async function getFactorySenderDashboard(req: Request, res: Response): Pr
 
       db('shipments')
         .where({ created_by_user_id: actorId })
-        .whereIn('status', ['pending_approval', 'partial_approved'])
+        .where('status', 'pending_approval')
         .count('id as count')
         .first(),
 

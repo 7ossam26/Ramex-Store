@@ -9,6 +9,7 @@ import { ar } from '@/i18n/ar';
  *  sample        → info    (special handling)
  *  returned      → warning (needs review back into stock)
  *  written_off   → neutral (terminal, accepted)
+ *  in_transit    → info    (locked in a طلبية until the shop reviews it)
  */
 const TONE: Record<string, StatusTone> = {
   in_stock: 'success',
@@ -18,6 +19,7 @@ const TONE: Record<string, StatusTone> = {
   sample: 'info',
   returned: 'warning',
   written_off: 'neutral',
+  in_transit: 'info',
 };
 
 export function RollStatusPill({ status }: { status: string }) {

@@ -47,7 +47,9 @@ export type FabricColorPrice = {
 
 export type RollStatus =
   | 'in_stock' | 'reserved' | 'sold' | 'damaged'
-  | 'sample' | 'returned' | 'written_off';
+  | 'sample' | 'returned' | 'written_off'
+  // «قيد الشحن» — attached to a طلبية; locked until the shop reviews it.
+  | 'in_transit';
 
 export type RollWarehouse = 'shop' | 'factory' | 'damaged_shop';
 

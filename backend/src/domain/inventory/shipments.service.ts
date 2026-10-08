@@ -1,3 +1,4 @@
+import type { Knex } from 'knex';
 import { db } from '../../db/connection.js';
 import { nextShipmentNo } from './shipmentNumber.service.js';
 import { auditFromService } from './audit.helper.js';
@@ -10,10 +11,27 @@ import type {
 import type {
   AcceptShipmentInput,
   AddShipmentRollInput,
+  BulkReviewShipmentLinesInput,
   CreateShipmentDraftInput,
   ListFactoryRollsQueryInput,
   ListShipmentsQueryInput,
 } from './inventory.schemas.js';
+
+// Shipments whose lines still claim their أتواب. partial_approved is a final
+// state (set by acceptShipment), so it is NOT active: its rejected أتواب are
+// back in the factory and may be sent again.
+const ACTIVE_SHIPMENT_STATUSES = ['draft', 'pending_approval'] as const;
+
+// A توب leaves «قيد الشحن» when its line is removed, its draft is deleted, or
+// the shop rejects it. Only in_transit rows are touched, so a status set by
+// another flow is never clobbered.
+async function releaseRolls(trx: Knex.Transaction, rollIds: number[]): Promise<void> {
+  if (rollIds.length === 0) return;
+  await trx('rolls')
+    .whereIn('id', rollIds)
+    .where('status', 'in_transit')
+    .update({ status: 'in_stock', updated_at: trx.fn.now() });
+}
 
 export async function createDraft(actorUserId: number, input: CreateShipmentDraftInput): Promise<Shipment> {
   return db.transaction(async (trx) => {
@@ -63,11 +81,18 @@ export async function addRoll(
     if (roll.warehouse !== 'factory') throw new Error('ROLL_NOT_IN_FACTORY');
     if (roll.status !== 'in_stock') throw new Error('ROLL_NOT_AVAILABLE');
 
-    // Block if روول is already attached to any active shipment line (draft or pending or partial_approved).
+    // acceptShipment refuses metre أتواب without a length, and once added the
+    // توب is locked «قيد الشحن» — so the length must be fixed before, not after.
+    const fabric = await trx('fabrics').where({ id: roll.fabric_id }).first('unit');
+    if (fabric?.unit === 'meter' && (roll.length_m === null || roll.length_m === undefined)) {
+      throw new Error('ROLL_MISSING_LENGTH');
+    }
+
+    // Block if روول is already attached to any active shipment line.
     const conflicting = await trx('shipment_lines as sl')
       .join('shipments as s', 'sl.shipment_id', 's.id')
       .where('sl.roll_id', roll.id)
-      .whereIn('s.status', ['draft', 'pending_approval', 'partial_approved'])
+      .whereIn('s.status', ACTIVE_SHIPMENT_STATUSES)
       .first();
     if (conflicting) throw new Error('ROLL_ALREADY_IN_SHIPMENT');
 
@@ -78,12 +103,15 @@ export async function addRoll(
     }).returning('id');
     const line = await trx('shipment_lines').where({ id: lineId }).first();
 
+    // Locked «قيد الشحن» from here until the shop reviews it.
+    await trx('rolls').where({ id: roll.id }).update({ status: 'in_transit', updated_at: trx.fn.now() });
+
     await auditFromService(trx, {
       actorUserId,
       action: 'add_roll_to_shipment',
       entity: 'shipment',
       entityId: shipmentId,
-      after: { line_id: line.id, roll_id: roll.id, internal_barcode: roll.internal_barcode },
+      after: { line_id: line.id, roll_id: roll.id, internal_barcode: roll.internal_barcode, roll_status: 'in_transit' },
       severity: 'low',
     });
 
@@ -104,13 +132,15 @@ export async function removeLine(shipmentId: number, lineId: number, actorUserId
     if (!line) throw new Error('LINE_NOT_FOUND');
 
     await trx('shipment_lines').where({ id: lineId }).delete();
+    await releaseRolls(trx, [Number(line.roll_id)]);
 
     await auditFromService(trx, {
       actorUserId,
       action: 'remove_shipment_line',
       entity: 'shipment',
       entityId: shipmentId,
-      before: { line_id: lineId, roll_id: line.roll_id },
+      before: { line_id: lineId, roll_id: line.roll_id, roll_status: 'in_transit' },
+      after: { roll_status: 'in_stock' },
       severity: 'low',
     });
   });
@@ -126,6 +156,7 @@ export async function deleteDraft(shipmentId: number, actorUserId: number): Prom
     const lines = await trx('shipment_lines').where({ shipment_id: shipmentId });
     await trx('shipment_lines').where({ shipment_id: shipmentId }).delete();
     await trx('shipments').where({ id: shipmentId }).delete();
+    await releaseRolls(trx, lines.map((l: { roll_id: number }) => Number(l.roll_id)));
 
     await auditFromService(trx, {
       actorUserId,
@@ -198,36 +229,67 @@ export async function reviewLine(
   action: 'accept' | 'reject',
   rejectReason?: string | null,
 ): Promise<ShipmentLine> {
+  const [updated] = await reviewLines(shipmentId, actorUserId, {
+    line_ids: [lineId],
+    action,
+    reject_reason_ar: rejectReason,
+  });
+  return updated;
+}
+
+/**
+ * Review several lines at once. accept/reject apply only to lines still
+ * pending (so «قبول الكل» never overrides a decision already taken); reset
+ * returns decided lines to pending so the reviewer can change their mind
+ * before confirming the طلبية.
+ */
+export async function reviewLines(
+  shipmentId: number,
+  actorUserId: number,
+  input: BulkReviewShipmentLinesInput,
+): Promise<ShipmentLine[]> {
   return db.transaction(async (trx) => {
-    const shipment = await trx('shipments').where({ id: shipmentId }).first();
+    const shipment = await trx('shipments').where({ id: shipmentId }).forUpdate().first();
     if (!shipment) throw new Error('SHIPMENT_NOT_FOUND');
-    if (shipment.status !== 'pending_approval' && shipment.status !== 'partial_approved') {
-      throw new Error('SHIPMENT_NOT_REVIEWABLE');
+    if (shipment.status !== 'pending_approval') throw new Error('SHIPMENT_NOT_REVIEWABLE');
+
+    const lines: ShipmentLine[] = await trx('shipment_lines')
+      .where({ shipment_id: shipmentId })
+      .whereIn('id', input.line_ids)
+      .forUpdate();
+    if (lines.length !== input.line_ids.length) throw new Error('LINE_NOT_FOUND');
+
+    const targets = lines.filter((l) =>
+      input.action === 'reset' ? l.status !== 'pending' : l.status === 'pending',
+    );
+    if (targets.length === 0) {
+      // Single-line callers keep the historical error code.
+      throw new Error(input.line_ids.length === 1 && input.action !== 'reset' ? 'LINE_ALREADY_REVIEWED' : 'NOTHING_TO_REVIEW');
     }
 
-    const line = await trx('shipment_lines').where({ id: lineId, shipment_id: shipmentId }).first();
-    if (!line) throw new Error('LINE_NOT_FOUND');
-    if (line.status !== 'pending') throw new Error('LINE_ALREADY_REVIEWED');
+    const newStatus = input.action === 'accept' ? 'accepted' : input.action === 'reject' ? 'rejected' : 'pending';
+    const reason = input.action === 'reject' ? (input.reject_reason_ar?.trim() || null) : null;
+    const targetIds = targets.map((l) => l.id);
 
-    const newStatus: 'accepted' | 'rejected' = action === 'accept' ? 'accepted' : 'rejected';
-    await trx('shipment_lines').where({ id: lineId }).update({
+    await trx('shipment_lines').whereIn('id', targetIds).update({
       status: newStatus,
-      reject_reason_ar: action === 'reject' ? (rejectReason ?? null) : null,
+      reject_reason_ar: reason,
       updated_at: trx.fn.now(),
     });
-    const updated = await trx('shipment_lines').where({ id: lineId }).first();
 
-    await auditFromService(trx, {
-      actorUserId,
-      action: 'review_shipment_line',
-      entity: 'shipment_line',
-      entityId: lineId,
-      before: { status: 'pending' },
-      after: { status: newStatus, reject_reason_ar: updated.reject_reason_ar },
-      severity: 'medium',
-    });
+    for (const line of targets) {
+      await auditFromService(trx, {
+        actorUserId,
+        action: input.action === 'reset' ? 'reset_shipment_line_review' : 'review_shipment_line',
+        entity: 'shipment_line',
+        entityId: line.id,
+        before: { status: line.status, reject_reason_ar: line.reject_reason_ar },
+        after: { status: newStatus, reject_reason_ar: reason },
+        severity: 'medium',
+      });
+    }
 
-    return updated as ShipmentLine;
+    return trx('shipment_lines').whereIn('id', targetIds).orderBy('id') as Promise<ShipmentLine[]>;
   });
 }
 
@@ -237,11 +299,10 @@ export async function acceptShipment(
   _input: AcceptShipmentInput,
 ): Promise<Shipment> {
   return db.transaction(async (trx) => {
-    const shipment = await trx('shipments').where({ id: shipmentId }).first();
+    // Locked so a double-click cannot finalize the same طلبية twice.
+    const shipment = await trx('shipments').where({ id: shipmentId }).forUpdate().first();
     if (!shipment) throw new Error('SHIPMENT_NOT_FOUND');
-    if (shipment.status !== 'pending_approval' && shipment.status !== 'partial_approved') {
-      throw new Error('SHIPMENT_NOT_REVIEWABLE');
-    }
+    if (shipment.status !== 'pending_approval') throw new Error('SHIPMENT_NOT_REVIEWABLE');
 
     const lines = await trx('shipment_lines as sl')
       .join('rolls as r', 'sl.roll_id', 'r.id')
@@ -268,6 +329,7 @@ export async function acceptShipment(
     for (const line of accepted) {
       await trx('rolls').where({ id: line.roll_id }).update({
         warehouse: 'shop',
+        status: 'in_stock',
         received_at: trx.fn.now(),
         updated_at: trx.fn.now(),
       });
@@ -282,6 +344,8 @@ export async function acceptShipment(
       });
     }
 
+    // Rejected أتواب go back to the factory as «متاح» and can be sent again.
+    await releaseRolls(trx, rejected.map((l: Record<string, unknown>) => Number(l.roll_id)));
     for (const line of rejected) {
       await trx('stock_movements').insert({
         roll_id: line.roll_id,
@@ -384,14 +448,14 @@ export async function listFactoryRolls(filters: ListFactoryRollsQueryInput): Pro
   color_code: string;
   fabric_code: string;
 }>> {
-  // Active draft/pending/partial shipment_lines that already claim a روول.
+  // Active draft/pending shipment_lines that already claim a روول.
   const q = db('rolls as r')
     .join('fabrics as f', 'r.fabric_id', 'f.id')
     .join('colors as c', 'r.color_id', 'c.id')
     .leftJoin('shipment_lines as sl', function () {
       this.on('sl.roll_id', '=', 'r.id').andOn(
         db.raw(
-          `sl.shipment_id IN (SELECT id FROM shipments WHERE status IN ('draft','pending_approval','partial_approved'))`,
+          `sl.shipment_id IN (SELECT id FROM shipments WHERE status IN ('draft','pending_approval'))`,
         ),
       );
     })

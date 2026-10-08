@@ -21,6 +21,7 @@ inventoryRouter.delete('/shipments/:id', requirePermission('shipments', 'write')
 inventoryRouter.post('/shipments/:id/submit', requirePermission('shipments', 'write'), shipmentsCtl.submit);
 
 // Review + accept require shipments.approve (shop_seller has approve=true; factory_sender has approve=false via HARD_DENY).
+inventoryRouter.post('/shipments/:id/lines/review-bulk', requirePermission('shipments', 'approve'), shipmentsCtl.reviewLines);
 inventoryRouter.post('/shipments/:id/lines/:lineId/review', requirePermission('shipments', 'approve'), shipmentsCtl.reviewLine);
 inventoryRouter.post('/shipments/:id/accept', requirePermission('shipments', 'approve'), shipmentsCtl.acceptShipment);
 

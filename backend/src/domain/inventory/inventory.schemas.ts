@@ -24,6 +24,15 @@ export const ReviewShipmentLineSchema = z.object({
 });
 export type ReviewShipmentLineInput = z.infer<typeof ReviewShipmentLineSchema>;
 
+// accept/reject apply only to lines still pending; reset returns decided lines to pending.
+export const BulkReviewShipmentLinesSchema = z.object({
+  line_ids: z.array(z.number().int().positive()).min(1).max(500)
+    .refine((ids) => new Set(ids).size === ids.length, { message: 'سطور مكررة' }),
+  action: z.enum(['accept', 'reject', 'reset']),
+  reject_reason_ar: z.string().max(500).nullable().optional(),
+});
+export type BulkReviewShipmentLinesInput = z.infer<typeof BulkReviewShipmentLinesSchema>;
+
 export const AcceptShipmentSchema = z.object({});
 export type AcceptShipmentInput = z.infer<typeof AcceptShipmentSchema>;
 

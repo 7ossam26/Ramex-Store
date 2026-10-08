@@ -3,6 +3,7 @@ import { db } from '../../db/connection.js';
 import { auditFromService } from './audit.helper.js';
 import { notify } from '../notifications/notificationsService.js';
 import { getSetting } from '../settings/settings.service.js';
+import { assertRollNotInTransit } from '../items/rollLock.js';
 import type {
   DamageDisposition,
   DamageEvent,
@@ -24,8 +25,9 @@ export async function createDamageEvent(
   input: CreateDamageEventInput,
 ): Promise<DamageEvent> {
   return db.transaction(async (trx) => {
-    const roll = await trx('rolls').where({ id: input.roll_id }).first();
+    const roll = await trx('rolls').where({ id: input.roll_id }).forUpdate().first();
     if (!roll) throw new Error('ROLL_NOT_FOUND');
+    assertRollNotInTransit(roll);
 
     const valuation = Number(roll.selling_price_egp);
     const isLoss = isLossCode(input.reason_code);
@@ -92,8 +94,10 @@ export async function approveDamageEvent(eventId: number, actorUserId: number): 
     if (!event.requires_approval) throw new Error('NO_APPROVAL_REQUIRED');
     if (event.approved_at) throw new Error('ALREADY_APPROVED');
 
-    const roll = await trx('rolls').where({ id: event.roll_id }).first();
+    const roll = await trx('rolls').where({ id: event.roll_id }).forUpdate().first();
     if (!roll) throw new Error('ROLL_NOT_FOUND');
+    // The توب may have been added to a طلبية while the approval was pending.
+    assertRollNotInTransit(roll);
 
     await trx('damage_events').where({ id: eventId }).update({ approved_by_user_id: actorUserId, approved_at: trx.fn.now() });
     const updated = await trx('damage_events').where({ id: eventId }).first() as DamageEvent;

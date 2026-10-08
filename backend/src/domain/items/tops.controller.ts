@@ -91,6 +91,7 @@ export async function splitTop(req: Request, res: Response, next: NextFunction):
     if (err instanceof TopSplitError) {
       const status =
         err.code === 'ROLL_NOT_FOUND' ? 404
+        : err.code === 'ROLL_IN_TRANSIT' ? 409
         : err.code === 'ROLL_NOT_SPLITTABLE' || err.code === 'ROLL_QUANTITY_MISSING' || err.code === 'INVALID_SPLIT_QUANTITY' ? 422
         : 400;
       res.status(status).json({ error: err.code, message: err.message });

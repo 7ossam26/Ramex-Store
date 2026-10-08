@@ -70,6 +70,7 @@ const ROLL_STATUS_LABEL: Record<string, string> = {
   sample: 'عينة',
   returned: 'مُعاد',
   written_off: 'مشطوب',
+  in_transit: 'قيد الشحن',
 };
 
 function BarcodeModal({

@@ -88,8 +88,12 @@ export function AdjustmentsPage() {
     newWarehouse !== '' && roll != null && newWarehouse !== roll.warehouse;
   const willHide = hidesByStatus || hidesByWarehouse;
 
+  // A توب «قيد الشحن» is locked in its طلبية; the backend refuses it too.
+  const rollLocked = roll?.status === 'in_transit';
+
   const rollInvalid =
     roll == null ||
+    rollLocked ||
     rollNotes.trim() === '' ||
     (willHide && !ackHide) ||
     (newQty !== '' && (!Number.isFinite(Number(newQty)) || Number(newQty) <= 0)) ||
@@ -238,8 +242,12 @@ export function AdjustmentsPage() {
                 )}
               </div>
 
+              {rollLocked && (
+                <p className="text-sm text-danger" role="alert">{ar.rollInTransitLocked}</p>
+              )}
+
               {/* Step 2 — the actual تسوية, only once a توب is on screen. */}
-              {roll && (
+              {roll && !rollLocked && (
                 <>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     <div className="space-y-1">

@@ -1,9 +1,11 @@
 import type { Request, Response } from 'express';
 import { CreateAdjustmentSchema } from './inventory.schemas.js';
 import * as svc from './adjustments.service.js';
+import { ROLL_IN_TRANSIT_MESSAGE } from '../items/rollLock.js';
 
 const ERR_MAP: Record<string, { status: number; message: string }> = {
   ROLL_NOT_FOUND: { status: 404, message: 'التوب غير موجود' },
+  ROLL_IN_TRANSIT: { status: 409, message: ROLL_IN_TRANSIT_MESSAGE },
   ACCESSORY_NOT_FOUND: { status: 404, message: 'الإكسسوار غير موجود' },
   FACTORY_EXIT_REQUIRES_SHIPMENT: {
     status: 409,

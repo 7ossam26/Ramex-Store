@@ -106,6 +106,15 @@ export const inventoryApi = {
       reject_reason_ar?: string | null;
     },
   ) => api.post(`/shipments/${shipmentId}/lines/${lineId}/review`, body).then((r) => r.data),
+  // accept/reject touch only still-pending lines; reset returns decided lines to pending.
+  reviewShipmentLines: (
+    shipmentId: number,
+    body: {
+      line_ids: number[];
+      action: 'accept' | 'reject' | 'reset';
+      reject_reason_ar?: string | null;
+    },
+  ) => api.post(`/shipments/${shipmentId}/lines/review-bulk`, body).then((r) => r.data),
   acceptShipment: (shipmentId: number) =>
     api
       .post<Shipment>(`/shipments/${shipmentId}/accept`, {})

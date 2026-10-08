@@ -5,9 +5,11 @@ import {
   ListDamageEventsQuerySchema,
 } from './inventory.schemas.js';
 import * as svc from './damage.service.js';
+import { ROLL_IN_TRANSIT_MESSAGE } from '../items/rollLock.js';
 
 const ERR_MAP: Record<string, { status: number; message: string }> = {
   ROLL_NOT_FOUND: { status: 404, message: 'التوب غير موجود' },
+  ROLL_IN_TRANSIT: { status: 409, message: ROLL_IN_TRANSIT_MESSAGE },
   EVENT_NOT_FOUND: { status: 404, message: 'الحدث غير موجود' },
   DISPOSITION_REQUIRED: { status: 422, message: 'يجب تحديد التصرف للتلف' },
   NO_APPROVAL_REQUIRED: { status: 409, message: 'لا يحتاج هذا الحدث لموافقة' },
