@@ -21,9 +21,19 @@ export const UpdateEmployeeSchema = z.object({
   is_active: z.boolean().optional(),
 });
 
+/** Salaries are weekly, paid every Thursday: pay dates must be a Thursday. */
+export function isThursday(date: string): boolean {
+  return new Date(`${date}T00:00:00Z`).getUTCDay() === 4;
+}
+
+const PAY_DATE_NOT_THURSDAY = 'تاريخ الصرف يجب أن يكون يوم خميس';
+
 export const DisburseSchema = z.object({
   employee_id: z.number().int().positive(),
-  month: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'صيغة التاريخ غير صحيحة — YYYY-MM-DD'),
+  // Weekly pay date (a Thursday). Column is still named `month` for history.
+  month: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'صيغة التاريخ غير صحيحة — YYYY-MM-DD')
+    .refine(isThursday, PAY_DATE_NOT_THURSDAY),
   paid_via: z.enum(['cash', 'instapay', 'bank_transfer']),
   bank_account_id: z.number().int().positive().nullable().optional(),
   advance_repayment_egp: z.number().min(0, 'لا يمكن أن يكون مبلغ خصم السُّلفة سالباً').optional().default(0),
@@ -39,7 +49,11 @@ export const CreateAdjustmentSchema = z.object({
   amount_egp: z.number({ invalid_type_error: 'المبلغ يجب أن يكون رقماً' }).positive('المبلغ يجب أن يكون أكبر من صفر'),
   salary_month: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'صيغة التاريخ غير صحيحة — YYYY-MM-DD'),
   reason_ar: z.string().nullable().optional(),
-});
+}).refine(
+  // A deduction is netted against that Thursday's salary, so it must name one.
+  (d) => d.kind !== 'deduction' || isThursday(d.salary_month),
+  { message: PAY_DATE_NOT_THURSDAY, path: ['salary_month'] },
+);
 
 export const RepayAdvanceSchema = z.object({
   amount_egp: z.number({ invalid_type_error: 'المبلغ يجب أن يكون رقماً' }).positive('المبلغ يجب أن يكون أكبر من صفر'),

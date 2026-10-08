@@ -27,6 +27,8 @@ const ERR_MAP: Record<string, { status: number; message: string }> = {
   ROLL_NOT_AVAILABLE: { status: 409, message: 'هذا التوب غير متاح' },
   ROLL_ALREADY_IN_SHIPMENT: { status: 409, message: 'هذا التوب مضاف بالفعل إلى طلبية أخرى' },
   MISSING_FABRIC_PRICE: { status: 422, message: 'يجب إدخال سعر مرجعي لكل خامة مقبولة' },
+  METER_ROLL_MISSING_LENGTH: { status: 422, message: 'اتواب بخامة (متر) بدون طول محدد — يرجى تحديث الطول أولاً' },
+  LINE_UNDO_NOT_ALLOWED: { status: 409, message: 'لا يمكن التراجع — تم التصرف في التوب بعد المراجعة (بيع أو نقل أو إضافة لطلبية أخرى)' },
 };
 
 function handleDomainError(e: unknown, res: Response): boolean {
@@ -40,7 +42,12 @@ function handleDomainError(e: unknown, res: Response): boolean {
   }
   if (e instanceof Error && ERR_MAP[e.message]) {
     const { status, message } = ERR_MAP[e.message]!;
-    res.status(status).json({ error: e.message, message });
+    const barcodes = (e as Error & { barcodes?: string[] }).barcodes;
+    if (barcodes && barcodes.length > 0) {
+      res.status(status).json({ error: e.message, message: `${message}: ${barcodes.join('، ')}`, barcodes });
+    } else {
+      res.status(status).json({ error: e.message, message });
+    }
     return true;
   }
   return false;
@@ -138,15 +145,6 @@ export async function acceptShipment(req: Request, res: Response): Promise<void>
     const updated = await svc.acceptShipment(id, actorId(req), data);
     res.json(updated);
   } catch (e) {
-    if (e instanceof Error && e.message === 'METER_ROLL_MISSING_LENGTH') {
-      const barcodes = (e as Error & { barcodes?: string[] }).barcodes ?? [];
-      res.status(422).json({
-        error: 'METER_ROLL_MISSING_LENGTH',
-        message: `اتواب بخامة (متر) بدون طول محدد — يرجى تحديث الطول أولاً: ${barcodes.join('، ')}`,
-        barcodes,
-      });
-      return;
-    }
     if (handleDomainError(e, res)) return;
     throw e;
   }

@@ -45,7 +45,7 @@ describe('v2 — HR (Q&A #36-40)', () => {
   it('Q&A #36/#37 — CreateAdjustmentSchema captures advance + deduction', () => {
     for (const kind of ['advance', 'deduction'] as const) {
       const r = CreateAdjustmentSchema.safeParse({
-        employee_id: 1, kind, amount_egp: 200, salary_month: '2026-06-01',
+        employee_id: 1, kind, amount_egp: 200, salary_month: '2026-06-04',
       });
       expect(r.success, kind).toBe(true);
     }
@@ -53,23 +53,36 @@ describe('v2 — HR (Q&A #36-40)', () => {
 
   it('Q&A #36 — adjustment kind must be advance or deduction', () => {
     const r = CreateAdjustmentSchema.safeParse({
-      employee_id: 1, kind: 'bonus' as never, amount_egp: 100, salary_month: '2026-06-01',
+      employee_id: 1, kind: 'bonus' as never, amount_egp: 100, salary_month: '2026-06-04',
     });
     expect(r.success).toBe(false);
   });
 
   it('Q&A #37 — DisburseSchema requires bank_account_id for non-cash methods', () => {
     expect(DisburseSchema.safeParse({
-      employee_id: 1, month: '2026-06-01', paid_via: 'cash',
+      employee_id: 1, month: '2026-06-04', paid_via: 'cash',
     }).success).toBe(true);
     expect(DisburseSchema.safeParse({
-      employee_id: 1, month: '2026-06-01', paid_via: 'instapay',
+      employee_id: 1, month: '2026-06-04', paid_via: 'instapay',
     }).success).toBe(false);
     expect(DisburseSchema.safeParse({
-      employee_id: 1, month: '2026-06-01', paid_via: 'bank_transfer',
+      employee_id: 1, month: '2026-06-04', paid_via: 'bank_transfer',
     }).success).toBe(false);
     expect(DisburseSchema.safeParse({
-      employee_id: 1, month: '2026-06-01', paid_via: 'bank_transfer', bank_account_id: 1,
+      employee_id: 1, month: '2026-06-04', paid_via: 'bank_transfer', bank_account_id: 1,
+    }).success).toBe(true);
+  });
+
+  it('weekly salaries — pay date must be a Thursday (disbursement and deduction)', () => {
+    expect(DisburseSchema.safeParse({
+      employee_id: 1, month: '2026-06-01', paid_via: 'cash',
+    }).success).toBe(false);
+    expect(CreateAdjustmentSchema.safeParse({
+      employee_id: 1, kind: 'deduction', amount_egp: 50, salary_month: '2026-06-05',
+    }).success).toBe(false);
+    // An advance only records the next pay date; it is not netted on a given Thursday.
+    expect(CreateAdjustmentSchema.safeParse({
+      employee_id: 1, kind: 'advance', amount_egp: 50, salary_month: '2026-06-05',
     }).success).toBe(true);
   });
 

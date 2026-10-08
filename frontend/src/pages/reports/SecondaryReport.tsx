@@ -531,7 +531,7 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
     titleAr: ar.reports.payrollSummary,
     needsDateRange: true,
     columns: [
-      { label: 'الشهر', key: 'month' },
+      { label: 'تاريخ الصرف', key: 'month' },
       { label: 'الموظف', key: 'employee_name_ar' },
       { label: 'الوظيفة', key: 'role_ar' },
       { label: 'الراتب الأساسي (ج.م)', key: 'gross_egp' },
@@ -554,7 +554,7 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
     },
     chart: {
       type: 'bar',
-      title: 'الرواتب الصافية حسب الشهر',
+      title: 'الرواتب الصافية حسب تاريخ الصرف',
       seriesLabel: 'الصافي',
       isCurrency: true,
       derive: (raw) => {
@@ -570,7 +570,7 @@ const REPORT_CONFIGS: Record<string, ReportConfig> = {
       { label: 'الموظف', key: 'employee_name_ar' },
       { label: 'الوظيفة', key: 'role_ar' },
       { label: 'النوع', key: 'kind' },
-      { label: 'الشهر', key: 'salary_month' },
+      { label: 'تاريخ التطبيق', key: 'salary_month' },
       { label: 'المبلغ (ج.م)', key: 'amount_egp' },
     ],
     flatten: (d) => {

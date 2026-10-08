@@ -104,6 +104,7 @@ export async function insertDisbursement(
     adjustments_egp: number;
     advance_repayment_egp: number;
     net_egp: number;
+    pay_period: 'month' | 'week';
     paid_via: 'cash' | 'instapay' | 'bank_transfer';
     bank_account_id: number | null;
     notes_ar: string | null;

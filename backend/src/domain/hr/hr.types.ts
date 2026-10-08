@@ -21,6 +21,8 @@ export type HrSalaryDisbursement = {
   bank_account_id: number | null;
   notes_ar: string | null;
   actor_user_id: number;
+  /** 'week' = weekly salary paid on the Thursday in `month`; 'month' = legacy monthly row. */
+  pay_period: 'month' | 'week';
   created_at: string;
   employee_name_ar?: string;
   actor_username?: string | null;

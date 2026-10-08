@@ -24,6 +24,8 @@ type ShipmentRow = {
   shipment_no: string;
   status: ShipmentStatus;
   created_at: string;
+  line_count?: number;
+  accepted_count?: number;
 };
 
 export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentStatus } = {}) {
@@ -75,6 +77,20 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
       key: 'status',
       header: 'الحالة',
       cell: (s) => <ShipmentStatusPill status={s.status} />,
+    },
+    {
+      key: 'received',
+      header: ar.shipments.lineFilter.received,
+      cell: (s) =>
+        s.status === 'draft' || s.line_count === undefined ? (
+          <span className="text-foreground-muted">—</span>
+        ) : (
+          <span className="tabular-num text-foreground-muted">
+            {ar.shipments.receivedOf
+              .replace('{accepted}', String(s.accepted_count ?? 0))
+              .replace('{total}', String(s.line_count))}
+          </span>
+        ),
     },
     {
       key: 'created',

@@ -18,8 +18,10 @@ import type {
 } from './inventory.schemas.js';
 
 // Shipments whose lines still claim their أتواب. partial_approved is a final
-// state (set by acceptShipment), so it is NOT active: its rejected أتواب are
-// back in the factory and may be sent again.
+// state (set once no line is pending), so it is NOT active: its rejected
+// أتواب are back in the factory and may be sent again. Within an active
+// shipment only `pending` lines still claim their توب — accepted ones are
+// already in the shop and rejected ones are already back in the factory.
 const ACTIVE_SHIPMENT_STATUSES = ['draft', 'pending_approval'] as const;
 
 // A توب leaves «قيد الشحن» when its line is removed, its draft is deleted, or
@@ -31,6 +33,155 @@ async function releaseRolls(trx: Knex.Transaction, rollIds: number[]): Promise<v
     .whereIn('id', rollIds)
     .where('status', 'in_transit')
     .update({ status: 'in_stock', updated_at: trx.fn.now() });
+}
+
+type ReviewLineRow = ShipmentLine & {
+  internal_barcode: string;
+  warehouse: string;
+  roll_status: string;
+  length_m: string | null;
+  fabric_unit: string;
+};
+
+/** Accepted توب = received: it moves into the shop warehouse right away. */
+async function receiveLines(trx: Knex.Transaction, shipmentId: number, lines: ReviewLineRow[], actorUserId: number): Promise<void> {
+  const missingLength = lines.filter((l) => l.fabric_unit === 'meter' && (l.length_m === null || l.length_m === undefined));
+  if (missingLength.length > 0) {
+    throw Object.assign(new Error('METER_ROLL_MISSING_LENGTH'), { barcodes: missingLength.map((l) => l.internal_barcode) });
+  }
+  for (const line of lines) {
+    await trx('rolls').where({ id: line.roll_id }).update({
+      warehouse: 'shop',
+      status: 'in_stock',
+      received_at: trx.fn.now(),
+      updated_at: trx.fn.now(),
+    });
+    await trx('stock_movements').insert({
+      roll_id: line.roll_id,
+      from_warehouse: null,
+      to_warehouse: 'shop',
+      event_type: 'shipment_in',
+      reference_type: 'shipment',
+      reference_id: shipmentId,
+      actor_user_id: actorUserId,
+    });
+  }
+}
+
+/** Rejected أتواب go back to the factory as «متاح» right away and can be sent again. */
+async function returnLinesToFactory(
+  trx: Knex.Transaction,
+  shipmentId: number,
+  lines: ReviewLineRow[],
+  reason: string | null,
+  actorUserId: number,
+): Promise<void> {
+  await releaseRolls(trx, lines.map((l) => Number(l.roll_id)));
+  for (const line of lines) {
+    await trx('stock_movements').insert({
+      roll_id: line.roll_id,
+      from_warehouse: null,
+      to_warehouse: 'factory',
+      event_type: 'shipment_reject_back',
+      reference_type: 'shipment',
+      reference_id: shipmentId,
+      actor_user_id: actorUserId,
+      notes_ar: reason,
+    });
+  }
+}
+
+/**
+ * Undo a review decision. Only allowed while the توب is untouched since the
+ * decision — still «متاح» where the decision put it, and the decision's
+ * movement is still its latest — so a sold / moved / re-shipped توب can
+ * never be pulled back. The توب returns to «قيد الشحن» awaiting review.
+ */
+async function undoLines(trx: Knex.Transaction, shipmentId: number, lines: ReviewLineRow[], actorUserId: number): Promise<void> {
+  for (const line of lines) {
+    const accepted = line.status === 'accepted';
+    const expectedWarehouse = accepted ? 'shop' : 'factory';
+    const expectedEvent = accepted ? 'shipment_in' : 'shipment_reject_back';
+    const last = await trx('stock_movements')
+      .where({ roll_id: line.roll_id })
+      .orderBy('id', 'desc')
+      .first('event_type', 'reference_type', 'reference_id');
+    const untouched =
+      line.warehouse === expectedWarehouse &&
+      line.roll_status === 'in_stock' &&
+      last?.event_type === expectedEvent &&
+      last?.reference_type === 'shipment' &&
+      Number(last?.reference_id) === shipmentId;
+    if (!untouched) {
+      throw Object.assign(new Error('LINE_UNDO_NOT_ALLOWED'), { barcodes: [line.internal_barcode] });
+    }
+
+    await trx('rolls').where({ id: line.roll_id }).update({
+      warehouse: 'factory',
+      status: 'in_transit',
+      ...(accepted ? { received_at: null } : {}),
+      updated_at: trx.fn.now(),
+    });
+    await trx('stock_movements').insert({
+      roll_id: line.roll_id,
+      from_warehouse: expectedWarehouse,
+      to_warehouse: null,
+      event_type: 'shipment_out',
+      reference_type: 'shipment',
+      reference_id: shipmentId,
+      actor_user_id: actorUserId,
+      notes_ar: accepted ? 'تراجع عن قبول' : 'تراجع عن رفض',
+    });
+  }
+}
+
+/**
+ * Close the طلبية once no توب is still awaiting review. Stock already moved
+ * line by line; this only fixes the final status and notifies the owner.
+ */
+async function finalizeIfComplete(trx: Knex.Transaction, shipment: Shipment, actorUserId: number): Promise<Shipment> {
+  const lines: Array<{ status: string }> = await trx('shipment_lines').where({ shipment_id: shipment.id }).select('status');
+  if (lines.length === 0 || lines.some((l) => l.status === 'pending')) {
+    return trx('shipments').where({ id: shipment.id }).first() as Promise<Shipment>;
+  }
+  const acceptedCount = lines.filter((l) => l.status === 'accepted').length;
+  const rejectedCount = lines.length - acceptedCount;
+
+  let finalStatus: 'approved' | 'rejected' | 'partial_approved';
+  if (rejectedCount === 0) finalStatus = 'approved';
+  else if (acceptedCount === 0) finalStatus = 'rejected';
+  else finalStatus = 'partial_approved';
+
+  await trx('shipments').where({ id: shipment.id }).update({
+    status: finalStatus,
+    reviewed_by_user_id: actorUserId,
+    reviewed_at: trx.fn.now(),
+    updated_at: trx.fn.now(),
+  });
+  const updated = await trx('shipments').where({ id: shipment.id }).first();
+
+  await auditFromService(trx, {
+    actorUserId,
+    action: 'finalize_shipment',
+    entity: 'shipment',
+    entityId: shipment.id,
+    before: { status: shipment.status },
+    after: { status: finalStatus, accepted_count: acceptedCount, rejected_count: rejectedCount },
+    severity: finalStatus === 'approved' ? 'medium' : 'high',
+  });
+
+  if (finalStatus === 'partial_approved' || finalStatus === 'rejected') {
+    await notify({
+      recipientRole: 'owner',
+      severity: 'medium',
+      eventType: 'shipment_partial_reject',
+      titleAr: 'طلبية مرفوضة جزئياً',
+      bodyAr: `طلبية رقم ${updated.shipment_no}: قُبل ${acceptedCount} ورُفض ${rejectedCount} توب`,
+      payload: { shipment_id: shipment.id, shipment_no: updated.shipment_no, final_status: finalStatus, accepted: acceptedCount, rejected: rejectedCount },
+    });
+  }
+
+  return updated as Shipment;
 }
 
 export async function createDraft(actorUserId: number, input: CreateShipmentDraftInput): Promise<Shipment> {
@@ -92,6 +243,7 @@ export async function addRoll(
     const conflicting = await trx('shipment_lines as sl')
       .join('shipments as s', 'sl.shipment_id', 's.id')
       .where('sl.roll_id', roll.id)
+      .where('sl.status', 'pending')
       .whereIn('s.status', ACTIVE_SHIPMENT_STATUSES)
       .first();
     if (conflicting) throw new Error('ROLL_ALREADY_IN_SHIPMENT');
@@ -238,10 +390,15 @@ export async function reviewLine(
 }
 
 /**
- * Review several lines at once. accept/reject apply only to lines still
- * pending (so «قبول الكل» never overrides a decision already taken); reset
- * returns decided lines to pending so the reviewer can change their mind
- * before confirming the طلبية.
+ * Review several lines at once. A decision takes effect immediately — the
+ * طلبية may arrive in several deliveries, so the shop accepts what came and
+ * leaves the rest pending:
+ *  - accept: the توب is received into the shop warehouse now;
+ *  - reject: the توب goes back to the factory now;
+ *  - reset (undo): reverses a decision while the توب is still untouched.
+ * accept/reject apply only to lines still pending (so «قبول الكل» never
+ * overrides a decision already taken). When no line is left pending the
+ * طلبية closes on its own.
  */
 export async function reviewLines(
   shipmentId: number,
@@ -253,10 +410,13 @@ export async function reviewLines(
     if (!shipment) throw new Error('SHIPMENT_NOT_FOUND');
     if (shipment.status !== 'pending_approval') throw new Error('SHIPMENT_NOT_REVIEWABLE');
 
-    const lines: ShipmentLine[] = await trx('shipment_lines')
-      .where({ shipment_id: shipmentId })
-      .whereIn('id', input.line_ids)
-      .forUpdate();
+    const lines: ReviewLineRow[] = await trx('shipment_lines as sl')
+      .join('rolls as r', 'sl.roll_id', 'r.id')
+      .join('fabrics as f', 'r.fabric_id', 'f.id')
+      .where('sl.shipment_id', shipmentId)
+      .whereIn('sl.id', input.line_ids)
+      .forUpdate('sl', 'r')
+      .select('sl.*', 'r.internal_barcode', 'r.warehouse', 'r.status as roll_status', 'r.length_m', 'f.unit as fabric_unit');
     if (lines.length !== input.line_ids.length) throw new Error('LINE_NOT_FOUND');
 
     const targets = lines.filter((l) =>
@@ -271,28 +431,42 @@ export async function reviewLines(
     const reason = input.action === 'reject' ? (input.reject_reason_ar?.trim() || null) : null;
     const targetIds = targets.map((l) => l.id);
 
+    if (input.action === 'accept') await receiveLines(trx, shipmentId, targets, actorUserId);
+    else if (input.action === 'reject') await returnLinesToFactory(trx, shipmentId, targets, reason, actorUserId);
+    else await undoLines(trx, shipmentId, targets, actorUserId);
+
     await trx('shipment_lines').whereIn('id', targetIds).update({
       status: newStatus,
       reject_reason_ar: reason,
       updated_at: trx.fn.now(),
     });
 
+    const rollWarehouse = input.action === 'accept' ? 'shop' : 'factory';
+    const rollStatus = input.action === 'reset' ? 'in_transit' : 'in_stock';
     for (const line of targets) {
       await auditFromService(trx, {
         actorUserId,
         action: input.action === 'reset' ? 'reset_shipment_line_review' : 'review_shipment_line',
         entity: 'shipment_line',
         entityId: line.id,
-        before: { status: line.status, reject_reason_ar: line.reject_reason_ar },
-        after: { status: newStatus, reject_reason_ar: reason },
+        before: { status: line.status, reject_reason_ar: line.reject_reason_ar, roll_warehouse: line.warehouse, roll_status: line.roll_status },
+        after: { status: newStatus, reject_reason_ar: reason, roll_warehouse: rollWarehouse, roll_status: rollStatus },
         severity: 'medium',
       });
     }
+
+    await trx('shipments').where({ id: shipmentId }).update({ updated_at: trx.fn.now() });
+    await finalizeIfComplete(trx, shipment as Shipment, actorUserId);
 
     return trx('shipment_lines').whereIn('id', targetIds).orderBy('id') as Promise<ShipmentLine[]>;
   });
 }
 
+/**
+ * Kept for API compatibility. Stock now moves when each line is reviewed and
+ * the طلبية closes itself once nothing is pending; this only re-runs that
+ * closing check.
+ */
 export async function acceptShipment(
   shipmentId: number,
   actorUserId: number,
@@ -304,103 +478,26 @@ export async function acceptShipment(
     if (!shipment) throw new Error('SHIPMENT_NOT_FOUND');
     if (shipment.status !== 'pending_approval') throw new Error('SHIPMENT_NOT_REVIEWABLE');
 
-    const lines = await trx('shipment_lines as sl')
-      .join('rolls as r', 'sl.roll_id', 'r.id')
-      .join('fabrics as f', 'r.fabric_id', 'f.id')
-      .where('sl.shipment_id', shipmentId)
-      .select('sl.*', 'r.fabric_id', 'r.length_m', 'r.weight_kg', 'r.reference_price_per_unit', 'f.unit as fabric_unit');
+    const pending = await trx('shipment_lines').where({ shipment_id: shipmentId, status: 'pending' }).first('id');
+    if (pending) throw new Error('REVIEW_INCOMPLETE');
+    const any = await trx('shipment_lines').where({ shipment_id: shipmentId }).first('id');
+    if (!any) throw new Error('SHIPMENT_EMPTY');
 
-    if (lines.length === 0) throw new Error('SHIPMENT_EMPTY');
-    if (lines.some((l: Record<string, unknown>) => l.status === 'pending')) throw new Error('REVIEW_INCOMPLETE');
-
-    const accepted = lines.filter((l: Record<string, unknown>) => l.status === 'accepted');
-    const rejected = lines.filter((l: Record<string, unknown>) => l.status === 'rejected');
-
-    const meterRollsWithNullLength = accepted.filter(
-      (l: Record<string, unknown>) => l.fabric_unit === 'meter' && (l.length_m === null || l.length_m === undefined),
-    );
-    if (meterRollsWithNullLength.length > 0) {
-      const barcodes = await trx('rolls')
-        .whereIn('id', meterRollsWithNullLength.map((l: Record<string, unknown>) => l.roll_id as number))
-        .pluck('internal_barcode');
-      throw Object.assign(new Error('METER_ROLL_MISSING_LENGTH'), { barcodes });
-    }
-
-    for (const line of accepted) {
-      await trx('rolls').where({ id: line.roll_id }).update({
-        warehouse: 'shop',
-        status: 'in_stock',
-        received_at: trx.fn.now(),
-        updated_at: trx.fn.now(),
-      });
-      await trx('stock_movements').insert({
-        roll_id: line.roll_id,
-        from_warehouse: null,
-        to_warehouse: 'shop',
-        event_type: 'shipment_in',
-        reference_type: 'shipment',
-        reference_id: shipmentId,
-        actor_user_id: actorUserId,
-      });
-    }
-
-    // Rejected أتواب go back to the factory as «متاح» and can be sent again.
-    await releaseRolls(trx, rejected.map((l: Record<string, unknown>) => Number(l.roll_id)));
-    for (const line of rejected) {
-      await trx('stock_movements').insert({
-        roll_id: line.roll_id,
-        from_warehouse: null,
-        to_warehouse: 'factory',
-        event_type: 'shipment_reject_back',
-        reference_type: 'shipment',
-        reference_id: shipmentId,
-        actor_user_id: actorUserId,
-        notes_ar: line.reject_reason_ar,
-      });
-    }
-
-    let finalStatus: 'approved' | 'rejected' | 'partial_approved';
-    if (rejected.length === 0) finalStatus = 'approved';
-    else if (accepted.length === 0) finalStatus = 'rejected';
-    else finalStatus = 'partial_approved';
-
-    await trx('shipments').where({ id: shipmentId }).update({
-      status: finalStatus,
-      reviewed_by_user_id: actorUserId,
-      reviewed_at: trx.fn.now(),
-      updated_at: trx.fn.now(),
-    });
-    const updated = await trx('shipments').where({ id: shipmentId }).first();
-
-    await auditFromService(trx, {
-      actorUserId,
-      action: 'finalize_shipment',
-      entity: 'shipment',
-      entityId: shipmentId,
-      before: { status: shipment.status },
-      after: { status: finalStatus, accepted_count: accepted.length, rejected_count: rejected.length },
-      severity: finalStatus === 'approved' ? 'medium' : 'high',
-    });
-
-    if (finalStatus === 'partial_approved' || finalStatus === 'rejected') {
-      await notify({
-        recipientRole: 'owner',
-        severity: 'medium',
-        eventType: 'shipment_partial_reject',
-        titleAr: 'طلبية مرفوضة جزئياً',
-        bodyAr: `طلبية رقم ${updated.shipment_no}: قُبل ${accepted.length} ورُفض ${rejected.length} توب`,
-        payload: { shipment_id: shipmentId, shipment_no: updated.shipment_no, final_status: finalStatus, accepted: accepted.length, rejected: rejected.length },
-      });
-    }
-
-    return updated as Shipment;
+    return finalizeIfComplete(trx, shipment as Shipment, actorUserId);
   });
 }
 
 export async function listShipments(filters: ListShipmentsQueryInput): Promise<Shipment[]> {
-  const q = db('shipments').orderBy('id', 'desc');
-  if (filters.status !== undefined) q.where('status', filters.status);
-  if (filters.created_by_user_id !== undefined) q.where('created_by_user_id', filters.created_by_user_id);
+  const q = db('shipments as s')
+    .select(
+      's.*',
+      db.raw('(SELECT COUNT(*)::int FROM shipment_lines sl WHERE sl.shipment_id = s.id) AS line_count'),
+      db.raw(`(SELECT COUNT(*)::int FROM shipment_lines sl WHERE sl.shipment_id = s.id AND sl.status = 'accepted') AS accepted_count`),
+      db.raw(`(SELECT COUNT(*)::int FROM shipment_lines sl WHERE sl.shipment_id = s.id AND sl.status = 'pending') AS pending_count`),
+    )
+    .orderBy('s.id', 'desc');
+  if (filters.status !== undefined) q.where('s.status', filters.status);
+  if (filters.created_by_user_id !== undefined) q.where('s.created_by_user_id', filters.created_by_user_id);
   return q;
 }
 
@@ -455,7 +552,7 @@ export async function listFactoryRolls(filters: ListFactoryRollsQueryInput): Pro
     .leftJoin('shipment_lines as sl', function () {
       this.on('sl.roll_id', '=', 'r.id').andOn(
         db.raw(
-          `sl.shipment_id IN (SELECT id FROM shipments WHERE status IN ('draft','pending_approval'))`,
+          `sl.status = 'pending' AND sl.shipment_id IN (SELECT id FROM shipments WHERE status IN ('draft','pending_approval'))`,
         ),
       );
     })

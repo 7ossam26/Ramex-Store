@@ -1,24 +1,49 @@
 import type { HrSalaryDisbursement, HrSalaryAdjustment } from '@/lib/hr-api';
+import { cairoTodayIso } from '@/components/dashboard/format';
 
 export function fmt(v: string | number) {
   return Number(v).toLocaleString('en-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export function toMonthDate(ym: string) {
-  return `${ym}-01`;
+// ─── Weekly pay dates (salaries are paid every Thursday) ────────────────────
+
+const THURSDAY = 4;
+
+function parseIso(date: string): Date {
+  return new Date(`${date}T00:00:00Z`);
 }
 
-/** Current calendar month as "YYYY-MM". */
-export function currentMonthYM() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+function toIso(d: Date): string {
+  return d.toISOString().slice(0, 10);
 }
 
-/** The month after the current calendar month as "YYYY-MM". */
-export function nextMonthYM() {
-  const d = new Date();
-  const n = new Date(d.getFullYear(), d.getMonth() + 1, 1);
-  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+export function isThursday(date: string): boolean {
+  return parseIso(date).getUTCDay() === THURSDAY;
+}
+
+/** This week's pay Thursday in Cairo: today if Thursday, otherwise the coming Thursday. */
+export function currentPayThursday(): string {
+  const d = parseIso(cairoTodayIso());
+  d.setUTCDate(d.getUTCDate() + ((THURSDAY - d.getUTCDay() + 7) % 7));
+  return toIso(d);
+}
+
+/** Move a pay date by whole weeks. */
+export function shiftWeek(date: string, weeks: number): string {
+  const d = parseIso(date);
+  d.setUTCDate(d.getUTCDate() + weeks * 7);
+  return toIso(d);
+}
+
+/** "الخميس 08/10/2026" — Western digits. */
+export function formatPayDate(date: string): string {
+  const [y, m, d] = date.slice(0, 10).split('-');
+  return `الخميس ${d}/${m}/${y}`;
+}
+
+/** Label for a salary period: weekly Thursday date, or "YYYY-MM" for legacy monthly rows. */
+function periodLabel(date: string, weekly: boolean): string {
+  return weekly ? formatPayDate(date) : date.slice(0, 7);
 }
 
 export const inputCls =
@@ -46,7 +71,7 @@ export function buildActivity(
     date: d.created_at,
     kind: 'salary',
     amount: Number(d.net_egp),
-    sub: d.month.slice(0, 7),
+    sub: periodLabel(d.month, d.pay_period === 'week'),
   }));
 
   const fromAdjustments: ActivityItem[] = adjustments.map((a) => ({
@@ -54,7 +79,7 @@ export function buildActivity(
     date: a.created_at,
     kind: a.kind,
     amount: Number(a.amount_egp),
-    sub: a.reason_ar ?? a.salary_month.slice(0, 7),
+    sub: a.reason_ar ?? periodLabel(a.salary_month, isThursday(a.salary_month)),
   }));
 
   return [...fromSalaries, ...fromAdjustments].sort(

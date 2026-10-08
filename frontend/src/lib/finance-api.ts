@@ -7,6 +7,7 @@ import type {
   CashVaultTransfer,
   CashVaultTransferStatus,
   Expense,
+  ExpenseCashSource,
   GeneralVaultBalance,
   ReconciliationResult,
   TreasuriesOverview,
@@ -95,6 +96,7 @@ export const financeApi = {
     category: string;
     amount_egp: number;
     paid_from: 'cash' | 'bank' | 'instapay';
+    cash_source?: ExpenseCashSource | null;
     bank_account_id?: number | null;
     notes_ar?: string | null;
   }) => api.post<Expense>('/expenses', body).then((r) => r.data),

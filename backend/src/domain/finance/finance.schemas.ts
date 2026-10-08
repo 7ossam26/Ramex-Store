@@ -68,6 +68,8 @@ export const CreateExpenseSchema = z.object({
   category: z.string().min(1, 'فئة المصروف مطلوبة').max(32, 'اسم الفئة طويل جداً'),
   amount_egp: z.number({ invalid_type_error: 'المبلغ يجب أن يكون رقماً' }).positive('المبلغ يجب أن يكون أكبر من صفر'),
   paid_from: z.enum(['cash', 'bank', 'instapay']),
+  // Which cash box a cash expense comes out of. Ignored for bank/instapay.
+  cash_source: z.enum(['cash_drawer', 'general_vault']).nullable().optional(),
   bank_account_id: z.number().int().positive().nullable().optional(),
   notes_ar: z.string().nullable().optional(),
 });

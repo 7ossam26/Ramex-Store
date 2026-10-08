@@ -25,6 +25,7 @@ export async function getFactorySenderDashboard(req: Request, res: Response): Pr
           db('shipment_lines as sl')
             .join('shipments as s', 'sl.shipment_id', 's.id')
             .whereIn('s.status', ['draft', 'pending_approval'])
+            .where('sl.status', 'pending')
             .select('sl.roll_id'),
         )
         .count('id as count')

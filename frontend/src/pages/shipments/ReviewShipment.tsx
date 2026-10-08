@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/PageHeader';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { FilterChip } from '@/components/FilterChip';
 import { ShipmentStatusPill } from '@/components/shipments/ShipmentStatusPill';
 import { StatusPill, type StatusTone } from '@/components/StatusPill';
 import type { ShipmentLineDetail } from '@/lib/inventory-types';
@@ -21,6 +22,14 @@ const LINE_STATUS_TONE: Record<string, StatusTone> = {
 };
 
 type ReviewAction = 'accept' | 'reject' | 'reset';
+
+type LineFilter = 'received' | 'pending' | 'rejected' | 'all';
+
+const FILTER_STATUS: Record<Exclude<LineFilter, 'all'>, ShipmentLineDetail['status']> = {
+  received: 'accepted',
+  pending: 'pending',
+  rejected: 'rejected',
+};
 
 const checkboxClass = 'size-4 cursor-pointer accent-accent align-middle';
 
@@ -67,6 +76,8 @@ export function ReviewShipmentPage({ readOnly = false }: { readOnly?: boolean })
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [confirmRejectAll, setConfirmRejectAll] = useState(false);
+  // null = not chosen yet: pending while there is something to receive, else received.
+  const [lineFilter, setLineFilter] = useState<LineFilter | null>(null);
 
   const q = useQuery({
     queryKey: ['shipment', shipmentId],
@@ -81,7 +92,10 @@ export function ReviewShipmentPage({ readOnly = false }: { readOnly?: boolean })
         reject_reason_ar: action === 'reject' ? reason.trim() || null : null,
       }),
     onSuccess: (_data, { action }) => {
-      qc.invalidateQueries({ queryKey: ['shipment', shipmentId] });
+      // A decision moves stock immediately, so stock views are stale too.
+      for (const key of ['shipment', 'shipments', 'stock-summary', 'rolls-for-stock', 'rolls-search', 'stock-movements']) {
+        qc.invalidateQueries({ queryKey: key === 'shipment' ? [key, shipmentId] : [key] });
+      }
       setSelected(new Set());
       if (action === 'reject') setReason('');
       setError(null);
@@ -89,44 +103,42 @@ export function ReviewShipmentPage({ readOnly = false }: { readOnly?: boolean })
     onError: (e) => setError(extractApiError(e)),
   });
 
-  const accept = useMutation({
-    mutationFn: () => inventoryApi.acceptShipment(shipmentId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['shipment', shipmentId] });
-      qc.invalidateQueries({ queryKey: ['shipments'] });
-      setSelected(new Set());
-      setError(null);
-    },
-    onError: (e) => setError(extractApiError(e)),
-  });
-
   if (!q.data || permsLoading) return <div>{ar.loading}</div>;
   const shipment = q.data;
-  // partial_approved is a final state — only pending_approval can be reviewed.
+  // The طلبية closes itself once no توب is pending — only pending_approval can be reviewed.
   const isReviewable = shipment.status === 'pending_approval';
   const canReview = isReviewable && !readOnly && canApprove;
 
+  const pendingIds = shipment.lines.filter((l) => l.status === 'pending').map((l) => l.id);
+  const acceptedCount = shipment.lines.filter((l) => l.status === 'accepted').length;
+  const rejectedCount = shipment.lines.filter((l) => l.status === 'rejected').length;
+
+  const activeFilter: LineFilter = lineFilter ?? (canReview && pendingIds.length > 0 ? 'pending' : 'received');
+  const visibleLines = activeFilter === 'all'
+    ? shipment.lines
+    : shipment.lines.filter((l) => l.status === FILTER_STATUS[activeFilter]);
+  const filterCounts: Record<LineFilter, number> = {
+    received: acceptedCount,
+    pending: pendingIds.length,
+    rejected: rejectedCount,
+    all: shipment.lines.length,
+  };
+
   // Group lines by fabric_id — order preserved because service sorts by fabric_id then sl.id.
-  const fabricGroups = shipment.lines.reduce<Map<number, ShipmentLineDetail[]>>((map, line) => {
+  const fabricGroups = visibleLines.reduce<Map<number, ShipmentLineDetail[]>>((map, line) => {
     const existing = map.get(line.fabric_id);
     if (existing) existing.push(line);
     else map.set(line.fabric_id, [line]);
     return map;
   }, new Map());
 
-  const pendingIds = shipment.lines.filter((l) => l.status === 'pending').map((l) => l.id);
-  const acceptedCount = shipment.lines.filter((l) => l.status === 'accepted').length;
-  const rejectedCount = shipment.lines.filter((l) => l.status === 'rejected').length;
-  const allLineIds = shipment.lines.map((l) => l.id);
+  const allLineIds = visibleLines.map((l) => l.id);
 
   const selectedLines = shipment.lines.filter((l) => selected.has(l.id));
   const selectedPending = selectedLines.filter((l) => l.status === 'pending').map((l) => l.id);
   const selectedDecided = selectedLines.filter((l) => l.status !== 'pending').map((l) => l.id);
 
-  const allReviewed = pendingIds.length === 0;
-  const busy = review.isPending || accept.isPending;
-  const canConfirm = allReviewed && !busy;
-  const confirmTitle = !allReviewed ? ar.shipments.acceptShipmentBlockedReview : undefined;
+  const busy = review.isPending;
 
   function run(ids: number[], action: ReviewAction) {
     if (ids.length === 0) return;
@@ -161,6 +173,25 @@ export function ReviewShipmentPage({ readOnly = false }: { readOnly?: boolean })
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        {(['received', 'pending', 'rejected', 'all'] as const).map((f) => (
+          <FilterChip
+            key={f}
+            active={activeFilter === f}
+            onClick={() => {
+              setLineFilter(f);
+              setSelected(new Set());
+            }}
+          >
+            {ar.shipments.lineFilter[f]} ({filterCounts[f]})
+          </FilterChip>
+        ))}
+      </div>
+
+      {canReview && (
+        <p className="text-sm text-foreground-muted">{ar.shipments.receiveHint}</p>
       )}
 
       {canReview && (
@@ -249,6 +280,14 @@ export function ReviewShipmentPage({ readOnly = false }: { readOnly?: boolean })
             )}
           </div>
         </div>
+      )}
+
+      {visibleLines.length === 0 && (
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-foreground-muted">
+            {ar.shipments.noLinesInFilter}
+          </CardContent>
+        </Card>
       )}
 
       {[...fabricGroups.entries()].map(([fabricId, lines]) => {
@@ -385,21 +424,6 @@ export function ReviewShipmentPage({ readOnly = false }: { readOnly?: boolean })
       {canReview && (
         <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
           <span className="text-sm text-foreground-muted tabular-num">{summary}</span>
-          <Button
-            size="lg"
-            onClick={() => accept.mutate()}
-            disabled={!canConfirm}
-            title={confirmTitle}
-            className="min-w-[180px] cursor-pointer"
-          >
-            {accept.isPending ? 'جارٍ التأكيد...' : ar.shipments.acceptShipment}
-          </Button>
-        </div>
-      )}
-
-      {accept.isSuccess && !isReviewable && (
-        <div className="rounded-md border border-success/40 bg-success-subtle px-4 py-3 text-sm text-success-foreground">
-          {ar.shipments.reviewFinished}
         </div>
       )}
 

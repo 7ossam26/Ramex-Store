@@ -1,3 +1,4 @@
+import type { Knex } from 'knex';
 import { db } from '../../../db/connection.js';
 import type { ReportPdfOptions } from '../../../lib/reports/pdfExport.js';
 
@@ -33,10 +34,21 @@ const VIA_LABELS: Record<string, string> = {
   bank_transfer: 'تحويل بنكي',
 };
 
+/**
+ * Pay dates in [from, to]. Weekly rows carry their Thursday; legacy monthly
+ * rows carry the 1st of the month, so those match on the month of `from`.
+ */
+function inPayRange(b: Knex.QueryBuilder, col: string, periodCol: string, from: string, to: string): void {
+  b.where((q) => {
+    q.whereBetween(col, [from, to])
+      .orWhere((m) => m.where(periodCol, 'month').whereBetween(col, [`${from.slice(0, 7)}-01`, to]));
+  });
+}
+
 export async function getPayrollSummary(from: string, to: string): Promise<PayrollSummaryResult> {
   const rows = await db('hr_salary_disbursements as d')
     .join('hr_employees as e', 'd.employee_id', 'e.id')
-    .whereBetween('d.month', [from.slice(0, 7), to.slice(0, 7)])
+    .modify((b) => inPayRange(b, 'd.month', 'd.pay_period', from, to))
     .orderBy(['d.month', 'e.name_ar'])
     .select(
       'd.month',
@@ -49,7 +61,7 @@ export async function getPayrollSummary(from: string, to: string): Promise<Payro
     );
 
   const byMonth = await db('hr_salary_disbursements')
-    .whereBetween('month', [from.slice(0, 7), to.slice(0, 7)])
+    .modify((b) => inPayRange(b, 'month', 'pay_period', from, to))
     .groupBy('month')
     .orderBy('month')
     .select(
@@ -100,7 +112,7 @@ export function payrollSummaryToExport(
       {
         titleAr: 'تفاصيل الرواتب المصروفة',
         columns: [
-          { label: 'الشهر', key: 'month', width: 'auto' },
+          { label: 'تاريخ الصرف', key: 'month', width: 'auto' },
           { label: 'الموظف', key: 'employee_name_ar', width: '*' },
           { label: 'الوظيفة', key: 'role_ar', width: 'auto' },
           { label: 'الراتب الأساسي (ج.م)', key: 'gross_egp', width: 'auto' },

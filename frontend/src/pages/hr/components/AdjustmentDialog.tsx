@@ -7,13 +7,13 @@ import { ErrorBanner } from '@/components/ErrorBanner';
 import { cn } from '@/lib/utils';
 import { extractApiError } from '@/lib/api-error';
 import { HrDialog } from './HrDialog';
-import { MonthStepper } from './MonthStepper';
-import { inputCls, toMonthDate, currentMonthYM, nextMonthYM } from './utils';
+import { WeekStepper } from './WeekStepper';
+import { inputCls, currentPayThursday } from './utils';
 
 /**
  * Record an advance or deduction for a single, already-selected employee.
- * Advances are always repaid from the NEXT month's salary (no month picker shown).
- * Deductions apply to a chosen month, defaulting to the current month.
+ * Advances are tagged with the next pay Thursday (no picker shown).
+ * Deductions apply to a chosen weekly salary, defaulting to this week's Thursday.
  */
 export function AdjustmentDialog({
   employeeId,
@@ -28,7 +28,7 @@ export function AdjustmentDialog({
 }) {
   const [kind, setKind] = useState<'advance' | 'deduction'>('advance');
   const [amount, setAmount] = useState('');
-  const [salaryMonth, setSalaryMonth] = useState(currentMonthYM());
+  const [salaryMonth, setSalaryMonth] = useState(currentPayThursday());
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const qc = useQueryClient();
@@ -39,7 +39,7 @@ export function AdjustmentDialog({
         employee_id: employeeId,
         kind,
         amount_egp: Number(amount),
-        salary_month: toMonthDate(kind === 'advance' ? nextMonthYM() : salaryMonth),
+        salary_month: kind === 'advance' ? currentPayThursday() : salaryMonth,
         reason_ar: reason.trim() || null,
       }),
     onSuccess: () => {
@@ -97,7 +97,7 @@ export function AdjustmentDialog({
         {kind === 'deduction' && (
           <div className="flex items-center justify-between gap-3">
             <label className="text-sm font-medium text-foreground">{ar.hr.adjustment.salaryMonth}</label>
-            <MonthStepper value={salaryMonth} onChange={setSalaryMonth} />
+            <WeekStepper value={salaryMonth} onChange={setSalaryMonth} />
           </div>
         )}
 

@@ -69,6 +69,8 @@ export type BankMovement = {
   created_at: string;
 };
 
+export type ExpenseCashSource = 'cash_drawer' | 'general_vault';
+
 export type Expense = {
   id: number;
   category: string;
@@ -79,7 +81,10 @@ export type Expense = {
   approved_by_user_id: number | null;
   approved_at: string | null;
   paid_from: 'cash' | 'bank' | 'instapay';
+  /** Cash box for a cash expense; null on old rows = cash drawer. */
+  cash_source: ExpenseCashSource | null;
   bank_account_id: number | null;
+  bank_account_name_ar?: string | null;
   actor_user_id: number;
   actor_username: string | null;
   approved_by_username: string | null;

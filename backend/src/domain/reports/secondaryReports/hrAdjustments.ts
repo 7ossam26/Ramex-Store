@@ -32,7 +32,7 @@ const KIND_LABELS: Record<string, string> = {
 export async function getHrAdjustments(from: string, to: string): Promise<HrAdjustmentsResult> {
   const rows = await db('hr_salary_adjustments as a')
     .join('hr_employees as e', 'a.employee_id', 'e.id')
-    .whereBetween('a.salary_month', [from.slice(0, 7), to.slice(0, 7)])
+    .whereBetween('a.salary_month', [`${from.slice(0, 7)}-01`, to])
     .orderBy(['a.salary_month', 'e.name_ar', 'a.kind'])
     .select(
       'e.name_ar as employee_name_ar',
@@ -40,12 +40,12 @@ export async function getHrAdjustments(from: string, to: string): Promise<HrAdju
       'a.kind',
       'a.salary_month',
       'a.amount_egp',
-      'a.notes_ar',
+      'a.reason_ar as notes_ar',
     );
 
   const byEmployee = await db('hr_salary_adjustments as a')
     .join('hr_employees as e', 'a.employee_id', 'e.id')
-    .whereBetween('a.salary_month', [from.slice(0, 7), to.slice(0, 7)])
+    .whereBetween('a.salary_month', [`${from.slice(0, 7)}-01`, to])
     .groupBy('e.id', 'e.name_ar')
     .orderBy('e.name_ar')
     .select(
@@ -102,7 +102,7 @@ export function hrAdjustmentsToExport(
           { label: 'الموظف', key: 'employee_name_ar', width: '*' },
           { label: 'الوظيفة', key: 'role_ar', width: 'auto' },
           { label: 'النوع', key: 'kind', width: 'auto' },
-          { label: 'الشهر', key: 'salary_month', width: 'auto' },
+          { label: 'تاريخ التطبيق', key: 'salary_month', width: 'auto' },
           { label: 'المبلغ (ج.م)', key: 'amount_egp', width: 'auto' },
         ],
         rows: data.rows.map((r) => ({ ...r, notes_ar: r.notes_ar ?? '' })),

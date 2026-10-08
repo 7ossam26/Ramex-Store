@@ -66,3 +66,14 @@ export function cairoToday(): string {
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${mo}-${day}`;
 }
+
+/**
+ * The weekly salary pay date for "now" in Cairo: today when today is a
+ * Thursday, otherwise the coming Thursday. YYYY-MM-DD.
+ */
+export function cairoUpcomingThursday(): string {
+  const today = cairoToday();
+  const d = new Date(`${today}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + ((4 - d.getUTCDay() + 7) % 7));
+  return d.toISOString().slice(0, 10);
+}

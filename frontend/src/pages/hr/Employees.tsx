@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { EmployeeListPane } from './components/EmployeeListPane';
 import { EmployeeDetailPane } from './components/EmployeeDetailPane';
 import { EmployeeFormDialog } from './components/EmployeeFormDialog';
-import { currentMonthYM, toMonthDate } from './components/utils';
+import { currentPayThursday } from './components/utils';
 
 export function EmployeesPage() {
   const [params, setParams] = useSearchParams();
@@ -30,10 +30,10 @@ export function EmployeesPage() {
   const employees = data?.rows ?? [];
 
   // One request feeds every row's "إجمالي السلف الحالية" number: current outstanding advances per employee.
-  const month = currentMonthYM();
+  const payDate = currentPayThursday();
   const { data: previewRows } = useQuery<HrSalaryPreview[]>({
-    queryKey: ['hr-balances', month],
-    queryFn: () => hrApi.getMonthPreview(toMonthDate(month)),
+    queryKey: ['hr-balances', payDate],
+    queryFn: () => hrApi.getMonthPreview(payDate),
   });
   const totals = useMemo(() => {
     const m = new Map<number, number>();

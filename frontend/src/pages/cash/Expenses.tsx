@@ -5,6 +5,7 @@ import { Plus, Check, X } from 'lucide-react';
 import { financeApi } from '@/lib/finance-api';
 import { useAuth } from '@/lib/auth';
 import { isOwnerOrAbove } from '@/lib/roles';
+import { usePermissions } from '@/lib/permissions';
 import { ar } from '@/i18n/ar';
 import { extractApiError } from '@/lib/api-error';
 import type { Expense } from '@/lib/finance-types';
@@ -48,13 +49,24 @@ const CATEGORIES = [
   { value: 'other', label: 'أخرى' },
 ];
 
+/** الخزنة picker value: 'cash_drawer' | 'general_vault' | 'bank:<id>'. */
 type ExpenseFormValues = {
   category: string;
   amount_egp: string;
-  paid_from: 'cash' | 'bank' | 'instapay';
-  bank_account_id: string;
+  source: string;
+  bank_method: 'bank' | 'instapay';
   notes_ar: string;
 };
+
+const BANK_PREFIX = 'bank:';
+
+function sourceLabel(e: Expense): string {
+  if (e.paid_from === 'cash') {
+    return e.cash_source === 'general_vault' ? 'الخزنة العامة' : 'الخزنة النقدية';
+  }
+  const method = e.paid_from === 'instapay' ? 'انستاباي' : 'بنك';
+  return e.bank_account_name_ar ? `${method} — ${e.bank_account_name_ar}` : method;
+}
 
 type StatusFilter = 'all' | 'pending' | 'approved';
 
@@ -69,6 +81,9 @@ export function ExpensesPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const isOwner = isOwnerOrAbove(user?.role);
+  const { can } = usePermissions();
+  const canUseVault = can('cash_vault_transfer', 'write');
+  const canReadVault = can('cash_vault_transfer', 'read');
 
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -97,32 +112,51 @@ export function ExpensesPage() {
     enabled: showCreate,
   });
 
+  const cashBalanceQ = useQuery({
+    queryKey: ['cash-balance'],
+    queryFn: financeApi.getCashBalance,
+    enabled: showCreate,
+  });
+
+  const vaultBalanceQ = useQuery({
+    queryKey: ['general-vault-balance'],
+    queryFn: financeApi.getGeneralVaultBalance,
+    enabled: showCreate && canUseVault && canReadVault,
+  });
+
   const form = useForm<ExpenseFormValues>({
     defaultValues: {
       category: 'other',
       amount_egp: '',
-      paid_from: 'cash',
-      bank_account_id: '',
+      source: 'cash_drawer',
+      bank_method: 'bank',
       notes_ar: '',
     },
   });
 
-  const paidFrom = form.watch('paid_from');
+  const source = form.watch('source');
+  const bankMethod = form.watch('bank_method');
+  const isBankSource = source.startsWith(BANK_PREFIX);
 
   const createMut = useMutation({
-    mutationFn: (d: ExpenseFormValues) =>
-      financeApi.createExpense({
+    mutationFn: (d: ExpenseFormValues) => {
+      const isBank = d.source.startsWith(BANK_PREFIX);
+      return financeApi.createExpense({
         category: d.category,
         amount_egp: Number(d.amount_egp),
-        paid_from: d.paid_from,
-        bank_account_id: (d.paid_from === 'bank' || d.paid_from === 'instapay') && d.bank_account_id ? Number(d.bank_account_id) : null,
+        paid_from: isBank ? d.bank_method : 'cash',
+        cash_source: isBank ? null : (d.source as 'cash_drawer' | 'general_vault'),
+        bank_account_id: isBank ? Number(d.source.slice(BANK_PREFIX.length)) : null,
         notes_ar: d.notes_ar || null,
-      }),
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses'] });
       qc.invalidateQueries({ queryKey: ['cash-balance'] });
       qc.invalidateQueries({ queryKey: ['cash-movements'] });
       qc.invalidateQueries({ queryKey: ['banks'] });
+      qc.invalidateQueries({ queryKey: ['general-vault-balance'] });
+      qc.invalidateQueries({ queryKey: ['treasuries-overview'] });
       setShowCreate(false);
       form.reset();
       setCreateError(null);
@@ -136,6 +170,9 @@ export function ExpensesPage() {
       qc.invalidateQueries({ queryKey: ['expenses'] });
       qc.invalidateQueries({ queryKey: ['cash-balance'] });
       qc.invalidateQueries({ queryKey: ['cash-movements'] });
+      qc.invalidateQueries({ queryKey: ['banks'] });
+      qc.invalidateQueries({ queryKey: ['general-vault-balance'] });
+      qc.invalidateQueries({ queryKey: ['treasuries-overview'] });
     },
   });
 
@@ -182,12 +219,8 @@ export function ExpensesPage() {
     },
     {
       key: 'paid_from',
-      header: 'مدفوع من',
-      cell: (e) => {
-        if (e.paid_from === 'cash') return 'نقدي';
-        if (e.paid_from === 'instapay') return 'انستاباي';
-        return 'بنك';
-      },
+      header: 'الخزنة',
+      cell: (e) => sourceLabel(e),
     },
     {
       key: 'status',
@@ -362,63 +395,67 @@ export function ExpensesPage() {
             </div>
             <div className="space-y-1.5">
               <Label>
-                مدفوع من <span className="text-danger">*</span>
+                الخزنة <span className="text-danger">*</span>
               </Label>
-              <div className="flex flex-wrap gap-3">
-                {(
-                  [
-                    { value: 'cash', label: 'نقدي' },
-                    { value: 'bank', label: 'بنك' },
-                    { value: 'instapay', label: 'انستاباي' },
-                  ] as const
-                ).map((opt) => (
-                  <label
-                    key={opt.value}
-                    className={`flex items-center gap-2 cursor-pointer rounded-md border px-3 py-2 text-sm transition-colors ${
-                      paidFrom === opt.value
-                        ? 'border-accent bg-accent/10 text-foreground font-medium'
-                        : 'border-border-default text-foreground-muted hover:border-accent/60'
-                    }`}
+              <Controller
+                control={form.control}
+                name="source"
+                rules={{ required: true }}
+                render={({ field }) => (
+                  <SearchableSelect
+                    ref={field.ref}
+                    name={field.name}
+                    value={field.value ?? ''}
+                    onChange={(e) => field.onChange(e.target.value)}
+                    className="w-full rounded-md border border-border-default bg-surface-elevated h-10 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   >
-                    <input
-                      type="radio"
-                      value={opt.value}
-                      className="sr-only"
-                      {...form.register('paid_from')}
-                    />
-                    {opt.label}
-                  </label>
-                ))}
-              </div>
+                    <option value="cash_drawer">
+                      {`الخزنة النقدية${cashBalanceQ.data ? ` — ${fmt(cashBalanceQ.data.current_balance_egp)} ج.م` : ''}`}
+                    </option>
+                    {canUseVault && (
+                      <option value="general_vault">
+                        {`الخزنة العامة${vaultBalanceQ.data ? ` — ${fmt(vaultBalanceQ.data.current_balance_egp)} ج.م` : ''}`}
+                      </option>
+                    )}
+                    {(banksQ.data ?? [])
+                      .filter((b) => b.is_active)
+                      .map((b) => (
+                        <option key={b.id} value={`${BANK_PREFIX}${b.id}`}>
+                          {`${b.name_ar} — ${fmt(b.current_balance_egp)} ج.م`}
+                        </option>
+                      ))}
+                  </SearchableSelect>
+                )}
+              />
             </div>
-            {(paidFrom === 'bank' || paidFrom === 'instapay') && (
+            {isBankSource && (
               <div className="space-y-1.5">
-                <Label>
-                  الحساب البنكي <span className="text-danger">*</span>
-                </Label>
-                <Controller
-                  control={form.control}
-                  name="bank_account_id"
-                  rules={{ required: paidFrom === 'bank' || paidFrom === 'instapay' }}
-                  render={({ field }) => (
-                    <SearchableSelect
-                      ref={field.ref}
-                      name={field.name}
-                      value={field.value ?? ''}
-                      onChange={(e) => field.onChange(e.target.value)}
-                      className="w-full rounded-md border border-border-default bg-surface-elevated h-10 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                <Label>طريقة الدفع</Label>
+                <div className="flex flex-wrap gap-3">
+                  {(
+                    [
+                      { value: 'bank', label: 'بنك' },
+                      { value: 'instapay', label: 'انستاباي' },
+                    ] as const
+                  ).map((opt) => (
+                    <label
+                      key={opt.value}
+                      className={`flex items-center gap-2 cursor-pointer rounded-md border px-3 py-2 text-sm transition-colors ${
+                        bankMethod === opt.value
+                          ? 'border-accent bg-accent/10 text-foreground font-medium'
+                          : 'border-border-default text-foreground-muted hover:border-accent/60'
+                      }`}
                     >
-                      <option value="">-- اختر حساب --</option>
-                      {(banksQ.data ?? [])
-                        .filter((b) => b.is_active)
-                        .map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.name_ar}
-                          </option>
-                        ))}
-                    </SearchableSelect>
-                  )}
-                />
+                      <input
+                        type="radio"
+                        value={opt.value}
+                        className="sr-only"
+                        {...form.register('bank_method')}
+                      />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
               </div>
             )}
             <div className="space-y-1.5">

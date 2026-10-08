@@ -57,6 +57,7 @@ export async function disburse(data: DisburseInput, actorUserId: number): Promis
         adjustments_egp: deductionsEgp,
         advance_repayment_egp: advanceRepaymentEgp,
         net_egp: netEgp,
+        pay_period: 'week',
         paid_via: data.paid_via,
         bank_account_id: data.bank_account_id ?? null,
         notes_ar: data.notes_ar ?? null,
@@ -87,7 +88,7 @@ export async function disburse(data: DisburseInput, actorUserId: number): Promis
       await cashRecordMovement(
         trx, 'out', 'expense', netEgp, actorUserId,
         'hr_salary_disbursement', disbursement.id,
-        `راتب: ${employee.name_ar}`,
+        `راتب أسبوعي: ${employee.name_ar} (${data.month})`,
       );
     } else if (data.bank_account_id) {
       const account = await trx('bank_accounts').where({ id: data.bank_account_id }).forUpdate().first();
@@ -98,7 +99,7 @@ export async function disburse(data: DisburseInput, actorUserId: number): Promis
       await bankRecordMovement(
         trx, data.bank_account_id, 'out', 'other_out', netEgp, actorUserId,
         'hr_salary_disbursement', disbursement.id,
-        `راتب: ${employee.name_ar}`,
+        `راتب أسبوعي: ${employee.name_ar} (${data.month})`,
       );
     }
 
@@ -110,6 +111,7 @@ export async function disburse(data: DisburseInput, actorUserId: number): Promis
       after: {
         employee_id: data.employee_id,
         month: data.month,
+        pay_period: 'week',
         gross_egp: grossEgp,
         deductions_egp: deductionsEgp,
         advance_repayment_egp: advanceRepaymentEgp,

@@ -1,5 +1,6 @@
-// الطلبيات: «قيد الشحن» lock on أتواب added to a طلبية, bulk review with
-// undo, and partial confirmation being final (no second confirm).
+// الطلبيات: «قيد الشحن» lock on أتواب added to a طلبية, review decisions
+// taking effect immediately (partial deliveries), undo while untouched, and
+// the طلبية closing itself once nothing is pending.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { db } from '../src/db/connection.js';
 import { createFabric } from '../src/domain/items/fabrics.service.js';
@@ -122,49 +123,77 @@ describe.skipIf(!RUN_DB).sequential('shipment review + in-transit lock', () => {
     await deleteDraft(shipment.id, actorUserId);
   });
 
-  it('bulk review skips decided lines, undo returns to pending, and a partial confirm is final', async () => {
-    const [a, b, c] = [await makeFactoryRoll(), await makeFactoryRoll(), await makeFactoryRoll()];
-    const { shipmentId, lineIds: [la, lb, lc] } = await draftWith([a, b, c]);
+  it('accepting receives the توب into the shop immediately; the rest stay pending for a later delivery', async () => {
+    const [a, b, c, d] = [await makeFactoryRoll(), await makeFactoryRoll(), await makeFactoryRoll(), await makeFactoryRoll()];
+    const { shipmentId, lineIds: [la, lb, lc, ld] } = await draftWith([a, b, c, d]);
     await submit(shipmentId, actorUserId);
 
-    // Accept the selection, then «قبول الكل» only touches what is still pending.
+    // First delivery: two أتواب arrive.
     expect((await reviewLines(shipmentId, actorUserId, { line_ids: [la, lb], action: 'accept' })).length).toBe(2);
-    await reviewLines(shipmentId, actorUserId, { line_ids: [lc], action: 'reject', reject_reason_ar: 'عيب' });
-    expect(await code(reviewLines(shipmentId, actorUserId, { line_ids: [la, lb, lc], action: 'accept' })))
+    expect(await rollState(a)).toEqual({ status: 'in_stock', warehouse: 'shop' });
+    expect(await rollState(b)).toEqual({ status: 'in_stock', warehouse: 'shop' });
+    expect(await rollState(c)).toEqual({ status: 'in_transit', warehouse: 'factory' });
+    let shipment = await db('shipments').where({ id: shipmentId }).first('status');
+    expect(shipment.status).toBe('pending_approval');
+
+    // «قبول الكل» on decided lines does nothing; single decided line keeps its code.
+    expect(await code(reviewLines(shipmentId, actorUserId, { line_ids: [la, lb], action: 'accept' })))
       .toBe('NOTHING_TO_REVIEW');
     expect(await code(reviewLine(shipmentId, la, actorUserId, 'reject'))).toBe('LINE_ALREADY_REVIEWED');
+    expect(await code(acceptShipment(shipmentId, actorUserId, {}))).toBe('REVIEW_INCOMPLETE');
 
-    // Undo, then decide again.
+    // Undo an untouched accept: back to «قيد الشحن» in the factory.
     const reset = await reviewLines(shipmentId, actorUserId, { line_ids: [lb], action: 'reset' });
     expect(reset[0].status).toBe('pending');
-    expect(await code(acceptShipment(shipmentId, actorUserId, {}))).toBe('REVIEW_INCOMPLETE');
-    await reviewLines(shipmentId, actorUserId, { line_ids: [la, lb, lc], action: 'reject', reject_reason_ar: '  ' });
-    const rejectedB = await db('shipment_lines').where({ id: lb }).first();
-    expect(rejectedB.status).toBe('rejected');
-    expect(rejectedB.reject_reason_ar).toBeNull();
-    const stillAccepted = await db('shipment_lines').where({ id: la }).first('status');
-    expect(stillAccepted.status).toBe('accepted');
+    expect(await rollState(b)).toEqual({ status: 'in_transit', warehouse: 'factory' });
 
-    const final = await acceptShipment(shipmentId, actorUserId, {});
-    expect(final.status).toBe('partial_approved');
+    // Undo is refused once the توب was touched after the decision.
+    await db('rolls').where({ id: a }).update({ status: 'sold' });
+    expect(await code(reviewLines(shipmentId, actorUserId, { line_ids: [la], action: 'reset' })))
+      .toBe('LINE_UNDO_NOT_ALLOWED');
+    await db('rolls').where({ id: a }).update({ status: 'in_stock' });
 
-    // Confirming again must not re-run the receipt.
+    // Reject goes back to the factory right away and can be sent again
+    // even while this طلبية is still open.
+    await reviewLines(shipmentId, actorUserId, { line_ids: [lc], action: 'reject', reject_reason_ar: '  ' });
+    const rejectedC = await db('shipment_lines').where({ id: lc }).first();
+    expect(rejectedC.status).toBe('rejected');
+    expect(rejectedC.reject_reason_ar).toBeNull();
+    expect(await rollState(c)).toEqual({ status: 'in_stock', warehouse: 'factory' });
+    const again = await draftWith([c]);
+    expect((await rollState(c)).status).toBe('in_transit');
+    await deleteDraft(again.shipmentId, actorUserId);
+
+    // Second delivery: the last pending أتواب arrive — the طلبية closes itself.
+    await reviewLines(shipmentId, actorUserId, { line_ids: [lb, ld], action: 'accept' });
+    shipment = await db('shipments').where({ id: shipmentId }).first('status');
+    expect(shipment.status).toBe('partial_approved');
+    expect(await rollState(d)).toEqual({ status: 'in_stock', warehouse: 'shop' });
+
+    // Closed: nothing can be re-run or undone.
     expect(await code(acceptShipment(shipmentId, actorUserId, {}))).toBe('SHIPMENT_NOT_REVIEWABLE');
     expect(await code(reviewLines(shipmentId, actorUserId, { line_ids: [la], action: 'reset' })))
       .toBe('SHIPMENT_NOT_REVIEWABLE');
-    const shipmentIn = await db('stock_movements')
-      .where({ reference_type: 'shipment', reference_id: shipmentId, event_type: 'shipment_in' })
-      .count<{ n: string }[]>({ n: '*' });
-    expect(Number(shipmentIn[0].n)).toBe(1);
 
-    expect(await rollState(a)).toEqual({ status: 'in_stock', warehouse: 'shop' });
-    expect(await rollState(b)).toEqual({ status: 'in_stock', warehouse: 'factory' });
-    expect(await rollState(c)).toEqual({ status: 'in_stock', warehouse: 'factory' });
+    // a, b (accepted twice — once undone), d → 4 shipment_in, 1 reversal.
+    const moves = await db('stock_movements')
+      .where({ reference_type: 'shipment', reference_id: shipmentId })
+      .select('event_type');
+    expect(moves.filter((m) => m.event_type === 'shipment_in').length).toBe(4);
+    expect(moves.filter((m) => m.event_type === 'shipment_reject_back').length).toBe(1);
+  });
 
-    // A توب rejected from a partial طلبية can be sent again.
-    const again = await draftWith([b]);
-    expect((await rollState(b)).status).toBe('in_transit');
-    await deleteDraft(again.shipmentId, actorUserId);
+  it('a metre توب that lost its length cannot be accepted', async () => {
+    const m = await makeFactoryRoll('meter');
+    const { shipmentId, lineIds: [lm] } = await draftWith([m]);
+    await submit(shipmentId, actorUserId);
+    await db('rolls').where({ id: m }).update({ length_m: null });
+    expect(await code(reviewLines(shipmentId, actorUserId, { line_ids: [lm], action: 'accept' })))
+      .toBe('METER_ROLL_MISSING_LENGTH');
+    expect(await rollState(m)).toEqual({ status: 'in_transit', warehouse: 'factory' });
+    await db('rolls').where({ id: m }).update({ length_m: 50 });
+    await reviewLines(shipmentId, actorUserId, { line_ids: [lm], action: 'accept' });
+    expect((await db('shipments').where({ id: shipmentId }).first('status')).status).toBe('approved');
   });
 
   it('bulk review refuses lines from another طلبية', async () => {
@@ -177,7 +206,7 @@ describe.skipIf(!RUN_DB).sequential('shipment review + in-transit lock', () => {
     }))).toBe('LINE_NOT_FOUND');
 
     await reviewLines(s1.shipmentId, actorUserId, { line_ids: s1.lineIds, action: 'reject' });
-    expect((await acceptShipment(s1.shipmentId, actorUserId, {})).status).toBe('rejected');
+    expect((await db('shipments').where({ id: s1.shipmentId }).first('status')).status).toBe('rejected');
     expect(await rollState(a)).toEqual({ status: 'in_stock', warehouse: 'factory' });
     await deleteDraft(s2.shipmentId, actorUserId);
   });

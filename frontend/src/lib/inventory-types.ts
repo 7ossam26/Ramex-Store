@@ -39,6 +39,10 @@ export type Shipment = {
   notes_ar: string | null;
   created_at: string;
   updated_at: string;
+  /** List endpoint only. */
+  line_count?: number;
+  accepted_count?: number;
+  pending_count?: number;
 };
 
 export type ShipmentLineDetail = {

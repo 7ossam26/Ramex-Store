@@ -10,16 +10,11 @@ import { cn } from '@/lib/utils';
 import { extractApiError } from '@/lib/api-error';
 import { AlertTriangle } from 'lucide-react';
 import { HrDialog } from './HrDialog';
-import { MonthStepper } from './MonthStepper';
-import { fmt, toMonthDate } from './utils';
+import { WeekStepper } from './WeekStepper';
+import { fmt, currentPayThursday } from './utils';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 
-function currentMonth() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-/** Disburse a salary for one employee. Self-contained: picks the month and loads that month's preview row. */
+/** Disburse a weekly salary for one employee. Self-contained: picks the pay Thursday and loads that week's preview row. */
 export function DisburseDialog({
   employeeId,
   employeeName,
@@ -31,7 +26,7 @@ export function DisburseDialog({
   onClose: () => void;
   onDone: () => void;
 }) {
-  const [month, setMonth] = useState(currentMonth());
+  const [payDate, setPayDate] = useState(currentPayThursday());
   const [paidVia, setPaidVia] = useState<'cash' | 'instapay' | 'bank_transfer'>('cash');
   const [bankAccountId, setBankAccountId] = useState('');
   const [advanceRepayment, setAdvanceRepayment] = useState('');
@@ -40,19 +35,19 @@ export function DisburseDialog({
   const qc = useQueryClient();
 
   const { data: previewRows, isLoading } = useQuery<HrSalaryPreview[]>({
-    queryKey: ['hr-salaries-preview', month],
-    queryFn: () => hrApi.getMonthPreview(toMonthDate(month)),
+    queryKey: ['hr-salaries-preview', payDate],
+    queryFn: () => hrApi.getMonthPreview(payDate),
   });
   const preview = previewRows?.find((r) => r.employee_id === employeeId);
 
   // Advances are repaid from salary: pre-fill the repayment with the full outstanding
-  // for the loaded month so the advance is deducted by default (user can still lower it).
+  // for the loaded week so the advance is deducted by default (user can still lower it).
   useEffect(() => {
     if (preview && !preview.already_disbursed) {
       setAdvanceRepayment(preview.outstanding_advance_egp > 0 ? String(preview.outstanding_advance_egp) : '');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preview?.employee_id, preview?.outstanding_advance_egp, preview?.already_disbursed, month]);
+  }, [preview?.employee_id, preview?.outstanding_advance_egp, preview?.already_disbursed, payDate]);
 
   const { data: banks = [] } = useQuery({ queryKey: ['bank-accounts'], queryFn: bankAccountsApi.list });
 
@@ -60,7 +55,7 @@ export function DisburseDialog({
     mutationFn: () =>
       hrApi.disburse({
         employee_id: employeeId,
-        month: toMonthDate(month),
+        month: payDate,
         paid_via: paidVia,
         bank_account_id: paidVia !== 'cash' ? Number(bankAccountId) : null,
         advance_repayment_egp: Number(advanceRepayment) || 0,
@@ -91,10 +86,10 @@ export function DisburseDialog({
       <div className="space-y-4">
         {error && <ErrorBanner title={ar.common.error} description={error} />}
 
-        {/* Month */}
+        {/* Pay week (Thursday) */}
         <div className="flex items-center justify-between gap-3">
           <label className="text-sm font-medium text-foreground">{ar.hr.salary.monthPicker}</label>
-          <MonthStepper value={month} onChange={setMonth} />
+          <WeekStepper value={payDate} onChange={setPayDate} />
         </div>
 
         {/* Unpaid-advance warning */}

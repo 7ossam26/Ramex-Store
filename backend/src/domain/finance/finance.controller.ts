@@ -7,6 +7,7 @@ import * as vaultTransfers from './cashVaultTransferService.js';
 import { getTreasuriesOverview } from './treasuriesOverviewService.js';
 import { db } from '../../db/connection.js';
 import { auditFromService } from '../inventory/audit.helper.js';
+import { can } from '../permissions/permissionsService.js';
 import {
   SetOpeningBalanceSchema,
   CashMovementsQuerySchema,
@@ -36,6 +37,7 @@ const ERR_MAP: Record<string, number> = {
   INSTAPAY_REQUIRES_BANK_ACCOUNT: 400,
   INSUFFICIENT_CASH_BALANCE: 422,
   INSUFFICIENT_BANK_BALANCE: 422,
+  INSUFFICIENT_VAULT_BALANCE: 422,
   TRANSFER_NOT_FOUND: 404,
   TRANSFER_NOT_PENDING: 409,
 };
@@ -228,10 +230,19 @@ export const listExpenses: RequestHandler = async (req, res) => {
 export const createExpense: RequestHandler = async (req, res) => {
   try {
     const body = CreateExpenseSchema.parse(req.body);
+    // Paying from الخزنة العامة needs the same right as moving money into it.
+    if (body.paid_from === 'cash' && body.cash_source === 'general_vault') {
+      const user = req.user!;
+      if (!(await can(user.role, 'cash_vault_transfer', 'write', user.sub))) {
+        res.status(403).json({ error: 'forbidden' });
+        return;
+      }
+    }
     const row = await expenses.recordExpense({
       category: body.category,
       amount: body.amount_egp,
       paidFrom: body.paid_from,
+      cashSource: body.cash_source,
       bankAccountId: body.bank_account_id,
       notesAr: body.notes_ar,
       actorUserId: req.user!.sub,
