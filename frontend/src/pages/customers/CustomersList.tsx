@@ -13,6 +13,7 @@ import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { CustomerFormDialog } from '@/components/customers/CustomerFormDialog';
 import type { Customer } from '@/lib/customers-types';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { usePersistentState, useScrollRestoration } from '@/hooks/usePersistentState';
 
 const PAGE_SIZE = 30;
 
@@ -59,9 +60,10 @@ function triggerDownload(url: string): void {
 export function CustomersListPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [search, setSearch] = useState('');
-  const [balance, setBalance] = useState<CustomerBalanceFilter>('all');
-  const [page, setPage] = useState(1);
+  // Filters, page and scroll survive opening a customer and coming back.
+  const [search, setSearch] = usePersistentState('customers.search', '');
+  const [balance, setBalance] = usePersistentState<CustomerBalanceFilter>('customers.balance', 'all');
+  const [page, setPage] = usePersistentState('customers.page', 1);
   const [createOpen, setCreateOpen] = useState(searchParams.get('create') === '1');
   const [editCustomer, setEditCustomer] = useState<Customer | null>(null);
 
@@ -80,6 +82,8 @@ export function CustomersListPage() {
     setCreateOpen(open);
     if (!open) setSearchParams({});
   }, [setSearchParams]);
+
+  useScrollRestoration('customers', !!q.data);
 
   const rows: Customer[] = q.data?.rows ?? [];
   const total = q.data?.total ?? 0;

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { api } from './api';
+import { clearPersistedPageState } from '@/hooks/usePersistentState';
 
 export type Role = 'owner' | 'shop_seller' | 'factory_sender' | 'super_admin' | 'accountant';
 export type User = {
@@ -57,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // ignore
     }
     localStorage.removeItem('ramex_token');
+    clearPersistedPageState();
     setUser(null);
   };
 

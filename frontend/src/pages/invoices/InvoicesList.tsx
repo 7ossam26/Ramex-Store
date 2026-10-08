@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FileDown, PackageCheck } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { salesApi } from '@/lib/sales-api';
@@ -28,6 +28,7 @@ import { FilterChip } from '@/components/FilterChip';
 import { InvoiceStatusPill } from '@/components/invoices/InvoiceStatusPill';
 import { StatusPill } from '@/components/StatusPill';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { usePersistentState, useScrollRestoration } from '@/hooks/usePersistentState';
 
 const PAGE_SIZE = 30;
 
@@ -59,7 +60,9 @@ function fmtDate(iso: string): string {
 }
 
 export function InvoicesListPage() {
-  const [tab, setTab] = useState<TabKey>('all');
+  // Tab, filters, page and scroll survive opening an invoice and coming back.
+  const [storedTab, setTab] = usePersistentState<TabKey>('invoices.tab', 'all');
+  const tab: TabKey = TAB_ORDER.includes(storedTab) ? storedTab : 'all';
 
   return (
     <PageShell title={ar.invoices.title} backTo="/invoices-returns">
@@ -89,13 +92,15 @@ function toDtLocal(d: Date): string {
 }
 
 function DefaultTab({ status }: { status?: InvoiceStatus }) {
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [destination, setDestination] = useState<FulfillmentDestination | 'all'>('all');
-  const [fabricId, setFabricId] = useState('');
-  const [colorId, setColorId] = useState('');
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
+  const navigate = useNavigate();
+  const [dateFrom, setDateFrom] = usePersistentState('invoices.dateFrom', '');
+  const [dateTo, setDateTo] = usePersistentState('invoices.dateTo', '');
+  const [destination, setDestination] = usePersistentState<FulfillmentDestination | 'all'>('invoices.destination', 'all');
+  const [fabricId, setFabricId] = usePersistentState('invoices.fabricId', '');
+  const [colorId, setColorId] = usePersistentState('invoices.colorId', '');
+  const [search, setSearch] = usePersistentState('invoices.search', '');
+  // Per status tab: page 5 of «الكل» shouldn't land on an empty page of «ملغي».
+  const [page, setPage] = usePersistentState(`invoices.page.${status ?? 'all'}`, 1);
   const debouncedSearch = useDebouncedValue(search);
 
   const fabricsQ = useQuery({
@@ -153,6 +158,8 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
       }),
     placeholderData: keepPreviousData,
   });
+
+  useScrollRestoration(`invoices.${status ?? 'all'}`, !!q.data);
 
   const rows: InvoiceListRow[] = q.data?.rows ?? [];
   const total = q.data?.total ?? 0;
@@ -379,7 +386,7 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
           columns={columns}
           rows={rows}
           rowKey={(r) => String(r.id)}
-          onRowClick={(r) => { window.location.href = `/invoices/${r.id}`; }}
+          onRowClick={(r) => navigate(`/invoices/${r.id}`)}
           empty={ar.invoices.empty}
           isLoading={q.isLoading}
           isError={q.isError}
@@ -458,10 +465,12 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
 }
 
 function OpenInvoicesTab() {
+  const navigate = useNavigate();
   const q = useQuery({
     queryKey: ['invoices', 'open-list'],
     queryFn: salesApi.listOpen,
   });
+  useScrollRestoration('invoices.open', !!q.data);
   const rows: OpenInvoiceRow[] = q.data ?? [];
 
   const columns: Column<OpenInvoiceRow>[] = [
@@ -546,7 +555,7 @@ function OpenInvoicesTab() {
         columns={columns}
         rows={rows}
         rowKey={(r) => String(r.id)}
-        onRowClick={(r) => { window.location.href = `/invoices/${r.id}`; }}
+        onRowClick={(r) => navigate(`/invoices/${r.id}`)}
         empty={ar.invoices.empty}
         isLoading={q.isLoading}
         isError={q.isError}
@@ -563,6 +572,7 @@ function PendingPickupTab() {
     queryKey: ['invoices', 'pending-pickup'],
     queryFn: salesApi.listPendingPickup,
   });
+  useScrollRestoration('invoices.pending_pickup', !!q.data);
   const rows: PendingPickupRow[] = q.data ?? [];
 
   const [pendingDeliverId, setPendingDeliverId] = useState<number | null>(null);
