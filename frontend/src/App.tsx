@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { usePermissions } from '@/lib/permissions';
+import { useNavigationTracker } from '@/lib/navigation-history';
 import { LoginPage } from './pages/Login';
 import { HomePage } from './pages/Home';
 import { SuperAdminSection } from './pages/superadmin/SuperAdminSection';
@@ -89,6 +90,7 @@ function RouteFallback() {
 }
 
 export function App() {
+  useNavigationTracker();
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />

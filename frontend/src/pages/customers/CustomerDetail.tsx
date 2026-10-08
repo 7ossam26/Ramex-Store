@@ -3,11 +3,11 @@ import { useParams, Link } from 'react-router-dom';
 import { FileText, Wallet, PlusCircle } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { ChevronRight } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { customersApi } from '@/lib/customers-api';
 import { extractApiError } from '@/lib/api-error';
 import { Button } from '@/components/ui/button';
+import { BackLink } from '@/components/BackLink';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -222,13 +222,7 @@ export function CustomerDetailPage() {
   return (
     <div className="max-w-6xl mx-auto space-y-4">
       {/* Back link */}
-      <Link
-        to="/customers"
-        className="inline-flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground transition-colors duration-150"
-      >
-        <ChevronRight className="size-4" aria-hidden />
-        {ar.customers.allCustomers}
-      </Link>
+      <BackLink fallback="/customers" />
 
       {/* Two-column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">

@@ -35,10 +35,8 @@ import {
   Package,
   Printer,
   Search,
-  ShoppingCart,
   Store,
   Warehouse as WarehouseIcon,
-  Wallet,
 } from 'lucide-react';
 
 type WarehouseChoice = 'all' | Warehouse;
@@ -428,19 +426,13 @@ export function StockViewPage() {
   const kpis = useMemo(() => {
     let itemsInStock = 0;
     let lowStock = 0;
-    let totalPurchase = 0;
-    let totalSale = 0;
     for (const r of rows) {
       if (r.count_in_stock > 0) itemsInStock += 1;
       if (r.count_in_stock > 0 && r.count_in_stock <= r.min_quantity_rolls) lowStock += 1;
-      totalPurchase += r.weight_kg_in_stock * r.avg_reference_price_per_unit;
-      totalSale += r.weight_kg_in_stock * r.selling_price_egp;
     }
     return {
       itemsInStock,
       lowStock,
-      totalPurchase,
-      totalSale,
     };
   }, [rows]);
 
@@ -703,7 +695,7 @@ export function StockViewPage() {
       description="إدارة مستويات المخزون، الأسعار وتفاصيل المنتجات"
       backTo="/inventory"
     >
-      <KpiGrid className="lg:grid-cols-5">
+      <KpiGrid className="lg:grid-cols-2">
         <MetricCard
           label="إجمالي الأصناف"
           value={kpis.itemsInStock}
@@ -731,30 +723,6 @@ export function StockViewPage() {
             ) : (
               <span className="text-foreground-muted">لا توجد نواقص</span>
             )
-          }
-        />
-        <MetricCard
-          label="إجمالي السعر المرجعي"
-          value={kpis.totalPurchase}
-          format="money"
-          tone="warning"
-          meta={
-            <span className="inline-flex items-center gap-1">
-              <ShoppingCart className="size-3.5" />
-              تكلفة المخزون
-            </span>
-          }
-        />
-        <MetricCard
-          label="إجمالي سعر البيع"
-          value={kpis.totalSale}
-          format="money"
-          tone="info"
-          meta={
-            <span className="inline-flex items-center gap-1">
-              <Wallet className="size-3.5" />
-              قيمة سوقية
-            </span>
           }
         />
       </KpiGrid>

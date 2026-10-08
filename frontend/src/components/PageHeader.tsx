@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
-import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { BackLink } from '@/components/BackLink';
 
 type Props = {
   title: string;
@@ -11,7 +10,8 @@ type Props = {
   /** Extra content rendered below the description (e.g. location badge). */
   extra?: ReactNode;
   className?: string;
-  /** Parent route — when provided a "رجوع" breadcrumb link appears above the title. */
+  /** Parent route — when provided a "رجوع" link appears above the title. It returns to the
+   *  previous in-app page; this route is the fallback when there is none (direct URL entry). */
   backTo?: string;
 };
 
@@ -24,15 +24,7 @@ export function PageHeader({ title, description, actions, extra, className, back
       )}
     >
       <div className="min-w-0">
-        {backTo && (
-          <Link
-            to={backTo}
-            className="inline-flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground transition-colors duration-150 mb-1"
-          >
-            <ChevronRight className="size-4" />
-            <span>رجوع</span>
-          </Link>
-        )}
+        {backTo && <BackLink fallback={backTo} className="mb-1" />}
         <h1 className="text-3xl font-semibold text-foreground truncate">{title}</h1>
         {description && (
           <p className="text-sm text-foreground-muted mt-1">{description}</p>

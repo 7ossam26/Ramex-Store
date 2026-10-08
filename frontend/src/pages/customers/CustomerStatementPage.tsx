@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
+import { useBackNavigation } from '@/lib/navigation-history';
 import { useQuery } from '@tanstack/react-query';
 import { Printer, FileText, FileSpreadsheet, ArrowRight } from 'lucide-react';
 import { ar } from '@/i18n/ar';
@@ -55,7 +56,7 @@ function triggerDownload(url: string): void {
 export function CustomerStatementPage() {
   const { id } = useParams<{ id: string }>();
   const idNum = Number(id);
-  const navigate = useNavigate();
+  const { goBack } = useBackNavigation(`/customers/${idNum}`);
   const [params, setParams] = useSearchParams();
 
   const [from, setFrom] = useState(params.get('from') || firstOfCairoMonth());
@@ -151,7 +152,7 @@ export function CustomerStatementPage() {
               <FileSpreadsheet className="size-4" aria-hidden />
               {st.excel}
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => (window.history.length <= 1 ? navigate(`/customers/${idNum}`) : navigate(-1))}>
+            <Button size="sm" variant="ghost" onClick={goBack}>
               <ArrowRight className="size-4" aria-hidden />
               {st.back}
             </Button>

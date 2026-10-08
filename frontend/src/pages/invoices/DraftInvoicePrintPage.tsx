@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
+import { useBackNavigation } from '@/lib/navigation-history';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { salesApi } from '@/lib/sales-api';
 import type { InvoiceDetail, InvoiceLineDetail } from '@/lib/sales-types';
@@ -82,7 +83,7 @@ export function mapInvoiceToDraft(inv: InvoiceDetail): DraftInvoiceDocumentProps
 export function DraftInvoicePrintPage() {
   const { id } = useParams<{ id: string }>();
   const [params] = useSearchParams();
-  const navigate = useNavigate();
+  const { previousPath, goBack } = useBackNavigation();
   const isPreview = params.get('preview') === '1';
   const variant = params.get('variant');
   const isReprint = variant === 'reprint';
@@ -143,7 +144,7 @@ export function DraftInvoicePrintPage() {
           size="sm"
           variant="outline"
           style={{ color: '#fff', borderColor: '#9ca3af', backgroundColor: 'transparent' }}
-          onClick={() => window.history.length <= 1 ? window.close() : navigate(-1)}
+          onClick={() => (previousPath ? goBack() : window.close())}
         >
           رجوع
         </Button>

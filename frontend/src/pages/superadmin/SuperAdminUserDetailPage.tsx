@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useBackNavigation } from '@/lib/navigation-history';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, KeyRound, ShieldCheck, Trash2 } from 'lucide-react';
 import { usersApi } from '@/lib/settings-api';
@@ -25,6 +26,7 @@ export function SuperAdminUserDetailPage() {
   const userId = Number(id);
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { goBack } = useBackNavigation('/superadmin/users');
 
   const { data: user, isLoading } = useQuery({
     queryKey: ['superadmin-user', userId],
@@ -113,7 +115,7 @@ export function SuperAdminUserDetailPage() {
     return (
       <div className="p-6">
         <p className="text-destructive">المستخدم غير موجود</p>
-        <button type="button" onClick={() => navigate(-1)} className="text-sm text-amber-700 underline mt-2 inline-block">
+        <button type="button" onClick={goBack} className="text-sm text-amber-700 underline mt-2 inline-block">
           العودة للمستخدمين
         </button>
       </div>
@@ -130,7 +132,7 @@ export function SuperAdminUserDetailPage() {
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => navigate(-1)}
+          onClick={goBack}
           className="gap-1.5 shrink-0"
         >
           <ChevronRight className="size-4" />
@@ -139,7 +141,7 @@ export function SuperAdminUserDetailPage() {
         <nav className="flex items-center gap-1 text-sm text-foreground-muted">
           <span
             className="hover:text-foreground cursor-pointer transition-colors"
-            onClick={() => navigate(-1)}
+            onClick={goBack}
           >
             المستخدمون
           </span>
