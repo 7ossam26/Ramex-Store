@@ -70,6 +70,7 @@ import { ScannerInput } from '@/components/ScannerInput';
 import { shiftsApi, type Shift } from '@/lib/shifts-api';
 import { StartDayPanel } from './StartDayPanel';
 import { EndDayDialog } from './EndDayDialog';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 type RollCartLine = {
   type: 'roll';
@@ -1947,7 +1948,7 @@ function BankAccountSelect({
   onChange: (n: number | '') => void;
 }) {
   return (
-    <select
+    <SearchableSelect
       className="h-11 w-full border border-border-default rounded-md px-2 bg-surface-elevated text-foreground cursor-pointer"
       value={value}
       onChange={(e) => onChange(e.target.value ? Number(e.target.value) : '')}
@@ -1958,7 +1959,7 @@ function BankAccountSelect({
           {b.name_ar}{b.is_default ? ' (افتراضي)' : ''}
         </option>
       ))}
-    </select>
+    </SearchableSelect>
   );
 }
 

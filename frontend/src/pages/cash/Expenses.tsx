@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { Plus, Check, X } from 'lucide-react';
 import { financeApi } from '@/lib/finance-api';
 import { useAuth } from '@/lib/auth';
@@ -24,6 +24,7 @@ import { FilterChip } from '@/components/FilterChip';
 import { TableFilterBar } from '@/components/TableFilterBar';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { StatusPill, type StatusTone } from '@/components/StatusPill';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 const PAGE_SIZE = 50;
 
@@ -326,16 +327,26 @@ export function ExpensesPage() {
               <Label>
                 الفئة <span className="text-danger">*</span>
               </Label>
-              <select
-                className="w-full rounded-md border border-border-default bg-surface-elevated h-10 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                {...form.register('category', { required: true })}
-              >
-                {CATEGORIES.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
+              <Controller
+                control={form.control}
+                name="category"
+                rules={{ required: true }}
+                render={({ field }) => (
+                  <SearchableSelect
+                    ref={field.ref}
+                    name={field.name}
+                    value={field.value ?? ''}
+                    onChange={(e) => field.onChange(e.target.value)}
+                    className="w-full rounded-md border border-border-default bg-surface-elevated h-10 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    {CATEGORIES.map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </SearchableSelect>
+                )}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>
@@ -385,21 +396,29 @@ export function ExpensesPage() {
                 <Label>
                   الحساب البنكي <span className="text-danger">*</span>
                 </Label>
-                <select
-                  className="w-full rounded-md border border-border-default bg-surface-elevated h-10 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                  {...form.register('bank_account_id', {
-                    required: paidFrom === 'bank' || paidFrom === 'instapay',
-                  })}
-                >
-                  <option value="">-- اختر حساب --</option>
-                  {(banksQ.data ?? [])
-                    .filter((b) => b.is_active)
-                    .map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name_ar}
-                      </option>
-                    ))}
-                </select>
+                <Controller
+                  control={form.control}
+                  name="bank_account_id"
+                  rules={{ required: paidFrom === 'bank' || paidFrom === 'instapay' }}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      ref={field.ref}
+                      name={field.name}
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.value)}
+                      className="w-full rounded-md border border-border-default bg-surface-elevated h-10 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      <option value="">-- اختر حساب --</option>
+                      {(banksQ.data ?? [])
+                        .filter((b) => b.is_active)
+                        .map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name_ar}
+                          </option>
+                        ))}
+                    </SearchableSelect>
+                  )}
+                />
               </div>
             )}
             <div className="space-y-1.5">

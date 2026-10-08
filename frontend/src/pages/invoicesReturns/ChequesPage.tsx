@@ -16,6 +16,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 function fmtMoney(n: string | number): string {
   const v = typeof n === 'number' ? n : Number(n);
@@ -99,7 +100,7 @@ export function ChequesPage() {
       <div className="rounded-lg border border-border-subtle bg-surface-elevated p-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="space-y-1">
           <Label className="text-xs">{ar.cheques.filterStatus}</Label>
-          <select
+          <SearchableSelect
             className="h-9 w-full border border-border-default rounded-md px-2 text-sm bg-surface-elevated text-foreground cursor-pointer"
             value={status}
             onChange={(e) => { setStatus(e.target.value as ChequeStatus | ''); setPage(1); }}
@@ -108,7 +109,7 @@ export function ChequesPage() {
             {(['pending', 'cleared', 'bounced', 'cancelled'] as ChequeStatus[]).map((s) => (
               <option key={s} value={s}>{ar.cheques.statuses[s]}</option>
             ))}
-          </select>
+          </SearchableSelect>
         </div>
 
         <div className="space-y-1">

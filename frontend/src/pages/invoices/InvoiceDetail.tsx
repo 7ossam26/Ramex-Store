@@ -42,6 +42,7 @@ import { InvoiceStatusPill } from '@/components/invoices/InvoiceStatusPill';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { Skeleton } from '@/components/Skeleton';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 function fmtMoney(s: string | number): string {
   return Number(s).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -613,7 +614,7 @@ function FinalPaymentDialog({
           </div>
           <div className="space-y-1">
             <Label>{ar.pos.paymentMethod}</Label>
-            <select
+            <SearchableSelect
               className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
               value={method}
               onChange={(e) => setMethod(e.target.value as PaymentMethod | 'both')}
@@ -621,7 +622,7 @@ function FinalPaymentDialog({
               <option value="cash">{ar.pos.cash}</option>
               <option value="instapay">{ar.pos.instapay}</option>
               <option value="both">{ar.pos.both}</option>
-            </select>
+            </SearchableSelect>
           </div>
           {method === 'both' ? (
             <div className="grid grid-cols-2 gap-3">
@@ -647,7 +648,7 @@ function FinalPaymentDialog({
           {method !== 'cash' && (
             <div className="space-y-1">
               <Label>{ar.pos.bankAccount}</Label>
-              <select
+              <SearchableSelect
                 className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
                 value={bankAccountId === '' ? '' : String(bankAccountId)}
                 onChange={(e) => setBankAccountId(e.target.value === '' ? '' : Number(e.target.value))}
@@ -656,7 +657,7 @@ function FinalPaymentDialog({
                 {(banks.data ?? []).map((b) => (
                   <option key={b.id} value={b.id}>{b.name_ar}</option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
           )}
           {error && <p className="text-sm text-danger transition-opacity duration-75 ease-standard" role="alert">{error}</p>}
@@ -741,7 +742,7 @@ function CancelOpenDialog({
           </div>
           <div className="space-y-1">
             <Label>{ar.invoices.depositHandling}</Label>
-            <select
+            <SearchableSelect
               className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
               value={handling}
               onChange={(e) => setHandling(e.target.value as DepositHandling)}
@@ -749,7 +750,7 @@ function CancelOpenDialog({
               <option value="full_refund">{ar.invoices.depositHandlingOptions.full_refund}</option>
               <option value="partial_refund">{ar.invoices.depositHandlingOptions.partial_refund}</option>
               <option value="keep_as_credit">{ar.invoices.depositHandlingOptions.keep_as_credit}</option>
-            </select>
+            </SearchableSelect>
           </div>
           {handling === 'partial_refund' && (
             <div className="space-y-1">
@@ -765,20 +766,20 @@ function CancelOpenDialog({
           {handling !== 'keep_as_credit' && (
             <div className="space-y-1">
               <Label>{ar.invoices.refundMethod}</Label>
-              <select
+              <SearchableSelect
                 className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
                 value={refundMethod}
                 onChange={(e) => setRefundMethod(e.target.value as PaymentMethod)}
               >
                 <option value="cash">{ar.pos.cash}</option>
                 <option value="instapay">{ar.pos.instapay}</option>
-              </select>
+              </SearchableSelect>
             </div>
           )}
           {showBankPicker && (
             <div className="space-y-1">
               <Label>{ar.pos.bankAccount}</Label>
-              <select
+              <SearchableSelect
                 className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
                 value={bankAccountId === '' ? '' : String(bankAccountId)}
                 onChange={(e) => setBankAccountId(e.target.value === '' ? '' : Number(e.target.value))}
@@ -787,7 +788,7 @@ function CancelOpenDialog({
                 {(banks.data ?? []).map((b) => (
                   <option key={b.id} value={b.id}>{b.name_ar}</option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
           )}
           <div className="space-y-1">
@@ -937,7 +938,7 @@ function DepositRefundDialog({
           {method === 'instapay' && (
             <div className="space-y-1">
               <Label>{ar.pos.bankAccount}</Label>
-              <select
+              <SearchableSelect
                 className="h-11 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground"
                 value={bankAccountId === '' ? '' : String(bankAccountId)}
                 onChange={(e) =>
@@ -948,7 +949,7 @@ function DepositRefundDialog({
                 {(banks.data ?? []).map((b) => (
                   <option key={b.id} value={b.id}>{b.name_ar}</option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
           )}
           {error && (
@@ -1465,7 +1466,7 @@ function ReturnModal({
                           />
                         </td>
                         <td className="px-2 py-2">
-                          <select
+                          <SearchableSelect
                             className="h-8 border border-border-default rounded-md px-2 text-sm bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75 disabled:opacity-50"
                             value={s.disposition}
                             disabled={!s.checked || rowDisabled}
@@ -1473,7 +1474,7 @@ function ReturnModal({
                           >
                             <option value="back_to_stock">{ar.returns.dispositions.back_to_stock}</option>
                             <option value="damaged">{ar.returns.dispositions.damaged}</option>
-                          </select>
+                          </SearchableSelect>
                         </td>
                       </tr>
                     );
@@ -1486,7 +1487,7 @@ function ReturnModal({
           {/* Refund method */}
           <div className="space-y-1">
             <Label>{ar.returns.refundMethod}</Label>
-            <select
+            <SearchableSelect
               className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
               value={refundMethod}
               onChange={(e) => setRefundMethod(e.target.value as RefundMethod)}
@@ -1494,13 +1495,13 @@ function ReturnModal({
               <option value="cash">{ar.returns.refundMethods.cash}</option>
               <option value="instapay">{ar.returns.refundMethods.instapay}</option>
               <option value="customer_credit">{ar.returns.refundMethods.customer_credit}</option>
-            </select>
+            </SearchableSelect>
           </div>
 
           {refundMethod === 'instapay' && (
             <div className="space-y-1">
               <Label>{ar.pos.bankAccount}</Label>
-              <select
+              <SearchableSelect
                 className="h-9 w-full border border-border-default rounded-md px-3 bg-surface-elevated text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
                 value={bankAccountId === '' ? '' : String(bankAccountId)}
                 onChange={(e) => setBankAccountId(e.target.value === '' ? '' : Number(e.target.value))}
@@ -1509,7 +1510,7 @@ function ReturnModal({
                 {(banks.data ?? []).map((b) => (
                   <option key={b.id} value={b.id}>{b.name_ar}</option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
           )}
 

@@ -8,6 +8,7 @@ import { ar } from '@/i18n/ar';
 import { usersApi, type UserRow } from '@/lib/settings-api';
 import { extractApiError } from '@/lib/api-error';
 import { Toast } from '@/components/Toast';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 type Props = {
   user: UserRow | null;
@@ -51,7 +52,7 @@ export function EditUserDialog({ user, onClose }: Props) {
             </div>
             <div className="space-y-1.5">
               <Label>{ar.settings.users.role}</Label>
-              <select
+              <SearchableSelect
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
                 className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
@@ -60,7 +61,7 @@ export function EditUserDialog({ user, onClose }: Props) {
                 <option value="shop_seller">{ar.settings.users.roles.shop_seller}</option>
                 <option value="factory_sender">{ar.settings.users.roles.factory_sender}</option>
                 <option value="accountant">{ar.settings.users.roles.accountant}</option>
-              </select>
+              </SearchableSelect>
             </div>
             {error && <p className="text-xs text-destructive">{error}</p>}
           </div>

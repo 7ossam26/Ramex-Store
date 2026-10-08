@@ -11,6 +11,7 @@ import { ErrorBanner } from '@/components/ErrorBanner';
 import { cn } from '@/lib/utils';
 import { extractApiError } from '@/lib/api-error';
 import { format } from 'date-fns';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 function fmt(v: string | number) {
   return Number(v).toLocaleString('en-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -93,12 +94,12 @@ function RecordPaymentDialog({
             {needsBank && (
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-foreground">{ar.supplierPayables.bankAccount}</label>
-                <select className={inputCls} value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)}>
+                <SearchableSelect className={inputCls} value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)}>
                   <option value="">— اختر حساباً —</option>
                   {banks.filter((b) => b.is_active).map((b) => (
                     <option key={b.id} value={b.id}>{b.name_ar} {b.bank_name_ar ? `/ ${b.bank_name_ar}` : ''}</option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
             )}
 

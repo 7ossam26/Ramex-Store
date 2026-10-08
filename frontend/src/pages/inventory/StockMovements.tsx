@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ResponsiveTable, type Column } from '@/components/ResponsiveTable';
 import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { cn } from '@/lib/utils';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 const PAGE_SIZE = 50;
 
@@ -196,7 +197,7 @@ export function StockMovementsPage() {
           />
 
           {/* Material filter */}
-          <select
+          <SearchableSelect
             value={fabricId}
             onChange={(e) => { setFabricId(e.target.value); setOffset(0); }}
             disabled={fabricsQ.isLoading}
@@ -207,10 +208,10 @@ export function StockMovementsPage() {
             {fabrics.map((f) => (
               <option key={f.id} value={String(f.id)}>{f.name_ar}</option>
             ))}
-          </select>
+          </SearchableSelect>
 
           {/* Color filter */}
-          <select
+          <SearchableSelect
             value={colorId}
             onChange={(e) => { setColorId(e.target.value); setOffset(0); }}
             disabled={colorsQ.isLoading}
@@ -221,10 +222,10 @@ export function StockMovementsPage() {
             {colors.map((c) => (
               <option key={c.id} value={String(c.id)}>{c.name_ar}</option>
             ))}
-          </select>
+          </SearchableSelect>
 
           {/* Event type filter */}
-          <select
+          <SearchableSelect
             value={event}
             onChange={(e) => { setEvent(e.target.value as StockEventType | ''); setOffset(0); }}
             className="h-9 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
@@ -233,7 +234,7 @@ export function StockMovementsPage() {
             {ALL_EVENTS.map((ev) => (
               <option key={ev} value={ev}>{ar.stockMovements.events[ev]}</option>
             ))}
-          </select>
+          </SearchableSelect>
 
           {/* Total count chip */}
           {!q.isLoading && (

@@ -27,6 +27,7 @@ import { MetricCard } from '@/components/dashboard/MetricCard';
 import { FilterChip } from '@/components/FilterChip';
 import { InvoiceStatusPill } from '@/components/invoices/InvoiceStatusPill';
 import { StatusPill } from '@/components/StatusPill';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 const PAGE_SIZE = 30;
 
@@ -226,7 +227,7 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label className="text-sm font-medium text-foreground">{ar.invoices.filterFabric}</Label>
-          <select
+          <SearchableSelect
             value={fabricId}
             onChange={(e) => { setFabricId(e.target.value); setPage(1); }}
             disabled={fabricsQ.isLoading}
@@ -237,11 +238,11 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
             {(fabricsQ.data ?? []).map((f) => (
               <option key={f.id} value={String(f.id)}>{f.name_ar}</option>
             ))}
-          </select>
+          </SearchableSelect>
         </div>
         <div className="space-y-1">
           <Label className="text-sm font-medium text-foreground">{ar.invoices.filterColor}</Label>
-          <select
+          <SearchableSelect
             value={colorId}
             onChange={(e) => { setColorId(e.target.value); setPage(1); }}
             disabled={colorsQ.isLoading}
@@ -252,7 +253,7 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
             {(colorsQ.data ?? []).map((c) => (
               <option key={c.id} value={String(c.id)}>{c.name_ar}</option>
             ))}
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 
@@ -445,7 +446,7 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
 
             <div className="space-y-1">
               <Label className="text-sm font-medium">حالة الفاتورة</Label>
-              <select
+              <SearchableSelect
                 value={exportStatus}
                 onChange={(e) => setExportStatus(e.target.value)}
                 className="w-full h-10 rounded-md border border-border-default bg-surface px-3 text-sm text-foreground appearance-none cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
@@ -457,7 +458,7 @@ function DefaultTab({ status }: { status?: InvoiceStatus }) {
                 <option value="partially_returned">مرتجعة جزئياً</option>
                 <option value="returned">مرتجعة</option>
                 <option value="cancelled">ملغي</option>
-              </select>
+              </SearchableSelect>
             </div>
 
             <Button

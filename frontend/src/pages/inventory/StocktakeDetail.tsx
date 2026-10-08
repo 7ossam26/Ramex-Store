@@ -28,6 +28,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FilterChip } from '@/components/FilterChip';
 import { Toast, type ToastTone } from '@/components/Toast';
 import { StocktakeStatusPill } from './Stocktake';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 const WAREHOUSES: Warehouse[] = ['shop', 'factory', 'damaged_shop'];
 const t = ar.stocktake;
@@ -551,7 +552,7 @@ function ResolutionCard({ st, onResolved }: { st: StocktakeWithLines; onResolved
                         <td className="px-2">{l.color_name_ar ?? '—'}</td>
                         <td className="px-2 text-start">{issueText(l)}</td>
                         <td className="px-2 py-1.5 space-y-1">
-                          <select
+                          <SearchableSelect
                             className={selectClass}
                             value={d.action ?? ''}
                             onChange={(e) => setDraft(l.id, { action: (e.target.value || undefined) as StocktakeResolutionAction | undefined })}
@@ -560,9 +561,9 @@ function ResolutionCard({ st, onResolved }: { st: StocktakeWithLines; onResolved
                             {l.allowed_actions.map((a) => (
                               <option key={a} value={a}>{actionLabel(l, a)}</option>
                             ))}
-                          </select>
+                          </SearchableSelect>
                           {d.action === 'transfer' && l.issue === 'missing' && (
-                            <select
+                            <SearchableSelect
                               className={selectClass}
                               value={d.target ?? ''}
                               onChange={(e) => setDraft(l.id, { target: (e.target.value || undefined) as Warehouse | undefined })}
@@ -571,7 +572,7 @@ function ResolutionCard({ st, onResolved }: { st: StocktakeWithLines; onResolved
                               {WAREHOUSES.filter((w) => w !== st.warehouse).map((w) => (
                                 <option key={w} value={w}>{ar.warehouses[w]}</option>
                               ))}
-                            </select>
+                            </SearchableSelect>
                           )}
                         </td>
                         <td className="px-2">

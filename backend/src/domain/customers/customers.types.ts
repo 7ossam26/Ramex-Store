@@ -9,6 +9,8 @@ export type Customer = {
   notes_ar: string | null;
   lifetime_volume_egp: string;
   current_balance_egp: string;
+  /** With `search_purchases`: matching items bought and still held, e.g. «قطن أحمر (2 توب)»; null if matched by name/phone. */
+  matched_items?: string | null;
   created_by_user_id: number;
   created_at: string;
   updated_at: string;

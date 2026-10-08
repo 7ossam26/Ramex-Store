@@ -19,6 +19,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { cn } from '@/lib/utils';
 import { matchesTokens, tokenize } from '@/lib/arabic-search';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 const selectClass =
   'w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75';
@@ -267,7 +268,7 @@ export function AdjustmentsPage() {
                     </div>
                     <div className="space-y-1">
                       <Label className="text-sm font-medium text-foreground">{ar.adjustments.newStatus}</Label>
-                      <select
+                      <SearchableSelect
                         className={selectClass}
                         value={newStatus}
                         onChange={(e) => { setNewStatus(e.target.value as RollStatus | ''); setAckHide(false); }}
@@ -276,11 +277,11 @@ export function AdjustmentsPage() {
                         {STATUS_CHOICES.map((s) => (
                           <option key={s} value={s}>{ar.rollStatuses[s]}</option>
                         ))}
-                      </select>
+                      </SearchableSelect>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-sm font-medium text-foreground">{ar.adjustments.newWarehouse}</Label>
-                      <select
+                      <SearchableSelect
                         className={selectClass}
                         value={newWarehouse}
                         onChange={(e) => { setNewWarehouse(e.target.value as Warehouse | ''); setAckHide(false); }}
@@ -289,7 +290,7 @@ export function AdjustmentsPage() {
                         <option value="shop">{ar.warehouses.shop}</option>
                         <option value="factory">{ar.warehouses.factory}</option>
                         <option value="damaged_shop">{ar.warehouses.damaged_shop}</option>
-                      </select>
+                      </SearchableSelect>
                     </div>
                     <div className="space-y-1 col-span-2">
                       <Label className="text-sm font-medium text-foreground">{ar.adjustments.notes}</Label>
@@ -346,7 +347,7 @@ export function AdjustmentsPage() {
             >
               <div className="space-y-1 col-span-2 md:col-span-1">
                 <Label className="text-sm font-medium text-foreground">{ar.adjustments.selectAccessory}</Label>
-                <select
+                <SearchableSelect
                   className={selectClass}
                   value={accId === '' ? '' : String(accId)}
                   onChange={(e) => {
@@ -362,7 +363,7 @@ export function AdjustmentsPage() {
                       {a.name_ar} ({a.internal_barcode})
                     </option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
               <div className="space-y-1">
                 <Label className="text-sm font-medium text-foreground">{ar.adjustments.currentQty}</Label>

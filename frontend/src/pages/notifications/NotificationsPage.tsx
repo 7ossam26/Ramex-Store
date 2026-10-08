@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { Toast } from '@/components/Toast';
 import { Bell } from 'lucide-react';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 type Tab = 'unread' | 'read' | 'archived';
 
@@ -155,7 +156,7 @@ export function NotificationsPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-4">
-        <select
+        <SearchableSelect
           className="border border-border-default rounded-md px-3 py-1.5 text-sm bg-surface-elevated"
           value={filterSeverity}
           onChange={(e) => { setFilterSeverity(e.target.value); setPage(1); }}
@@ -164,9 +165,9 @@ export function NotificationsPage() {
           {Object.entries(severityLabels).map(([k, v]) => (
             <option key={k} value={k}>{v}</option>
           ))}
-        </select>
+        </SearchableSelect>
 
-        <select
+        <SearchableSelect
           className="border border-border-default rounded-md px-3 py-1.5 text-sm bg-surface-elevated"
           value={filterEventType}
           onChange={(e) => { setFilterEventType(e.target.value); setPage(1); }}
@@ -175,7 +176,7 @@ export function NotificationsPage() {
           {Object.entries(eventTypeLabels).map(([k, v]) => (
             <option key={k} value={k}>{v}</option>
           ))}
-        </select>
+        </SearchableSelect>
 
         <input
           type="date"

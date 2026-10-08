@@ -38,6 +38,7 @@ import {
   Store,
   Warehouse as WarehouseIcon,
 } from 'lucide-react';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 type WarehouseChoice = 'all' | Warehouse;
 type StatusFilter = 'all' | 'in_stock' | 'low' | 'out';
@@ -789,11 +790,11 @@ export function StockViewPage() {
           <div className="flex flex-wrap items-center gap-2 sm:justify-end">
             <div className="relative inline-flex">
               <ArrowUpDown className="absolute top-1/2 -translate-y-1/2 start-3 size-4 text-foreground-muted pointer-events-none" />
-              <select
+              <SearchableSelect
                 value={sortKey}
                 onChange={(e) => setSortKey(e.target.value as SortKey)}
                 className={cn(
-                  'h-10 rounded-md border border-border-default bg-surface ps-9 pe-8 text-sm text-foreground',
+                  'h-10 rounded-md border border-border-default bg-surface ps-9 pe-3 text-sm text-foreground',
                   'appearance-none cursor-pointer',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
                   'hover:bg-surface-hover transition-colors',
@@ -804,18 +805,17 @@ export function StockViewPage() {
                 <option value="count_asc">الأقل توفراً</option>
                 <option value="weight_desc">الأثقل وزناً</option>
                 <option value="price_desc">أعلى سعر بيع</option>
-              </select>
-              <ChevronDown className="absolute top-1/2 -translate-y-1/2 end-3 size-4 text-foreground-muted pointer-events-none" />
+              </SearchableSelect>
             </div>
 
             {viewMode === 'rolls' && (
               <div className="relative inline-flex">
                 <WarehouseIcon className="absolute top-1/2 -translate-y-1/2 start-3 size-4 text-foreground-muted pointer-events-none" />
-                <select
+                <SearchableSelect
                   value={warehouse}
                   onChange={(e) => setWarehouse(e.target.value as WarehouseChoice)}
                   className={cn(
-                    'h-10 rounded-md border border-border-default bg-surface ps-9 pe-8 text-sm text-foreground',
+                    'h-10 rounded-md border border-border-default bg-surface ps-9 pe-3 text-sm text-foreground',
                     'appearance-none cursor-pointer min-w-[140px]',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
                     'hover:bg-surface-hover transition-colors',
@@ -826,8 +826,7 @@ export function StockViewPage() {
                       {opt.label}
                     </option>
                   ))}
-                </select>
-                <ChevronDown className="absolute top-1/2 -translate-y-1/2 end-3 size-4 text-foreground-muted pointer-events-none" />
+                </SearchableSelect>
               </div>
             )}
 

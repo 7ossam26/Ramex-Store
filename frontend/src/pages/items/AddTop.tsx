@@ -26,6 +26,7 @@ import {
 import { Code128 } from '@/components/Code128';
 import { PageShell } from '@/components/Layout/PageShell';
 import { openPdfBlob } from '@/lib/pdf';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 // ---------- helpers ----------
 
@@ -310,7 +311,7 @@ function LotCell({
 
   return (
     <div className="flex items-center gap-1.5 min-w-0">
-      <select
+      <SearchableSelect
         className="flex-1 h-12 rounded border border-border bg-canvas px-3 text-base min-w-0 disabled:opacity-50 disabled:cursor-not-allowed"
         value={lot_id === null ? '' : String(lot_id)}
         onChange={(e) => onChangeLot(e.target.value ? Number(e.target.value) : null)}
@@ -322,7 +323,7 @@ function LotCell({
             {l.lot_no}
           </option>
         ))}
-      </select>
+      </SearchableSelect>
       <button
         type="button"
         title={ar.lots.createNew}
@@ -407,7 +408,7 @@ function FabricSubGroup({
       {/* ── Sticky fabric header ─────────────────────────────────────────── */}
       <div className="sticky top-[52px] md:top-14 z-10 bg-surface-elevated rounded-t-xl border-b border-border-subtle px-5 pt-4 pb-3">
         <div className="flex items-center gap-2" dir="rtl">
-          <select
+          <SearchableSelect
             className={`${selectClass} flex-1 font-medium`}
             value={group.fabricId === null ? '' : String(group.fabricId)}
             onChange={(e) => {
@@ -421,7 +422,7 @@ function FabricSubGroup({
                 {f.name_ar} ({f.code}) — {f.unit === 'meter' ? ar.addTop.meterUnit : ar.addTop.kgUnit}
               </option>
             ))}
-          </select>
+          </SearchableSelect>
           <Button
             type="button"
             variant="outline"
@@ -464,7 +465,7 @@ function FabricSubGroup({
             {selectedCount > 0 && (
               <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-accent/20 border border-border-subtle" dir="rtl">
                 <span className="text-sm font-semibold">{selectedCount} {ar.addTop.selectedRows}</span>
-                <select
+                <SearchableSelect
                   className="h-11 rounded border border-border bg-canvas px-3 text-base"
                   value={bulkColorId === null ? '' : String(bulkColorId)}
                   onChange={(e) => setBulkColorId(e.target.value ? Number(e.target.value) : null)}
@@ -473,7 +474,7 @@ function FabricSubGroup({
                   {colors.map((c) => (
                     <option key={c.id} value={c.id}>{c.name_ar} ({c.code})</option>
                   ))}
-                </select>
+                </SearchableSelect>
                 <Button type="button" className="h-11 text-sm" onClick={applyBulkColor} disabled={!bulkColorId}>
                   {ar.addTop.bulkSetColor}
                 </Button>
@@ -538,7 +539,7 @@ function FabricSubGroup({
                     <div className="space-y-2">
                       <Label className="text-base font-semibold text-foreground">{ar.addTop.colColor}</Label>
                       <div className="flex items-center gap-2">
-                        <select
+                        <SearchableSelect
                           className={[
                             'flex-1 h-12 rounded border px-3 text-base bg-canvas min-w-0',
                             rowErrors.color ? 'border-danger-foreground' : 'border-border',
@@ -553,7 +554,7 @@ function FabricSubGroup({
                           {colors.map((c) => (
                             <option key={c.id} value={c.id}>{c.name_ar}</option>
                           ))}
-                        </select>
+                        </SearchableSelect>
                         <button
                           type="button"
                           title="إضافة لون جديد"

@@ -38,8 +38,15 @@ export type UpdateCustomerInput = z.infer<typeof UpdateCustomerSchema>;
 // (customer owes us / مدين), credit = balance > 0 (دائن), settled = 0 (متعادل).
 export const BalanceFilterSchema = z.enum(['all', 'debt', 'credit', 'settled']).optional().default('all');
 
+const SearchFlag = z
+  .enum(['1', 'true', '0', 'false'])
+  .optional()
+  .transform((v) => v === '1' || v === 'true');
+
 export const ListCustomersQuerySchema = z.object({
   search: z.string().optional(),
+  // '1' / 'true': `search` also matches customers by what they bought.
+  search_purchases: SearchFlag,
   balance: BalanceFilterSchema,
   sort: z.enum(['name_ar', 'created_at', 'lifetime_volume_egp']).optional().default('created_at'),
   page: z.coerce.number().int().min(1).optional().default(1),
@@ -50,6 +57,8 @@ export type ListCustomersQueryInput = z.infer<typeof ListCustomersQuerySchema>;
 // Whole-list export (no pagination) — reuses the same search + balance filters.
 export const ListCustomersExportQuerySchema = z.object({
   search: z.string().optional(),
+  // '1' / 'true': `search` also matches customers by what they bought.
+  search_purchases: SearchFlag,
   balance: BalanceFilterSchema,
   sort: z.enum(['name_ar', 'created_at', 'lifetime_volume_egp']).optional().default('created_at'),
   format: z.enum(['pdf', 'excel', 'print']).optional().default('pdf'),

@@ -8,6 +8,7 @@ import { usersApi } from '@/lib/settings-api';
 import { extractApiError } from '@/lib/api-error';
 import { Toast } from '@/components/Toast';
 import { KeyRound } from 'lucide-react';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 const ROLE_OPTIONS = [
   { value: 'owner', label: 'مالك' },
@@ -94,7 +95,7 @@ export function CreateUserDialog({ open, onClose }: Props) {
             </div>
             <div className="space-y-1.5">
               <Label>الدور</Label>
-              <select
+              <SearchableSelect
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
                 className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
@@ -102,7 +103,7 @@ export function CreateUserDialog({ open, onClose }: Props) {
                 {ROLE_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
             <div className="space-y-1.5">
               <Label>كلمة المرور الأولية</Label>

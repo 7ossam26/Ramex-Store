@@ -537,6 +537,8 @@ export const ar = {
     statusCredit: 'دائن',
     statusSettled: 'متعادل',
     filterBalance: 'الرصيد',
+    searchWithPurchases: 'بحث بالاسم أو الهاتف أو أي صنف اشتراه',
+    matchedPurchases: 'اشترى',
     filterAll: 'الكل',
     editAction: 'تعديل',
     // Whole-list export

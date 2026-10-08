@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/PageHeader';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ScannerInput } from '@/components/ScannerInput';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 export function CreateShipmentPage() {
   const qc = useQueryClient();
@@ -250,7 +251,7 @@ export function CreateShipmentPage() {
               <Label className="text-sm font-medium text-foreground">
                 {ar.shipments.filterByFabric}
               </Label>
-              <select
+              <SearchableSelect
                 value={fabricFilter === null ? '' : String(fabricFilter)}
                 onChange={(e) =>
                   setFabricFilter(e.target.value ? Number(e.target.value) : null)
@@ -263,13 +264,13 @@ export function CreateShipmentPage() {
                     {f.name_ar}
                   </option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
             <div className="space-y-1">
               <Label className="text-sm font-medium text-foreground">
                 {ar.shipments.filterByColor}
               </Label>
-              <select
+              <SearchableSelect
                 value={colorFilter === null ? '' : String(colorFilter)}
                 onChange={(e) =>
                   setColorFilter(e.target.value ? Number(e.target.value) : null)
@@ -282,7 +283,7 @@ export function CreateShipmentPage() {
                     {c.name_ar} ({c.code})
                   </option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
             <div className="space-y-1">
               <Label className="text-sm font-medium text-foreground">

@@ -76,6 +76,7 @@ function buildCustomersExport(
 ): ReportPdfOptions {
   const filterBits = [`الفلتر: ${BALANCE_FILTER_LABEL[filter.balance] ?? 'الكل'}`];
   if (filter.search) filterBits.push(`بحث: ${filter.search}`);
+  const byPurchase = rows.some((c) => c.matched_items);
   return {
     titleAr: 'قائمة العملاء',
     subtitleAr: `${filterBits.join(' · ')} · عدد: ${rows.length}`,
@@ -90,6 +91,11 @@ function buildCustomersExport(
           { label: 'إجمالي المبيعات', key: 'volume' },
           { label: 'الرصيد', key: 'balance' },
           { label: 'الحالة', key: 'direction', align: 'center' },
+          ...(byPurchase
+            ? [
+                { label: 'مشتريات مطابقة', key: 'purchases' },
+              ]
+            : []),
         ],
         rows: rows.map((c) => ({
           code: c.customer_code,
@@ -98,6 +104,11 @@ function buildCustomersExport(
           volume: fmtEgp(c.lifetime_volume_egp),
           balance: Number(c.current_balance_egp) === 0 ? '—' : fmtEgp(Math.abs(Number(c.current_balance_egp))),
           direction: balanceDirection(c.current_balance_egp),
+          ...(byPurchase
+            ? {
+                purchases: c.matched_items ?? '—',
+              }
+            : {}),
         })),
         emptyAr: 'لا يوجد عملاء مطابقون',
       },
@@ -116,7 +127,7 @@ export async function exportCustomers(req: Request, res: Response): Promise<void
     action: 'customers_list_exported',
     entity: 'customer',
     entityId: null,
-    after: { search: query.search ?? null, balance: query.balance, format: query.format, count: rows.length },
+    after: { search: query.search ?? null, balance: query.balance, search_purchases: query.search_purchases, format: query.format, count: rows.length },
     severity: 'low',
   });
 

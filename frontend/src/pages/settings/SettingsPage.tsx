@@ -42,6 +42,7 @@ import { AlertTriangle, KeyRound, Search } from 'lucide-react';
 import { matchesTokens, tokenize } from '@/lib/arabic-search';
 import type { UserRow } from '@/lib/settings-api';
 import { RESOURCE_GROUPS } from '@/lib/permissions-config';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 /**
  * Exact phrase the super admin must type to confirm a database reset.
@@ -156,7 +157,7 @@ function SelectInput({
   className?: string;
 }) {
   return (
-    <select
+    <SearchableSelect
       className={cn(
         'h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground',
         'transition-colors duration-75 ease-standard',
@@ -167,7 +168,7 @@ function SelectInput({
       onChange={(e) => onChange(e.target.value)}
     >
       {children}
-    </select>
+    </SearchableSelect>
   );
 }
 

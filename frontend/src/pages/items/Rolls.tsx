@@ -25,6 +25,7 @@ import { isOwnerOrAbove } from '@/lib/roles';
 import { usePermissions } from '@/lib/permissions';
 import { accessoriesApi } from '@/lib/accessories-api';
 import type { Accessory } from '@/lib/accessories-types';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 // ── Label card helpers ──────────────────────────────────────────────────────
 function LabelRow({ label, value }: { label: string; value: string | number | null | undefined }) {
@@ -390,7 +391,7 @@ export function RollsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label className="text-sm font-medium text-foreground">{ar.labels.fabricFilter}</Label>
-              <select
+              <SearchableSelect
                 value={fabricId}
                 onChange={(e) => setFabricId(e.target.value)}
                 disabled={fabricsQ.isLoading}
@@ -401,11 +402,11 @@ export function RollsPage() {
                 {fabrics.map((f) => (
                   <option key={f.id} value={String(f.id)}>{f.name_ar}</option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
             <div className="space-y-1">
               <Label className="text-sm font-medium text-foreground">{ar.labels.colorFilter}</Label>
-              <select
+              <SearchableSelect
                 value={colorId}
                 onChange={(e) => setColorId(e.target.value)}
                 disabled={colorsQ.isLoading}
@@ -416,11 +417,11 @@ export function RollsPage() {
                 {colors.map((c) => (
                   <option key={c.id} value={String(c.id)}>{c.name_ar}</option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
             <div className="space-y-1">
               <Label className="text-sm font-medium text-foreground">{ar.inventory.warehouse}</Label>
-              <select
+              <SearchableSelect
                 value={warehouse}
                 onChange={(e) => setWarehouse(e.target.value)}
                 dir="rtl"
@@ -430,7 +431,7 @@ export function RollsPage() {
                 <option value="shop">{ar.warehouses.shop}</option>
                 <option value="factory">{ar.warehouses.factory}</option>
                 <option value="damaged_shop">{ar.warehouses.damaged_shop}</option>
-              </select>
+              </SearchableSelect>
             </div>
           </div>
 
@@ -460,7 +461,7 @@ export function RollsPage() {
           </div>
           <div className="space-y-1">
             <Label className="text-sm font-medium text-foreground">الحالة</Label>
-            <select
+            <SearchableSelect
               className={selectClass}
               value={accActive}
               onChange={(e) => setAccActive(e.target.value as 'all' | 'active' | 'inactive')}
@@ -468,7 +469,7 @@ export function RollsPage() {
               <option value="all">الكل</option>
               <option value="active">نشط</option>
               <option value="inactive">موقوف</option>
-            </select>
+            </SearchableSelect>
           </div>
         </>
       )}

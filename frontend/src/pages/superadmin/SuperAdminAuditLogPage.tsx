@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { superadminApi, type AuditLogEntry } from '@/lib/superadmin-api';
 import { cn } from '@/lib/utils';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 const SEVERITY_COLORS: Record<string, string> = {
   low: 'bg-muted text-muted-foreground',
@@ -135,7 +136,7 @@ export function SuperAdminAuditLogPage() {
         </div>
         <div className="space-y-1">
           <label className="text-xs text-foreground-muted">الخطورة</label>
-          <select
+          <SearchableSelect
             value={severity}
             onChange={(e) => { setSeverity(e.target.value); setPage(1); }}
             className="h-8 rounded-md border border-border-default bg-surface-elevated px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
@@ -145,7 +146,7 @@ export function SuperAdminAuditLogPage() {
             <option value="medium">متوسط</option>
             <option value="high">عالي</option>
             <option value="critical">حرج</option>
-          </select>
+          </SearchableSelect>
         </div>
         <div className="space-y-1">
           <label className="text-xs text-foreground-muted">من</label>

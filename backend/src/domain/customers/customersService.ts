@@ -11,30 +11,122 @@ import type {
   LedgerQueryInput,
 } from './customers.schemas.js';
 
-/** Applies the shared search + balance-direction filters to a `customers` query. */
-function applyCustomerFilters(
-  qb: Knex.QueryBuilder,
-  filters: { search?: string; balance?: 'all' | 'debt' | 'credit' | 'settled' },
-): void {
-  if (filters.search) {
-    const term = `%${filters.search}%`;
+type CustomerFilters = {
+  search?: string;
+  /** Also match customers by what they bought (see matchedPurchases). */
+  searchPurchases?: boolean;
+  balance?: 'all' | 'debt' | 'credit' | 'settled';
+};
+
+// An invoice still counts as a purchase unless it was undone as a whole.
+const UNDONE_INVOICE_STATUSES = ['cancelled', 'deposit_refunded', 'returned'];
+
+/** Every token must appear somewhere in `haystackSql` (case-insensitive). */
+function whereAllTokens(qb: Knex.QueryBuilder, haystackSql: string, tokens: string[]): void {
+  for (const t of tokens) qb.whereRaw(`${haystackSql} ILIKE ?`, [`%${t}%`]);
+}
+
+/**
+ * Per customer, the purchased items matching the search that they still hold,
+ * as «قطن أحمر (2 توب)، زرار (12 قطعة)».
+ *
+ * Held = on an invoice that is not cancelled, deposit-refunded or fully
+ * returned, and not returned in full. For أتواب that mirrors
+ * invoiceReturnState: a legacy return row (no quantity) covers the whole line,
+ * otherwise the returned quantities must reach the sold quantity. For
+ * إكسسوارات the returned pieces must reach the sold pieces.
+ *
+ * A line matches when every search word appears in its خامة / لون names or
+ * codes or its barcode, so «قطن أحمر» finds red cotton.
+ */
+function matchedPurchases(tokens: string[]): Knex.QueryBuilder {
+  const rolls = db('invoice_lines as il')
+    .join('invoices as i', 'i.id', 'il.invoice_id')
+    .join('rolls as r', 'r.id', 'il.roll_id')
+    .join('fabrics as f', 'f.id', 'r.fabric_id')
+    .join('colors as c', 'c.id', 'r.color_id')
+    .where('il.item_type', 'roll')
+    .whereNotIn('i.status', UNDONE_INVOICE_STATUSES)
+    .whereRaw(
+      `NOT EXISTS (SELECT 1 FROM return_lines rl
+                   WHERE rl.original_invoice_line_id = il.id AND rl.returned_quantity IS NULL)`,
+    )
+    .whereRaw(
+      // Unknown sold quantity (legacy metre line without a length) counts as held.
+      `(COALESCE((SELECT SUM(rl.returned_quantity) FROM return_lines rl WHERE rl.original_invoice_line_id = il.id), 0)
+          < COALESCE(il.sold_quantity, CASE WHEN f.unit = 'meter' THEN r.length_m ELSE r.weight_kg END) - 0.0005
+        OR COALESCE(il.sold_quantity, CASE WHEN f.unit = 'meter' THEN r.length_m ELSE r.weight_kg END) IS NULL)`,
+    )
+    .groupBy('i.customer_id', 'f.name_ar', 'c.name_ar')
+    .select(
+      'i.customer_id',
+      db.raw(`f.name_ar || ' ' || c.name_ar AS label`),
+      db.raw('COUNT(DISTINCT il.roll_id)::int AS n'),
+      db.raw(`'توب' AS unit`),
+    );
+  whereAllTokens(
+    rolls,
+    `CONCAT_WS(' ', f.name_ar, f.code, c.name_ar, c.code, r.internal_barcode, r.external_barcode)`,
+    tokens,
+  );
+
+  const returnedPieces =
+    `COALESCE((SELECT SUM(rl.qty_pieces) FROM return_lines rl WHERE rl.original_invoice_line_id = il.id), 0)`;
+  const accessories = db('invoice_lines as il')
+    .join('invoices as i', 'i.id', 'il.invoice_id')
+    .join('accessories as a', 'a.id', 'il.accessory_id')
+    .where('il.item_type', 'accessory')
+    .whereNotIn('i.status', UNDONE_INVOICE_STATUSES)
+    .whereRaw(`${returnedPieces} < il.qty_pieces`)
+    .groupBy('i.customer_id', 'a.name_ar')
+    .select(
+      'i.customer_id',
+      'a.name_ar as label',
+      db.raw(`SUM(il.qty_pieces - ${returnedPieces})::int AS n`),
+      db.raw(`'قطعة' AS unit`),
+    );
+  whereAllTokens(accessories, `CONCAT_WS(' ', a.name_ar, a.internal_barcode)`, tokens);
+
+  return db
+    // A standalone union: chained onto `rolls`, knex would emit it before
+    // rolls' GROUP BY.
+    .from(db.unionAll([rolls, accessories], true).as('pi'))
+    .groupBy('pi.customer_id')
+    .select(
+      'pi.customer_id',
+      db.raw(`STRING_AGG(pi.label || ' (' || pi.n || ' ' || pi.unit || ')', '، ' ORDER BY pi.n DESC, pi.label) AS matched_items`),
+    );
+}
+
+/** `customers` with the shared search + balance-direction filters applied. */
+function filteredCustomers(filters: CustomerFilters): Knex.QueryBuilder {
+  const qb = db('customers').select('customers.*');
+  const search = filters.search?.trim();
+  if (search) {
+    const term = `%${search}%`;
+    if (filters.searchPurchases) {
+      qb.leftJoin(matchedPurchases(search.split(/\s+/)).as('mp'), 'mp.customer_id', 'customers.id')
+        .select('mp.matched_items');
+    }
     qb.where((q) => {
-      q.whereILike('name_ar', term).orWhereILike('phone', term);
+      q.whereILike('customers.name_ar', term).orWhereILike('customers.phone', term);
+      if (filters.searchPurchases) q.orWhereNotNull('mp.customer_id');
     });
   }
   switch (filters.balance) {
     case 'debt':
-      qb.where('current_balance_egp', '<', 0);
+      qb.where('customers.current_balance_egp', '<', 0);
       break;
     case 'credit':
-      qb.where('current_balance_egp', '>', 0);
+      qb.where('customers.current_balance_egp', '>', 0);
       break;
     case 'settled':
-      qb.where('current_balance_egp', '=', 0);
+      qb.where('customers.current_balance_egp', '=', 0);
       break;
     default:
       break;
   }
+  return qb;
 }
 
 async function nextCustomerCode(trx: Knex.Transaction): Promise<string> {
@@ -144,15 +236,14 @@ export async function findByPhone(phone: string): Promise<Customer | undefined> 
 export async function list(
   query: ListCustomersQueryInput,
 ): Promise<{ rows: Customer[]; total: number }> {
-  const { search, balance, sort, page, limit } = query;
+  const { search, search_purchases, balance, sort, page, limit } = query;
   const offset = (page - 1) * limit;
 
-  const base = db('customers');
-  applyCustomerFilters(base, { search, balance });
+  const base = filteredCustomers({ search, searchPurchases: search_purchases, balance });
 
-  const [countRow] = await base.clone().count('id as count');
+  const [countRow] = await base.clone().clearSelect().count('customers.id as count');
   const rows = await base
-    .orderBy(sort ?? 'created_at', 'desc')
+    .orderBy(`customers.${sort ?? 'created_at'}`, 'desc')
     .limit(limit)
     .offset(offset);
 
@@ -161,10 +252,9 @@ export async function list(
 
 /** All customers matching the search + balance filters, unpaginated — for export. */
 export async function listForExport(query: ListCustomersExportQueryInput): Promise<Customer[]> {
-  const { search, balance, sort } = query;
-  const base = db('customers');
-  applyCustomerFilters(base, { search, balance });
-  const rows = await base.orderBy(sort ?? 'created_at', 'desc');
+  const { search, search_purchases, balance, sort } = query;
+  const base = filteredCustomers({ search, searchPurchases: search_purchases, balance });
+  const rows = await base.orderBy(`customers.${sort ?? 'created_at'}`, 'desc');
   return rows as Customer[];
 }
 

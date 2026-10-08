@@ -23,6 +23,7 @@ import { extractApiError } from '@/lib/api-error';
 import { EditUserDialog } from '../settings/EditUserDialog';
 import { ResetPasswordDialog } from '../settings/ResetPasswordDialog';
 import { CreateUserDialog } from './CreateUserDialog';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 const ROLE_LABELS: Record<string, string> = {
   super_admin: 'مشرف عام',
@@ -188,7 +189,7 @@ export function SuperAdminUsersPage() {
             className="h-9 rounded-md border border-border-default bg-surface-elevated pe-9 ps-3 text-sm text-foreground w-52 placeholder:text-foreground-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
           />
         </div>
-        <select
+        <SearchableSelect
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value)}
           className="h-9 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
@@ -197,7 +198,7 @@ export function SuperAdminUsersPage() {
           {Object.entries(ROLE_LABELS).map(([k, v]) => (
             <option key={k} value={k}>{v}</option>
           ))}
-        </select>
+        </SearchableSelect>
       </div>
 
       {/* Table */}

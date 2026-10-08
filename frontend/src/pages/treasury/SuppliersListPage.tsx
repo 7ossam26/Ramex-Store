@@ -23,6 +23,7 @@ import { currencySymbol, fmtCurrency, fmtMoney } from '@/components/dashboard/fo
 import { cn } from '@/lib/utils';
 import { extractApiError } from '@/lib/api-error';
 import { format } from 'date-fns';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 // ─── Add Debt Dialog ──────────────────────────────────────────────────────────
 
@@ -76,12 +77,12 @@ function AddDebtDialog({ onClose, onDone }: { onClose: () => void; onDone: () =>
 
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">{ar.supplierPayables.suppliersHub}</label>
-              <select className={inputCls} value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
+              <SearchableSelect className={inputCls} value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
                 <option value="">— اختر مورداً —</option>
                 {suppliers.filter((s: { is_active: boolean }) => s.is_active).map((s: { id: number; arabic_name: string }) => (
                   <option key={s.id} value={s.id}>{s.arabic_name}</option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

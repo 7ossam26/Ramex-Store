@@ -12,6 +12,7 @@ import { MetricCard } from '@/components/dashboard/MetricCard';
 import { PageShell, SectionCard } from '@/components/Layout/PageShell';
 import { CustomerFormDialog } from '@/components/customers/CustomerFormDialog';
 import type { Customer } from '@/lib/customers-types';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 const PAGE_SIZE = 30;
 
@@ -64,9 +65,10 @@ export function CustomersListPage() {
   const [createOpen, setCreateOpen] = useState(searchParams.get('create') === '1');
   const [editCustomer, setEditCustomer] = useState<Customer | null>(null);
 
+  // The search box also finds customers by anything they bought (خامة، لون، باركود، إكسسوار).
   const q = useQuery({
     queryKey: ['customers', search, balance, page],
-    queryFn: () => customersApi.list({ search: search || undefined, balance, page, limit: PAGE_SIZE }),
+    queryFn: () => customersApi.list({ search: search || undefined, search_purchases: true, balance, page, limit: PAGE_SIZE }),
   });
 
   const openCreate = useCallback(() => {
@@ -108,9 +110,16 @@ export function CustomersListPage() {
       key: 'name',
       header: ar.customers.nameAr,
       cell: (c) => (
-        <Link to={`/customers/${c.id}`} className="text-accent hover:text-accent-hover hover:underline underline-offset-2 font-medium">
-          {c.name_ar}
-        </Link>
+        <div className="min-w-0">
+          <Link to={`/customers/${c.id}`} className="text-accent hover:text-accent-hover hover:underline underline-offset-2 font-medium">
+            {c.name_ar}
+          </Link>
+          {c.matched_items && (
+            <div className="text-xs text-foreground-muted mt-0.5 line-clamp-2" title={c.matched_items}>
+              {ar.customers.matchedPurchases}: <span className="text-foreground">{c.matched_items}</span>
+            </div>
+          )}
+        </div>
       ),
       primary: true,
     },
@@ -154,7 +163,7 @@ export function CustomersListPage() {
             variant="outline"
             size="sm"
             disabled={exportDisabled}
-            onClick={() => triggerDownload(customersListExportUrl({ search: search || undefined, balance, format: 'pdf' }))}
+            onClick={() => triggerDownload(customersListExportUrl({ search: search || undefined, searchPurchases: true, balance, format: 'pdf' }))}
           >
             <FileText className="size-4" aria-hidden />
             {ar.customers.exportPdf}
@@ -163,7 +172,7 @@ export function CustomersListPage() {
             variant="outline"
             size="sm"
             disabled={exportDisabled}
-            onClick={() => triggerDownload(customersListExportUrl({ search: search || undefined, balance, format: 'excel' }))}
+            onClick={() => triggerDownload(customersListExportUrl({ search: search || undefined, searchPurchases: true, balance, format: 'excel' }))}
           >
             <FileSpreadsheet className="size-4" aria-hidden />
             {ar.customers.exportExcel}
@@ -179,14 +188,14 @@ export function CustomersListPage() {
               aria-hidden
             />
             <Input
-              placeholder={ar.customers.search}
+              placeholder={ar.customers.searchWithPurchases}
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               dir="rtl"
               className="ps-9 h-10"
             />
           </div>
-          <select
+          <SearchableSelect
             className={selectClass}
             value={balance}
             onChange={(e) => { setBalance(e.target.value as CustomerBalanceFilter); setPage(1); }}
@@ -196,7 +205,7 @@ export function CustomersListPage() {
             <option value="debt">{ar.customers.statusDebt}</option>
             <option value="credit">{ar.customers.statusCredit}</option>
             <option value="settled">{ar.customers.statusSettled}</option>
-          </select>
+          </SearchableSelect>
           <div className="text-sm text-foreground-muted sm:ms-auto">
             نتائج: <span className="tabular-num text-foreground" dir="ltr">{total}</span>
           </div>

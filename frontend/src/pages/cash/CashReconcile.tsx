@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageShell } from '@/components/Layout/PageShell';
 import { cn } from '@/lib/utils';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 const fmt = (n: string | number) =>
   Number(n).toLocaleString('en-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -369,7 +370,7 @@ export function CashReconcilePage() {
           <div className="rounded-lg border border-border-subtle bg-surface-elevated p-5 shadow-sm">
             <div className="space-y-1.5">
               <Label>الحساب البنكي</Label>
-              <select
+              <SearchableSelect
                 className="w-full rounded-md border border-border-default bg-surface-elevated h-10 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 value={selectedBankId ?? ''}
                 onChange={(e) =>
@@ -384,7 +385,7 @@ export function CashReconcilePage() {
                       {b.name_ar} {b.bank_name_ar ? `(${b.bank_name_ar})` : ''}
                     </option>
                   ))}
-              </select>
+              </SearchableSelect>
             </div>
           </div>
 

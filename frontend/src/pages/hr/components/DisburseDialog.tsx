@@ -12,6 +12,7 @@ import { AlertTriangle } from 'lucide-react';
 import { HrDialog } from './HrDialog';
 import { MonthStepper } from './MonthStepper';
 import { fmt, toMonthDate } from './utils';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 function currentMonth() {
   const d = new Date();
@@ -199,14 +200,14 @@ export function DisburseDialog({
             {needsBank && (
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-foreground">{ar.hr.salary.bankAccount}</label>
-                <select className={inputCls} value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)}>
+                <SearchableSelect className={inputCls} value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)}>
                   <option value="">— اختر حساباً —</option>
                   {banks.filter((b) => b.is_active).map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.name_ar} {b.bank_name_ar ? `/ ${b.bank_name_ar}` : ''}
                     </option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
             )}
 

@@ -29,6 +29,7 @@ import { FabricDeleteDialog } from './FabricDeleteDialog';
 import { usePermissions } from '@/lib/permissions';
 import { extractApiError } from '@/lib/api-error';
 import { matchesTokens, tokenize } from '@/lib/arabic-search';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString('en-GB', {
@@ -364,7 +365,7 @@ export function FabricsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1">
             <Label className="text-sm font-medium text-foreground">الحالة</Label>
-            <select
+            <SearchableSelect
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as 'all' | 'active' | 'inactive')}
               dir="rtl"
@@ -373,11 +374,11 @@ export function FabricsPage() {
               <option value="all">الكل</option>
               <option value="active">{ar.fabrics.filterActive}</option>
               <option value="inactive">{ar.fabrics.filterArchived}</option>
-            </select>
+            </SearchableSelect>
           </div>
           <div className="space-y-1">
             <Label className="text-sm font-medium text-foreground">{ar.fabrics.unit}</Label>
-            <select
+            <SearchableSelect
               value={filterUnit}
               onChange={(e) => setFilterUnit(e.target.value as '' | 'kg' | 'meter')}
               dir="rtl"
@@ -386,11 +387,11 @@ export function FabricsPage() {
               <option value="">الكل</option>
               <option value="kg">{ar.fabrics.unitKg}</option>
               <option value="meter">{ar.fabrics.unitMeter}</option>
-            </select>
+            </SearchableSelect>
           </div>
           <div className="space-y-1">
             <Label className="text-sm font-medium text-foreground">{ar.fabrics.category}</Label>
-            <select
+            <SearchableSelect
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value as '' | 'main' | 'rib' | 'accessory')}
               dir="rtl"
@@ -400,7 +401,7 @@ export function FabricsPage() {
               <option value="main">{ar.fabrics.categoryMain}</option>
               <option value="rib">{ar.fabrics.categoryRib}</option>
               <option value="accessory">{ar.fabrics.categoryAccessory}</option>
-            </select>
+            </SearchableSelect>
           </div>
         </div>
 
@@ -651,7 +652,7 @@ export function FabricsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3">
                   <div className="space-y-1">
                     <label className="text-sm font-medium">{ar.fabrics.defaultGrade}</label>
-                    <select
+                    <SearchableSelect
                       className="w-full h-11 md:h-10 rounded border border-border bg-canvas px-3 text-sm"
                       value={form.default_grade_id}
                       onChange={(e) => setForm({ ...form, default_grade_id: e.target.value })}
@@ -660,11 +661,11 @@ export function FabricsPage() {
                       {(gradesQ.data ?? []).map((g) => (
                         <option key={g.id} value={g.id}>{g.arabic_name}</option>
                       ))}
-                    </select>
+                    </SearchableSelect>
                   </div>
                   <div className="space-y-1">
                     <label className="text-sm font-medium">{ar.fabrics.defaultComposition}</label>
-                    <select
+                    <SearchableSelect
                       className="w-full h-11 md:h-10 rounded border border-border bg-canvas px-3 text-sm"
                       value={form.default_composition_id}
                       onChange={(e) => setForm({ ...form, default_composition_id: e.target.value })}
@@ -673,11 +674,11 @@ export function FabricsPage() {
                       {(compositionsQ.data ?? []).map((c) => (
                         <option key={c.id} value={c.id}>{c.arabic_name}</option>
                       ))}
-                    </select>
+                    </SearchableSelect>
                   </div>
                   <div className="space-y-1 md:col-span-2">
                     <label className="text-sm font-medium">{ar.fabrics.defaultBrand}</label>
-                    <select
+                    <SearchableSelect
                       className="w-full h-11 md:h-10 rounded border border-border bg-canvas px-3 text-sm"
                       value={form.default_brand_id}
                       onChange={(e) => setForm({ ...form, default_brand_id: e.target.value })}
@@ -686,7 +687,7 @@ export function FabricsPage() {
                       {(brandsQ.data ?? []).map((b) => (
                         <option key={b.id} value={b.id}>{b.arabic_name}</option>
                       ))}
-                    </select>
+                    </SearchableSelect>
                   </div>
                 </div>
               </details>

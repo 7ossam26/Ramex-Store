@@ -24,6 +24,7 @@ import { MobileFilterSheet } from '@/components/MobileFilterSheet';
 import { PageShell } from '@/components/Layout/PageShell';
 import { RollStatusPill } from '@/components/items/RollStatusPill';
 import { StatusPill } from '@/components/StatusPill';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 type ItemType = 'all' | 'tops' | 'accessories';
 
@@ -242,7 +243,7 @@ export function LabelsPage() {
       {canReadAccessories && (
         <div className="space-y-1">
           <Label className="text-sm font-medium text-foreground">{ar.labels.itemType}</Label>
-          <select
+          <SearchableSelect
             value={filters.itemType}
             onChange={(e) => setFilters((f) => ({ ...f, itemType: e.target.value as ItemType }))}
             dir="rtl"
@@ -251,14 +252,14 @@ export function LabelsPage() {
             <option value="all">{ar.labels.itemTypeAll}</option>
             <option value="tops">{ar.labels.itemTypeTops}</option>
             <option value="accessories">{ar.labels.itemTypeAccessories}</option>
-          </select>
+          </SearchableSelect>
         </div>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
         <div className="space-y-1">
           <Label className="text-sm font-medium text-foreground">{ar.labels.fabricFilter}</Label>
-          <select
+          <SearchableSelect
             value={filters.fabric}
             onChange={(e) => setFilters((f) => ({ ...f, fabric: e.target.value }))}
             dir="rtl"
@@ -268,11 +269,11 @@ export function LabelsPage() {
             {(fabricsQ.data ?? []).map((fab) => (
               <option key={fab.id} value={fab.name_ar}>{fab.name_ar}</option>
             ))}
-          </select>
+          </SearchableSelect>
         </div>
         <div className="space-y-1">
           <Label className="text-sm font-medium text-foreground">{ar.labels.colorFilter}</Label>
-          <select
+          <SearchableSelect
             value={filters.color}
             onChange={(e) => setFilters((f) => ({ ...f, color: e.target.value }))}
             dir="rtl"
@@ -282,11 +283,11 @@ export function LabelsPage() {
             {(colorsQ.data ?? []).map((col) => (
               <option key={col.id} value={col.name_ar}>{col.name_ar}</option>
             ))}
-          </select>
+          </SearchableSelect>
         </div>
         <div className="space-y-1">
           <Label className="text-sm font-medium text-foreground">{ar.labels.status}</Label>
-          <select
+          <SearchableSelect
             value={filters.status}
             onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
             dir="rtl"
@@ -296,7 +297,7 @@ export function LabelsPage() {
             {Object.entries(ar.rollStatuses as Record<string, string>).map(([key, label]) => (
               <option key={key} value={key}>{label}</option>
             ))}
-          </select>
+          </SearchableSelect>
         </div>
         <div className="space-y-1">
           <Label className="text-sm font-medium text-foreground">{ar.labels.rollSrNoFilter}</Label>
@@ -311,7 +312,7 @@ export function LabelsPage() {
         </div>
         <div className="space-y-1">
           <Label className="text-sm font-medium text-foreground">{ar.inventory.warehouse}</Label>
-          <select
+          <SearchableSelect
             value={filters.warehouse}
             onChange={(e) => setFilters((f) => ({ ...f, warehouse: e.target.value }))}
             dir="rtl"
@@ -321,7 +322,7 @@ export function LabelsPage() {
             <option value="shop">{ar.warehouses.shop}</option>
             <option value="factory">{ar.warehouses.factory}</option>
             <option value="damaged_shop">{ar.warehouses.damaged_shop}</option>
-          </select>
+          </SearchableSelect>
         </div>
       </div>
 

@@ -15,6 +15,7 @@ import { StatusPill } from '@/components/StatusPill';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { EmptyState } from '@/components/EmptyState';
 import { TableSkeleton } from '@/components/TableSkeleton';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 const selectClass =
   'w-full h-11 sm:h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75';
@@ -75,14 +76,14 @@ function StartCard({ rows, loading }: { rows: StocktakeListRow[]; loading: boole
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
           <div className="space-y-1">
             <Label>{ar.stocktake.mode}</Label>
-            <select value={mode} onChange={(e) => setMode(e.target.value as StocktakeMode)} className={selectClass}>
+            <SearchableSelect value={mode} onChange={(e) => setMode(e.target.value as StocktakeMode)} className={selectClass}>
               <option value="roll_level">{ar.stocktake.rollLevel}</option>
               <option value="aggregate">{ar.stocktake.aggregate}</option>
-            </select>
+            </SearchableSelect>
           </div>
           <div className="space-y-1">
             <Label>{ar.stocktake.warehouse}</Label>
-            <select
+            <SearchableSelect
               value={warehouse}
               onChange={(e) => { setWarehouse(e.target.value as Warehouse); m.reset(); }}
               className={selectClass}
@@ -90,7 +91,7 @@ function StartCard({ rows, loading }: { rows: StocktakeListRow[]; loading: boole
               <option value="shop">{ar.warehouses.shop}</option>
               <option value="factory">{ar.warehouses.factory}</option>
               <option value="damaged_shop">{ar.warehouses.damaged_shop}</option>
-            </select>
+            </SearchableSelect>
           </div>
           <Button
             onClick={() => m.mutate()}

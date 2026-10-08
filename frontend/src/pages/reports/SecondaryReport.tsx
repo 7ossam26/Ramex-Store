@@ -11,6 +11,7 @@ import { ErrorBanner } from '@/components/ErrorBanner';
 import { EmptyState } from '@/components/EmptyState';
 import { UserSquare } from 'lucide-react';
 import { SecondaryReportChart, type ChartDatum } from './SecondaryReportChart';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 type ColDef = { label: string; key: string };
 
@@ -767,7 +768,7 @@ export function SecondaryReportPage() {
               <>
                 <div className="space-y-1">
                   <Label className="text-xs text-foreground-muted">{ar.labels.fabricFilter}</Label>
-                  <select
+                  <SearchableSelect
                     value={fabricId}
                     onChange={(e) => setFabricId(e.target.value)}
                     disabled={fabricsQ.isLoading}
@@ -780,11 +781,11 @@ export function SecondaryReportPage() {
                         {f.name_ar}
                       </option>
                     ))}
-                  </select>
+                  </SearchableSelect>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs text-foreground-muted">{ar.labels.colorFilter}</Label>
-                  <select
+                  <SearchableSelect
                     value={colorId}
                     onChange={(e) => setColorId(e.target.value)}
                     disabled={colorsQ.isLoading}
@@ -797,7 +798,7 @@ export function SecondaryReportPage() {
                         {c.name_ar}
                       </option>
                     ))}
-                  </select>
+                  </SearchableSelect>
                 </div>
               </>
             )}

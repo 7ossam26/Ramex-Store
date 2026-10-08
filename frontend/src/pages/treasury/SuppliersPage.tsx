@@ -30,6 +30,7 @@ import { ErrorBanner } from '@/components/ErrorBanner';
 import { cn } from '@/lib/utils';
 import { extractApiError } from '@/lib/api-error';
 import { format } from 'date-fns';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 const inputCls =
   'h-10 w-full rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
@@ -147,7 +148,7 @@ function SupplierFormDialog({
 
           <div className="space-y-1.5">
             <Label className="text-sm font-medium text-foreground">{ar.supplierPayables.currency}</Label>
-            <select
+            <SearchableSelect
               className={cn(inputCls, currencyLocked && 'opacity-60 cursor-not-allowed')}
               value={currency}
               disabled={currencyLocked}
@@ -155,7 +156,7 @@ function SupplierFormDialog({
             >
               <option value="EGP">{ar.supplierPayables.currencyEgp}</option>
               <option value="RMB">{ar.supplierPayables.currencyRmb}</option>
-            </select>
+            </SearchableSelect>
             {currencyLocked && (
               <p className="text-xs text-foreground-muted">{ar.supplierPayables.currencyLocked}</p>
             )}
@@ -375,7 +376,7 @@ function PurchaseInvoiceFormDialog({
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs text-foreground-muted">{ar.supplierPayables.unit}</Label>
-                    <select
+                    <SearchableSelect
                       className={inputCls}
                       value={l.unit}
                       onChange={(e) => updateLine(i, { unit: e.target.value as Unit })}
@@ -383,7 +384,7 @@ function PurchaseInvoiceFormDialog({
                       {UNIT_KEYS.map((u) => (
                         <option key={u} value={u}>{ar.supplierPayables.units[u]}</option>
                       ))}
-                    </select>
+                    </SearchableSelect>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs text-foreground-muted">
@@ -763,7 +764,7 @@ function PurchaseReturnFormDialog({
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs text-foreground-muted">{ar.supplierPayables.unit}</Label>
-                    <select
+                    <SearchableSelect
                       className={inputCls}
                       value={l.unit}
                       onChange={(e) => updateLine(i, { unit: e.target.value as Unit })}
@@ -771,7 +772,7 @@ function PurchaseReturnFormDialog({
                       {UNIT_KEYS.map((u) => (
                         <option key={u} value={u}>{ar.supplierPayables.units[u]}</option>
                       ))}
-                    </select>
+                    </SearchableSelect>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs text-foreground-muted">
@@ -1086,14 +1087,14 @@ function PaymentDialog({
           {needsBank && (
             <div className="space-y-1.5">
               <Label className="text-sm font-medium text-foreground">{ar.supplierPayables.bankAccount}</Label>
-              <select className={inputCls} value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)}>
+              <SearchableSelect className={inputCls} value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)}>
                 <option value="">— اختر حساباً —</option>
                 {banks.filter((b) => b.is_active).map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name_ar} {b.bank_name_ar ? `/ ${b.bank_name_ar}` : ''}
                   </option>
                 ))}
-              </select>
+              </SearchableSelect>
             </div>
           )}
           <div className="space-y-1.5">

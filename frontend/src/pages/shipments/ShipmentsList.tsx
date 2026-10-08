@@ -13,6 +13,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { TableFilterBar } from '@/components/TableFilterBar';
 import { usePermissions } from '@/lib/permissions';
 import { matchesTokens, tokenize } from '@/lib/arabic-search';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 const STATUSES: Array<ShipmentStatus | ''> = [
   '', 'draft', 'pending_approval', 'partial_approved', 'approved', 'rejected', 'cancelled',
@@ -88,7 +89,7 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
       title={defaultStatus === 'pending_approval' ? ar.shipments.pending : ar.shipments.all}
       backTo="/shipments"
       actions={
-        <select
+        <SearchableSelect
           value={status}
           onChange={(e) => setStatus(e.target.value as ShipmentStatus | '')}
           className="h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
@@ -98,7 +99,7 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
               {s ? ar.shipments.status[s as ShipmentStatus] : ar.shipments.allStatuses}
             </option>
           ))}
-        </select>
+        </SearchableSelect>
       }
     >
       <TableFilterBar

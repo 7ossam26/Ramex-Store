@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { extractApiError } from '@/lib/api-error';
-import { useForm, useWatch } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { AlertTriangle, Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { isOwnerOrAbove } from '@/lib/roles';
@@ -18,6 +18,7 @@ import { TableSkeleton } from '@/components/TableSkeleton';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { matchesTokens, tokenize } from '@/lib/arabic-search';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 const REASONS: DamageReasonCode[] = [
   'damage_in_transit', 'damage_in_shop', 'damage_quality_defect',
@@ -98,20 +99,45 @@ export function DamagePage() {
             </div>
             <div className="space-y-1">
               <Label className="text-sm font-medium text-foreground">{ar.damage.reasonCode}</Label>
-              <select {...form.register('reason_code')} className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75">
-                {REASONS.map((r) => (
-                  <option key={r} value={r}>{ar.damage.reasons[r]}</option>
-                ))}
-              </select>
+              <Controller
+                control={form.control}
+                name="reason_code"
+                render={({ field }) => (
+                  <SearchableSelect
+                    ref={field.ref}
+                    name={field.name}
+                    value={field.value ?? ''}
+                    onChange={(e) => field.onChange(e.target.value)}
+                    className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
+                  >
+                    {REASONS.map((r) => (
+                      <option key={r} value={r}>{ar.damage.reasons[r]}</option>
+                    ))}
+                  </SearchableSelect>
+                )}
+              />
             </div>
             {!isLoss && (
               <div className="space-y-1">
                 <Label className="text-sm font-medium text-foreground">{ar.damage.disposition}</Label>
-                <select {...form.register('disposition', { required: !isLoss })} className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75">
-                  <option value="">—</option>
-                  <option value="damaged_stock">{ar.damage.dispositions.damaged_stock}</option>
-                  <option value="return_to_factory">{ar.damage.dispositions.return_to_factory}</option>
-                </select>
+                <Controller
+                  control={form.control}
+                  name="disposition"
+                  rules={{ required: !isLoss }}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      ref={field.ref}
+                      name={field.name}
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.value)}
+                      className="w-full h-10 rounded-md border border-border-default bg-surface-elevated px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors duration-75"
+                    >
+                      <option value="">—</option>
+                      <option value="damaged_stock">{ar.damage.dispositions.damaged_stock}</option>
+                      <option value="return_to_factory">{ar.damage.dispositions.return_to_factory}</option>
+                    </SearchableSelect>
+                  )}
+                />
               </div>
             )}
             <div className="space-y-1 col-span-2">

@@ -13,6 +13,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ResetPasswordDialog } from '../settings/ResetPasswordDialog';
 import { EditUserPermissionsDialog } from '../settings/EditUserPermissionsDialog';
 import { extractApiError } from '@/lib/api-error';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 const ROLE_OPTIONS = [
   { value: 'owner', label: 'مالك' },
@@ -189,7 +190,7 @@ export function SuperAdminUserDetailPage() {
             <div className="flex items-end gap-3">
               <div className="flex-1 space-y-1.5">
                 <Label className="text-sm text-foreground-muted">الدور</Label>
-                <select
+                <SearchableSelect
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
@@ -197,7 +198,7 @@ export function SuperAdminUserDetailPage() {
                   {ROLE_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
               <Button
                 type="button"

@@ -55,19 +55,23 @@ export function customerStatementExportUrl(
 export function customersListExportUrl(params: {
   search?: string;
   balance?: CustomerBalanceFilter;
+  searchPurchases?: boolean;
   format: StatementExportFormat;
 }): string {
   const token = localStorage.getItem('ramex_token') ?? '';
   const qp = new URLSearchParams({ format: params.format, token });
   if (params.search) qp.set('search', params.search);
   if (params.balance && params.balance !== 'all') qp.set('balance', params.balance);
+  if (params.search && params.searchPurchases) qp.set('search_purchases', '1');
   return `/api/customers/export?${qp.toString()}`;
 }
 
 export const customersApi = {
-  list: (params?: { search?: string; balance?: CustomerBalanceFilter; sort?: string; page?: number; limit?: number }) =>
+  list: (params?: { search?: string; balance?: CustomerBalanceFilter; search_purchases?: boolean; sort?: string; page?: number; limit?: number }) =>
     api
-      .get<{ rows: Customer[]; total: number }>('/customers', { params })
+      .get<{ rows: Customer[]; total: number }>('/customers', {
+        params: { ...params, search_purchases: params?.search_purchases ? '1' : undefined },
+      })
       .then((r) => r.data),
 
   get: (id: number, params?: { page?: number; limit?: number }) =>
