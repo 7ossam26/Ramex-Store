@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { ar } from '@/i18n/ar';
 import { PageHeader } from '@/components/PageHeader';
+import { usePermissions } from '@/lib/permissions';
 
 type ReportCard = {
   label: string;
@@ -101,12 +102,23 @@ function ReportCardLink({ card }: { card: ReportCard }) {
   );
 }
 
+/** The permission the server checks for a report page (mirrors reports.routes.ts). */
+function reportResource(href: string): string {
+  if (href === '/reports/general') return 'reports.general';
+  if (href === '/reports/daily') return 'reports.daily';
+  return `reports.${href.split('/').pop() ?? ''}`;
+}
+
 export function ReportsHubPage() {
+  const { canSee } = usePermissions();
+  const visibleSections = sections
+    .map((s) => ({ ...s, cards: s.cards.filter((c) => canSee(reportResource(c.href))) }))
+    .filter((s) => s.cards.length > 0);
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
       <PageHeader title={ar.hubs.reportsTitle} description={ar.hubs.reportsDescription} />
 
-      {sections.map((section, si) => (
+      {visibleSections.map((section, si) => (
         <section key={section.heading} className="space-y-3">
           <h2 className="text-sm font-semibold text-foreground-muted">{section.heading}</h2>
           <motion.div

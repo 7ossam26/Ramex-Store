@@ -19,7 +19,7 @@ export async function getBankReconciliation(
 ): Promise<ReconciliationRow[]> {
   const rows = await db('reconciliations as rec')
     .join('bank_accounts as ba', 'rec.bank_account_id', 'ba.id')
-    .join('users as u', 'rec.performed_by_user_id', 'u.id')
+    .leftJoin('users as u', 'rec.actor_user_id', 'u.id')
     .whereBetween('rec.created_at', [from, to])
     .orderBy('rec.created_at', 'desc')
     .select(
@@ -41,7 +41,7 @@ export async function getBankReconciliation(
     actual_balance_egp: Number(r['actual_balance_egp']).toFixed(2),
     variance_egp: Number(r['variance_egp']).toFixed(2),
     notes_ar: r['notes_ar'] as string | null,
-    performed_by: String(r['performed_by']),
+    performed_by: r['performed_by'] == null ? '—' : String(r['performed_by']),
   }));
 }
 

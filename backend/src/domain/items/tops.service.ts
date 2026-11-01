@@ -195,6 +195,11 @@ export async function splitTop(
     if (parent.status !== 'in_stock') {
       throw new TopSplitError('ROLL_NOT_SPLITTABLE', 'لا يمكن تقسيم توب غير موجود في المخزن');
     }
+    // Splitting changes the quantity of the exact top the shop picked in a stock request.
+    const reserved = await trx('stock_request_items').where({ roll_id: rollId }).whereIn('status', ['requested', 'packing']).first('id');
+    if (reserved) {
+      throw new TopSplitError('ROLL_RESERVED_FOR_REQUEST', 'لا يمكن تقسيم توب محجوز لطلب من المحل');
+    }
 
     const qtyField = fabric.unit === 'meter' ? 'length_m' : 'weight_kg';
     const current = Number(parent[qtyField]);

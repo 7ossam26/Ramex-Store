@@ -29,6 +29,11 @@ const ERR_MAP: Record<string, { status: number; message: string }> = {
   MISSING_FABRIC_PRICE: { status: 422, message: 'يجب إدخال سعر مرجعي لكل خامة مقبولة' },
   METER_ROLL_MISSING_LENGTH: { status: 422, message: 'اتواب بخامة (متر) بدون طول محدد — يرجى تحديث الطول أولاً' },
   ROLL_NOT_IN_TRANSIT: { status: 409, message: 'هذا التوب ليس «جاري الشحن» — لا يمكن استلامه أو رفضه' },
+  ROLL_NOT_IN_REQUEST: { status: 409, message: 'هذا التوب غير مطلوب في هذا الطلب — لا يمكن إضافته للشحنة' },
+  ROLL_ALREADY_SCANNED: { status: 409, message: 'تم مسح هذا التوب بالفعل في هذه الشحنة' },
+  ROLL_RESERVED_FOR_REQUEST: { status: 409, message: 'هذا التوب محجوز لطلب من المحل — لا يمكن إضافته لطلبية يدوية' },
+  REQUEST_SHIPMENT_INCONSISTENT: { status: 409, message: 'بيانات الشحنة لا تطابق بنود الطلب — يرجى إعادة تحميل الصفحة' },
+  SHIPMENT_MANUAL_CREATE_FORBIDDEN: { status: 403, message: 'إنشاء طلبية يدوية متاح للمالك فقط — جهّز طلبات المحل من صفحة «طلبات المحل»' },
   LINE_UNDO_NOT_ALLOWED: { status: 409, message: 'لا يمكن التراجع — تم التصرف في التوب بعد المراجعة (بيع أو نقل أو إضافة لطلبية أخرى)' },
 };
 
@@ -58,8 +63,15 @@ function actorId(req: Request): number {
   return Number(req.user!.sub);
 }
 
+// Shipments are now built from the shop's stock requests. Starting a MANUAL draft
+// (no request behind it) stays available to the owner / super admin as a fallback.
+const MANUAL_SHIPMENT_ROLES = new Set(['owner', 'super_admin']);
+
 export async function createDraft(req: Request, res: Response): Promise<void> {
   try {
+    if (!MANUAL_SHIPMENT_ROLES.has(req.user!.role)) {
+      throw new Error('SHIPMENT_MANUAL_CREATE_FORBIDDEN');
+    }
     const data = CreateShipmentDraftSchema.parse(req.body);
     const shipment = await svc.createDraft(actorId(req), data);
     res.status(201).json(shipment);

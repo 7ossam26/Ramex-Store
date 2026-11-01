@@ -41,6 +41,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     labelAr: 'المعلومات العامة',
     descAr: 'بيانات المحل: الشعار، العنوان، الهاتف، الرقم الضريبي ونص التحذير على الإيصال',
     icon: Info,
+    // GET/PATCH /api/settings are requireRole('super_admin') on the server.
+    visibleTo: ['super_admin'],
   },
   {
     id: 'usersPermissions',
@@ -54,6 +56,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     labelAr: 'أكواد الأسباب',
     descAr: 'تحرير أسباب التلف، فئات المصروفات وأسباب الإلغاء',
     icon: ClipboardList,
+    // stored in /api/settings (super_admin-only on the server)
+    visibleTo: ['super_admin'],
   },
   {
     id: 'fabricCodes',

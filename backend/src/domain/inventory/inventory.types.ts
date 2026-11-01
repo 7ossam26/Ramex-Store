@@ -17,6 +17,9 @@ export type Shipment = {
   notes_ar: string | null;
   created_at: Date;
   updated_at: Date;
+  /** Set only for a shipment that fulfils a shop stock request; NULL for every legacy / manual one. */
+  stock_request_id?: number | null;
+  request_no?: string | null;
   /** List endpoint only: received (accepted) / still-pending أتواب out of line_count. */
   line_count?: number;
   accepted_count?: number;

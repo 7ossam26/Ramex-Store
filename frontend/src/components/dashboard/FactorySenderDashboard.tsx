@@ -1,4 +1,4 @@
-import { PlusCircle, Send } from 'lucide-react';
+import { PlusCircle, ClipboardList } from 'lucide-react';
 import { HubLanding, type HubCard } from '@/components/Layout/HubLanding';
 
 const cards: HubCard[] = [
@@ -7,12 +7,14 @@ const cards: HubCard[] = [
     description: 'تسجيل توب جديد بكل بياناته وتوليد الباركود',
     href: '/items/tops/add',
     icon: PlusCircle,
+    permission: 'fabric_rolls',
   },
   {
-    label: 'إنشاء طلبية',
-    description: 'تسجيل طلبية مصنع جديدة وإضافة الاتواب إليها',
-    href: '/shipments/create',
-    icon: Send,
+    label: 'طلبات المحل',
+    description: 'تجهيز طلبات المحل بمسح الأتواب وإرسال الشحنات',
+    href: '/stock-requests',
+    icon: ClipboardList,
+    permission: 'stock_requests',
   },
 ];
 

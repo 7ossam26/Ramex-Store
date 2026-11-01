@@ -26,6 +26,8 @@ type ShipmentRow = {
   created_at: string;
   line_count?: number;
   accepted_count?: number;
+  stock_request_id?: number | null;
+  request_no?: string | null;
 };
 
 export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentStatus } = {}) {
@@ -77,6 +79,19 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
       key: 'status',
       header: 'الحالة',
       cell: (s) => <ShipmentStatusPill status={s.status} />,
+    },
+    {
+      key: 'request',
+      header: ar.stockRequests.requestNo,
+      hideOnMobile: true,
+      cell: (s) =>
+        s.stock_request_id ? (
+          <Link to={`/stock-requests/${s.stock_request_id}`} className="text-accent underline underline-offset-2 font-mono text-xs" dir="ltr">
+            {s.request_no}
+          </Link>
+        ) : (
+          <span className="text-xs text-foreground-muted">{ar.stockRequests.manualShipment}</span>
+        ),
     },
     {
       key: 'received',
@@ -154,7 +169,9 @@ export function ShipmentsListPage({ defaultStatus }: { defaultStatus?: ShipmentS
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => navigate(`/shipments/${s.id}/continue`)}
+                  onClick={() =>
+                    navigate(s.stock_request_id ? `/stock-requests/${s.stock_request_id}/prepare` : `/shipments/${s.id}/continue`)
+                  }
                   title={ar.shipments.continueDraft}
                   aria-label={ar.shipments.continueDraft}
                 >

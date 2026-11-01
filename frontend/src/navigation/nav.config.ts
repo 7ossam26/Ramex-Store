@@ -244,12 +244,40 @@ export const NAV: NavTop[] = [
       {
         items: [
           {
+            id: 'stockRequests.new',
+            labelAr: 'طلب أتواب من المصنع',
+            descAr: 'اختيار الأتواب المطلوبة من مخزن المصنع',
+            icon: Package,
+            route: '/stock-requests/new',
+            visibleTo: ['owner', 'shop_seller', 'super_admin'],
+            permission: 'stock_requests',
+          },
+          {
+            id: 'stockRequests.factory',
+            labelAr: 'طلبات المحل',
+            descAr: 'تجهيز وشحن طلبات المحل',
+            icon: ClipboardList,
+            route: '/stock-requests',
+            visibleTo: ['factory_sender'],
+            permission: 'stock_requests',
+          },
+          {
+            id: 'stockRequests.list',
+            labelAr: 'طلبات الأتواب',
+            descAr: 'متابعة الطلبات وما تم شحنه منها',
+            icon: ClipboardList,
+            route: '/stock-requests',
+            visibleTo: ['owner', 'shop_seller', 'super_admin', 'accountant'],
+            permission: 'stock_requests',
+          },
+          {
+            // Manual shipments (no request behind them): owner fallback only.
             id: 'shipments.create',
-            labelAr: 'إنشاء طلبية',
-            descAr: 'تسجيل طلبية مصنع جديدة',
+            labelAr: 'إنشاء طلبية يدوية',
+            descAr: 'طلبية مصنع بدون طلب من المحل (للمالك فقط)',
             icon: PlusCircle,
             route: '/shipments/create',
-            visibleTo: ['owner', 'factory_sender', 'super_admin'],
+            visibleTo: ['owner', 'super_admin'],
           },
           {
             id: 'shipments.pending',
@@ -323,6 +351,8 @@ export const NAV: NavTop[] = [
             icon: PieChart,
             route: '/treasury/overview',
             permission: 'cash_drawer',
+            // the overview API requires cash_drawer.approve — same roles as its hub card
+            visibleTo: ['owner', 'super_admin'],
           },
           {
             id: 'treasury.cash',
@@ -400,7 +430,7 @@ export const NAV: NavTop[] = [
             descAr: 'ملخص أداء المبيعات والمخزون',
             icon: LayoutDashboard,
             route: '/reports/general',
-            permission: 'reports.daily',
+            permission: 'reports.general',
           },
           {
             id: 'reports.daily',
@@ -428,14 +458,14 @@ export const NAV: NavTop[] = [
             labelAr: 'المخزون حسب المخزن',
             icon: Warehouse,
             route: '/reports/secondary/stockByWarehouse',
-            permission: 'reports.stocktakeInventory',
+            permission: 'reports.stockByWarehouse',
           },
           {
             id: 'reports.agingInventory',
             labelAr: 'الاتواب الراكدة',
             icon: Clock,
             route: '/reports/secondary/agingInventory',
-            permission: 'reports.stocktakeInventory',
+            permission: 'reports.agingInventory',
           },
           {
             id: 'reports.shipmentsSummary',

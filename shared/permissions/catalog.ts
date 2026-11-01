@@ -49,6 +49,8 @@ export const RESOURCE_GROUPS: ResourceGroup[] = [
       { key: 'accessories',  actions: ['read', 'write'],                    descriptionKey: 'accessories' },
       { key: 'inventory',    actions: ['read', 'write', 'approve'],         descriptionKey: 'inventory' },
       { key: 'shipments',    actions: ['read', 'write', 'approve'],         descriptionKey: 'shipments' },
+      { key: 'stock_requests', actions: ['read', 'write'],                  descriptionKey: 'stock_requests' },
+      { key: 'stock_request_fulfilment', actions: ['write'],                      descriptionKey: 'stock_request_fulfilment' },
       { key: 'cash_drawer',  actions: ['read', 'write', 'approve'],          descriptionKey: 'cash_drawer' },
       { key: 'cash_vault_transfer', actions: ['read', 'write', 'approve'],  descriptionKey: 'cash_vault_transfer' },
       { key: 'returns',      actions: ['read', 'write', 'approve'],         descriptionKey: 'returns' },
@@ -144,6 +146,9 @@ export const ROLE_DEFAULTS: RoleDefaultsMap = {
     { resource: 'shipments',    action: 'read',    is_allowed: true  },
     { resource: 'shipments',    action: 'write',   is_allowed: true  },
     { resource: 'shipments',    action: 'approve', is_allowed: true  },
+    { resource: 'stock_requests', action: 'read',  is_allowed: true  },
+    { resource: 'stock_requests', action: 'write', is_allowed: true  },
+    { resource: 'stock_request_fulfilment', action: 'write', is_allowed: true  },
     { resource: 'cash_drawer',  action: 'read',    is_allowed: true  },
     { resource: 'cash_drawer',  action: 'write',   is_allowed: true  },
     { resource: 'cash_drawer',  action: 'approve', is_allowed: true  },
@@ -205,6 +210,9 @@ export const ROLE_DEFAULTS: RoleDefaultsMap = {
     { resource: 'shipments',    action: 'read',    is_allowed: true  },
     { resource: 'shipments',    action: 'write',   is_allowed: false }, // factory creates shipments
     { resource: 'shipments',    action: 'approve', is_allowed: true  }, // receives factory shipments
+    { resource: 'stock_requests', action: 'read',  is_allowed: true  },
+    { resource: 'stock_requests', action: 'write', is_allowed: true  },
+    { resource: 'stock_request_fulfilment', action: 'write', is_allowed: false },
     { resource: 'cash_drawer',  action: 'read',    is_allowed: true  },
     { resource: 'cash_drawer',  action: 'write',   is_allowed: true  },
     { resource: 'cash_drawer',  action: 'approve', is_allowed: false },
@@ -266,6 +274,9 @@ export const ROLE_DEFAULTS: RoleDefaultsMap = {
     { resource: 'shipments',    action: 'read',    is_allowed: true  },
     { resource: 'shipments',    action: 'write',   is_allowed: true  }, // creates/submits shipments
     { resource: 'shipments',    action: 'approve', is_allowed: false }, // HARD_DENY also enforced in code
+    { resource: 'stock_requests', action: 'read',  is_allowed: true  },
+    { resource: 'stock_requests', action: 'write', is_allowed: false },
+    { resource: 'stock_request_fulfilment', action: 'write', is_allowed: true  },
     { resource: 'cash_drawer',  action: 'read',    is_allowed: false },
     { resource: 'cash_drawer',  action: 'write',   is_allowed: false },
     { resource: 'cash_drawer',  action: 'approve', is_allowed: false },
@@ -327,6 +338,9 @@ export const ROLE_DEFAULTS: RoleDefaultsMap = {
     { resource: 'shipments',    action: 'read',    is_allowed: true  },
     { resource: 'shipments',    action: 'write',   is_allowed: false },
     { resource: 'shipments',    action: 'approve', is_allowed: false },
+    { resource: 'stock_requests', action: 'read',  is_allowed: true  },
+    { resource: 'stock_requests', action: 'write', is_allowed: false },
+    { resource: 'stock_request_fulfilment', action: 'write', is_allowed: false },
     { resource: 'cash_drawer',  action: 'read',    is_allowed: true  },
     { resource: 'cash_drawer',  action: 'write',   is_allowed: false },
     { resource: 'cash_drawer',  action: 'approve', is_allowed: false },

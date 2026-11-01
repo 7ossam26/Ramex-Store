@@ -8,12 +8,14 @@ const cards: HubCard[] = [
     description: ar.hubs.invoicesDesc,
     href: '/invoices',
     icon: FileText,
+    permission: 'invoices',
   },
   {
     label: ar.returns.title,
     description: ar.hubs.returnsDesc,
     href: '/returns',
     icon: RotateCcw,
+    permission: 'returns',
   },
 ];
 

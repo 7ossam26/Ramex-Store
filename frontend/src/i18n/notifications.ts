@@ -7,6 +7,10 @@ export const eventTypeLabels: Record<string, string> = {
   theft_detected: 'سرقة / فقدان',
   shipment_arrived: 'طلبية جديدة',
   shipment_partial_reject: 'طلبية مرفوضة جزئياً',
+  stock_request_created: 'طلب أتواب جديد من المحل',
+  stock_request_items_added: 'إضافة أتواب / طلب بديل',
+  stock_request_cancelled: 'إلغاء طلب أتواب',
+  stock_request_item_unavailable: 'توب غير متوفر في المصنع',
   approval_needed: 'موافقة مطلوبة',
   return_processed: 'مرتجع / استبدال',
 };

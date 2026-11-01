@@ -22,7 +22,7 @@ export type ExpensesResult = {
 
 export async function getExpenses(from: string, to: string): Promise<ExpensesResult> {
   const rows = await db('expenses as e')
-    .join('users as u', 'e.created_by_user_id', 'u.id')
+    .leftJoin('users as u', 'e.actor_user_id', 'u.id')
     .whereBetween('e.created_at', [from, to])
     .orderBy('e.created_at', 'asc')
     .select(
@@ -31,7 +31,9 @@ export async function getExpenses(from: string, to: string): Promise<ExpensesRes
       'e.category',
       'e.amount_egp',
       'e.paid_from',
-      'e.status',
+      db.raw(`CASE WHEN e.approved_at IS NOT NULL THEN 'معتمد'
+                    WHEN e.requires_approval THEN 'بانتظار الموافقة'
+                    ELSE 'مسجّل' END AS status`),
       'e.notes_ar',
       'e.photo_path as photo_url',
       'u.username as created_by',
@@ -55,7 +57,7 @@ export async function getExpenses(from: string, to: string): Promise<ExpensesRes
       status: String(r['status']),
       notes_ar: r['notes_ar'] as string | null,
       photo_url: r['photo_url'] as string | null,
-      created_by: String(r['created_by']),
+      created_by: r['created_by'] == null ? '—' : String(r['created_by']),
     })),
     by_category: byCatRows.map((r: Record<string, unknown>) => ({
       category: String(r['category']),

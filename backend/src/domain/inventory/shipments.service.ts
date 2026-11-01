@@ -3,6 +3,7 @@ import { db } from '../../db/connection.js';
 import { nextShipmentNo } from './shipmentNumber.service.js';
 import { auditFromService } from './audit.helper.js';
 import { notify } from '../notifications/notificationsService.js';
+import { ACTIVE_ITEM_STATUSES, logItemEvent, recomputeRequestStatus } from '../stockRequests/requestStatus.js';
 import type {
   Shipment,
   ShipmentLine,
@@ -33,6 +34,81 @@ async function releaseRolls(trx: Knex.Transaction, rollIds: number[]): Promise<v
     .whereIn('id', rollIds)
     .where('status', 'in_transit')
     .update({ status: 'in_stock', updated_at: trx.fn.now() });
+}
+
+// ---------------------------------------------------------------------------
+// Stock-request integration. Everything below runs ONLY for a shipment whose
+// stock_request_id is set (never for a legacy / manual shipment), except the
+// two read-only reservation checks noted in addRoll and undoLines.
+// ---------------------------------------------------------------------------
+
+/** The request item that was packed on this line goes back to «requested». */
+async function unpackRequestItems(
+  trx: Knex.Transaction,
+  where: { shipment_line_id?: number; shipment_id?: number },
+  actorUserId: number,
+  note: string,
+): Promise<void> {
+  const items = await trx('stock_request_items').where(where).where({ status: 'packing' }).forNoKeyUpdate().select('id', 'request_id', 'shipment_id', 'shipment_line_id');
+  for (const it of items) {
+    await trx('stock_request_items').where({ id: it.id }).update({
+      status: 'requested', shipment_id: null, shipment_line_id: null, updated_at: trx.fn.now(),
+    });
+    await logItemEvent(trx, {
+      itemId: Number(it.id), requestId: Number(it.request_id), eventType: 'unpacked',
+      fromStatus: 'packing', toStatus: 'requested', actorUserId, noteAr: note,
+      shipmentId: Number(it.shipment_id), shipmentLineId: Number(it.shipment_line_id),
+    });
+  }
+}
+
+/** Submit of a request shipment: packing items become «dispatched». Returns the request number. */
+async function dispatchRequestItems(
+  trx: Knex.Transaction,
+  shipment: Shipment & { stock_request_id: number },
+  lineCount: number,
+  actorUserId: number,
+): Promise<string> {
+  const items = await trx('stock_request_items').where({ shipment_id: shipment.id }).orderBy('id').forNoKeyUpdate()
+    .select('id', 'status', 'shipment_line_id');
+  if (items.length !== lineCount || items.some((i) => i.status !== 'packing')) {
+    throw new Error('REQUEST_SHIPMENT_INCONSISTENT');
+  }
+  await trx('stock_request_items').where({ shipment_id: shipment.id }).update({ status: 'dispatched', updated_at: trx.fn.now() });
+  for (const it of items) {
+    await logItemEvent(trx, {
+      itemId: Number(it.id), requestId: Number(shipment.stock_request_id), eventType: 'dispatched',
+      fromStatus: 'packing', toStatus: 'dispatched', actorUserId,
+      shipmentId: Number(shipment.id), shipmentLineId: Number(it.shipment_line_id),
+    });
+  }
+  await auditFromService(trx, {
+    actorUserId, action: 'dispatch_request_items', entity: 'stock_request', entityId: shipment.stock_request_id,
+    after: { shipment_id: shipment.id, shipment_no: shipment.shipment_no, item_ids: items.map((i) => i.id) }, severity: 'medium',
+  });
+  await recomputeRequestStatus(trx, Number(shipment.stock_request_id));
+  const request = await trx('stock_requests').where({ id: shipment.stock_request_id }).first('request_no');
+  return request.request_no as string;
+}
+
+/** Item history + request status after the shop accepted / rejected / undid lines. */
+async function recordLinkedReview(
+  trx: Knex.Transaction,
+  requestId: number,
+  lineIds: number[],
+  action: 'accept' | 'reject' | 'reset',
+  reason: string | null,
+  actorUserId: number,
+): Promise<void> {
+  const items = await trx('stock_request_items').whereIn('shipment_line_id', lineIds).select('id', 'shipment_id', 'shipment_line_id');
+  const eventType = action === 'accept' ? 'line_accepted' : action === 'reject' ? 'line_rejected' : 'line_review_reset';
+  for (const it of items) {
+    await logItemEvent(trx, {
+      itemId: Number(it.id), requestId, eventType, fromStatus: 'dispatched', toStatus: 'dispatched', actorUserId,
+      noteAr: action === 'reject' ? reason : null, shipmentId: Number(it.shipment_id), shipmentLineId: Number(it.shipment_line_id),
+    });
+  }
+  await recomputeRequestStatus(trx, requestId);
 }
 
 type ReviewLineRow = ShipmentLine & {
@@ -106,7 +182,12 @@ async function undoLines(trx: Knex.Transaction, shipmentId: number, lines: Revie
       .where({ roll_id: line.roll_id })
       .orderBy('id', 'desc')
       .first('event_type', 'reference_type', 'reference_id');
+    // A rejected توب may meanwhile have been requested again (replacement / retry).
+    // Pulling it back «قيد الشحن» would put one توب in two places at once.
+    const reservedAgain = await trx('stock_request_items')
+      .where({ roll_id: line.roll_id }).whereIn('status', ACTIVE_ITEM_STATUSES).first('id');
     const untouched =
+      !reservedAgain &&
       line.warehouse === expectedWarehouse &&
       line.roll_status === 'in_stock' &&
       last?.event_type === expectedEvent &&
@@ -184,27 +265,40 @@ async function finalizeIfComplete(trx: Knex.Transaction, shipment: Shipment, act
   return updated as Shipment;
 }
 
-export async function createDraft(actorUserId: number, input: CreateShipmentDraftInput): Promise<Shipment> {
-  return db.transaction(async (trx) => {
-    const year = new Date().getFullYear();
-    const shipment_no = await nextShipmentNo(trx, year);
-    const [{ id }] = await trx('shipments').insert({
-      shipment_no,
-      created_by_user_id: actorUserId,
-      status: 'draft',
-      notes_ar: input.notes_ar ?? null,
-    }).returning('id');
-    const row = await trx('shipments').where({ id }).first();
-    await auditFromService(trx, {
-      actorUserId,
-      action: 'create_shipment_draft',
-      entity: 'shipment',
-      entityId: row.id,
-      after: { shipment_no, status: 'draft' },
-      severity: 'low',
-    });
-    return row as Shipment;
+/**
+ * Insert an empty draft طلبية inside the caller's transaction. Shared by the
+ * manual flow (createDraft) and the stock-request flow, which passes the
+ * request the draft is fulfilling. Behaviour for manual drafts is unchanged.
+ */
+export async function insertDraft(
+  trx: Knex.Transaction,
+  actorUserId: number,
+  notesAr: string | null | undefined,
+  stockRequestId: number | null = null,
+): Promise<Shipment> {
+  const year = new Date().getFullYear();
+  const shipment_no = await nextShipmentNo(trx, year);
+  const [{ id }] = await trx('shipments').insert({
+    shipment_no,
+    created_by_user_id: actorUserId,
+    status: 'draft',
+    notes_ar: notesAr ?? null,
+    ...(stockRequestId !== null ? { stock_request_id: stockRequestId } : {}),
+  }).returning('id');
+  const row = await trx('shipments').where({ id }).first();
+  await auditFromService(trx, {
+    actorUserId,
+    action: 'create_shipment_draft',
+    entity: 'shipment',
+    entityId: row.id,
+    after: { shipment_no, status: 'draft', ...(stockRequestId !== null ? { stock_request_id: stockRequestId } : {}) },
+    severity: 'low',
   });
+  return row as Shipment;
+}
+
+export async function createDraft(actorUserId: number, input: CreateShipmentDraftInput): Promise<Shipment> {
+  return db.transaction((trx) => insertDraft(trx, actorUserId, input.notes_ar));
 }
 
 export async function addRoll(
@@ -229,6 +323,27 @@ export async function addRoll(
     }
     const roll = await rollQuery.first();
     if (!roll) throw new Error('ROLL_NOT_FOUND');
+
+    // Stock-request guard. Lock order: roll (above) -> request item.
+    //  - request shipment: only a top the shop REQUESTED (and nobody has taken) may be scanned;
+    //  - manual shipment: a top reserved by a request may not be sent outside it.
+    let requestItem: { id: number; request_id: number } | undefined;
+    if (shipment.stock_request_id) {
+      requestItem = await trx('stock_request_items')
+        .where({ request_id: shipment.stock_request_id, roll_id: roll.id, status: 'requested' })
+        .forNoKeyUpdate()
+        .first('id', 'request_id');
+      if (!requestItem) {
+        const alreadyPacked = await trx('stock_request_items')
+          .where({ request_id: shipment.stock_request_id, roll_id: roll.id, shipment_id: shipmentId, status: 'packing' })
+          .first('id');
+        throw new Error(alreadyPacked ? 'ROLL_ALREADY_SCANNED' : 'ROLL_NOT_IN_REQUEST');
+      }
+    } else {
+      const reserved = await trx('stock_request_items').where({ roll_id: roll.id }).whereIn('status', ACTIVE_ITEM_STATUSES).first('id');
+      if (reserved) throw new Error('ROLL_RESERVED_FOR_REQUEST');
+    }
+
     if (roll.warehouse !== 'factory') throw new Error('ROLL_NOT_IN_FACTORY');
     if (roll.status !== 'in_stock') throw new Error('ROLL_NOT_AVAILABLE');
 
@@ -254,6 +369,20 @@ export async function addRoll(
       status: 'pending',
     }).returning('id');
     const line = await trx('shipment_lines').where({ id: lineId }).first();
+
+    if (requestItem) {
+      await trx('stock_request_items').where({ id: requestItem.id }).update({
+        status: 'packing', shipment_id: shipmentId, shipment_line_id: line.id, updated_at: trx.fn.now(),
+      });
+      await logItemEvent(trx, {
+        itemId: Number(requestItem.id), requestId: Number(requestItem.request_id), eventType: 'packed',
+        fromStatus: 'requested', toStatus: 'packing', actorUserId, shipmentId, shipmentLineId: Number(line.id),
+      });
+      await auditFromService(trx, {
+        actorUserId, action: 'pack_request_item', entity: 'stock_request_item', entityId: requestItem.id,
+        after: { shipment_id: shipmentId, line_id: line.id, roll_id: roll.id, internal_barcode: roll.internal_barcode }, severity: 'low',
+      });
+    }
 
     // Locked «قيد الشحن» from here until the shop reviews it.
     await trx('rolls').where({ id: roll.id }).update({ status: 'in_transit', updated_at: trx.fn.now() });
@@ -283,6 +412,9 @@ export async function removeLine(shipmentId: number, lineId: number, actorUserId
     const line = await trx('shipment_lines').where({ id: lineId, shipment_id: shipmentId }).first();
     if (!line) throw new Error('LINE_NOT_FOUND');
 
+    if (shipment.stock_request_id) {
+      await unpackRequestItems(trx, { shipment_line_id: lineId }, actorUserId, 'أُزيل من الشحنة');
+    }
     await trx('shipment_lines').where({ id: lineId }).delete();
     await releaseRolls(trx, [Number(line.roll_id)]);
 
@@ -306,6 +438,9 @@ export async function deleteDraft(shipmentId: number, actorUserId: number): Prom
     if (Number(shipment.created_by_user_id) !== actorUserId) throw new Error('SHIPMENT_FORBIDDEN');
 
     const lines = await trx('shipment_lines').where({ shipment_id: shipmentId });
+    if (shipment.stock_request_id) {
+      await unpackRequestItems(trx, { shipment_id: shipmentId }, actorUserId, 'حُذفت الشحنة المسودة');
+    }
     await trx('shipment_lines').where({ shipment_id: shipmentId }).delete();
     await trx('shipments').where({ id: shipmentId }).delete();
     await releaseRolls(trx, lines.map((l: { roll_id: number }) => Number(l.roll_id)));
@@ -347,6 +482,10 @@ export async function submit(shipmentId: number, actorUserId: number): Promise<S
       });
     }
 
+    const requestNo = shipment.stock_request_id
+      ? await dispatchRequestItems(trx, shipment as Shipment & { stock_request_id: number }, lines.length, actorUserId)
+      : null;
+
     const now = trx.fn.now();
     await trx('shipments').where({ id: shipmentId }).update({ status: 'pending_approval', submitted_at: now, updated_at: now });
     const updated = await trx('shipments').where({ id: shipmentId }).first();
@@ -366,8 +505,8 @@ export async function submit(shipmentId: number, actorUserId: number): Promise<S
       severity: 'medium',
       eventType: 'shipment_arrived',
       titleAr: 'طلبية جديدة للمراجعة',
-      bodyAr: `طلبية رقم ${updated.shipment_no} تحتوي على ${lines.length} توب في انتظار المراجعة`,
-      payload: { shipment_id: shipmentId, shipment_no: updated.shipment_no, line_count: lines.length },
+      bodyAr: `طلبية رقم ${updated.shipment_no}${requestNo ? ` (للطلب ${requestNo})` : ''} تحتوي على ${lines.length} توب في انتظار المراجعة`,
+      payload: { shipment_id: shipmentId, shipment_no: updated.shipment_no, line_count: lines.length, ...(requestNo ? { request_no: requestNo, stock_request_id: shipment.stock_request_id } : {}) },
     });
 
     return updated as Shipment;
@@ -468,6 +607,10 @@ export async function reviewLines(
     await trx('shipments').where({ id: shipmentId }).update({ updated_at: trx.fn.now() });
     await finalizeIfComplete(trx, shipment as Shipment, actorUserId);
 
+    if (shipment.stock_request_id) {
+      await recordLinkedReview(trx, Number(shipment.stock_request_id), targetIds, input.action, reason, actorUserId);
+    }
+
     return trx('shipment_lines').whereIn('id', targetIds).orderBy('id') as Promise<ShipmentLine[]>;
   });
 }
@@ -499,8 +642,10 @@ export async function acceptShipment(
 
 export async function listShipments(filters: ListShipmentsQueryInput): Promise<Shipment[]> {
   const q = db('shipments as s')
+    .leftJoin('stock_requests as sreq', 'sreq.id', 's.stock_request_id')
     .select(
       's.*',
+      'sreq.request_no',
       db.raw('(SELECT COUNT(*)::int FROM shipment_lines sl WHERE sl.shipment_id = s.id) AS line_count'),
       db.raw(`(SELECT COUNT(*)::int FROM shipment_lines sl WHERE sl.shipment_id = s.id AND sl.status = 'accepted') AS accepted_count`),
       db.raw(`(SELECT COUNT(*)::int FROM shipment_lines sl WHERE sl.shipment_id = s.id AND sl.status = 'pending') AS pending_count`),
@@ -512,7 +657,10 @@ export async function listShipments(filters: ListShipmentsQueryInput): Promise<S
 }
 
 export async function getShipment(id: number): Promise<ShipmentWithLines | undefined> {
-  const shipment = await db('shipments').where({ id }).first();
+  const shipment = await db('shipments as s')
+    .leftJoin('stock_requests as sreq', 'sreq.id', 's.stock_request_id')
+    .where('s.id', id)
+    .first('s.*', 'sreq.request_no');
   if (!shipment) return undefined;
   const lines = await db('shipment_lines as sl')
     .where('sl.shipment_id', id)
@@ -567,6 +715,11 @@ export async function listFactoryRolls(filters: ListFactoryRollsQueryInput): Pro
       );
     })
     .whereNull('sl.id')
+    .whereNotExists(function () {
+      this.select(db.raw('1')).from('stock_request_items as sri')
+        .whereRaw('sri.roll_id = r.id')
+        .whereIn('sri.status', ACTIVE_ITEM_STATUSES);
+    })
     .where('r.warehouse', 'factory')
     .where('r.status', 'in_stock')
     .select(

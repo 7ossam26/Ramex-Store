@@ -17,6 +17,7 @@ import { apiRouter } from './api/routes.js';
 import { startStaleInvoiceCron } from './domain/sales/staleInvoices.job.js';
 import { startArchiveCron } from './domain/notifications/archiveJob.js';
 import { startSalaryReminderCron } from './domain/hr/salaryReminder.job.js';
+import { warnIfMigrationsPending } from './db/pendingMigrations.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -55,6 +56,7 @@ if (process.env.NODE_ENV !== 'test') {
   });
 
   app.listen(env.PORT, () => logger.info({ port: env.PORT }, 'ramex-store server up'));
+  void warnIfMigrationsPending(); // read-only startup diagnostic, never migrates
   startStaleInvoiceCron();
   startArchiveCron();
   startSalaryReminderCron();

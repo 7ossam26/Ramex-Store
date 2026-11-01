@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { rollQtyLabel } from '@/lib/fabric-unit';
@@ -15,10 +15,15 @@ import { PageHeader } from '@/components/PageHeader';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ScannerInput } from '@/components/ScannerInput';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { ErrorBanner } from '@/components/ErrorBanner';
 
 export function CreateShipmentPage() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
+  // Starting a NEW manual shipment is owner-only (the server enforces it too). Drafts that
+  // already exist stay usable by whoever created them.
+  const canCreateManual = user?.role === 'owner' || user?.role === 'super_admin';
   const params = useParams<{ id?: string }>();
   const continueId = params.id ? Number(params.id) : null;
   const [shipment, setShipment] = useState<Shipment | null>(null);
@@ -28,6 +33,10 @@ export function CreateShipmentPage() {
   const [scanError, setScanError] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
   const initRef = useRef(false);
+  // Loading the page's starting point (resume a draft / offer to create one) can fail
+  // (network, session, server). It must end in an error state, never an endless spinner.
+  const [initError, setInitError] = useState<string | null>(null);
+  const [initAttempt, setInitAttempt] = useState(0);
 
   const [setupMode, setSetupMode] = useState(false);
 
@@ -37,8 +46,10 @@ export function CreateShipmentPage() {
 
   // 'all' — أتواب of an archived material may still sit in the factory and
   // need shipping to the shop.
-  const fabricsQ = useQuery({ queryKey: ['fabrics', 'all'], queryFn: () => inventoryApi.listFabrics('all') });
-  const colorsQ  = useQuery({ queryKey: ['colors'], queryFn: inventoryApi.listColors });
+  // Only the draft editor's roll picker uses these filters — don't fetch them for the
+  // setup / «owner only» screens (a factory user has no fabric_rolls.read in the stored matrix).
+  const fabricsQ = useQuery({ queryKey: ['fabrics', 'all'], queryFn: () => inventoryApi.listFabrics('all'), enabled: !!shipment });
+  const colorsQ  = useQuery({ queryKey: ['colors'], queryFn: inventoryApi.listColors, enabled: !!shipment });
 
   const factoryRollsQ = useQuery({
     queryKey: ['factory-rolls', fabricFilter, colorFilter, searchTerm],
@@ -121,26 +132,36 @@ export function CreateShipmentPage() {
     if (shipment || submittedNo) return;
     initRef.current = true;
     (async () => {
-      if (continueId !== null) {
-        const target = await inventoryApi.getShipment(continueId);
-        if (target && target.status === 'draft') {
-          setShipment(target);
-          return;
+      try {
+        if (continueId !== null) {
+          const target = await inventoryApi.getShipment(continueId);
+          if (target && target.status === 'draft') {
+            // A draft that fulfils a shop request is prepared on the request's own page.
+            if (target.stock_request_id) {
+              navigate(`/stock-requests/${target.stock_request_id}/prepare`, { replace: true });
+              return;
+            }
+            setShipment(target);
+            return;
+          }
         }
-      }
-      const drafts = await inventoryApi.listShipments({ status: 'draft' });
-      const userId = Number(user.id);
-      const mine = drafts
-        .filter((d) => Number(d.created_by_user_id) === userId)
-        .sort((a, b) => Number(b.id) - Number(a.id));
-      if (mine.length > 0) {
-        setShipment(mine[0]!);
-      } else {
-        setSetupMode(true);
+        const drafts = await inventoryApi.listShipments({ status: 'draft' });
+        const userId = Number(user.id);
+        const mine = drafts
+          .filter((d) => Number(d.created_by_user_id) === userId && !d.stock_request_id)
+          .sort((a, b) => Number(b.id) - Number(a.id));
+        if (mine.length > 0) {
+          setShipment(mine[0]!);
+        } else {
+          setSetupMode(true);
+        }
+      } catch (e) {
+        // stays initialised: only the retry button re-arms it, so a re-render never re-fires a failing request
+        setInitError(extractApiError(e));
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, continueId]);
+  }, [user, continueId, initAttempt]);
 
   const lines = useMemo(() => detailsQ.data?.lines ?? [], [detailsQ.data]);
   const alreadyAddedIds = useMemo(() => new Set(lines.map((l) => l.roll_id)), [lines]);
@@ -175,6 +196,23 @@ export function CreateShipmentPage() {
     );
   }
 
+  if (initError && !shipment) {
+    return (
+      <div className="max-w-md mx-auto space-y-4" dir="rtl">
+        <PageHeader title={ar.shipments.create} backTo="/shipments" />
+        <ErrorBanner
+          title="تعذر تحميل صفحة إنشاء الطلبية"
+          description={initError}
+          onRetry={() => {
+            initRef.current = false;
+            setInitError(null);
+            setInitAttempt((n) => n + 1);
+          }}
+        />
+      </div>
+    );
+  }
+
   if (setupMode && !shipment) {
     return (
       <div className="max-w-md mx-auto space-y-4" dir="rtl">
@@ -183,13 +221,23 @@ export function CreateShipmentPage() {
           <CardHeader>
             <CardTitle>إنشاء شحنة جديدة</CardTitle>
           </CardHeader>
-          <CardContent>
-            <Button
-              onClick={() => createDraft.mutate()}
-              disabled={createDraft.isPending}
-            >
-              {createDraft.isPending ? ar.loading : ar.shipments.create}
-            </Button>
+          <CardContent className="space-y-3">
+            {canCreateManual ? (
+              <Button
+                onClick={() => createDraft.mutate()}
+                disabled={createDraft.isPending}
+              >
+                {createDraft.isPending ? ar.loading : ar.shipments.create}
+              </Button>
+            ) : (
+              <>
+                <p className="text-sm text-foreground-muted">{ar.stockRequests.manualOwnerOnly}</p>
+                <Link to="/stock-requests" className="text-sm text-accent underline underline-offset-2">
+                  {ar.stockRequests.goToFactoryRequests}
+                </Link>
+              </>
+            )}
+            {createDraft.isError && <p className="text-sm text-danger">{extractApiError(createDraft.error)}</p>}
           </CardContent>
         </Card>
       </div>

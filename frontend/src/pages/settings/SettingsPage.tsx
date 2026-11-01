@@ -1851,13 +1851,26 @@ function SavedToast({ open, onDone }: { open: boolean; onDone: () => void }) {
 export function SettingsPage() {
   const { user } = useAuth();
   const isDesktop = useIsDesktop();
-  const [activeSection, setActiveSection] = useState<Section>('general');
+  // Open on the first section this user can see (owner has no access to «general»).
+  const [activeSection, setActiveSection] = useState<Section>(
+    () => (visibleSettingsSections(user?.role)[0]?.id ?? 'general') as Section,
+  );
   const [toastOpen, setToastOpen] = useState(false);
 
+  // Only «general» and «reasonCodes» read /api/settings (super_admin-only on the server).
+  const sectionNeedsSettings = activeSection === 'general' || activeSection === 'reasonCodes';
   const { data: settings, isLoading, error, refetch } = useQuery({
     queryKey: ['settings-all'],
     queryFn: settingsApi.getAll,
+    enabled: sectionNeedsSettings,
   });
+
+  useEffect(() => {
+    const visible = visibleSettingsSections(user?.role);
+    if (visible.length > 0 && !visible.some((s) => s.id === activeSection)) {
+      setActiveSection(visible[0]!.id as Section);
+    }
+  }, [user?.role, activeSection]);
 
   const qc = useQueryClient();
 
@@ -1884,24 +1897,26 @@ export function SettingsPage() {
   const sectionMeta = settingsSectionById(activeSection);
 
   function renderSection() {
-    if (isLoading) return <FormSkeleton />;
-    if (error || !settings) {
-      return (
-        <ErrorBanner
-          title={ar.common.error}
-          description={ar.common.error}
-          onRetry={() => refetch()}
-        />
-      );
+    if (sectionNeedsSettings) {
+      if (isLoading) return <FormSkeleton />;
+      if (error || !settings) {
+        return (
+          <ErrorBanner
+            title={ar.common.error}
+            description={error ? extractApiError(error) : ar.common.error}
+            onRetry={() => refetch()}
+          />
+        );
+      }
     }
     switch (activeSection) {
       case 'general':
-        return <GeneralSection settings={settings} onSave={handleSave} notifySaved={notifySaved} />;
+        return <GeneralSection settings={settings!} onSave={handleSave} notifySaved={notifySaved} />;
       case 'usersPermissions':
         if (!isSuperAdmin(user?.role)) return null;
         return <UsersPermissionsSection notifySaved={notifySaved} />;
       case 'reasonCodes':
-        return <ReasonCodesSection settings={settings} onSave={handleSave} notifySaved={notifySaved} />;
+        return <ReasonCodesSection settings={settings!} onSave={handleSave} notifySaved={notifySaved} />;
       case 'fabricCodes':
         return <FabricCodesSection notifySaved={notifySaved} />;
       case 'system':

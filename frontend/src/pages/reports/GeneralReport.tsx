@@ -13,6 +13,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ar } from '@/i18n/ar';
+import { ErrorBanner } from '@/components/ErrorBanner';
+import { extractApiError } from '@/lib/api-error';
 import { Skeleton } from '@/components/Skeleton';
 import { ReportTable } from './ReportShell';
 import { SecondaryReportChart } from './SecondaryReportChart';
@@ -186,7 +188,7 @@ export function GeneralReportPage() {
   const [committedFrom, setCommittedFrom] = useState(today);
   const [committedTo, setCommittedTo] = useState(today);
 
-  const { data, isLoading, isFetching } = useQuery<GeneralReport>({
+  const { data, isLoading, isFetching, isError, error, refetch } = useQuery<GeneralReport>({
     queryKey: ['report-general', committedFrom, committedTo],
     queryFn: () => reportsApi.getGeneral(committedFrom, committedTo),
   });
@@ -265,6 +267,8 @@ export function GeneralReportPage() {
       {/* Content */}
       {isLoading ? (
         <ReportSkeleton />
+      ) : isError ? (
+        <ErrorBanner title="تعذر تحميل التقرير" description={extractApiError(error)} onRetry={() => refetch()} />
       ) : data ? (
         <GeneralReportContent report={data} />
       ) : null}

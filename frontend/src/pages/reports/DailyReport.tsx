@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { ErrorBanner } from '@/components/ErrorBanner';
+import { extractApiError } from '@/lib/api-error';
 import { reportsApi, type DailyReport } from '@/lib/reports-api';
 import { ar } from '@/i18n/ar';
 import { ReportShell, ReportTable } from './ReportShell';
@@ -19,7 +21,7 @@ const fmt = (n: string | number) =>
 export function DailyReportPage() {
   const [date, setDate] = useState(today());
 
-  const { data, isLoading } = useQuery<DailyReport>({
+  const { data, isLoading, isError, error, refetch } = useQuery<DailyReport>({
     queryKey: ['report-daily', date],
     queryFn: () => reportsApi.getDaily(date),
   });
@@ -49,7 +51,11 @@ export function DailyReportPage() {
         </div>
       }
     >
-      {data && <DailyReportContent report={data} />}
+      {isError && !data ? (
+        <ErrorBanner title="تعذر تحميل التقرير" description={extractApiError(error)} onRetry={() => refetch()} />
+      ) : (
+        data && <DailyReportContent report={data} />
+      )}
     </ReportShell>
   );
 }

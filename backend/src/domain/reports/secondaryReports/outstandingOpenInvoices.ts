@@ -1,6 +1,7 @@
 import { db } from '../../../db/connection.js';
 import { formatCairo } from '../../../lib/datetime/cairo.js';
 import type { ReportPdfOptions } from '../../../lib/reports/pdfExport.js';
+import { getSetting } from '../../settings/settings.service.js';
 
 export type OutstandingInvoiceRow = {
   invoice_no: string;
@@ -17,6 +18,7 @@ export type OutstandingInvoiceRow = {
 
 export async function getOutstandingOpenInvoices(): Promise<OutstandingInvoiceRow[]> {
   const now = new Date();
+  const staleDays = await getSetting<number>(undefined, 'stale_invoice_days', 7);
 
   const rows = await db('invoices as i')
     .join('customers as c', 'i.customer_id', 'c.id')
@@ -29,7 +31,6 @@ export async function getOutstandingOpenInvoices(): Promise<OutstandingInvoiceRo
       'i.total_egp',
       'i.paid_egp as deposit_paid_egp',
       'i.balance_egp',
-      'i.is_stale',
       'c.name_ar as customer_name_ar',
       'c.phone as customer_phone',
     );
@@ -47,7 +48,7 @@ export async function getOutstandingOpenInvoices(): Promise<OutstandingInvoiceRo
       total_egp: Number(r['total_egp']).toFixed(2),
       deposit_paid_egp: Number(r['deposit_paid_egp']).toFixed(2),
       balance_egp: Number(r['balance_egp']).toFixed(2),
-      is_stale: Boolean(r['is_stale']),
+      is_stale: ageDays >= staleDays,
     };
   });
 }

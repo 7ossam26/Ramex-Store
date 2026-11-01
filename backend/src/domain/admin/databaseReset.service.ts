@@ -38,7 +38,10 @@ const WIPE_TABLES = [
   'damage_events',
   'stocktake_lines',
   'stocktakes',
-  // inventory movements + shipments
+  // inventory movements + shipments (stock requests reference both, so they go first)
+  'stock_request_item_events',
+  'stock_request_items',
+  'stock_requests',
   'stock_movements',
   'shipment_lines',
   'shipments',
@@ -76,7 +79,7 @@ const WIPE_TABLES = [
 ] as const;
 
 // Year-based counter tables — truncating restarts numbering (INV-YYYY-000001 …).
-const SEQUENCE_TABLES = ['invoice_sequence', 'shipment_sequence', 'return_sequence'] as const;
+const SEQUENCE_TABLES = ['invoice_sequence', 'shipment_sequence', 'stock_request_sequence', 'return_sequence'] as const;
 
 export type ResetResult = { wipedTables: number };
 

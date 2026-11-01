@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ar } from '@/i18n/ar';
 import { inventoryApi } from '@/lib/inventory-api';
@@ -13,6 +13,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FilterChip } from '@/components/FilterChip';
 import { ShipmentStatusPill } from '@/components/shipments/ShipmentStatusPill';
 import { StatusPill, type StatusTone } from '@/components/StatusPill';
+import { ErrorBanner } from '@/components/ErrorBanner';
 import type { ShipmentLineDetail } from '@/lib/inventory-types';
 
 const LINE_STATUS_TONE: Record<string, StatusTone> = {
@@ -103,6 +104,18 @@ export function ReviewShipmentPage({ readOnly = false }: { readOnly?: boolean })
     onError: (e) => setError(extractApiError(e)),
   });
 
+  if (q.isError && !q.data) {
+    return (
+      <div className="space-y-4 max-w-5xl mx-auto" dir="rtl">
+        <PageHeader title={ar.shipments.title} backTo="/shipments" />
+        <ErrorBanner
+          title="تعذر تحميل الطلبية"
+          description={extractApiError(q.error)}
+          onRetry={() => q.refetch()}
+        />
+      </div>
+    );
+  }
   if (!q.data || permsLoading) return <div>{ar.loading}</div>;
   const shipment = q.data;
   // The طلبية closes itself once no توب is pending — only pending_approval can be reviewed.
@@ -166,7 +179,20 @@ export function ReviewShipmentPage({ readOnly = false }: { readOnly?: boolean })
       <PageHeader
         title={shipment.shipment_no}
         backTo="/shipments"
-        actions={<ShipmentStatusPill status={shipment.status} />}
+        actions={
+          <div className="flex items-center gap-2">
+            {shipment.stock_request_id && (
+              <Link
+                to={`/stock-requests/${shipment.stock_request_id}`}
+                className="text-xs text-accent underline underline-offset-2"
+                dir="ltr"
+              >
+                {ar.stockRequests.linkedRequest.replace('{no}', shipment.request_no ?? '')}
+              </Link>
+            )}
+            <ShipmentStatusPill status={shipment.status} />
+          </div>
+        }
       />
 
       {error && (

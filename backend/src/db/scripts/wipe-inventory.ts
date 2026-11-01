@@ -26,6 +26,10 @@ async function main(): Promise<void> {
     'damage_events',
     'stocktake_lines',
     'stocktakes',
+    // stock requests (reference shipments + rolls)
+    'stock_request_item_events',
+    'stock_request_items',
+    'stock_requests',
     // movements + shipments
     'stock_movements',
     'shipment_lines',

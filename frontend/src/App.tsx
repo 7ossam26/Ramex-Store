@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ReactNode } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { usePermissions } from '@/lib/permissions';
+import type { PermAction } from '@/lib/permissions-config';
 import { useNavigationTracker } from '@/lib/navigation-history';
 import { LoginPage } from './pages/Login';
 import { HomePage } from './pages/Home';
@@ -14,6 +15,10 @@ import { CreateShipmentPage } from './pages/shipments/CreateShipment';
 import { ShipmentsListPage } from './pages/shipments/ShipmentsList';
 import { ReviewShipmentPage } from './pages/shipments/ReviewShipment';
 import { ShipmentsHubPage } from './pages/shipments/ShipmentsHub';
+import { StockRequestsListPage } from './pages/stockRequests/StockRequestsList';
+import { NewStockRequestPage } from './pages/stockRequests/NewStockRequest';
+import { StockRequestDetailPage } from './pages/stockRequests/StockRequestDetail';
+import { PrepareStockRequestPage } from './pages/stockRequests/PrepareStockRequest';
 import { FabricsPage } from './pages/inventory/Fabrics';
 import { StockViewPage } from './pages/inventory/StockView';
 import { StockMovementsPage } from './pages/inventory/StockMovements';
@@ -72,12 +77,19 @@ const SecondaryReportPage = lazy(() =>
 
 /** Redirects to "/no-access" if the user doesn't have any read-level access to the given
  *  resource. Uses canSee so resources whose read-equivalent action is `view`
- *  (hr, suppliers) are still admitted. */
-function PermGate({ resource, children }: { resource: string; children: ReactNode }) {
-  const { canSee, loading } = usePermissions();
+ *  (hr, suppliers) are still admitted. Pass `action` when the page is useless without
+ *  a stronger right than read (it must match what the page's API requires). */
+function PermGate({ resource, action, children }: { resource: string; action?: PermAction; children: ReactNode }) {
+  const { can, canSee, loading } = usePermissions();
   if (loading) return null;
-  if (!canSee(resource)) return <Navigate to="/no-access" replace />;
+  if (!(action ? can(resource, action) : canSee(resource))) return <Navigate to="/no-access" replace />;
   return <>{children}</>;
+}
+
+/** Each secondary report is guarded on the server by `reports.<reportKey>`. */
+function SecondaryReportGate({ children }: { children: ReactNode }) {
+  const { reportKey } = useParams<{ reportKey: string }>();
+  return <PermGate resource={`reports.${reportKey ?? ''}`}>{children}</PermGate>;
 }
 
 function RouteFallback() {
@@ -99,7 +111,9 @@ export function App() {
         path="/invoices/:id/draft"
         element={
           <ProtectedRoute>
-            <DraftInvoicePrintPage />
+            <PermGate resource="invoices">
+              <DraftInvoicePrintPage />
+            </PermGate>
           </ProtectedRoute>
         }
       />
@@ -182,6 +196,10 @@ export function App() {
                 <Route path="/inventory/damage" element={<PermGate resource="inventory"><DamagePage /></PermGate>} />
 
                 <Route path="/shipments" element={<PermGate resource="shipments"><ShipmentsHubPage /></PermGate>} />
+                <Route path="/stock-requests" element={<PermGate resource="stock_requests"><StockRequestsListPage /></PermGate>} />
+                <Route path="/stock-requests/new" element={<PermGate resource="stock_requests" action="write"><NewStockRequestPage /></PermGate>} />
+                <Route path="/stock-requests/:id/prepare" element={<PermGate resource="stock_request_fulfilment" action="write"><PrepareStockRequestPage /></PermGate>} />
+                <Route path="/stock-requests/:id" element={<PermGate resource="stock_requests"><StockRequestDetailPage /></PermGate>} />
                 <Route path="/shipments/all" element={<PermGate resource="shipments"><ShipmentsListPage /></PermGate>} />
                 <Route path="/shipments/create" element={<PermGate resource="shipments"><CreateShipmentPage /></PermGate>} />
                 <Route
@@ -205,7 +223,7 @@ export function App() {
                 <Route path="/cheques" element={<PermGate resource="invoices"><ChequesPage /></PermGate>} />
 
                 <Route path="/treasury" element={<TreasuryHubPage />} />
-                <Route path="/treasury/overview" element={<PermGate resource="cash_drawer"><TreasuriesOverviewPage /></PermGate>} />
+                <Route path="/treasury/overview" element={<PermGate resource="cash_drawer" action="approve"><TreasuriesOverviewPage /></PermGate>} />
                 <Route path="/treasury/suppliers" element={<PermGate resource="suppliers"><SuppliersPage /></PermGate>} />
                 <Route path="/cash" element={<PermGate resource="cash_drawer"><CashDrawerPage /></PermGate>} />
                 <Route path="/banks" element={<PermGate resource="cash_drawer"><BanksPage /></PermGate>} />
@@ -217,9 +235,9 @@ export function App() {
                 <Route path="/notifications" element={<NotificationsPage />} />
 
                 <Route path="/reports" element={<PermGate resource="reports.daily"><ReportsHubPage /></PermGate>} />
-                <Route path="/reports/general" element={<PermGate resource="reports.daily"><GeneralReportPage /></PermGate>} />
+                <Route path="/reports/general" element={<PermGate resource="reports.general"><GeneralReportPage /></PermGate>} />
                 <Route path="/reports/daily" element={<PermGate resource="reports.daily"><DailyReportPage /></PermGate>} />
-                <Route path="/reports/secondary/:reportKey" element={<PermGate resource="reports.daily"><SecondaryReportPage /></PermGate>} />
+                <Route path="/reports/secondary/:reportKey" element={<SecondaryReportGate><SecondaryReportPage /></SecondaryReportGate>} />
 
                 <Route path="/hr" element={<PermGate resource="hr"><EmployeesPage /></PermGate>} />
                 <Route path="/hr/employees" element={<PermGate resource="hr"><EmployeesPage /></PermGate>} />
