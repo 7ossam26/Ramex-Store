@@ -21,9 +21,10 @@ export function CreateShipmentPage() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const navigate = useNavigate();
-  // Starting a NEW manual shipment is owner-only (the server enforces it too). Drafts that
-  // already exist stay usable by whoever created them.
-  const canCreateManual = user?.role === 'owner' || user?.role === 'super_admin';
+  // Starting a NEW manual shipment is owner / factory only (the server enforces it too). Drafts
+  // that already exist stay usable by whoever created them.
+  const canCreateManual =
+    user?.role === 'owner' || user?.role === 'factory_sender' || user?.role === 'super_admin';
   const params = useParams<{ id?: string }>();
   const continueId = params.id ? Number(params.id) : null;
   const [shipment, setShipment] = useState<Shipment | null>(null);

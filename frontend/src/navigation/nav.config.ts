@@ -271,13 +271,13 @@ export const NAV: NavTop[] = [
             permission: 'stock_requests',
           },
           {
-            // Manual shipments (no request behind them): owner fallback only.
+            // Manual shipments (no request behind them): owner / factory fallback only.
             id: 'shipments.create',
             labelAr: 'إنشاء طلبية يدوية',
-            descAr: 'طلبية مصنع بدون طلب من المحل (للمالك فقط)',
+            descAr: 'طلبية مصنع بدون طلب من المحل',
             icon: PlusCircle,
             route: '/shipments/create',
-            visibleTo: ['owner', 'super_admin'],
+            visibleTo: ['owner', 'factory_sender', 'super_admin'],
           },
           {
             id: 'shipments.pending',

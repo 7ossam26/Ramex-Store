@@ -30,12 +30,12 @@ const cards: HubCard[] = [
     permission: 'stock_requests',
   },
   {
-    // Manual shipment without a shop request: owner fallback only.
+    // Manual shipment without a shop request: owner / factory fallback only.
     label: 'إنشاء طلبية يدوية',
-    description: 'طلبية مصنع بدون طلب من المحل (للمالك فقط)',
+    description: 'طلبية مصنع بدون طلب من المحل',
     href: '/shipments/create',
     icon: PlusCircle,
-    visibleTo: ['owner', 'super_admin'],
+    visibleTo: ['owner', 'factory_sender', 'super_admin'],
   },
   {
     label: ar.shipments.pending,

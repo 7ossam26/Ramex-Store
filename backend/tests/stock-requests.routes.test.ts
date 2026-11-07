@@ -159,11 +159,15 @@ describe.skipIf(!RUN_DB).sequential('stock requests — HTTP permissions & contr
     expect((await request(app).get('/api/stock-requests/summary').set(factory())).status).toBe(200);
   });
 
-  it('manual shipments: only the owner can still start one; the factory keeps working on drafts it already has', async () => {
-    expect((await request(app).post('/api/shipments').set(factory()).send({})).status).toBe(403);
-    const refused = await request(app).post('/api/shipments').set(factory()).send({});
+  it('manual shipments: only the owner and the factory can start one; the factory keeps working on drafts it already has', async () => {
+    const refused = await request(app).post('/api/shipments').set(shop()).send({});
+    expect(refused.status).toBe(403);
     expect(refused.body.error).toBe('SHIPMENT_MANUAL_CREATE_FORBIDDEN');
-    expect((await request(app).post('/api/shipments').set(shop()).send({})).status).toBe(403);
+
+    // the factory may start a manual one
+    const factoryDraft = await request(app).post('/api/shipments').set(factory()).send({});
+    expect(factoryDraft.status).toBe(201);
+    expect(factoryDraft.body.stock_request_id ?? null).toBeNull();
 
     // a draft that EXISTED before this feature (created by the factory user) is still fully usable
     const [roll] = await makeRolls(1);

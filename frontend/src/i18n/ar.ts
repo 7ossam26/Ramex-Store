@@ -300,7 +300,7 @@ export const ar = {
     scanned: 'تم المسح',
     linkedRequest: 'طلب {no}',
     manualShipment: 'يدوية',
-    manualOwnerOnly: 'إنشاء طلبية يدوية متاح للمالك فقط. جهّز طلبات المحل من صفحة «طلبات المحل».',
+    manualOwnerOnly: 'إنشاء طلبية يدوية متاح للمالك والمصنع فقط.جهّز طلبات المحل من صفحة «طلبات المحل».',
     goToFactoryRequests: 'الذهاب إلى طلبات المحل',
     events: {
       requested: 'تم الطلب',
